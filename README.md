@@ -2,6 +2,12 @@
 
 > Quantum simulation in a browser tab.
 
+[![CI](https://github.com/abgnydn/webgpu-q/actions/workflows/ci.yml/badge.svg)](https://github.com/abgnydn/webgpu-q/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Live demo](https://img.shields.io/badge/live-webgpu--q.vercel.app-6ea8ff)](https://webgpu-q.vercel.app)
+[![ITensor-validated](https://img.shields.io/badge/ITensor-cross--checked-b0ffd0)](./tools/itensor-reference.jl)
+[![Tests](https://img.shields.io/badge/tests-160%20%E2%9C%93-82c98b)](./tests)
+
 A WebGPU quantum many-body playground — statevector, matrix product states,
 kernel fusion, quantum chemistry, and real-time phase-transition / quench
 dynamics — running on a research-grade harness with reproducible JSON
@@ -10,9 +16,18 @@ artifacts and external validation against ITensor and PySCF.
 **Live:** [webgpu-q.vercel.app](https://webgpu-q.vercel.app) — no install, no
 Linux, no Python. Open a tab.
 
-```
-160 unit tests · 11 e2e specs · ITensor cross-checked · MIT
-```
+<p align="center">
+  <a href="https://webgpu-q.vercel.app/viz.html">
+    <img src="public/screenshots/hyperscope.png" alt="Hyperscope: H₂ density + conditional pair density + MPS bond network" width="100%" />
+  </a>
+</p>
+<p align="center">
+  <em>The hyperscope: H₂ electron density (left), conditional pair density with draggable cursor (right), and a live MPS bond-network with TFIM phase-transition / quench-dynamics modes (bottom).</em>
+</p>
+
+| <a href="https://webgpu-q.vercel.app/"><img src="public/screenshots/landing.png" alt="Landing" width="100%"/></a> | <a href="https://webgpu-q.vercel.app/experiments/"><img src="public/screenshots/experiments.png" alt="Experiments dashboard" width="100%"/></a> |
+| :---: | :---: |
+| **Landing** — six-level ladder | **Experiments dashboard** — E1–E16 |
 
 ---
 
