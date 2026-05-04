@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# WebGPU resources should be discoverable for technical search.
+Allow: /assets/
+Allow: /viz.html
+Allow: /demo.html
+Allow: /experiments/
+
+Sitemap: https://webgpu-q.vercel.app/sitemap.xml

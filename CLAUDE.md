@@ -1,0 +1,490 @@
+# webgpu-q — CLAUDE.md
+
+Project-local instructions for Claude. Load this first.
+
+---
+
+## One-paragraph read
+
+WebGPU quantum circuit simulator. Runs in a browser tab. Target: piece one of
+a six-level research ladder — statevector → MPS → kernel fusion → WebRTC
+swarm → IBM hardware cross-verify → quantum chemistry. Each level is a set
+of **research-grade experiments** (not just benchmarks): named seed, warmup,
+trials, fidelity pass bar, honest negative results. The master doc is
+`RESEARCH.md`. Per-level protocols live under
+`experiments/level-N-<slug>/protocol.md`.
+
+**Communication mode: hero.** Terse, bold, first-principles, attempt-first.
+Scope-honest. See `~/.claude/skills/hero/SKILL.md`.
+**Project skill: `webgpu-q-research`.** See `~/.claude/skills/webgpu-q-research/SKILL.md`.
+
+---
+
+## Current state of play (as of 2026-05-01)
+
+### What's green
+
+- `npm run test` → **122 / 122** — adds many-body suite (Hamiltonian
+  invariants 6, ITensor reference 7, imaginary-time ground-state 3) on
+  top of the chemistry + fusion + MPS unit tests already in place.
+- `npx tsc --noEmit` → **clean**.
+- `npm run lint` → **clean**.
+- `npx playwright test` → **4 / 4 specs pass, ~1.4 min total** on M2 Pro
+  (Chromium → Apple Metal-3). JSON artifacts auto-saved to
+  `experiments/results/YYYY-MM-DD/level-N/`.
+- Level 1 (statevector): **E1–E4 shipped + e2e**.
+  - E1 gate fidelity vs CPU reference (worst F=0.999999116).
+  - E2 bandwidth roofline (`apple metal-3` now in the lookup at 200 GB/s
+    estimate; remaining noisy=true is timing variance, override exact
+    peak via `?peak=N` URL param when needed).
+  - E3 runtime scaling slope ≈ 1.0 (most recent fit: 0.988–1.040).
+  - E4 dispatch-overhead α ≈ 22 μs, β ≈ 0.08 ns/amp.
+- Level 2 (MPS): **E5–E7 shipped + e2e**.
+  - E5 correctness: 180 / 180 cells pass after a Jacobi SVD stability fix
+    (see "Hardened SVD" below).
+  - E6 qubit ceiling: timing-noisy across N — environmental, not a bug.
+  - E7 χ-scaling: published with status="fail" — this is an HONEST
+    NEGATIVE RESULT, not a bug. The protocol expected slope ≈ 1, but at
+    N = 16 entanglement entropy saturates around depth 4 (S ≤ N/2 bound),
+    so log₂(χ_required) plateaus and the fit slope drops to 0.45. Re-running
+    at larger N (≥ 24) would put more depths in the linear regime; that's
+    the next paper-worthy follow-up, not a fix to ship.
+- Level 3 (fusion): **E8–E11 shipped + e2e**. Both tiers of fusion live.
+  - E8 correctness: 360 / 360 cells (worst F=0.999998).
+  - E9 dispatch collapse: α_eff drops 38 μs (k=1) → 11 μs (k=64), 3.4× ratio.
+  - E10 throughput (same-qubit chain fusion): best speedup 2.5× at
+    N=20 D=160, fused peak ≈ 900 GB/s.
+  - E11 brick-wall layer fusion (the real "kernel fusion" thesis):
+    `(single_q ⊗ single_{q+1}) · CNOT(q, q+1)` fuses into one dense
+    4×4 dispatch via `src/shaders/two-qubit-dense.wgsl` + the new
+    `applyDense4x4` method on QuantumCircuit. **Best speedup 2.69×
+    at N=20 D=80**, ≥ 2× on every cell from N=12 D=80 upwards;
+    worst fidelity ≥ 1−1e-5 (f32 noise floor). Math verified by
+    `tests/two-qubit-dense.test.ts` (fused 4×4 matches the 3-step
+    sequence to FP precision).
+  - Default `chainK` is **32** (was FUSED_CHAIN_MAX_K=64 — the protocol's
+    default depth=40 violated the `depth ≥ chainK` preflight). Pass
+    `chainK: 64` to opts when running the deeper sweep.
+- Level 6 (chemistry): **E16 shipped, full dissociation curve + e2e**.
+  - **Molecular integrals from scratch** (`src/chemistry/integrals.ts`,
+    `src/chemistry/h2-builder.ts`): STO-3G H 1s contracted Gaussians,
+    Boys F₀ + closed-form s-shell overlap / kinetic / nuclear-attraction /
+    4-center ERIs. Symmetry MOs (σ_g / σ_u) → 16×16 dense H built by
+    direct enumeration over the 16 occupation-number basis states with
+    Jordan-Wigner sign bookkeeping. No Pauli decomposition needed for
+    VQE — expectation = ψ†Hψ on the dense matrix.
+  - At R = 0.7414 Å: integral-derived FCI = **−1.13727008 Ha** — matches
+    canonical PySCF literature (−1.137270) to 7 decimals. The earlier
+    OpenFermion-published Pauli table in `src/chemistry/h2.ts` is now
+    just a cross-check; it differs by 2 mHa (FP rounding in the
+    published coefficients, not a code bug).
+  - **Full dissociation curve sweep**: 5 R-values × 10 random-init
+    trials = 50 VQE optimizations. Hit-rate **50/50 within chemical
+    accuracy**.
+
+    | R (Å) | E_FCI (Ha) | median \|ΔE\| | max \|ΔE\| |
+    |-------|-----------:|--------------:|-----------:|
+    | 0.5    | −1.05516   | 0.000 mHa     | 0.000 mHa  |
+    | 0.7414 | −1.13727   | 0.000 mHa     | 0.000 mHa  |
+    | 1.0    | −1.10115   | 0.000 mHa     | 0.000 mHa  |
+    | 1.5    | −0.99815   | 0.000 mHa     | 0.000 mHa  |
+    | 2.5    | −0.93606   | 0.000 mHa     | 0.001 mHa  |
+
+  - VQE config: HEA L=4 (20 params), Nelder-Mead 8000 max-iter,
+    initial-state preparation = X gates on qubits 0, 1 — so the optimizer
+    starts at the |HF⟩ closed-shell determinant. Without HF prep, HEA
+    wanders out of N_e = 2 at long R and traps at unphysical minima
+    100+ mHa above FCI. With it, every trial reaches FCI to FP precision.
+
+### Hardened SVD (2026-05-01)
+
+`src/linalg.ts → jacobiSweepPair` got three guards after the e2e suite
+surfaced a deterministic V8-Chromium-only zero-norm bug at brick-depth-4
+N=8 trial=3 (passed in node, failed in browser):
+
+1. **Absolute-mag floor**: `mag ≤ tol · sqrt(max(‖p‖, ‖q‖))` skips
+   rotations where the cross overlap is at FP noise relative to column
+   norms — prevents 45° mixing of two near-zero columns from cancelling.
+2. **NaN / Inf guards** on `(zr, zi)` and `(cj, sj)` — corrupting A or V
+   with non-finite values is far worse than skipping a single rotation.
+3. **Strict zero check** uses `!(app > 0)` so a NaN column norm bails
+   the same way as a zero one (NaN > 0 is false; old `=== 0` missed it).
+
+### Live deployment
+
+The whole project is shipped at **https://webgpu-q.vercel.app**:
+
+- `/` — landing page
+- `/viz.html` — 4D hyperscope (chemistry density + pair density + spin chain + phase-transition sweep + quench light cone)
+- `/experiments/` — research dashboard (E1–E16)
+
+Vercel build via `npm run build` → `dist/`. Headers add COOP/COEP for SharedArrayBuffer-safe contexts. Redeploy: `vercel deploy --prod --scope ahmet-bar-gnaydns-projects`.
+
+### Tier-1 + Tier-2 viz extensions (2026-05-01, even later)
+
+- **Per-site Bloch arrows** in the bond-network panel: each site is a circle whose color encodes |⟨σ⟩| and contains an arrow showing the projection of (⟨σ_x⟩, ⟨σ_z⟩). Visible "all up" vs "all sideways" depending on TFIM phase.
+- **Order-parameter sweep** auto-runs h ∈ [0, 2] with 25 points, plots |m_z| (orange) and S/S_max (cyan) vs h on a small SVG line chart in the controls column. h_c = 1 marker. The textbook QPT curve, generated live in your tab.
+- **Quench-dynamics mode**: `recordTFIMQuench` evolves a product state under exp(-iτH), snapshots every Trotter step, and the bottom panel becomes a **sites × time light-cone heatmap**. Color = bond entropy. Lieb-Robinson cone visible as the heated triangle.
+- **H_n linear chain chemistry** (`src/chemistry/hn-builder.ts`): generalizes H₂ integrals to n equally-spaced H atoms with Löwdin orthogonalization (S^{-1/2}) and full 4-index AO→OAO transform. Builds 2^(2n)-dim dense Hamiltonian. H_2 cross-checks the dedicated H₂ builder to 1e-8; H_3 (6 qubits) and H_4 (8 qubits) compute and stretch sensibly.
+
+### Deferred (deliberately, with reasons)
+
+- **Full two-site DMRG with Krylov local solver** — imag-time MPS already validates against ITensor to ≤ 5 mHa, so DMRG is purely an engineering / speed upgrade, not a correctness one. ~1-2 weeks to port from ITensor.
+- **L4 swarm (WebRTC)** — protocol only. Two-process; needs a dedicated session.
+- **L5 hardware (IBM)** — protocol only. Needs IBM Quantum token.
+- **L6 E17 cross-sections** — needs G4EMLOW 8.8 tables from `webgpu-dna`.
+- **L3 Tier C wider-window fusion** — 3-/4-qubit tile fusion.
+
+### Many-body / DMRG-class extension (2026-05-01, late)
+
+Added `src/manybody/` with Hamiltonian1D library (Heisenberg / TFIM / XXZ),
+real-symmetric eigendecomposition (`dense-eig.ts`), matrix exponential
+(`expm.ts`), imaginary-time-evolution ground-state solver (`ground-state.ts`).
+Validated externally against ITensor DMRG: `tools/itensor-reference.jl`
+generates `tests/manybody/itensor-reference.json` with energies for 19
+configurations across the three models, our exact-diagonalization matches
+ITensor to 1e-7 on N ≤ 8, and our imaginary-time MPS solver matches to ≤ 5 mHa
+on N = 8.
+
+Wired into the viz: `viz.html` bottom pane now has a model dropdown
+(brick-wall circuit / TFIM ground state / Heisenberg ground state). For TFIM
+mode, an `h/J` slider crosses the quantum phase transition — peak
+entanglement entropy at h ≈ J is visible in real time as bonds thicken /
+change color in the network panel.
+
+### What's red / deferred
+
+1. **L4 swarm (WebRTC)** — protocol only. Genuinely two-process; needs a
+   dedicated session.
+2. **L5 hardware (IBM)** — protocol only. Blocked on IBM Quantum token.
+3. **L6 E17 cross-sections** — needs G4EMLOW 8.8 tables from sibling
+   `webgpu-dna` repo. Cross-link not yet plumbed.
+4. **L3 Tier C wider-window fusion** — E11 fuses 2 qubits per dispatch.
+   The next ceiling is M-qubit fusion (M=3 or 4) where a 2^M × 2^M
+   unitary collapses several brick-wall layers in one pass. Worth
+   benchmarking if you want to push past the current 2.7× speedup.
+5. **Full DMRG ground-state solver** — current code uses imaginary-time
+   evolution which is good enough for textbook 1D models but slower than
+   true two-site DMRG with a Krylov local solver. Porting ITensor's
+   approach is ~2 weeks and would unlock χ ≥ 100 robustly.
+
+### Known-good seeds
+
+Added to `experiments/lib/seeds.ts`:
+`E5_MPS_CORRECTNESS`, `E6_MPS_CEILING`, `E7_MPS_CHI_SCALING`, `E16_H2_VQE`.
+Don't rename — artifacts reference them by string.
+
+---
+
+## Resume instructions (next session, in order)
+
+### 1. Verify nothing rotted
+
+```bash
+cd /Users/ahmetbarisgunaydin2/webgpu-q
+npm run test       # expect 73/73
+npm run typecheck  # expect clean
+npm run lint       # clean on src/, tests/, experiments/
+```
+
+If any of these fail, diagnose before writing new code.
+
+### 2. Dry-run E5 in the browser
+
+E5 is written but never executed against a live GPU adapter. Temporary
+wire-up path:
+
+- Option A (fastest): add a throwaway button in `experiments/index.html` or a
+  scratch `main-e5.ts` that calls `runE5({ trials: 2, Ns: [4, 6, 8] })`,
+  open devtools, confirm F ≥ 0.999 per cell.
+- Option B (correct): skip to step 4 (wire Level 2 properly) and run E5
+  through the real orchestrator.
+
+Goal: see one pass banner before writing E6 / E7. Catch bugs cheap.
+
+### 3. Write E6 — qubit-count ceiling
+
+File: `experiments/level-2-mps/E6-qubit-ceiling.ts`.
+
+Template: mirror `E5-mps-correctness.ts` structure. Hypothesis from
+`experiments/level-2-mps/protocol.md`:
+
+> MPS reaches N ≥ 70 qubits in a single browser tab at χ = 32 for depth-4
+> brick-wall circuits, sweep time ≤ 1.0 s median.
+
+- Sweep N ∈ {32, 48, 64, 72, 96, 128}.
+- Circuit: depth-4 brick-wall (same builder as E5).
+- 20 trials per N (drop to 5 once median stabilizes — flag if IQR > 0.1·median).
+- Record: sweep wall-seconds, peak resident χ (max bond dim), approximate
+  RAM footprint (`N · 2 · χ² · 16 B`).
+- Pass bar: no OOM at N=72, median sweep ≤ 1.0 s.
+- **Negative result is evidence.** If it OOMs at N=72, publish the failure
+  with the specific limit (heap vs step time vs SVD blowup).
+
+### 4. Write E7 — χ scaling vs entanglement entropy
+
+File: `experiments/level-2-mps/E7-chi-scaling.ts`.
+
+- N = 16 fixed. Depth ∈ {1, 2, 3, 4, 5, 6, 8}.
+- 50 Haar-random brick-wall seeds per depth.
+- Per (depth, seed) sweep χ ∈ {2, 4, 8, 16, 32, 64, 128}, find smallest
+  satisfying F ≥ 0.999 vs CPU statevector.
+- Also record bipartite entanglement entropy S at mid-cut (from Schmidt
+  spectrum of canonical form — `mps.bondDimensions()` + cached σ).
+- Expected scaling in 1D brick-wall: χ_required ≈ 2^S, S ≈ depth. Fit
+  log₂(χ_required) vs depth, slope within 20% of 1.0 = pass.
+
+MPS currently exposes `bondDimensions()` but NOT raw σ arrays. If S is
+needed, add `schmidtSpectrum(cut: number): Float64Array` — read from
+tensors[cut] after a canonical sweep centered on that bond.
+
+### 5. Wire Level 2 to UI
+
+Two small files + one HTML edit:
+
+1. Create `experiments/level-2-mps/run-all.ts` by copying Level 1's file
+   structure. Export `runLevel2(opts?)` that runs E5, E6, E7 in order.
+2. In `experiments/runner.ts` add
+   `import { wireRunLevel2Button } from "./level-2-mps/run-all.js"; wireRunLevel2Button();`.
+3. In `experiments/index.html`, replace the "awaits src/mps.ts" row with a
+   panel matching Level 1's layout — button id `run-level-2`, results table
+   `level-2-results`, banner `level-2-status`.
+
+Browser sanity: open http://localhost:5175/experiments/, click
+`Run E5–E7`, confirm all three go green, download the JSONs.
+
+### 6. Commit checkpoint
+
+```bash
+npm run test && npm run typecheck && npm run lint
+```
+
+All three green → commit with a message like
+"Level 2: MPS simulator + E5/E6/E7 experiments + UI wiring".
+
+### 7. Pick a Level 3–6 to attempt next
+
+Recommended order (easiest → hardest given current infra):
+
+- **L3 fusion** (local, no hardware): `src/shaders/fused-chain.wgsl` that
+  takes a list of gate ops and applies them in one dispatch per chain.
+  Baseline: E2 bandwidth roofline. Target: beat unfused at N ≥ 16 by ≥ 2×.
+- **L6 chemistry** (CPU, math-heavy): VQE for H₂ / HeH⁺ / LiH against FCI
+  reference. Cross-link to `webgpu-dna` radiolysis is the demo moment.
+- **L4 swarm** (network): WebRTC coordinator + pair-wise bond contraction
+  across two peers. Hardest infra. Do last of the solo pieces.
+- **L5 hardware** (external dep): IBM Quantum token, `qiskit-runtime`
+  bridge script, shot-level cross-verify. Blocked on access.
+
+Each level pattern: `src/` impl → `tests/` unit tests (local only) →
+`experiments/level-N-*/E*.ts` with the research harness → `run-all.ts` →
+UI wiring.
+
+---
+
+## Research-grade discipline (non-negotiable)
+
+These come from `RESEARCH.md`. Every experiment enforces them.
+
+### Reproducibility
+
+- No `Math.random()` in any experiment path. Every random draw uses a named
+  seed from `experiments/lib/seeds.ts` via `mulberry32(seed)`.
+- Every JSON artifact records: git SHA (when available), `navigator.userAgent`,
+  `adapter.info`, WebGPU limits, UTC ISO8601 timestamp, and echoes back
+  `protocol`, `hypothesis`, `passBar`, `seed`, `warmup`, `trials`. See
+  `experiments/lib/env.ts → captureEnv(device, adapter)`.
+- Artifact shape is locked: `{ meta, env, rows, status, diagnosis }`. Do not
+  add top-level keys without updating `experiments/lib/runner.ts` and the
+  downstream dashboard.
+
+### Timing
+
+- `performance.now()` **with a forced GPU sync before AND after** — a mapped
+  readback of a tiny buffer. `queue.submit` alone is non-blocking so raw
+  timing is fiction. Harness: `experiments/lib/runner.ts → timedRun`.
+- Discard 5 warmup samples. Retain 20 trials. Report median, p10, p90, p99,
+  std, IQR — never single-shot.
+- If `std/median > 0.1` on any cell, mark the artifact `"status": "noisy"`.
+
+### Correctness
+
+- Use **fidelity** F = |⟨ψ_ref | ψ_test⟩|², not max|Δp|. Two states can share
+  a probability distribution and differ in phase — that kills any downstream
+  controlled gate. Use `experiments/lib/fidelity.ts → stateMetrics`.
+- Pass bar for f32-amplitude GPU paths: `F ≥ 1 − 1e-5`.
+- Pass bar for f64 MPS vs f64 statevector: `F ≥ 0.999` (MPS has SVD
+  truncation + accumulated Jacobi error, ~9 digits is realistic at χ = 64).
+- Secondary: TVD, L1, L2, max|Δp|, ‖ψ_ref‖², ‖ψ_test‖² — always reported.
+
+### Honest negative results
+
+- If an experiment fails its pass bar, still commit the JSON with
+  `"status": "fail"` and a `"diagnosis"` string naming the first failing
+  cell and the smoking gun. **Failures are the evidence.** No silent
+  rerunning until it passes.
+- Example (MPS canonical-form bug, 2026-04-22): brick-wall F = 0.25 at depth
+  2. Diagnosis: "non-monotonic two-site gate order breaks mixed-canonical
+  invariant, local Frobenius norm ≠ global norm, renormalization distorts."
+  Fix: `_canonicalizeBond(q)` before every `applyTwoSite`.
+
+---
+
+## Commands
+
+```bash
+npm install
+npm run dev          # Vite dev server, http://localhost:5175
+                     # experiments live at http://localhost:5175/experiments/
+npm run test         # Vitest, ~500 ms (one outlier 5 s for the MPS bug repro)
+npm run test:watch   # TDD loop
+npm run typecheck    # tsc --noEmit (strict, noUncheckedIndexedAccess on)
+npm run lint         # ESLint flat config, src/ tests/ experiments/
+npm run build        # → dist/
+npm run test:e2e     # Playwright, all 4 levels headless (~1.4 min on M2 Pro).
+                     # Saves JSON artifacts to experiments/results/<date>/level-N/.
+                     # Each level is also reachable via window.__webgpuq.runLevelN()
+                     # in devtools at /experiments/.
+npm run test:e2e:headed   # Same, but with a visible browser window.
+```
+
+---
+
+## File layout
+
+```
+src/
+  shaders/
+    single-qubit.wgsl    # 1-q gate kernel, N/2 threads, 2×2 complex matrix via uniform
+    two-qubit.wgsl       # controlled-U kernel, N/4 threads
+  gates.ts               # H, X, Y, Z, S/Sdg, T/Tdg, Rx/Ry/Rz, P, matrixFloats()
+  quantum.ts             # QuantumCircuit (GPU) + initGPU() with requiredLimits
+  cpu-reference.ts       # CpuCircuit (Float64 TS reference, ground truth)
+  circuits.ts            # bell, ghz, qft, deutschJozsa, randomCircuit builders
+  linalg.ts              # ComplexMatrix, Jacobi complex SVD, matmul   — Level 2
+  mps.ts                 # MPS class with canonical form + TEBD         — Level 2
+  bench.ts               # GPU vs CPU throughput sweep (pre-research harness)
+  main.ts                # Legacy browser demo entrypoint
+
+tests/
+  gates.test.ts          # Bell, GHZ, XX=I, HH=I, T⁴=Z, …
+  fidelity.test.ts       # stateMetrics unit tests
+  stats.test.ts          # median / percentile / IQR
+  linalg.test.ts         # SVD round-trip, orthonormality, diagonal
+  mps.test.ts            # Bell / GHZ / brick-wall / canonical / truncation
+
+experiments/
+  index.html             # Research dashboard (run buttons, result tables)
+  runner.ts              # Dashboard entry point — wires each level's run-all
+  lib/
+    seeds.ts             # Named deterministic seeds (no Math.random)
+    runner.ts            # timedRun harness + Artifact / ArtifactMeta schema
+    env.ts               # captureEnv(device, adapter) → EnvBlock
+    fidelity.ts          # stateMetrics, FIDELITY_PASS_BAR
+    stats.ts             # stats() — median, p10/p90/p99, std, IQR
+  level-1-statevector/
+    protocol.md
+    E1-gate-fidelity.ts
+    E2-bandwidth-roofline.ts
+    E3-scaling-law.ts
+    E4-dispatch-overhead.ts
+    run-all.ts           # runLevel1() + wireRunAllButton()
+  level-2-mps/
+    protocol.md
+    E5-mps-correctness.ts   # ← in flight, not yet run
+    (E6-qubit-ceiling.ts)   # ← TODO
+    (E7-chi-scaling.ts)     # ← TODO
+    (run-all.ts)            # ← TODO
+  level-{3,4,5,6}-*/protocol.md   # protocols only, no code yet
+  results/                 # JSON artifacts, organized YYYY-MM-DD/level-N/
+```
+
+---
+
+## Architecture notes (carry forward)
+
+### Statevector (Level 1)
+
+- Amplitudes stored as `vec2<f32>` interleaved (re, im). Buffer = `2^(N+3)` B.
+- Single-qubit gate: `N/2` threads, each processes the pair `(i, j)` where
+  bit `q` is 0 and 1. Apply 2×2 complex matrix from uniform buffer.
+- Two-qubit (controlled-U): `N/4` threads, index scattered around control
+  + target bits, only control=1 is touched.
+- `initGPU()` MUST request the adapter's max `maxBufferSize` and
+  `maxStorageBufferBindingSize` via `requiredLimits`. Default 128 MiB cap
+  silently truncates N ≥ 25 dispatches.
+- No atomics needed — gate application is pair-local read / write, zero contention.
+
+### MPS (Level 2)
+
+- Tensor storage: `tensors[i]` is a `ComplexMatrix` of shape
+  `(χ_L · 2, χ_R)` — left-grouped. Element `T[l, s, r]` at row `l·2 + s`,
+  col `r`. Single-qubit gates apply cleanly this way.
+- Statevector convention: qubit 0 is LSB of the index —
+  `ψ[s_0 + 2·s_1 + 4·s_2 + …]`. `mps.statevector()` follows this for
+  comparison with `CpuCircuit.psi`.
+- Two-site gate order within the 4×4: `i = s_lo · 2 + s_hi` — site `q` is
+  the MSB within the pair. Controlled-U needs the right ordering;
+  see `buildControlledMatrix4(U, controlIsLo)`.
+- **Canonical form invariant** (critical). Two-site TEBD needs
+  `‖M‖_F² = ‖ψ‖²`, which requires left-canonical on sites `[0..q−1]` and
+  right-canonical on `[q+2..N−1]`. `_canonicalizeBond(q)` does the sweep.
+  Cost: O(N · χ³) per two-site gate. Trivial at N ≤ 20, χ ≤ 64.
+- SVD is one-sided Jacobi on complex matrices: phase-align col q by
+  e^(−iφ) so ⟨p, q⟩ is real, then apply the real Jacobi rotation. 60 sweep
+  cap, TOL = 1e-14.
+- `apply*` returns void (mutates). `statevector()` refuses `N > 24`.
+- v1 constraint: `applyTwoSite` / `applyControlled` require `|c − t| = 1`.
+  Non-adjacent two-qubit gates need SWAP ladders (not yet implemented).
+
+### Research harness
+
+- `experiments/lib/runner.ts → timedRun(device, fn, cfg)` is the only
+  legitimate way to measure wall time on GPU paths. It owns the sync
+  fence and the error-scope guards.
+- `Artifact<Row>` is the JSON shape. `emitArtifact` logs; `downloadArtifact`
+  serves it as a download from a click handler.
+- Per-experiment logs use the `[artifact:protocol] status — diagnosis`
+  prefix on stdout so CI greps can find pass/fail without parsing JSON.
+
+---
+
+## WebGPU gotchas (carry forward from webgpu-dna)
+
+- `initGPU()` MUST pass `requiredLimits` for `maxStorageBufferBindingSize`
+  and `maxBufferSize`. Default 128 MiB cap silently truncates large
+  dispatches.
+- `atomicAdd` only on `u32`. Not needed in statevector path (no contention).
+- No recursive function calls in WGSL. All shaders are single-pass.
+- Uniform buffers must be aligned.
+
+---
+
+## Hero-mode conventions for this repo
+
+- Scope-honest. Most research tasks here = hours for a capable agent, not
+  weeks. Attempt now; decompose only if truly large.
+- Speculation labeled. "This should work" ≠ "tested". Benchmark > belief.
+- Raw WGSL > framework. Dispatch ceremony is the enemy.
+- Edge hardware underrated. The thesis is "no one has shipped this in a
+  browser tab." Don't reinvent it; ship the numbers.
+
+---
+
+## Related repos / links
+
+- **Sibling:** `/Users/ahmetbarisgunaydin2/Downloads/webgpu-dna/` —
+  Geant4-DNA port. Has its own CLAUDE.md. Level 6 chemistry cross-links here.
+- `kernelfusion.dev` — umbrella theory.
+- `gpubench.dev` — WebGPU bench harness reuse pattern.
+- Pan & Zhang 2021 (arXiv:2103.03074) — Sycamore tensor-network baseline.
+- Karamitros 2011 — IRT chemistry, cross-link target.
+- IBM Heron r2 (156q, 2025), Nighthawk (120q, Jan 2026) — E14 target.
+- Schollwöck 2011 — MPS / DMRG review, χ-vs-error baseline.
+- Vidal 2003 — iTEBD algorithm (what `applyTwoSite` implements).
+
+---
+
+## License
+
+MIT (simulation). Research protocol and experiment artifacts: MIT.

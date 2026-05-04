@@ -1,0 +1,30 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.vite/
+.wrangler/
+.vercel
+
+# Playwright artifacts (regenerated on every run; videos + traces are huge)
+e2e/.artifacts/
+playwright-report/
+test-results/
+
+# Local env
+.env
+.env.local
+.env.*.local
+
+# Editor / OS scratch
+.idea/
+.vscode/
+*.swp
+*~
+
+# Vitest / coverage
+coverage/
+*.tsbuildinfo
+
+# Local Claude/agent scratch
+.claude/settings.local.json

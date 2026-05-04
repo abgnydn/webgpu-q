@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#6ea8ff" />
+    <title>Hyperscope · 4D quantum viz · webgpu-q</title>
+    <meta name="description" content="Drag a slider, watch the H₂ electron cloud morph. Move the cursor, watch the Coulomb hole track it. Run a brick-wall circuit, watch the quantum-bond entanglement light up. Three synchronized 3D panels, all live, all in your browser." />
+    <meta name="author" content="Ahmet Baris Gunaydin" />
+    <link rel="canonical" href="https://webgpu-q.vercel.app/viz.html" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="webgpu-q" />
+    <meta property="og:title" content="Hyperscope · 4D quantum visualizer · webgpu-q" />
+    <meta property="og:description" content="H₂ electron density + conditional pair density + MPS bond network + TFIM phase transition + quench light cone — all in one tab." />
+    <meta property="og:url" content="https://webgpu-q.vercel.app/viz.html" />
+    <meta property="og:image" content="https://webgpu-q.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Hyperscope · 4D quantum visualizer · webgpu-q" />
+    <meta name="twitter:description" content="Watch electrons + entanglement + a phase transition, live in a browser tab." />
+    <meta name="twitter:image" content="https://webgpu-q.vercel.app/og-image.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --panel: rgba(14, 18, 28, 0.86);
+        --border: #1b2030;
+        --text: #d8dde6;
+        --muted: #7a8294;
+        --accent: #6ea8ff;
+        --accent-warm: #ffb56e;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        -webkit-text-size-adjust: 100%;
+      }
+      html, body { height: 100%; overflow: hidden; }
+      /* Desktop: 3-col grid (canvas L | canvas R | controls) with bond strip below the canvases. */
+      .stage {
+        display: grid;
+        grid-template-rows: 1fr 200px;
+        grid-template-columns: 1fr 1fr 340px;
+        gap: 1px;
+        background: #181a22;
+        height: 100vh;
+      }
+      .pane {
+        position: relative;
+        min-height: 0;
+        background: var(--bg);
+      }
+      .pane.bottom {
+        grid-column: 1 / span 2;
+      }
+      .controls-col {
+        grid-column: 3;
+        grid-row: 1 / span 2;
+        background: var(--bg);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      /* Mobile: stack everything vertically. Each pane gets its own
+       * scroll-snap section so the user swipes through them. The
+       * controls live at the bottom of the page. */
+      @media (max-width: 900px) {
+        html, body { overflow: auto; height: auto; }
+        .stage {
+          display: block;
+          height: auto;
+          min-height: 100vh;
+        }
+        .pane {
+          width: 100%;
+          height: 70vh;
+          border-bottom: 1px solid var(--border);
+        }
+        .pane.bottom {
+          height: auto;
+          min-height: 240px;
+        }
+        .controls-col {
+          grid-column: auto;
+          grid-row: auto;
+          height: auto;
+          max-height: none;
+          padding-bottom: 24px;
+        }
+      }
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      svg.network {
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: var(--bg);
+      }
+      .pane h2 {
+        position: absolute;
+        top: 12px;
+        left: 14px;
+        margin: 0;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 10px;
+        backdrop-filter: blur(10px);
+      }
+      .pane h2 .accent { color: var(--accent); }
+      .pane.right h2 .accent { color: var(--accent-warm); }
+      .pane.bottom h2 .accent { color: #b0ffd0; }
+      .pane .stat {
+        position: absolute;
+        bottom: 8px;
+        left: 14px;
+        font-size: 11px;
+        color: var(--muted);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 10px;
+        backdrop-filter: blur(10px);
+      }
+      .controls {
+        padding: 16px 18px;
+        height: 100%;
+        box-sizing: border-box;
+      }
+      .controls h1 {
+        margin: 0 0 4px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .controls h1 .tag {
+        color: var(--accent);
+        font-weight: 400;
+        margin-left: 6px;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .controls small {
+        color: var(--muted);
+        display: block;
+        margin: 2px 0 14px;
+      }
+      .row { margin-top: 12px; }
+      .row label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 4px;
+      }
+      .row label .v { color: var(--text); }
+      input[type="range"] {
+        width: 100%;
+        accent-color: var(--accent);
+        height: 24px;
+      }
+      /* Bigger touch targets on mobile (Material guideline ≥ 44px). */
+      @media (max-width: 900px) {
+        input[type="range"] { height: 32px; }
+        button { padding: 10px 14px; font-size: 13px; }
+        .row label { font-size: 12px; }
+        .controls { padding: 18px 20px; }
+        .pane h2, .pane .stat {
+          font-size: 11px;
+          padding: 6px 10px;
+        }
+      }
+      .group-title {
+        margin-top: 18px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+        font-size: 11px;
+        color: var(--accent-warm);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+      .group-title.green { color: #b0ffd0; }
+      button {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font: inherit;
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      button:hover { border-color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="pane left">
+        <canvas id="cL"></canvas>
+        <h2>ρ(r) <span class="accent">·</span> electron density</h2>
+        <div id="statusL" class="stat">init…</div>
+      </div>
+      <div class="pane right">
+        <canvas id="cR"></canvas>
+        <h2>ρ(r₂ | r₀) <span class="accent">·</span> conditional pair density</h2>
+        <div id="statusR" class="stat">init…</div>
+      </div>
+      <div class="pane bottom">
+        <svg id="netSvg" class="network" preserveAspectRatio="xMidYMid meet"></svg>
+        <h2>MPS bond network <span class="accent">·</span> entanglement live</h2>
+        <div id="statusNet" class="stat">init…</div>
+      </div>
+
+      <div class="controls-col">
+        <div class="controls">
+      <h1>H₂ hyperscope <span class="tag">phase 4</span></h1>
+      <small>
+        Two synchronized 3D clouds and a quantum wiring diagram. Drag panes to
+        orbit. Scrub the time slider below to play a brick-wall circuit forward.
+      </small>
+
+      <div class="row">
+        <label><span>Bond length R</span><span class="v" id="bondLabel">0.741 Å</span></label>
+        <input id="bond" type="range" min="0.4" max="3.0" step="0.005" value="0.7414" />
+      </div>
+
+      <div class="group-title">cursor r₀ (conditioning point)</div>
+      <div class="row">
+        <label><span>x</span><span class="v" id="r0x-label">0.00 Bohr</span></label>
+        <input id="r0x" type="range" min="-2" max="2" step="0.05" value="0" />
+      </div>
+      <div class="row">
+        <label><span>y</span><span class="v" id="r0y-label">0.00 Bohr</span></label>
+        <input id="r0y" type="range" min="-2" max="2" step="0.05" value="0" />
+      </div>
+      <div class="row">
+        <label><span>z (along bond)</span><span class="v" id="r0z-label">−0.70 Bohr</span></label>
+        <input id="r0z" type="range" min="-3" max="3" step="0.05" value="-0.70" />
+      </div>
+
+      <div class="group-title green">bottom pane — quantum chain</div>
+      <div class="row">
+        <label><span>model</span></label>
+        <select id="model" style="width:100%; background:var(--panel); color:var(--text); border:1px solid var(--border); padding:6px; border-radius:6px; font:inherit;">
+          <option value="brickwall">brick-wall random circuit</option>
+          <option value="tfim">TFIM ground state — slide h across phase transition</option>
+          <option value="heisenberg">Heisenberg ground state</option>
+          <option value="quench">TFIM quench dynamics — light cone</option>
+          <option value="trajectory">monitored trajectory — measurement-induced phase transition</option>
+        </select>
+      </div>
+      <div class="row">
+        <label><span>qubits N</span><span class="v" id="nLabel">12</span></label>
+        <input id="nq" type="range" min="4" max="20" step="1" value="12" />
+      </div>
+      <div class="row" id="depthRow">
+        <label><span>depth D</span><span class="v" id="dLabel">8</span></label>
+        <input id="depth" type="range" min="1" max="20" step="1" value="8" />
+      </div>
+      <div class="row" id="hRow" style="display:none;">
+        <label><span>field h / J</span><span class="v" id="hLabel">1.00</span></label>
+        <input id="hField" type="range" min="0" max="2.5" step="0.02" value="1.0" />
+      </div>
+      <div class="row" id="gammaRow" style="display:none;">
+        <label><span>measurement rate γ</span><span class="v" id="gammaLabel">0.20</span></label>
+        <input id="gamma" type="range" min="0" max="2" step="0.02" value="0.2" />
+      </div>
+      <div class="row">
+        <label><span>time t</span><span class="v" id="tLabel">0 / 0</span></label>
+        <input id="time" type="range" min="0" max="1" step="1" value="0" />
+      </div>
+      <div class="row" style="display:flex; gap:8px;">
+        <button id="rerun">re-run</button>
+        <button id="play">▶ play</button>
+        <button id="reset">⟲ t=0</button>
+      </div>
+
+      <div class="group-title green" id="orderTitle" style="display:none;">order-parameter sweep</div>
+      <div class="row" id="orderRow" style="display:none;">
+        <svg id="orderSvg" style="display:block; width:100%; height:130px;"
+             preserveAspectRatio="xMidYMid meet"></svg>
+        <div id="orderStatus" style="font-size:10px; color:var(--muted); margin-top:4px;"></div>
+        <button id="sweepBtn" style="margin-top:8px;">re-sweep h ∈ [0, 2]</button>
+      </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/viz/main.ts"></script>
+  </body>
+</html>

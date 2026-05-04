@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#6ea8ff" />
+  <title>Experiments · E1–E16 research dashboard · webgpu-q</title>
+  <meta name="description" content="Run the full E1–E16 research-grade experiment ladder — gate fidelity, dispatch roofline, MPS correctness, kernel-fusion benchmarks, VQE on H₂ dissociation. Every run produces a downloadable JSON artifact with environment capture." />
+  <meta name="author" content="Ahmet Baris Gunaydin" />
+  <link rel="canonical" href="https://webgpu-q.vercel.app/experiments/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="webgpu-q" />
+  <meta property="og:title" content="Experiments · E1–E16 research dashboard · webgpu-q" />
+  <meta property="og:description" content="Live research-grade benchmarks. Click run, get JSON artifacts. WebGPU + MPS + VQE in your browser." />
+  <meta property="og:url" content="https://webgpu-q.vercel.app/experiments/" />
+  <meta property="og:image" content="https://webgpu-q.vercel.app/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Experiments · E1–E16 research dashboard · webgpu-q" />
+  <meta name="twitter:description" content="Click run, get JSON artifacts. WebGPU + MPS + VQE benchmarks in your browser." />
+  <meta name="twitter:image" content="https://webgpu-q.vercel.app/og-image.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --fg: #e6e7ea;
+      --muted: #7a8088;
+      --accent: #6aa9ff;
+      --border: #20242a;
+      --card: #11141a;
+      --pass: #82c98b;
+      --fail: #f47a7a;
+      --noisy: #e0c26e;
+    }
+    html, body {
+      background: var(--bg);
+      color: var(--fg);
+      margin: 0;
+      padding: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-text-size-adjust: 100%;
+    }
+    #app {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+    }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 15px; margin: 32px 0 6px; color: var(--accent); }
+    p { color: var(--muted); margin: 4px 0; }
+    a { color: var(--accent); }
+    code { background: #1a1f27; padding: 1px 5px; border-radius: 3px; }
+    nav { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 4px; }
+    nav a { margin-right: 0; }
+    button {
+      background: #1a1f27;
+      color: var(--fg);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    button:hover { border-color: var(--accent); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Wrap every <table> in a horizontal scroller so wide result rows don't blow out the layout on phones. */
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin: 10px 0;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--card);
+    }
+    .table-wrap table { margin: 0; border: none; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      font-size: 12px;
+    }
+    th, td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      white-space: nowrap;
+    }
+    th { color: var(--accent); font-weight: 600; text-align: left; }
+    tr:last-child td { border-bottom: none; }
+    .status-pass { color: var(--pass); font-weight: 600; }
+    .status-fail { color: var(--fail); font-weight: 600; }
+    .status-noisy { color: var(--noisy); font-weight: 600; }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 12px 14px;
+      margin: 10px 0 6px;
+      border-radius: 3px;
+    }
+    @media (max-width: 720px) {
+      #app { padding: 20px 14px 60px; }
+      h1 { font-size: 18px; }
+      h2 { font-size: 14px; margin-top: 24px; }
+      button {
+        padding: 10px 14px;
+        font-size: 13px;
+        width: 100%;
+      }
+      .panel {
+        padding: 12px;
+      }
+      .panel button + label,
+      .panel button + span {
+        display: block;
+        margin-top: 8px;
+        margin-left: 0 !important;
+      }
+      th, td { padding: 8px 10px; }
+    }
+  </style>
+  <script type="module" src="./runner.ts"></script>
+</head>
+<body>
+  <div id="app">
+    <h1>webgpu-q — experiments</h1>
+    <p>
+      Research protocol for the six-level breakthrough ladder.
+      Protocols live in <code>experiments/level-N-&lt;slug&gt;/protocol.md</code>.
+      Artifacts go to <code>experiments/results/YYYY-MM-DD/level-N/</code>.
+      See <a href="../RESEARCH.md"><code>RESEARCH.md</code></a> for the master doc.
+    </p>
+    <nav>
+      <a href="#level-1">L1 — statevector</a>
+      <a href="#level-2">L2 — MPS</a>
+      <a href="#level-3">L3 — fusion</a>
+      <a href="#level-6">L6 — chemistry</a>
+      <a href="#levels-4-6">L4–L6 (protocol)</a>
+      <a href="/index.html">back to demo</a>
+    </nav>
+
+    <h2 id="level-1">Level 1 — Statevector  <span id="level-1-status" class="status-pass"></span></h2>
+    <p>
+      Hypothesis: full-featured statevector sim in a browser tab, reaching
+      bandwidth-bound performance. Pass bar: F ≥ 1 − 1e-5 vs CPU reference,
+      ≥ 40% of peak memory BW at N ≥ 22, T(N) slope ≈ 1.0 at N ≥ 18.
+    </p>
+    <div class="panel">
+      <button id="run-level-1">Run E1–E4</button>
+      <label style="margin-left: 16px; color: var(--muted);">
+        peak BW (GB/s)
+        <input id="peak-gbps" type="number" min="0" step="1"
+          placeholder="auto" title="Override peak memory BW for E2 (optional)"
+          style="width: 80px; margin-left: 4px; background: #0b0d10; color: var(--fg); border: 1px solid var(--border); padding: 3px 5px; font-family: inherit;">
+      </label>
+      <span style="margin-left: 12px; color: var(--muted);">
+        Expect 60–120 s. JSON artifacts download on the row button.
+      </span>
+    </div>
+    <div class="table-wrap"><table id="level-1-results">
+      <thead>
+        <tr><th>ID</th><th>Experiment</th><th>Status</th><th>Diagnosis</th><th>Artifact</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table></div>
+
+    <h2 id="level-2">Level 2 — MPS  <span id="level-2-status" class=""></span></h2>
+    <p>
+      Hypothesis: a CPU-only MPS simulator in a browser tab reaches ≥ 72
+      qubits for low-entanglement circuits, with χ-bounded error that tracks
+      bipartite entropy. Pass bars: (E5) F ≥ 0.999 vs CPU statevector at
+      χ = 64 on every cell; (E6) no OOM and median sweep ≤ 1 s at N = 72,
+      χ = 32, depth = 4; (E7) fit slope of log₂(χ_req) vs depth within 1.0 ± 0.2.
+    </p>
+    <div class="panel">
+      <button id="run-level-2">Run E5–E7</button>
+      <span style="margin-left: 12px; color: var(--muted);">
+        Expect 2–10 min on default (UI-budget) settings.
+        For publishable numbers, call <code>runLevel2({ … })</code> from devtools
+        with the large-sweep opts documented in each experiment file.
+      </span>
+    </div>
+    <div class="table-wrap"><table id="level-2-results">
+      <thead>
+        <tr><th>ID</th><th>Experiment</th><th>Status</th><th>Diagnosis</th><th>Artifact</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table></div>
+
+    <h2 id="level-3">Level 3 — Kernel fusion  <span id="level-3-status" class=""></span></h2>
+    <p>
+      Hypothesis: fusing k single-qubit gates on the same qubit into one
+      dispatch collapses α — the fixed dispatch cost from E4 — by a factor
+      of k. Pass bars: (E8) fused = unfused at F ≥ 1−1e-5 on all cells;
+      (E9) α_eff(32) ≤ α_eff(1)/16 AND ≤ 20 μs; (E10) best speedup ≥ 2×
+      AND N=20 regression-free (≥ 1.05×). Scope note: only same-qubit
+      chains are fused; layer fusion across different qubits (brick-wall)
+      is deferred to a future kernel.
+    </p>
+    <div class="panel">
+      <button id="run-level-3">Run E8–E11</button>
+      <span style="margin-left: 12px; color: var(--muted);">
+        Expect 30–120 s. JSON artifacts download on the row button.
+      </span>
+    </div>
+    <div class="table-wrap"><table id="level-3-results">
+      <thead>
+        <tr><th>ID</th><th>Experiment</th><th>Status</th><th>Diagnosis</th><th>Artifact</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table></div>
+
+    <h2 id="level-6">Level 6 — Chemistry  <span id="level-6-status" class=""></span></h2>
+    <p>
+      Hypothesis: VQE on H₂ in STO-3G with a hardware-efficient ansatz
+      reaches chemical accuracy (|ΔE| ≤ 1.6 mHa) at every bond length
+      across the dissociation curve, from 10 random classical inits per R.
+      Pass bar: median |ΔE| ≤ 1.6 mHa AND max |ΔE| ≤ 5 mHa at every R.
+      Hamiltonian is built from STO-3G molecular integrals on the fly —
+      each R gets its own 16×16 dense matrix; reference E_FCI is the
+      Jacobi-diagonalized spectrum of THAT matrix.
+    </p>
+    <div class="panel">
+      <button id="run-level-6">Run E16</button>
+      <span style="margin-left: 12px; color: var(--muted);">
+        Expect 30–120 s. 5 R-values × 10 trials. CPU-only.
+      </span>
+    </div>
+    <div class="table-wrap"><table id="level-6-results">
+      <thead>
+        <tr><th>ID</th><th>Experiment</th><th>Status</th><th>Diagnosis</th><th>Artifact</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table></div>
+
+    <h2 id="levels-4-5">Levels 4–5 — deferred</h2>
+    <div class="table-wrap"><table>
+      <thead>
+        <tr><th>Level</th><th>Experiments</th><th>Protocol</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>4 — WebRTC swarm</td>
+          <td>E11–E13</td>
+          <td><a href="./level-4-swarm/protocol.md">protocol.md</a></td>
+          <td class="status-noisy">awaits webrtc-coordinator</td>
+        </tr>
+        <tr>
+          <td>5 — Hardware cross-verify</td>
+          <td>E14–E15</td>
+          <td><a href="./level-5-hardware/protocol.md">protocol.md</a></td>
+          <td class="status-noisy">awaits IBM Q access</td>
+        </tr>
+        <tr>
+          <td>6 — E17 cross-sections</td>
+          <td>E17 only</td>
+          <td><a href="./level-6-chemistry/protocol.md">protocol.md</a></td>
+          <td class="status-noisy">awaits webgpu-dna G4EMLOW tables</td>
+        </tr>
+      </tbody>
+    </table></div>
+  </div>
+</body>
+</html>

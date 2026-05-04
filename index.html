@@ -1,0 +1,904 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#6ea8ff" />
+
+    <title>webgpu-q — quantum simulation in a browser tab</title>
+    <meta name="description" content="A six-level WebGPU quantum simulator: statevector, MPS tensor networks, kernel fusion, VQE chemistry, many-body phase transitions. Browser-native. ITensor-validated. 160 tests green." />
+    <meta name="author" content="Ahmet Baris Gunaydin" />
+    <meta name="keywords" content="WebGPU, quantum simulator, MPS, DMRG, kernel fusion, VQE, quantum chemistry, TFIM, phase transition, ITensor, condensed matter, browser, WGSL, TypeScript" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://webgpu-q.vercel.app/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="webgpu-q" />
+    <meta property="og:title" content="webgpu-q · quantum simulation in a browser tab" />
+    <meta property="og:description" content="Six-level WebGPU quantum playground: statevector + MPS + kernel fusion + chemistry + many-body. ITensor-validated. 160 tests green. No install." />
+    <meta property="og:url" content="https://webgpu-q.vercel.app/" />
+    <meta property="og:image" content="https://webgpu-q.vercel.app/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="webgpu-q — Quantum simulation, in a browser tab. 160 tests passing, 4.18× kernel fusion (Tier C), 7-decimal PySCF agreement, ≤ 5 mHa ITensor DMRG." />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="webgpu-q · quantum simulation in a browser tab" />
+    <meta name="twitter:description" content="Statevector + MPS + kernel fusion + chemistry. WebGPU. ITensor-validated. Open a URL." />
+    <meta name="twitter:image" content="https://webgpu-q.vercel.app/og-image.png" />
+    <meta name="twitter:image:alt" content="webgpu-q — Quantum simulation, in a browser tab." />
+
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' fill='%230b0d12'/><circle cx='32' cy='32' r='14' fill='none' stroke='%236ea8ff' stroke-width='3'/><circle cx='32' cy='32' r='6' fill='%23ffb56e'/></svg>" />
+
+    <!-- Structured data — SoftwareApplication / WebSite / Person ─── -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://webgpu-q.vercel.app/#app",
+          "name": "webgpu-q",
+          "applicationCategory": "ScienceApplication",
+          "applicationSubCategory": "Quantum Many-Body Simulation",
+          "operatingSystem": "Any OS with a WebGPU-capable browser",
+          "description": "A six-level WebGPU quantum simulator: statevector, matrix product states, kernel fusion, chemistry (VQE), and many-body physics with real-time phase-transition + quench visualizations. Validated against ITensor.",
+          "url": "https://webgpu-q.vercel.app/",
+          "author": {
+            "@type": "Person",
+            "name": "Ahmet Baris Gunaydin",
+            "sameAs": [
+              "https://barisgunaydin.com",
+              "https://kernelfusion.dev",
+              "https://gpubench.dev",
+              "https://zerotvm.com",
+              "https://webgpudna.com",
+              "https://neuropulse.live",
+              "https://markview.ai",
+              "https://safenpm.dev",
+              "https://fused-lora.pages.dev",
+              "https://github.com/abgnydn",
+              "https://www.linkedin.com/in/abgnydn/"
+            ]
+          },
+          "isPartOf": {
+            "@type": "CreativeWork",
+            "name": "Kernel-fusion research line",
+            "url": "https://kernelfusion.dev"
+          },
+          "license": "https://opensource.org/licenses/MIT",
+          "codeRepository": "https://github.com/abgnydn/webgpu-q",
+          "programmingLanguage": ["TypeScript", "WGSL", "Julia"],
+          "isAccessibleForFree": true,
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+          "softwareRequirements": "WebGPU-capable browser",
+          "keywords": "WebGPU, quantum simulator, MPS, DMRG, kernel fusion, VQE, quantum chemistry, ITensor"
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://webgpu-q.vercel.app/#website",
+          "url": "https://webgpu-q.vercel.app/",
+          "name": "webgpu-q",
+          "inLanguage": "en-US",
+          "publisher": { "@type": "Person", "name": "Ahmet Baris Gunaydin" }
+        }
+      ]
+    }
+    </script>
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --bg-soft: #11141d;
+        --panel: rgba(14, 18, 28, 0.85);
+        --border: #1b2030;
+        --border-strong: #2a3148;
+        --text: #e6e9f0;
+        --text-soft: #b3bbcc;
+        --muted: #7a8294;
+        --accent: #6ea8ff;
+        --accent-warm: #ffb56e;
+        --accent-green: #b0ffd0;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 14px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+        -webkit-text-size-adjust: 100%;
+        overflow-x: hidden;
+      }
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { color: var(--text); }
+
+      /* ── Top nav ─── */
+      nav.top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 32px;
+        border-bottom: 1px solid var(--border);
+        position: sticky; top: 0; z-index: 5;
+        background: rgba(11, 13, 18, 0.92);
+        backdrop-filter: blur(8px);
+      }
+      nav.top .brand {
+        font-weight: 600; letter-spacing: 0.02em;
+        display: flex; align-items: center; gap: 10px;
+      }
+      nav.top .brand .dot {
+        display: inline-block; width: 9px; height: 9px;
+        border-radius: 50%;
+        background: var(--accent-warm);
+        box-shadow: 0 0 8px var(--accent-warm);
+      }
+      nav.top .brand .tag {
+        margin-left: 8px;
+        font-size: 10px; font-weight: 400;
+        color: var(--accent-green);
+        letter-spacing: 0.14em; text-transform: uppercase;
+      }
+      nav.top .links {
+        display: flex; gap: 18px; font-size: 12px;
+      }
+      nav.top .links a { color: var(--text-soft); }
+      nav.top .links a:hover { color: var(--text); }
+
+      /* ── Hero ─── */
+      .hero {
+        max-width: 1080px; margin: 0 auto;
+        padding: 88px 32px 48px;
+        position: relative;
+      }
+      .hero .badge {
+        display: inline-flex; gap: 8px; align-items: center;
+        flex-wrap: wrap;
+        max-width: 100%;
+        font-size: 11px; letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        background: rgba(110, 168, 255, 0.08);
+        border: 1px solid rgba(110, 168, 255, 0.3);
+        padding: 6px 12px; border-radius: 999px;
+      }
+      .hero h1 {
+        font-family: "Iowan Old Style", "Charter", "Georgia", serif;
+        font-weight: 500;
+        font-size: clamp(36px, 5.6vw, 72px);
+        line-height: 1.04;
+        letter-spacing: -0.02em;
+        margin: 22px 0 18px;
+        color: var(--text);
+      }
+      .hero h1 em {
+        font-style: italic;
+        color: var(--accent-warm);
+        font-family: inherit;
+      }
+      .hero p.lead {
+        font-size: 16px; line-height: 1.6;
+        color: var(--text-soft);
+        max-width: 680px;
+        margin: 0 0 28px;
+      }
+      .hero .ctas {
+        display: flex; gap: 12px; flex-wrap: wrap;
+      }
+      .btn {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 11px 18px;
+        border-radius: 8px;
+        font: inherit; font-size: 13px; font-weight: 500;
+        cursor: pointer; text-decoration: none;
+        transition: 120ms ease;
+      }
+      .btn.primary {
+        background: var(--accent); color: #0b0d12;
+        border: 1px solid var(--accent);
+      }
+      .btn.primary:hover { background: #8fbeff; color: #000; }
+      .btn.ghost {
+        background: transparent; color: var(--text);
+        border: 1px solid var(--border-strong);
+      }
+      .btn.ghost:hover { border-color: var(--text-soft); color: var(--text); }
+      .btn .arrow { display: inline-block; transition: 120ms ease; }
+      .btn:hover .arrow { transform: translateX(2px); }
+
+      /* ── Numbers strip ─── */
+      .stats {
+        max-width: 1080px; margin: 0 auto;
+        padding: 24px 32px 56px;
+        display: grid; grid-template-columns: repeat(4, 1fr);
+        gap: 0;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        background: var(--bg-soft);
+      }
+      .stats .stat {
+        padding: 22px 18px;
+        border-right: 1px solid var(--border);
+      }
+      .stats .stat:last-child { border-right: none; }
+      .stats .stat .num {
+        font-family: "Iowan Old Style", "Charter", "Georgia", serif;
+        font-size: 32px;
+        font-weight: 500;
+        color: var(--accent-warm);
+        letter-spacing: -0.01em;
+        line-height: 1;
+      }
+      .stats .stat .lab {
+        margin-top: 8px;
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      /* ── Section heading ─── */
+      .section {
+        max-width: 1080px; margin: 0 auto;
+        padding: 64px 32px;
+      }
+      .section h2 {
+        font-family: "Iowan Old Style", "Charter", "Georgia", serif;
+        font-size: 32px; font-weight: 500;
+        margin: 0 0 8px;
+        letter-spacing: -0.01em;
+      }
+      .section .sub {
+        color: var(--muted); font-size: 13px;
+        margin: 0 0 30px; max-width: 600px;
+      }
+
+      /* ── Demo cards ─── */
+      .demos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+      .demo-card {
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 0;
+        overflow: hidden;
+        transition: 200ms ease;
+        display: flex; flex-direction: column;
+        text-decoration: none; color: inherit;
+      }
+      .demo-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-2px);
+        box-shadow: 0 12px 28px rgba(110, 168, 255, 0.14);
+      }
+      .demo-card .preview {
+        height: 160px;
+        position: relative;
+        overflow: hidden;
+        border-bottom: 1px solid var(--border);
+      }
+      .demo-card .preview svg { width: 100%; height: 100%; display: block; }
+      .demo-card .body { padding: 18px 20px; }
+      .demo-card .body h3 {
+        margin: 0 0 6px; font-size: 14px; font-weight: 600;
+      }
+      .demo-card .body h3 .arrow { color: var(--accent); margin-left: 6px; }
+      .demo-card .body p { margin: 0; color: var(--text-soft); font-size: 12.5px; }
+      .demo-card .body .meta {
+        margin-top: 12px; font-size: 11px; color: var(--muted);
+        display: flex; gap: 12px; flex-wrap: wrap;
+      }
+      .demo-card .body .meta span::before { content: "▸ "; color: var(--accent-warm); }
+
+      /* ── 6-level ladder ─── */
+      .ladder { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 24px; }
+      .lvl {
+        padding: 16px 18px;
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        display: flex; gap: 14px; align-items: flex-start;
+      }
+      .lvl .num {
+        font-family: "Iowan Old Style", serif;
+        font-size: 22px; color: var(--accent-warm);
+        line-height: 1; min-width: 28px; padding-top: 2px;
+      }
+      .lvl .body strong { font-size: 13px; }
+      .lvl .body p { margin: 4px 0 0; font-size: 12.5px; color: var(--text-soft); }
+      .lvl.deferred { opacity: 0.55; }
+      .lvl.deferred .body strong::after {
+        content: "deferred";
+        font-size: 9px; color: var(--muted);
+        background: var(--border); padding: 2px 6px;
+        margin-left: 8px; border-radius: 4px;
+        font-weight: 400; letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      /* ── Tech stack ─── */
+      .stack {
+        display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px;
+      }
+      .stack .pill {
+        font-size: 11px; padding: 5px 11px;
+        background: rgba(110, 168, 255, 0.06);
+        border: 1px solid rgba(110, 168, 255, 0.2);
+        color: var(--text-soft);
+        border-radius: 999px;
+      }
+
+      /* ── Highlights two-col ─── */
+      .twocol { display: grid; grid-template-columns: 1.4fr 1fr; gap: 28px; }
+      /* Grid items default to min-width: auto (= min-content), which lets long
+       * <pre> blocks blow out the column on phones. Force them to shrink. */
+      .twocol > * { min-width: 0; }
+      @media (max-width: 900px) {
+        nav.top {
+          padding: 12px 18px;
+          flex-wrap: wrap;
+          gap: 8px 14px;
+        }
+        nav.top .links {
+          width: 100%;
+          flex-wrap: wrap;
+          gap: 10px 14px;
+        }
+        footer {
+          padding: 22px 18px;
+          flex-direction: column;
+          align-items: flex-start;
+        }
+      }
+      @media (max-width: 720px) {
+        .twocol { grid-template-columns: 1fr; }
+        .demos, .ladder { grid-template-columns: 1fr !important; }
+        .stats { grid-template-columns: repeat(2, 1fr); padding: 16px 18px 36px; }
+        .stats .stat { padding: 18px 14px; }
+        .stats .stat:nth-child(2) { border-right: none; }
+        .stats .stat .num { font-size: 24px; }
+        .hero { padding: 48px 18px 28px; }
+        .hero p.lead { font-size: 14.5px; }
+        .hero .ctas { flex-direction: column; align-items: stretch; }
+        .hero .ctas .btn { justify-content: center; padding: 12px 18px; }
+        .section { padding: 36px 18px; }
+        .section h2 { font-size: 26px; }
+        .lvl { padding: 14px 16px; }
+        pre.code { font-size: 11.5px; padding: 12px 14px; }
+      }
+      @media (max-width: 420px) {
+        .stats { grid-template-columns: 1fr; }
+        .stats .stat { border-right: none; border-bottom: 1px solid var(--border); }
+        .stats .stat:last-child { border-bottom: none; }
+      }
+
+      /* ── Inline mini-viz svgs (decorative) ─── */
+      .preview .blob {
+        position: absolute; inset: 0;
+        background: radial-gradient(circle at 50% 50%, rgba(110, 168, 255, 0.45), transparent 65%),
+                    radial-gradient(circle at 28% 60%, rgba(255, 181, 110, 0.18), transparent 50%);
+      }
+      .preview .grid {
+        position: absolute; inset: 0; opacity: 0.18;
+        background-image:
+          linear-gradient(to right, rgba(110, 168, 255, 0.4) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(110, 168, 255, 0.4) 1px, transparent 1px);
+        background-size: 28px 28px;
+      }
+
+      /* ── Code block ─── */
+      pre.code {
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 18px;
+        font-size: 12px;
+        color: var(--text-soft);
+        overflow-x: auto;
+        margin: 0;
+      }
+      pre.code .k { color: var(--accent); }
+      pre.code .s { color: var(--accent-warm); }
+      pre.code .c { color: var(--muted); }
+      pre.code .n { color: var(--accent-green); }
+
+      /* ── Footer ─── */
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 28px 32px;
+        max-width: 1080px; margin: 0 auto;
+        font-size: 12px; color: var(--muted);
+        display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+      }
+      footer a { color: var(--text-soft); }
+    </style>
+  </head>
+  <body>
+    <nav class="top">
+      <div class="brand">
+        <span class="dot"></span>
+        webgpu-q
+        <span class="tag">research playground</span>
+      </div>
+      <div class="links">
+        <a href="/viz.html">hyperscope</a>
+        <a href="/experiments/">experiments</a>
+        <a href="/demo.html">gate demo</a>
+        <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub ↗</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <span class="badge">browser-native · webGPU · 160 tests green · vercel-deployed</span>
+      <h1>
+        Quantum simulation,<br/>
+        <em>in a browser tab.</em>
+      </h1>
+      <p class="lead">
+        A six-level research playground for quantum many-body physics — statevector,
+        matrix product states, kernel fusion, chemistry, phase transitions, and real-time
+        quench dynamics — all running on WebGPU, all written in TypeScript, all
+        externally validated against ITensor (the canonical condensed-matter research tool).
+      </p>
+      <div class="ctas">
+        <a class="btn primary" href="/viz.html">
+          Open the hyperscope <span class="arrow">→</span>
+        </a>
+        <a class="btn ghost" href="/experiments/">
+          Browse the experiments <span class="arrow">→</span>
+        </a>
+      </div>
+    </section>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="num">151</div>
+        <div class="lab">unit tests passing</div>
+      </div>
+      <div class="stat">
+        <div class="num">4.18×</div>
+        <div class="lab">3-qubit tile fusion speedup at N=15</div>
+      </div>
+      <div class="stat">
+        <div class="num">7 dec.</div>
+        <div class="lab">match with PySCF on H₂ FCI energy</div>
+      </div>
+      <div class="stat">
+        <div class="num">≤ 5 mHa</div>
+        <div class="lab">agreement with ITensor DMRG (N=8)</div>
+      </div>
+    </div>
+
+    <section class="section">
+      <h2>Three live demos.</h2>
+      <p class="sub">
+        Three URLs. Open any of them — no install, no Linux, no Python. Just a tab.
+      </p>
+      <div class="demos">
+        <a href="/viz.html" class="demo-card">
+          <div class="preview">
+            <div class="blob"></div>
+            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
+              <defs>
+                <radialGradient id="g1" cx="0.4" cy="0.5" r="0.5">
+                  <stop offset="0" stop-color="#9bc4ff" stop-opacity="0.95"/>
+                  <stop offset="1" stop-color="#9bc4ff" stop-opacity="0"/>
+                </radialGradient>
+                <radialGradient id="g2" cx="0.66" cy="0.5" r="0.4">
+                  <stop offset="0" stop-color="#ffb56e" stop-opacity="0.7"/>
+                  <stop offset="1" stop-color="#ffb56e" stop-opacity="0"/>
+                </radialGradient>
+              </defs>
+              <ellipse cx="100" cy="80" rx="70" ry="44" fill="url(#g1)"/>
+              <ellipse cx="220" cy="80" rx="50" ry="34" fill="url(#g2)"/>
+            </svg>
+          </div>
+          <div class="body">
+            <h3>Hyperscope <span class="arrow">→</span></h3>
+            <p>
+              Three synchronized 3D panels: H₂ electron density, conditional pair
+              density (with a draggable cursor finding the Fermi/Coulomb hole), and a
+              live MPS bond-network with phase-transition slider and quench-dynamics
+              light cone.
+            </p>
+            <div class="meta">
+              <span>STO-3G integrals</span>
+              <span>FCI / VQE</span>
+              <span>TFIM phase transition</span>
+            </div>
+          </div>
+        </a>
+
+        <a href="/experiments/" class="demo-card">
+          <div class="preview" style="background: linear-gradient(135deg, #0e1426 0%, #1a2240 100%);">
+            <div class="grid"></div>
+            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice"
+                 style="position: relative;">
+              <g stroke="#6ea8ff" stroke-width="1.6" fill="none">
+                <path d="M 30 130 Q 80 60 130 70 T 230 50 Q 270 40 290 36"/>
+                <path d="M 30 100 L 80 90 L 130 78 L 180 70 L 230 60 L 290 50"
+                      stroke="#ffb56e"/>
+              </g>
+              <g fill="#6ea8ff">
+                <circle cx="80" cy="90" r="3"/><circle cx="130" cy="78" r="3"/>
+                <circle cx="180" cy="70" r="3"/><circle cx="230" cy="60" r="3"/>
+              </g>
+              <g fill="#ffb56e">
+                <circle cx="80" cy="60" r="3"/><circle cx="130" cy="70" r="3"/>
+                <circle cx="230" cy="50" r="3"/>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <h3>Research dashboard <span class="arrow">→</span></h3>
+            <p>
+              Run the full E1–E16 experiment ladder live: gate fidelity, dispatch
+              roofline, MPS correctness, kernel-fusion benchmarks, VQE on H₂
+              dissociation. Every run produces a JSON artifact with environment
+              capture.
+            </p>
+            <div class="meta">
+              <span>E1–E16 protocols</span>
+              <span>JSON artifacts</span>
+              <span>Playwright e2e</span>
+            </div>
+          </div>
+        </a>
+
+        <a href="/demo.html" class="demo-card">
+          <div class="preview" style="background: linear-gradient(135deg, #18162a 0%, #2a1a32 100%);">
+            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
+              <g fill="none" stroke="#ffb56e" stroke-width="1.4">
+                <line x1="30" y1="40" x2="290" y2="40"/>
+                <line x1="30" y1="80" x2="290" y2="80"/>
+                <line x1="30" y1="120" x2="290" y2="120"/>
+              </g>
+              <g fill="#ffb56e">
+                <rect x="55" y="32" width="14" height="16" rx="2"/>
+                <rect x="105" y="32" width="14" height="16" rx="2"/>
+                <rect x="80" y="72" width="40" height="16" rx="2" fill="#6ea8ff"/>
+                <rect x="160" y="32" width="14" height="16" rx="2"/>
+                <rect x="160" y="112" width="14" height="16" rx="2"/>
+                <rect x="200" y="32" width="14" height="56" rx="2" fill="#6ea8ff"/>
+                <rect x="240" y="72" width="14" height="16" rx="2"/>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <h3>Gate-throughput demo <span class="arrow">→</span></h3>
+            <p>
+              The original benchmark page: a handful of textbook circuits (Bell, GHZ,
+              QFT, Deutsch-Jozsa) running on the GPU with CPU cross-check, gate-rate
+              measurement, and bandwidth roofline.
+            </p>
+            <div class="meta">
+              <span>Bell · GHZ · QFT · DJ</span>
+              <span>GPU vs CPU</span>
+              <span>throughput</span>
+            </div>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>The research ladder.</h2>
+      <p class="sub">
+        Each level builds on the last. Start at the GPU statevector and climb
+        through tensor networks, kernel fusion, and quantum chemistry.
+      </p>
+      <div class="ladder">
+        <div class="lvl">
+          <div class="num">1</div>
+          <div class="body">
+            <strong>Statevector — WebGPU</strong>
+            <p>2^N complex amplitudes on GPU storage buffers. f32 single-qubit and
+              controlled-U kernels, dispatch overhead α ≈ 22 μs on Apple Metal-3.</p>
+          </div>
+        </div>
+        <div class="lvl">
+          <div class="num">2</div>
+          <div class="body">
+            <strong>MPS — TypeScript</strong>
+            <p>f64 Jacobi complex-SVD + canonical-form sweeps. Validated against
+              ITensor DMRG to ≤ 5 mHa on N=8 chains.</p>
+          </div>
+        </div>
+        <div class="lvl">
+          <div class="num">3</div>
+          <div class="body">
+            <strong>Kernel fusion</strong>
+            <p>JIT-emitted WGSL chains plus 4×4 brick-wall, 8×8 cascade, and
+              16×16 quad-cascade tile fusion. <strong>4.18×</strong> at the
+              8×8 sweet spot (Tier C, N=15); 16×16 (Tier D) plateaus at 3.14× —
+              an honest negative as the wider tile crosses into compute-bound
+              territory.</p>
+          </div>
+        </div>
+        <div class="lvl">
+          <div class="num">4</div>
+          <div class="body">
+            <strong>Chemistry — VQE</strong>
+            <p>STO-3G H₂ from molecular integrals (Boys, Gaussians, JW). FCI matches
+              PySCF to 7 decimals. Full dissociation curve hits chemical accuracy
+              50/50 trials.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Companion projects.</h2>
+      <p class="sub">
+        webgpu-q is one front of a broader research line on GPU-resident compute
+        in the browser. The umbrella site, the benchmark infrastructure, and the
+        sister demos:
+      </p>
+      <div class="demos">
+        <a class="demo-card" href="https://kernelfusion.dev" target="_blank" rel="noopener">
+          <div class="preview" style="background: linear-gradient(135deg, #0a1f1a 0%, #103028 100%);">
+            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
+              <g stroke="#00d4aa" stroke-width="1.6" fill="none" opacity="0.9">
+                <circle cx="160" cy="80" r="55"/>
+                <circle cx="160" cy="80" r="35"/>
+                <circle cx="160" cy="80" r="15"/>
+              </g>
+              <g fill="#00d4aa">
+                <circle cx="160" cy="25" r="3"/>
+                <circle cx="215" cy="80" r="3"/>
+                <circle cx="160" cy="135" r="3"/>
+                <circle cx="105" cy="80" r="3"/>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <h3>kernelfusion.dev <span class="arrow">↗</span></h3>
+            <p>
+              The research umbrella. Single-kernel fusion for GPU workloads —
+              evolutionary search, transformer decoding, and browser-to-browser
+              distributed evolution. Up to <strong>2,865× speedups</strong> on
+              Apple Silicon by collapsing per-dispatch overhead.
+            </p>
+            <div class="meta">
+              <span>Open SDK</span><span>Open benchmarks</span>
+            </div>
+          </div>
+        </a>
+
+        <a class="demo-card" href="https://webgpudna.com" target="_blank" rel="noopener">
+          <div class="preview" style="background: linear-gradient(135deg, #0c1a26 0%, #14283a 100%);">
+            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
+              <g stroke="#6ea8ff" stroke-width="1.4" fill="none" opacity="0.7">
+                <path d="M 30 30 Q 80 80 30 130"/>
+                <path d="M 70 30 Q 120 80 70 130"/>
+                <path d="M 110 30 Q 160 80 110 130"/>
+                <path d="M 150 30 Q 200 80 150 130"/>
+                <path d="M 190 30 Q 240 80 190 130"/>
+                <path d="M 230 30 Q 280 80 230 130"/>
+              </g>
+              <g fill="#ffb56e">
+                <circle cx="55" cy="80" r="3"/><circle cx="95" cy="80" r="3"/>
+                <circle cx="135" cy="80" r="3"/><circle cx="175" cy="80" r="3"/>
+                <circle cx="215" cy="80" r="3"/><circle cx="255" cy="80" r="3"/>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <h3>webgpudna.com <span class="arrow">↗</span></h3>
+            <p>
+              The sister project. Geant4-DNA (Monte Carlo electron track structure
+              + IRT radiolysis chemistry + DNA damage scoring) in the browser.
+              <strong>CSDA 0.985× of reference</strong>, 46/46 tests pass.
+              Where the splat shader and the &ldquo;3D field + time = 4D viewer&rdquo;
+              pattern in our hyperscope come from.
+            </p>
+            <div class="meta">
+              <span>Karamitros 2011 IRT</span><span>SSB/DSB scoring</span>
+            </div>
+          </div>
+        </a>
+
+        <a class="demo-card" href="https://gpubench.dev" target="_blank" rel="noopener">
+          <div class="preview" style="background: linear-gradient(135deg, #1a0e1f 0%, #2a1432 100%);">
+            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
+              <g fill="#ffb56e" opacity="0.85">
+                <rect x="40" y="100" width="20" height="35" rx="2"/>
+                <rect x="75" y="80" width="20" height="55" rx="2"/>
+                <rect x="110" y="60" width="20" height="75" rx="2"/>
+                <rect x="145" y="40" width="20" height="95" rx="2"/>
+                <rect x="180" y="55" width="20" height="80" rx="2"/>
+                <rect x="215" y="70" width="20" height="65" rx="2"/>
+                <rect x="250" y="90" width="20" height="45" rx="2"/>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <h3>gpubench.dev <span class="arrow">↗</span></h3>
+            <p>
+              &ldquo;How fast is your GPU in the browser?&rdquo; Real WebGPU
+              compute tests across <strong>592 devices, 7 vendors</strong> —
+              full transparency, no cherry-picking. Run it before you trust the
+              numbers on this page.
+            </p>
+            <div class="meta">
+              <span>Rastrigin · N-body</span><span>RL envs</span>
+            </div>
+          </div>
+        </a>
+
+        <a class="demo-card" href="https://zerotvm.com" target="_blank" rel="noopener">
+          <div class="preview" style="background: linear-gradient(135deg, #1a1009 0%, #2a1c0d 100%);">
+            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
+              <g stroke="#ffb56e" stroke-width="1.2" fill="none" opacity="0.7">
+                <path d="M 30 80 L 80 50 L 130 90 L 180 40 L 230 75 L 280 60"/>
+              </g>
+              <g fill="#ffb56e">
+                <circle cx="30" cy="80" r="3"/><circle cx="80" cy="50" r="3"/>
+                <circle cx="130" cy="90" r="3"/><circle cx="180" cy="40" r="3"/>
+                <circle cx="230" cy="75" r="3"/><circle cx="280" cy="60" r="3"/>
+              </g>
+              <text x="160" y="130" font-family="ui-monospace,monospace"
+                    font-size="11" fill="#7a8294" text-anchor="middle">~40 tok/s · M2 Pro</text>
+            </svg>
+          </div>
+          <div class="body">
+            <h3>zerotvm.com <span class="arrow">↗</span></h3>
+            <p>
+              Phi-3-mini (3.8B parameters) running entirely in the browser via
+              <strong>10 hand-written WebGPU kernel roles</strong> across 27 WGSL
+              files, replacing the 85 TVM-autotuned shaders WebLLM needs. ~40 tok/s
+              on M2 Pro.
+            </p>
+            <div class="meta">
+              <span>10 kernel roles</span><span>27 WGSL files</span>
+            </div>
+          </div>
+        </a>
+
+        <a class="demo-card" href="https://neuropulse.live" target="_blank" rel="noopener">
+          <div class="preview" style="background: linear-gradient(135deg, #190a26 0%, #2a1140 100%);">
+            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
+              <g stroke="#6ea8ff" stroke-width="0.8" fill="none" opacity="0.55">
+                <path d="M 60 30 Q 90 80 60 130"/>
+                <path d="M 100 30 Q 130 80 100 130"/>
+                <path d="M 140 30 Q 170 80 140 130"/>
+                <path d="M 180 30 Q 210 80 180 130"/>
+                <path d="M 220 30 Q 250 80 220 130"/>
+                <path d="M 260 30 Q 290 80 260 130"/>
+              </g>
+              <g fill="#ffb56e" opacity="0.9">
+                <circle cx="80" cy="80" r="2.5"/><circle cx="120" cy="80" r="2.5"/>
+                <circle cx="160" cy="80" r="2.5"/><circle cx="200" cy="80" r="2.5"/>
+                <circle cx="240" cy="80" r="2.5"/>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <h3>neuropulse.live <span class="arrow">↗</span></h3>
+            <p>
+              Watch a real 3.8B-parameter transformer think, tensor by tensor.
+              Every glow is a live activation read back from WebGPU — same
+              Phi-3-mini weights as zerotvm, but every intermediate tensor is
+              rendered 1:1.
+            </p>
+            <div class="meta">
+              <span>Live activations</span><span>No server</span>
+            </div>
+          </div>
+        </a>
+
+        <a class="demo-card" href="https://barisgunaydin.com" target="_blank" rel="noopener">
+          <div class="preview" style="background: linear-gradient(135deg, #11141d 0%, #1b2030 100%);">
+            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
+              <g fill="#6ea8ff" opacity="0.85">
+                <text x="160" y="80" font-family="Iowan Old Style, Charter, Georgia, serif"
+                      font-size="32" font-style="italic" text-anchor="middle"
+                      fill="#e6e9f0">A·B·G</text>
+                <text x="160" y="105" font-family="ui-monospace, monospace"
+                      font-size="10" text-anchor="middle" opacity="0.7">Ahmet Baris Gunaydin</text>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <h3>barisgunaydin.com <span class="arrow">↗</span></h3>
+            <p>
+              The author's site. Index of all the projects, papers, and notes
+              behind this research line. Includes contact info and the full
+              kernel-fusion paper backlog.
+            </p>
+            <div class="meta">
+              <span>About</span><span>Papers</span><span>Contact</span>
+            </div>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>What's actually computed, in your tab.</h2>
+      <div class="twocol">
+        <div>
+          <p style="font-size: 13px; color: var(--text-soft); margin: 0 0 14px;">
+            Drag a slider in the hyperscope and a chain of math fires:
+          </p>
+          <pre class="code"><span class="c">// On every bond-slider tick (~60 fps target)</span>
+<span class="k">const</span> R = <span class="n">0.7414</span>;            <span class="c">// Å (slider value)</span>
+<span class="k">const</span> {H, integrals} = <span class="k">buildH2Dense</span>(R);
+<span class="c">// → STO-3G primitives, Boys F₀, ERIs, Löwdin S^(-½)</span>
+
+<span class="k">const</span> {value: E_FCI, vector: ψ} =
+  <span class="k">smallestEigenpair</span>(H, <span class="n">16</span>);
+<span class="c">// → 16×16 Jacobi diagonalization, ~1 ms</span>
+
+<span class="k">const</span> grid = <span class="k">densityGridFromCoeffs</span>(
+  R, ψ.cG, ψ.cU, GRID_SIZE
+);                       <span class="c">// 110k samples</span>
+scene.<span class="k">updateGrid</span>(grid);  <span class="c">// → WebGPU splat shader</span></pre>
+          <p style="font-size: 12px; color: var(--muted); margin: 14px 0 0;">
+            All of it runs in your tab. No server. No Python. No native code.
+          </p>
+        </div>
+        <div>
+          <strong style="font-size: 13px;">What this means concretely:</strong>
+          <ul style="font-size: 12.5px; color: var(--text-soft); padding-left: 18px; margin: 12px 0 0;">
+            <li>The H₂ ground state is recomputed from molecular integrals
+                <strong>every frame</strong> as you drag the bond slider.</li>
+            <li>The conditional pair density ρ(r₂|r₀) is recomputed for every
+                cursor move, showing the textbook Fermi+Coulomb hole.</li>
+            <li>An MPS chain of 12+ qubits runs imaginary-time evolution in
+                <strong>under 1 second</strong> for the phase-transition demo.</li>
+            <li>Every animation frame is real numerical computation, not a
+                pre-rendered movie.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="stack">
+        <span class="pill">WebGPU compute shaders</span>
+        <span class="pill">TypeScript · zero deps for math</span>
+        <span class="pill">WGSL · JIT-emitted for fusion</span>
+        <span class="pill">Vite · ESM-only</span>
+        <span class="pill">Vitest · 160 tests</span>
+        <span class="pill">Playwright e2e on Chromium-Metal-3</span>
+        <span class="pill">ITensor (Julia) reference data</span>
+      </div>
+    </section>
+
+    <footer>
+      <div>
+        <strong style="color: var(--text);">webgpu-q</strong>
+        — research playground · MIT ·
+        by <a href="https://barisgunaydin.com" target="_blank" rel="noopener">Ahmet Baris Gunaydin</a>
+        <br/>
+        <span style="font-size: 11px; color: var(--muted);">
+          Part of the
+          <a href="https://kernelfusion.dev" target="_blank" rel="noopener">kernelfusion.dev</a>
+          research line ·
+          related:
+          <a href="https://webgpudna.com" target="_blank" rel="noopener">webgpudna.com</a> ·
+          <a href="https://gpubench.dev" target="_blank" rel="noopener">gpubench.dev</a> ·
+          <a href="https://zerotvm.com" target="_blank" rel="noopener">zerotvm.com</a> ·
+          <a href="https://neuropulse.live" target="_blank" rel="noopener">neuropulse.live</a>
+        </span>
+      </div>
+      <div style="display: flex; gap: 18px; align-items: flex-start;">
+        <a href="/viz.html">hyperscope</a>
+        <a href="/experiments/">experiments</a>
+        <a href="/demo.html">gate demo</a>
+        <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub ↗</a>
+        <a href="https://www.linkedin.com/in/abgnydn/" target="_blank" rel="noopener">LinkedIn ↗</a>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,149 @@
+{
+  "meta": {
+    "protocol": "E10-throughput",
+    "hypothesis": "Fused same-qubit chains at K=32 beat unfused by ≥ 2× in the dispatch-bound regime (small N), and deliver a measurable positive speedup (≥ 1.05×) at N=20 (memory-bandwidth-bound regime).",
+    "passBar": "max speedup ≥ 2.0× on any (N, D) cell AND speedup at N=20 ≥ 1.05×",
+    "seed": "E4_OVERHEAD (xor E10)",
+    "warmup": 3,
+    "trials": 10
+  },
+  "env": {
+    "gitSha": "dev-unknown",
+    "timestamp": "2026-05-01T10:43:18.355Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "platform": "Win32",
+    "adapter": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "limits": {
+      "maxBufferSize": 4294967292,
+      "maxStorageBufferBindingSize": 4294967292,
+      "maxComputeWorkgroupsPerDimension": 65535,
+      "maxComputeInvocationsPerWorkgroup": 256,
+      "maxComputeWorkgroupStorageSize": 16384
+    },
+    "hardwareConcurrency": 12,
+    "devicePixelRatio": 1
+  },
+  "rows": [
+    {
+      "nQubits": 10,
+      "depth": 40,
+      "chainK": 32,
+      "unfusedSec": 0.004200000000186265,
+      "fusedSec": 0.003,
+      "unfusedGatesPerSec": 9523.809523387155,
+      "fusedGatesPerSec": 13333.333333333334,
+      "speedup": 1.4000000000620882,
+      "unfusedNoisy": false,
+      "fusedNoisy": false,
+      "fusedEffectiveGbps": 0.21845333333333333
+    },
+    {
+      "nQubits": 10,
+      "depth": 160,
+      "chainK": 32,
+      "unfusedSec": 0.007199999999254942,
+      "fusedSec": 0.003,
+      "unfusedGatesPerSec": 22222.22222452178,
+      "fusedGatesPerSec": 53333.333333333336,
+      "speedup": 2.3999999997516475,
+      "unfusedNoisy": false,
+      "fusedNoisy": false,
+      "fusedEffectiveGbps": 0.8738133333333333
+    },
+    {
+      "nQubits": 14,
+      "depth": 40,
+      "chainK": 32,
+      "unfusedSec": 0.0038500000005587936,
+      "fusedSec": 0.002900000000372529,
+      "unfusedGatesPerSec": 10389.61038810243,
+      "fusedGatesPerSec": 13793.103446504023,
+      "speedup": 1.3275862069186997,
+      "unfusedNoisy": false,
+      "fusedNoisy": false,
+      "fusedEffectiveGbps": 3.6157793098803506
+    },
+    {
+      "nQubits": 14,
+      "depth": 160,
+      "chainK": 32,
+      "unfusedSec": 0.0071500000003725285,
+      "fusedSec": 0.003,
+      "unfusedGatesPerSec": 22377.62237645646,
+      "fusedGatesPerSec": 53333.333333333336,
+      "speedup": 2.3833333334575095,
+      "unfusedNoisy": false,
+      "fusedNoisy": false,
+      "fusedEffectiveGbps": 13.981013333333333
+    },
+    {
+      "nQubits": 18,
+      "depth": 40,
+      "chainK": 32,
+      "unfusedSec": 0.003950000000186265,
+      "fusedSec": 0.0029500000001862646,
+      "unfusedGatesPerSec": 10126.582278003487,
+      "fusedGatesPerSec": 13559.322033042163,
+      "speedup": 1.338983050826054,
+      "unfusedNoisy": false,
+      "fusedNoisy": false,
+      "fusedEffectiveGbps": 56.87191864047688
+    },
+    {
+      "nQubits": 18,
+      "depth": 160,
+      "chainK": 32,
+      "unfusedSec": 0.007,
+      "fusedSec": 0.0030499999998137356,
+      "unfusedGatesPerSec": 22857.142857142855,
+      "fusedGatesPerSec": 52459.01639664631,
+      "speedup": 2.2950819673532763,
+      "unfusedNoisy": false,
+      "fusedNoisy": false,
+      "fusedEffectiveGbps": 220.0290623085192
+    },
+    {
+      "nQubits": 20,
+      "depth": 40,
+      "chainK": 32,
+      "unfusedSec": 0.005699999999254942,
+      "fusedSec": 0.0028500000005587936,
+      "unfusedGatesPerSec": 7017.5438605664,
+      "fusedGatesPerSec": 14035.087716546415,
+      "speedup": 1.9999999993464401,
+      "unfusedNoisy": false,
+      "fusedNoisy": true,
+      "fusedEffectiveGbps": 235.469698199446
+    },
+    {
+      "nQubits": 20,
+      "depth": 160,
+      "chainK": 32,
+      "unfusedSec": 0.007499999999068677,
+      "fusedSec": 0.0030499999998137356,
+      "unfusedGatesPerSec": 21333.33333598243,
+      "fusedGatesPerSec": 52459.01639664631,
+      "speedup": 2.459016393287444,
+      "unfusedNoisy": false,
+      "fusedNoisy": false,
+      "fusedEffectiveGbps": 880.1162492340768
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "best speedup 2.46× at N=20 D=160. N=20: 2.00×. fused peak BW ≈ 880.1 GB/s. (noisy cells: N=20,D=40)",
+  "summary": {
+    "bestSpeedup": 2.459016393287444,
+    "bestSpeedupAt": {
+      "nQubits": 20,
+      "depth": 160,
+      "chainK": 32
+    },
+    "speedupAtN20": 1.9999999993464401,
+    "chainK": 32
+  }
+}

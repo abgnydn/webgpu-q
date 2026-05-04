@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#6ea8ff" />
+  <title>Gate-throughput demo · Bell, GHZ, QFT · webgpu-q</title>
+  <meta name="description" content="Textbook quantum circuits running on the GPU with CPU cross-check. Bell, GHZ, QFT, Deutsch-Jozsa — gate-rate measurement, bandwidth roofline, all in WebGPU." />
+  <meta name="author" content="Ahmet Baris Gunaydin" />
+  <link rel="canonical" href="https://webgpu-q.vercel.app/demo.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="webgpu-q" />
+  <meta property="og:title" content="Gate-throughput demo · webgpu-q" />
+  <meta property="og:description" content="Bell, GHZ, QFT, Deutsch-Jozsa on the GPU vs CPU reference. Browser-native." />
+  <meta property="og:url" content="https://webgpu-q.vercel.app/demo.html" />
+  <meta property="og:image" content="https://webgpu-q.vercel.app/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Gate-throughput demo · webgpu-q" />
+  <meta name="twitter:image" content="https://webgpu-q.vercel.app/og-image.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --fg: #e6e7ea;
+      --muted: #7a8088;
+      --accent: #6aa9ff;
+      --border: #20242a;
+      --card: #11141a;
+    }
+    html, body {
+      background: var(--bg);
+      color: var(--fg);
+      margin: 0;
+      padding: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-text-size-adjust: 100%;
+    }
+    #app {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+    h1 { font-size: 22px; margin: 0 0 8px; }
+    h2 { font-size: 16px; margin: 32px 0 8px; color: var(--accent); }
+    p { color: var(--muted); margin: 6px 0; }
+    a { color: var(--accent); }
+    code { background: #1a1f27; padding: 1px 5px; border-radius: 3px; }
+    /* Wrap wide tables (e.g. the bench results) so they scroll horizontally on phones. */
+    .table-wrap, #bench {
+      display: block;
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+    }
+    th, td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    th { color: var(--accent); font-weight: 600; }
+    tr:last-child td { border-bottom: none; }
+    nav { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+    nav a { margin-right: 0; }
+    @media (max-width: 720px) {
+      #app { padding: 24px 14px 60px; }
+      h1 { font-size: 19px; }
+      h2 { font-size: 15px; margin-top: 24px; }
+      /* Let any wide table scroll inside its own box rather than overflowing the viewport. */
+      table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <nav>
+      <a href="#demo-slot">demo</a>
+      <a href="#bench-heading">bench</a>
+      <a href="https://github.com/abgnydn" target="_blank" rel="noopener">github</a>
+    </nav>
+    <div id="demo-slot"></div>
+    <h2 id="bench-heading">benchmark (GPU vs CPU reference)</h2>
+    <p>Random brick-wall circuit, sweep over N. CPU column only populated for N ≤ 18.</p>
+    <table id="bench"></table>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+  <script type="module" src="/src/bench.ts"></script>
+</body>
+</html>

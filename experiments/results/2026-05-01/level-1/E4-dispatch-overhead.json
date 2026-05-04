@@ -1,0 +1,114 @@
+{
+  "meta": {
+    "protocol": "E4-dispatch-overhead",
+    "hypothesis": "Per-gate time T(N) = α + β · 2^N; α ∈ [5, 500] μs, β > 0, R² ≥ 0.85 over N ∈ [4, 18].",
+    "passBar": "α ∈ [5, 500] μs AND β > 0 AND R² ≥ 0.85",
+    "seed": "E4_OVERHEAD",
+    "warmup": 5,
+    "trials": 20
+  },
+  "env": {
+    "gitSha": "dev-unknown",
+    "timestamp": "2026-05-01T10:42:10.185Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "platform": "Win32",
+    "adapter": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "limits": {
+      "maxBufferSize": 4294967292,
+      "maxStorageBufferBindingSize": 4294967292,
+      "maxComputeWorkgroupsPerDimension": 65535,
+      "maxComputeInvocationsPerWorkgroup": 256,
+      "maxComputeWorkgroupStorageSize": 16384
+    },
+    "hardwareConcurrency": 12,
+    "devicePixelRatio": 1
+  },
+  "rows": [
+    {
+      "nQubits": 4,
+      "nStates": 16,
+      "gatesPerBatch": 256,
+      "medianSeconds": 0.008799999999813735,
+      "secondsPerGate": 0.0000343749999992724,
+      "microsPerGate": 34.374999999272404,
+      "noisy": false
+    },
+    {
+      "nQubits": 8,
+      "nStates": 256,
+      "gatesPerBatch": 256,
+      "medianSeconds": 0.008599999999627472,
+      "secondsPerGate": 0.00003359374999854481,
+      "microsPerGate": 33.59374999854481,
+      "noisy": false
+    },
+    {
+      "nQubits": 12,
+      "nStates": 4096,
+      "gatesPerBatch": 256,
+      "medianSeconds": 0.00840000000037253,
+      "secondsPerGate": 0.000032812500001455194,
+      "microsPerGate": 32.81250000145519,
+      "noisy": false
+    },
+    {
+      "nQubits": 14,
+      "nStates": 16384,
+      "gatesPerBatch": 256,
+      "medianSeconds": 0.008700000000186264,
+      "secondsPerGate": 0.00003398437500072759,
+      "microsPerGate": 33.98437500072759,
+      "noisy": false
+    },
+    {
+      "nQubits": 16,
+      "nStates": 65536,
+      "gatesPerBatch": 256,
+      "medianSeconds": 0.008599999999627472,
+      "secondsPerGate": 0.00003359374999854481,
+      "microsPerGate": 33.59374999854481,
+      "noisy": false
+    },
+    {
+      "nQubits": 18,
+      "nStates": 262144,
+      "gatesPerBatch": 256,
+      "medianSeconds": 0.008800000000745057,
+      "secondsPerGate": 0.00003437500000291038,
+      "microsPerGate": 34.37500000291038,
+      "noisy": false
+    },
+    {
+      "nQubits": 20,
+      "nStates": 1048576,
+      "gatesPerBatch": 256,
+      "medianSeconds": 0.011800000000745058,
+      "secondsPerGate": 0.000046093750002910384,
+      "microsPerGate": 46.09375000291038,
+      "noisy": false
+    },
+    {
+      "nQubits": 22,
+      "nStates": 4194304,
+      "gatesPerBatch": 256,
+      "medianSeconds": 0.09290000000037253,
+      "secondsPerGate": 0.0003628906250014552,
+      "microsPerGate": 362.8906250014552,
+      "noisy": false
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "α=22.1 μs, β=0.078 ns/amp, R²=0.9560.",
+  "fit": {
+    "alpha": 0.000022141344882344095,
+    "beta": 7.772558407527036e-11,
+    "r2": 0.9559574186524141,
+    "alphaMicros": 22.141344882344097,
+    "betaNsPerAmp": 0.07772558407527036
+  }
+}

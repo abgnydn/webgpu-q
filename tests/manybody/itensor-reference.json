@@ -1,0 +1,564 @@
+{
+    "itensors_version": "0.9.26",
+    "generated_by": "tools/itensor-reference.jl",
+    "results": [
+        {
+            "energy_per_site": -0.4040063509461096,
+            "chi_cap": 200,
+            "max_bond_dim": 4,
+            "model": "heisenberg",
+            "N": 4,
+            "args": {
+                "1": 1
+            },
+            "energy": -1.6160254037844384,
+            "bond_dims": [
+                2,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -0.4218665748359862,
+            "chi_cap": 200,
+            "max_bond_dim": 16,
+            "model": "heisenberg",
+            "N": 8,
+            "args": {
+                "1": 1
+            },
+            "energy": -3.3749325986878898,
+            "bond_dims": [
+                2,
+                4,
+                8,
+                16,
+                8,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -0.42850755273637303,
+            "chi_cap": 200,
+            "max_bond_dim": 32,
+            "model": "heisenberg",
+            "N": 12,
+            "args": {
+                "1": 1
+            },
+            "energy": -5.142090632836476,
+            "bond_dims": [
+                2,
+                4,
+                8,
+                16,
+                32,
+                29,
+                32,
+                16,
+                8,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -0.43412366671818453,
+            "chi_cap": 200,
+            "max_bond_dim": 51,
+            "model": "heisenberg",
+            "N": 20,
+            "args": {
+                "1": 1
+            },
+            "energy": -8.68247333436369,
+            "bond_dims": [
+                2,
+                4,
+                8,
+                16,
+                32,
+                39,
+                45,
+                49,
+                49,
+                51,
+                49,
+                49,
+                45,
+                39,
+                32,
+                16,
+                8,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -0.4385368324948103,
+            "chi_cap": 200,
+            "max_bond_dim": 95,
+            "model": "heisenberg",
+            "N": 40,
+            "args": {
+                "1": 1
+            },
+            "energy": -17.54147329979241,
+            "bond_dims": [
+                2,
+                4,
+                8,
+                16,
+                32,
+                40,
+                50,
+                61,
+                64,
+                70,
+                72,
+                81,
+                78,
+                88,
+                85,
+                92,
+                88,
+                95,
+                89,
+                95,
+                89,
+                95,
+                88,
+                92,
+                85,
+                88,
+                78,
+                81,
+                72,
+                70,
+                64,
+                61,
+                50,
+                40,
+                32,
+                16,
+                8,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -0.9550740691856897,
+            "chi_cap": 200,
+            "regime": "ferro",
+            "max_bond_dim": 8,
+            "model": "tfim",
+            "N": 8,
+            "args": {
+                "1": 1,
+                "2": 0.5
+            },
+            "energy": -7.640592553485518,
+            "bond_dims": [
+                2,
+                4,
+                8,
+                8,
+                8,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -1.009127481348446,
+            "chi_cap": 200,
+            "regime": "ferro",
+            "max_bond_dim": 9,
+            "model": "tfim",
+            "N": 16,
+            "args": {
+                "1": 1,
+                "2": 0.5
+            },
+            "energy": -16.146039701575138,
+            "bond_dims": [
+                2,
+                4,
+                7,
+                8,
+                8,
+                8,
+                9,
+                8,
+                8,
+                8,
+                8,
+                7,
+                7,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -1.036335939731768,
+            "chi_cap": 200,
+            "regime": "ferro",
+            "max_bond_dim": 5,
+            "model": "tfim",
+            "N": 32,
+            "args": {
+                "1": 1,
+                "2": 0.5
+            },
+            "energy": -33.162750071416575,
+            "bond_dims": [
+                2,
+                4,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                5,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -1.2297439309320812,
+            "chi_cap": 200,
+            "regime": "critical",
+            "max_bond_dim": 9,
+            "model": "tfim",
+            "N": 8,
+            "args": {
+                "1": 1,
+                "2": 1
+            },
+            "energy": -9.83795144745665,
+            "bond_dims": [
+                2,
+                4,
+                8,
+                9,
+                8,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -1.251024243779149,
+            "chi_cap": 200,
+            "regime": "critical",
+            "max_bond_dim": 13,
+            "model": "tfim",
+            "N": 16,
+            "args": {
+                "1": 1,
+                "2": 1
+            },
+            "energy": -20.016387900466384,
+            "bond_dims": [
+                2,
+                4,
+                8,
+                10,
+                11,
+                12,
+                13,
+                13,
+                13,
+                12,
+                11,
+                10,
+                8,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -1.2620097862845123,
+            "chi_cap": 200,
+            "regime": "critical",
+            "max_bond_dim": 18,
+            "model": "tfim",
+            "N": 32,
+            "args": {
+                "1": 1,
+                "2": 1
+            },
+            "energy": -40.384313161104394,
+            "bond_dims": [
+                2,
+                4,
+                8,
+                10,
+                12,
+                13,
+                14,
+                14,
+                15,
+                16,
+                17,
+                17,
+                17,
+                17,
+                18,
+                18,
+                18,
+                17,
+                17,
+                17,
+                17,
+                16,
+                15,
+                14,
+                14,
+                13,
+                12,
+                10,
+                8,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -2.1106426866509715,
+            "chi_cap": 200,
+            "regime": "para",
+            "max_bond_dim": 6,
+            "model": "tfim",
+            "N": 8,
+            "args": {
+                "1": 1,
+                "2": 2
+            },
+            "energy": -16.885141493207772,
+            "bond_dims": [
+                2,
+                4,
+                6,
+                6,
+                6,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -2.1188657521535923,
+            "chi_cap": 200,
+            "regime": "para",
+            "max_bond_dim": 6,
+            "model": "tfim",
+            "N": 16,
+            "args": {
+                "1": 1,
+                "2": 2
+            },
+            "energy": -33.90185203445748,
+            "bond_dims": [
+                2,
+                4,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -2.1229772860481253,
+            "chi_cap": 200,
+            "regime": "para",
+            "max_bond_dim": 6,
+            "model": "tfim",
+            "N": 32,
+            "args": {
+                "1": 1,
+                "2": 2
+            },
+            "energy": -67.93527315354001,
+            "bond_dims": [
+                2,
+                4,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                6,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -1.4588471690660052,
+            "chi_cap": 200,
+            "max_bond_dim": 42,
+            "model": "xxz",
+            "N": 16,
+            "args": {
+                "1": 1,
+                "2": 0.5
+            },
+            "energy": -23.341554705056083,
+            "bond_dims": [
+                2,
+                4,
+                8,
+                16,
+                30,
+                36,
+                42,
+                41,
+                42,
+                36,
+                30,
+                16,
+                8,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -1.7279342863890523,
+            "chi_cap": 200,
+            "max_bond_dim": 43,
+            "model": "xxz",
+            "N": 16,
+            "args": {
+                "1": 1,
+                "2": 1
+            },
+            "energy": -27.646948582224837,
+            "bond_dims": [
+                2,
+                4,
+                8,
+                16,
+                32,
+                36,
+                42,
+                43,
+                42,
+                36,
+                32,
+                16,
+                8,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "energy_per_site": -2.034466800643582,
+            "chi_cap": 200,
+            "max_bond_dim": 42,
+            "model": "xxz",
+            "N": 16,
+            "args": {
+                "1": 1,
+                "2": 1.5
+            },
+            "energy": -32.551468810297315,
+            "bond_dims": [
+                2,
+                4,
+                8,
+                16,
+                30,
+                36,
+                42,
+                41,
+                42,
+                36,
+                30,
+                16,
+                8,
+                4,
+                2
+            ],
+            "dmrg_sweeps": 10
+        },
+        {
+            "kind": "bethe-ansatz-limit",
+            "energy_per_site": -0.4431471805599453,
+            "model": "heisenberg",
+            "N": "infinite"
+        },
+        {
+            "kind": "pfeuty-critical-limit",
+            "energy_per_site": -0.6366197723675814,
+            "model": "tfim",
+            "N": "infinite",
+            "args": {
+                "1": 1,
+                "2": 1
+            }
+        }
+    ]
+}

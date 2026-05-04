@@ -1,0 +1,104 @@
+{
+  "meta": {
+    "protocol": "E3-scaling-law",
+    "hypothesis": "Per-gate time scales linearly with state size at N ≥ 22; fit slope ≈ 1.00 ± 0.08 on log–log.",
+    "passBar": "slope ∈ [0.92, 1.08] AND R² ≥ 0.95 for N ≥ 22 (R² waived if only 2 fit points)",
+    "seed": "E3_SCALING",
+    "warmup": 3,
+    "trials": 12
+  },
+  "env": {
+    "gitSha": "dev-unknown",
+    "timestamp": "2026-05-01T10:42:02.612Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "platform": "Win32",
+    "adapter": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "limits": {
+      "maxBufferSize": 4294967292,
+      "maxStorageBufferBindingSize": 4294967292,
+      "maxComputeWorkgroupsPerDimension": 65535,
+      "maxComputeInvocationsPerWorkgroup": 256,
+      "maxComputeWorkgroupStorageSize": 16384
+    },
+    "hardwareConcurrency": 12,
+    "devicePixelRatio": 1
+  },
+  "rows": [
+    {
+      "nQubits": 12,
+      "nStates": 4096,
+      "gates": 144,
+      "layers": 8,
+      "medianSeconds": 0.006149999999441207,
+      "secondsPerGate": 0.000042708333329452824,
+      "noisy": false,
+      "effectiveGbps": 1.53450146355406
+    },
+    {
+      "nQubits": 16,
+      "nStates": 65536,
+      "gates": 192,
+      "layers": 8,
+      "medianSeconds": 0.0072499999999999995,
+      "secondsPerGate": 0.00003776041666666666,
+      "noisy": false,
+      "effectiveGbps": 27.76918510344828
+    },
+    {
+      "nQubits": 18,
+      "nStates": 262144,
+      "gates": 216,
+      "layers": 8,
+      "medianSeconds": 0.007599999999627471,
+      "secondsPerGate": 0.000035185185183460515,
+      "noisy": false,
+      "effectiveGbps": 119.20653474268524
+    },
+    {
+      "nQubits": 20,
+      "nStates": 1048576,
+      "gates": 240,
+      "layers": 8,
+      "medianSeconds": 0.011050000000745058,
+      "secondsPerGate": 0.00004604166666977107,
+      "noisy": false,
+      "effectiveGbps": 364.3920216948875
+    },
+    {
+      "nQubits": 22,
+      "nStates": 4194304,
+      "gates": 264,
+      "layers": 8,
+      "medianSeconds": 0.08279999999981374,
+      "secondsPerGate": 0.0003136363636356581,
+      "noisy": false,
+      "effectiveGbps": 213.9702910149741
+    },
+    {
+      "nQubits": 24,
+      "nStates": 16777216,
+      "gates": 288,
+      "layers": 8,
+      "medianSeconds": 0.37840000000037255,
+      "secondsPerGate": 0.0013138888888901824,
+      "noisy": false,
+      "effectiveGbps": 204.3060553063528
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "slope=1.033, R²=1.0000, fit over N ∈ [22,24].",
+  "fit": {
+    "slope": 1.03333926688044,
+    "intercept": -10.347028120711615,
+    "r2": 1,
+    "nRegime": [
+      22,
+      24
+    ]
+  }
+}

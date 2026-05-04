@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>GPU MPS bench · webgpu-q</title>
+    <link rel="canonical" href="https://webgpu-q.vercel.app/experiments/gpu-mps/" />
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --panel: rgba(14, 18, 28, 0.85);
+        --border: #1b2030;
+        --text: #d8dde6;
+        --muted: #7a8294;
+        --accent: #6ea8ff;
+        --accent-warm: #ffb56e;
+      }
+      html, body {
+        margin: 0; padding: 0; height: 100%;
+        background: var(--bg); color: var(--text);
+        font: 13px/1.55 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        -webkit-text-size-adjust: 100%;
+      }
+      .wrap { max-width: 980px; margin: 0 auto; padding: 32px 24px; }
+      h1 {
+        font-family: "Iowan Old Style", "Charter", Georgia, serif;
+        font-size: 30px; font-weight: 500; letter-spacing: -0.01em;
+        margin: 0 0 6px;
+      }
+      .lead { color: var(--muted); margin: 0 0 24px; max-width: 720px; }
+      .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 12px 0;
+      }
+      .table-wrap table.results { margin: 0; }
+      table.results {
+        width: 100%; border-collapse: collapse; margin: 12px 0;
+        font-size: 12.5px;
+      }
+      table.results th, table.results td {
+        padding: 8px 12px; text-align: left;
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+      }
+      table.results th {
+        color: var(--muted); font-weight: 500; font-size: 11px;
+        letter-spacing: 0.08em; text-transform: uppercase;
+      }
+      table.results td.num {
+        color: var(--accent-warm);
+        font-variant-numeric: tabular-nums;
+      }
+      table.results td.ok { color: #b0ffd0; }
+      table.results td.fail { color: #ff8e6e; }
+      .panel {
+        background: var(--panel); border: 1px solid var(--border);
+        border-radius: 10px; padding: 16px 20px; margin: 16px 0;
+      }
+      button {
+        background: var(--panel); border: 1px solid var(--border);
+        color: var(--text); font: inherit; padding: 8px 14px;
+        border-radius: 6px; cursor: pointer;
+      }
+      button:hover { border-color: var(--accent); }
+      .kvs { color: var(--muted); }
+      .kvs .v { color: var(--text); }
+      a { color: var(--accent); }
+      @media (max-width: 720px) {
+        .wrap { padding: 20px 14px 60px; }
+        h1 { font-size: 22px; }
+        h2 { font-size: 18px !important; }
+        .lead { font-size: 12.5px; }
+        .panel { padding: 12px 14px; }
+        button {
+          width: 100%;
+          padding: 10px 14px;
+          font-size: 13px;
+        }
+        .panel button + span,
+        .panel button + #status {
+          display: block;
+          margin-top: 8px;
+          margin-left: 0 !important;
+        }
+        table.results th, table.results td { padding: 8px 10px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>GPU MPS bench <span style="color:var(--accent-warm); font-size:13px; letter-spacing:0.12em; text-transform:uppercase; font-family:inherit;">phase 1a</span></h1>
+      <p class="lead">
+        Phase 1A of the WebGPU MPS port: complex matrix multiplication on the GPU, validated against the CPU implementation across matrix sizes. The merge step in MPS two-site updates is bottlenecked by this op; the SVD that follows it stays CPU-side until Phase 1B.
+      </p>
+
+      <div class="panel">
+        <div class="kvs" id="adapterInfo">init…</div>
+        <button id="runBtn" style="margin-top:12px;">Run benchmark</button>
+        <span id="status" style="margin-left:12px; color: var(--muted);"></span>
+      </div>
+
+      <div class="table-wrap"><table class="results">
+        <thead>
+          <tr>
+            <th>shape</th>
+            <th>frob ‖GPU − CPU‖</th>
+            <th>relative</th>
+            <th>match</th>
+            <th>CPU (ms)</th>
+            <th>GPU (ms)</th>
+            <th>speedup</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody">
+          <tr><td colspan="7" style="color:var(--muted)">click "Run benchmark"</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 style="font-family: 'Iowan Old Style', Charter, Georgia, serif; font-size:22px; font-weight:500; margin-top:32px;">SVD validation <span style="color:var(--accent-warm); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; font-family:inherit;">phase 1b</span></h2>
+      <p class="lead">
+        Single-workgroup one-sided complex Jacobi SVD on a random complex matrix. We reconstruct
+        M = U · diag(σ) · V<sup>H</sup> on the host and report the relative Frobenius error
+        against the original. f32 floor sets a ~1e-5 ceiling at these sizes.
+      </p>
+      <div class="panel">
+        <button id="svdRunBtn">Run SVD validation</button>
+      </div>
+      <div class="table-wrap"><table class="results">
+        <thead>
+          <tr>
+            <th>shape</th>
+            <th>frob ‖M − U Σ V<sup>H</sup>‖</th>
+            <th>relative</th>
+            <th>match</th>
+            <th>GPU (ms)</th>
+            <th>σ_max</th>
+          </tr>
+        </thead>
+        <tbody id="svdResultsBody">
+          <tr><td colspan="6" style="color:var(--muted)">click "Run SVD validation"</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 style="font-family: 'Iowan Old Style', Charter, Georgia, serif; font-size:22px; font-weight:500; margin-top:32px;">MPS evolution with GPU SVD <span style="color:var(--accent-warm); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; font-family:inherit;">phase 2</span></h2>
+      <p class="lead">
+        End-to-end: build a TFIM real-time evolution circuit, run it on the CPU MPS
+        and on a fresh MPS that uses GPU Jacobi SVD inside <code>applyTwoSiteAsync</code>.
+        Cross-check with the squared overlap |⟨ψ<sub>cpu</sub>|ψ<sub>gpu</sub>⟩|² —
+        should be ≈ 1 to f32 floor. Limited to χ ≤ 12 (the Phase 1B kernel envelope);
+        Phase 1C lifts that.
+      </p>
+      <div class="panel">
+        <button id="mpsRunBtn">Run MPS GPU vs CPU</button>
+      </div>
+      <div class="table-wrap"><table class="results">
+        <thead>
+          <tr>
+            <th>config</th>
+            <th>fidelity</th>
+            <th>match</th>
+            <th>CPU (ms)</th>
+            <th>GPU (ms)</th>
+            <th>speedup</th>
+          </tr>
+        </thead>
+        <tbody id="mpsResultsBody">
+          <tr><td colspan="6" style="color:var(--muted)">click "Run MPS GPU vs CPU"</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 style="font-family: 'Iowan Old Style', Charter, Georgia, serif; font-size:22px; font-weight:500; margin-top:32px;">GPU-resident MPS · single-qubit gates <span style="color:var(--accent-warm); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; font-family:inherit;">phase 4a</span></h2>
+      <p class="lead">
+        Tensors live on the GPU between gate calls. A WGSL kernel mutates one
+        site's tensor in-place per single-qubit gate — no CPU↔GPU round-trip
+        between gates. Statevector readback at the end contracts all sites and
+        compares against the CPU MPS. Two-site gates land in Phase 4b.
+      </p>
+      <div class="panel">
+        <button id="resRunBtn">Run GPU-resident MPS</button>
+      </div>
+      <div class="table-wrap"><table class="results">
+        <thead>
+          <tr>
+            <th>config</th>
+            <th>fidelity</th>
+            <th>match</th>
+            <th>CPU (ms)</th>
+            <th>GPU (ms)</th>
+            <th>speedup</th>
+          </tr>
+        </thead>
+        <tbody id="resResultsBody">
+          <tr><td colspan="6" style="color:var(--muted)">click "Run GPU-resident MPS"</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 style="font-family: 'Iowan Old Style', Charter, Georgia, serif; font-size:22px; font-weight:500; margin-top:32px;">Full GPU two-site pipeline <span style="color:var(--accent-warm); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; font-family:inherit;">phase 4b · 5</span></h2>
+      <p class="lead">
+        Two-site gates routed entirely through the GPU: merge → in-place
+        Jacobi SVD → column-norm reduction → permutation upload → extract-U +
+        build-T<sub>q+1</sub> kernels. State stays GPU-resident across the whole
+        circuit; only the final statevector is read back. Phase 5 lifts the
+        square-SVD constraint by zero-padding the rectangular merged matrix
+        to nMax × nMax, so circuits where χ<sub>L</sub> ≠ χ<sub>R</sub>
+        mid-chain (deeper brick-walls) now run end-to-end.
+      </p>
+      <div class="panel">
+        <button id="phase4bRunBtn">Run Phase 4b — full GPU two-site</button>
+      </div>
+      <div class="table-wrap"><table class="results">
+        <thead>
+          <tr>
+            <th>config</th>
+            <th>fidelity</th>
+            <th>match</th>
+            <th>CPU (ms)</th>
+            <th>GPU (ms)</th>
+            <th>speedup</th>
+          </tr>
+        </thead>
+        <tbody id="phase4bResultsBody">
+          <tr><td colspan="6" style="color:var(--muted)">click "Run Phase 4b"</td></tr>
+        </tbody>
+      </table></div>
+
+      <p class="lead" style="margin-top:24px;">
+        ← <a href="/experiments/">back to research dashboard</a>
+      </p>
+    </div>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

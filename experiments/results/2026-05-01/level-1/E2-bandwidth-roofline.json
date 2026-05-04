@@ -1,0 +1,95 @@
+{
+  "meta": {
+    "protocol": "E2-bandwidth-roofline",
+    "hypothesis": "At N ≥ 20 the single-qubit gate kernel is memory-bandwidth-bound, reaching ≥ 40% of peak BW at N ≥ 22.",
+    "passBar": "effectiveGbps ≥ 0.40 × peakGbps for N ∈ {22, 24}",
+    "seed": "E2_BANDWIDTH",
+    "warmup": 5,
+    "trials": 20
+  },
+  "env": {
+    "gitSha": "dev-unknown",
+    "timestamp": "2026-05-01T10:41:59.030Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "platform": "Win32",
+    "adapter": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "limits": {
+      "maxBufferSize": 4294967292,
+      "maxStorageBufferBindingSize": 4294967292,
+      "maxComputeWorkgroupsPerDimension": 65535,
+      "maxComputeInvocationsPerWorkgroup": 256,
+      "maxComputeWorkgroupStorageSize": 16384
+    },
+    "hardwareConcurrency": 12,
+    "devicePixelRatio": 1
+  },
+  "rows": [
+    {
+      "nQubits": 16,
+      "nStates": 65536,
+      "gatesPerBatch": 64,
+      "medianSeconds": 0.004299999999813736,
+      "p90Seconds": 0.004550000000000001,
+      "noisy": false,
+      "bytesPerGate": 1048576,
+      "effectiveGbps": 15.606712558815575,
+      "peakGbps": 200,
+      "fractionOfPeak": 0.07803356279407787
+    },
+    {
+      "nQubits": 18,
+      "nStates": 262144,
+      "gatesPerBatch": 64,
+      "medianSeconds": 0.00425,
+      "p90Seconds": 0.004519999999925494,
+      "noisy": false,
+      "bytesPerGate": 4194304,
+      "effectiveGbps": 63.16128376470588,
+      "peakGbps": 200,
+      "fractionOfPeak": 0.3158064188235294
+    },
+    {
+      "nQubits": 20,
+      "nStates": 1048576,
+      "gatesPerBatch": 64,
+      "medianSeconds": 0.003900000000372529,
+      "p90Seconds": 0.005209999999217689,
+      "noisy": true,
+      "bytesPerGate": 16777216,
+      "effectiveGbps": 275.3184163839579,
+      "peakGbps": 200,
+      "fractionOfPeak": 1.3765920819197897
+    },
+    {
+      "nQubits": 22,
+      "nStates": 4194304,
+      "gatesPerBatch": 64,
+      "medianSeconds": 0.02359999999962747,
+      "p90Seconds": 0.025029999999888242,
+      "noisy": false,
+      "bytesPerGate": 67108864,
+      "effectiveGbps": 181.9901396638897,
+      "peakGbps": 200,
+      "fractionOfPeak": 0.9099506983194484
+    },
+    {
+      "nQubits": 24,
+      "nStates": 16777216,
+      "gatesPerBatch": 64,
+      "medianSeconds": 0.09759999999962747,
+      "p90Seconds": 0.09923999999929219,
+      "noisy": false,
+      "bytesPerGate": 268435456,
+      "effectiveGbps": 176.02324983673742,
+      "peakGbps": 200,
+      "fractionOfPeak": 0.8801162491836871
+    }
+  ],
+  "status": "noisy",
+  "diagnosis": "NOISY samples at N=20. Investigate before publishing."
+}

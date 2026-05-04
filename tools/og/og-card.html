@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background: #0b0d12;
+        color: #e6e9f0;
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+      .stage {
+        position: relative;
+        width: 1200px;
+        height: 630px;
+        background:
+          radial-gradient(circle at 20% 35%, rgba(110, 168, 255, 0.32), transparent 55%),
+          radial-gradient(circle at 78% 70%, rgba(255, 181, 110, 0.20), transparent 55%),
+          radial-gradient(circle at 50% 50%, rgba(176, 255, 208, 0.08), transparent 70%),
+          #0b0d12;
+        padding: 64px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .grid {
+        position: absolute; inset: 0;
+        opacity: 0.06;
+        background-image:
+          linear-gradient(to right, #6ea8ff 1px, transparent 1px),
+          linear-gradient(to bottom, #6ea8ff 1px, transparent 1px);
+        background-size: 60px 60px;
+      }
+      .top {
+        display: flex; align-items: center; gap: 14px;
+        z-index: 2;
+      }
+      .top .dot {
+        width: 14px; height: 14px;
+        background: #ffb56e; border-radius: 50%;
+        box-shadow: 0 0 16px #ffb56e;
+      }
+      .top .brand {
+        font-size: 22px; font-weight: 600; letter-spacing: 0.02em;
+      }
+      .top .pill {
+        margin-left: 14px;
+        font-size: 13px; padding: 6px 14px;
+        background: rgba(176, 255, 208, 0.12);
+        border: 1px solid rgba(176, 255, 208, 0.32);
+        color: #b0ffd0;
+        border-radius: 999px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      h1 {
+        font-family: "Iowan Old Style", "Charter", "Georgia", serif;
+        font-weight: 500;
+        font-size: 96px;
+        line-height: 1.04;
+        letter-spacing: -0.02em;
+        margin: 0;
+        z-index: 2;
+      }
+      h1 em {
+        font-style: italic;
+        color: #ffb56e;
+        font-family: inherit;
+      }
+      .stats {
+        display: flex; gap: 56px;
+        z-index: 2;
+      }
+      .stats .stat .num {
+        font-family: "Iowan Old Style", "Charter", "Georgia", serif;
+        font-size: 48px;
+        color: #ffb56e;
+        line-height: 1;
+        letter-spacing: -0.01em;
+      }
+      .stats .stat .lab {
+        margin-top: 6px;
+        font-size: 13px;
+        color: #7a8294;
+        text-transform: uppercase;
+        letter-spacing: 0.10em;
+      }
+      .bottom {
+        display: flex; justify-content: space-between; align-items: flex-end;
+        z-index: 2;
+      }
+      .url {
+        font-size: 18px;
+        color: #6ea8ff;
+        letter-spacing: 0.04em;
+      }
+      .author {
+        font-size: 14px;
+        color: #7a8294;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="grid"></div>
+      <div class="top">
+        <div class="dot"></div>
+        <div class="brand">webgpu-q</div>
+        <span class="pill">research playground</span>
+      </div>
+      <h1>
+        Quantum simulation,<br/>
+        <em>in a browser tab.</em>
+      </h1>
+      <div class="stats">
+        <div class="stat">
+          <div class="num">131</div>
+          <div class="lab">tests passing</div>
+        </div>
+        <div class="stat">
+          <div class="num">2.69×</div>
+          <div class="lab">brick-wall fusion</div>
+        </div>
+        <div class="stat">
+          <div class="num">7 dec.</div>
+          <div class="lab">PySCF agreement</div>
+        </div>
+        <div class="stat">
+          <div class="num">≤ 5 mHa</div>
+          <div class="lab">ITensor DMRG</div>
+        </div>
+      </div>
+      <div class="bottom">
+        <div class="url">webgpu-q.vercel.app</div>
+        <div class="author">by Ahmet Baris Gunaydin · kernelfusion.dev</div>
+      </div>
+    </div>
+  </body>
+</html>

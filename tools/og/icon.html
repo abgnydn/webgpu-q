@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 512px;
+        height: 512px;
+        overflow: hidden;
+        background: #0b0d12;
+      }
+      .icon {
+        width: 512px;
+        height: 512px;
+        background:
+          radial-gradient(circle at 50% 50%, rgba(110, 168, 255, 0.55), transparent 70%),
+          #0b0d12;
+        position: relative;
+      }
+      .ring {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        width: 240px; height: 240px;
+        border: 14px solid #6ea8ff;
+        border-radius: 50%;
+        box-shadow: 0 0 50px rgba(110, 168, 255, 0.6);
+      }
+      .core {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        width: 88px; height: 88px;
+        background: #ffb56e;
+        border-radius: 50%;
+        box-shadow: 0 0 60px rgba(255, 181, 110, 0.8);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="icon">
+      <div class="ring"></div>
+      <div class="core"></div>
+    </div>
+  </body>
+</html>

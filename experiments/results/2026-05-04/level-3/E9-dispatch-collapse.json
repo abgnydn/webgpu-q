@@ -1,0 +1,413 @@
+{
+  "meta": {
+    "protocol": "E9-dispatch-collapse",
+    "hypothesis": "Per-gate time follows α_eff(k) = α_raw/k + C, with α_raw in E4's dispatch-cost range [5, 500] μs and α_eff(k_max=64) ≤ 20 μs. Residual C is dominated by the map-fence bias in `timedRun`, not by fusion-kernel inefficiency.",
+    "passBar": "α_raw ∈ [5, 500] μs AND α_eff(64) ≤ 20 μs AND 1/k fit R² ≥ 0.98",
+    "seed": "E4_OVERHEAD (xor E9)",
+    "warmup": 5,
+    "trials": 20
+  },
+  "env": {
+    "gitSha": "dev-unknown",
+    "timestamp": "2026-05-04T07:33:23.586Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "platform": "Win32",
+    "adapter": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "limits": {
+      "maxBufferSize": 4294967292,
+      "maxStorageBufferBindingSize": 4294967292,
+      "maxComputeWorkgroupsPerDimension": 65535,
+      "maxComputeInvocationsPerWorkgroup": 256,
+      "maxComputeWorkgroupStorageSize": 32768
+    },
+    "hardwareConcurrency": 12,
+    "devicePixelRatio": 1
+  },
+  "rows": [
+    {
+      "k": 1,
+      "nQubits": 8,
+      "nStates": 256,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 256,
+      "medianSeconds": 0.011650000000372529,
+      "secondsPerGate": 0.00004550781250145519,
+      "microsPerGate": 45.50781250145519,
+      "noisy": true
+    },
+    {
+      "k": 2,
+      "nQubits": 8,
+      "nStates": 256,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 128,
+      "medianSeconds": 0.007049999998882413,
+      "secondsPerGate": 0.000027539062495634425,
+      "microsPerGate": 27.539062495634425,
+      "noisy": false
+    },
+    {
+      "k": 4,
+      "nQubits": 8,
+      "nStates": 256,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 64,
+      "medianSeconds": 0.004399999998509884,
+      "secondsPerGate": 0.000017187499994179235,
+      "microsPerGate": 17.187499994179234,
+      "noisy": false
+    },
+    {
+      "k": 8,
+      "nQubits": 8,
+      "nStates": 256,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 32,
+      "medianSeconds": 0.0034499999992549423,
+      "secondsPerGate": 0.000013476562497089618,
+      "microsPerGate": 13.476562497089619,
+      "noisy": true
+    },
+    {
+      "k": 16,
+      "nQubits": 8,
+      "nStates": 256,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 16,
+      "medianSeconds": 0.0029500000011175873,
+      "secondsPerGate": 0.000011523437504365575,
+      "microsPerGate": 11.523437504365575,
+      "noisy": false
+    },
+    {
+      "k": 32,
+      "nQubits": 8,
+      "nStates": 256,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 8,
+      "medianSeconds": 0.002800000000745058,
+      "secondsPerGate": 0.000010937500002910383,
+      "microsPerGate": 10.937500002910383,
+      "noisy": false
+    },
+    {
+      "k": 64,
+      "nQubits": 8,
+      "nStates": 256,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 4,
+      "medianSeconds": 0.002699999999254942,
+      "secondsPerGate": 0.000010546874997089617,
+      "microsPerGate": 10.546874997089617,
+      "noisy": false
+    },
+    {
+      "k": 1,
+      "nQubits": 12,
+      "nStates": 4096,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 256,
+      "medianSeconds": 0.011800000000745058,
+      "secondsPerGate": 0.000046093750002910384,
+      "microsPerGate": 46.09375000291038,
+      "noisy": false
+    },
+    {
+      "k": 2,
+      "nQubits": 12,
+      "nStates": 4096,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 128,
+      "medianSeconds": 0.007,
+      "secondsPerGate": 0.00002734375,
+      "microsPerGate": 27.34375,
+      "noisy": false
+    },
+    {
+      "k": 4,
+      "nQubits": 12,
+      "nStates": 4096,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 64,
+      "medianSeconds": 0.0044000000003725295,
+      "secondsPerGate": 0.000017187500001455193,
+      "microsPerGate": 17.187500001455195,
+      "noisy": true
+    },
+    {
+      "k": 8,
+      "nQubits": 12,
+      "nStates": 4096,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 32,
+      "medianSeconds": 0.003399999998509884,
+      "secondsPerGate": 0.000013281249994179235,
+      "microsPerGate": 13.281249994179234,
+      "noisy": true
+    },
+    {
+      "k": 16,
+      "nQubits": 12,
+      "nStates": 4096,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 16,
+      "medianSeconds": 0.003,
+      "secondsPerGate": 0.00001171875,
+      "microsPerGate": 11.71875,
+      "noisy": false
+    },
+    {
+      "k": 32,
+      "nQubits": 12,
+      "nStates": 4096,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 8,
+      "medianSeconds": 0.0027999999988824126,
+      "secondsPerGate": 0.000010937499995634424,
+      "microsPerGate": 10.937499995634424,
+      "noisy": false
+    },
+    {
+      "k": 64,
+      "nQubits": 12,
+      "nStates": 4096,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 4,
+      "medianSeconds": 0.002699999999254942,
+      "secondsPerGate": 0.000010546874997089617,
+      "microsPerGate": 10.546874997089617,
+      "noisy": false
+    },
+    {
+      "k": 1,
+      "nQubits": 16,
+      "nStates": 65536,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 256,
+      "medianSeconds": 0.01240000000037253,
+      "secondsPerGate": 0.000048437500001455194,
+      "microsPerGate": 48.43750000145519,
+      "noisy": false
+    },
+    {
+      "k": 2,
+      "nQubits": 16,
+      "nStates": 65536,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 128,
+      "medianSeconds": 0.006949999999254942,
+      "secondsPerGate": 0.000027148437497089617,
+      "microsPerGate": 27.148437497089617,
+      "noisy": false
+    },
+    {
+      "k": 4,
+      "nQubits": 16,
+      "nStates": 65536,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 64,
+      "medianSeconds": 0.004400000002235174,
+      "secondsPerGate": 0.00001718750000873115,
+      "microsPerGate": 17.18750000873115,
+      "noisy": false
+    },
+    {
+      "k": 8,
+      "nQubits": 16,
+      "nStates": 65536,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 32,
+      "medianSeconds": 0.003450000001117587,
+      "secondsPerGate": 0.000013476562504365574,
+      "microsPerGate": 13.476562504365575,
+      "noisy": true
+    },
+    {
+      "k": 16,
+      "nQubits": 16,
+      "nStates": 65536,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 16,
+      "medianSeconds": 0.003099999999627471,
+      "secondsPerGate": 0.000012109374998544809,
+      "microsPerGate": 12.109374998544808,
+      "noisy": false
+    },
+    {
+      "k": 32,
+      "nQubits": 16,
+      "nStates": 65536,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 8,
+      "medianSeconds": 0.002800000000745058,
+      "secondsPerGate": 0.000010937500002910383,
+      "microsPerGate": 10.937500002910383,
+      "noisy": false
+    },
+    {
+      "k": 64,
+      "nQubits": 16,
+      "nStates": 65536,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 4,
+      "medianSeconds": 0.0027999999970197676,
+      "secondsPerGate": 0.000010937499988358467,
+      "microsPerGate": 10.937499988358468,
+      "noisy": false
+    },
+    {
+      "k": 1,
+      "nQubits": 20,
+      "nStates": 1048576,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 256,
+      "medianSeconds": 0.02380000000074506,
+      "secondsPerGate": 0.00009296875000291038,
+      "microsPerGate": 92.96875000291038,
+      "noisy": false
+    },
+    {
+      "k": 2,
+      "nQubits": 20,
+      "nStates": 1048576,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 128,
+      "medianSeconds": 0.012300000000745059,
+      "secondsPerGate": 0.000048046875002910386,
+      "microsPerGate": 48.04687500291038,
+      "noisy": false
+    },
+    {
+      "k": 4,
+      "nQubits": 20,
+      "nStates": 1048576,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 64,
+      "medianSeconds": 0.007300000000745058,
+      "secondsPerGate": 0.000028515625002910382,
+      "microsPerGate": 28.515625002910383,
+      "noisy": true
+    },
+    {
+      "k": 8,
+      "nQubits": 20,
+      "nStates": 1048576,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 32,
+      "medianSeconds": 0.004349999999627471,
+      "secondsPerGate": 0.00001699218749854481,
+      "microsPerGate": 16.99218749854481,
+      "noisy": true
+    },
+    {
+      "k": 16,
+      "nQubits": 20,
+      "nStates": 1048576,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 16,
+      "medianSeconds": 0.003400000002235174,
+      "secondsPerGate": 0.000013281250008731149,
+      "microsPerGate": 13.28125000873115,
+      "noisy": true
+    },
+    {
+      "k": 32,
+      "nQubits": 20,
+      "nStates": 1048576,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 8,
+      "medianSeconds": 0.002699999999254942,
+      "secondsPerGate": 0.000010546874997089617,
+      "microsPerGate": 10.546874997089617,
+      "noisy": true
+    },
+    {
+      "k": 64,
+      "nQubits": 20,
+      "nStates": 1048576,
+      "gatesPerBatch": 256,
+      "dispatchesPerBatch": 4,
+      "medianSeconds": 0.002600000001490116,
+      "secondsPerGate": 0.000010156250005820766,
+      "microsPerGate": 10.156250005820766,
+      "noisy": true
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "α_raw=35.84μs, C=9.29μs, α_eff(1)=45.63μs, α_eff(64)=10.68μs, ratio=4.27×, R²=0.997. Within-range fit confirms fusion targets α_raw correctly. (noisy cells: N=8,k=1;N=8,k=8;N=12,k=4;N=12,k=8;N=16,k=8;N=20,k=4;N=20,k=8;N=20,k=16;N=20,k=32;N=20,k=64)",
+  "summary": {
+    "perKFits": [
+      {
+        "k": 1,
+        "alphaEffMicros": 45.63098802588108,
+        "betaSecPerAmp": 4.5136777227704094e-11,
+        "betaNsPerAmp": 0.045136777227704095,
+        "r2": 0.9999265327904463,
+        "nPoints": 4
+      },
+      {
+        "k": 2,
+        "alphaEffMicros": 26.897002866727764,
+        "betaSecPerAmp": 2.0108035241834687e-11,
+        "betaNsPerAmp": 0.020108035241834687,
+        "r2": 0.9947757723573892,
+        "nPoints": 4
+      },
+      {
+        "k": 4,
+        "alphaEffMicros": 16.94058757610589,
+        "betaSecPerAmp": 1.1011328664000275e-11,
+        "betaNsPerAmp": 0.011011328664000274,
+        "r2": 0.9966075631926323,
+        "nPoints": 4
+      },
+      {
+        "k": 8,
+        "alphaEffMicros": 13.33208582675974,
+        "betaSecPerAmp": 3.48533273054857e-12,
+        "betaNsPerAmp": 0.00348533273054857,
+        "r2": 0.9966881695451761,
+        "nPoints": 4
+      },
+      {
+        "k": 16,
+        "alphaEffMicros": 11.743793663532895,
+        "betaSecPerAmp": 1.4820663494846096e-12,
+        "betaNsPerAmp": 0.0014820663494846096,
+        "r2": 0.9343780941787417,
+        "nPoints": 4
+      },
+      {
+        "k": 32,
+        "alphaEffMicros": 10.946014222066582,
+        "betaSecPerAmp": -3.7970099146822254e-13,
+        "betaNsPerAmp": -0.00037970099146822253,
+        "r2": 0.996607562156944,
+        "nPoints": 4
+      },
+      {
+        "k": 64,
+        "alphaEffMicros": 10.682603536970017,
+        "betaSecPerAmp": -4.85410491103522e-13,
+        "betaNsPerAmp": -0.000485410491103522,
+        "r2": 0.6107877629954115,
+        "nPoints": 4
+      }
+    ],
+    "kScalingFit": {
+      "alphaRawMicros": 35.83867332158698,
+      "cResidualMicros": 9.29367262078854,
+      "r2": 0.9966960724250563,
+      "nPoints": 7
+    },
+    "alphaBaselineMicros": 45.63098802588108,
+    "alphaFusedMicros": 10.682603536970017,
+    "collapseFactor": 4.271523123362464,
+    "kMax": 64
+  }
+}
