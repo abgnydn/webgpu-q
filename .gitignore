@@ -8,6 +8,7 @@ dist/
 
 # Playwright artifacts (regenerated on every run; videos + traces are huge)
 e2e/.artifacts/
+e2e/.report/
 playwright-report/
 test-results/
 
