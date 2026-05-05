@@ -1,0 +1,87 @@
+{
+  "meta": {
+    "protocol": "E27-mp2-publishable",
+    "hypothesis": "Closed-shell MP2 on top of RHF reproduces canonical correlation-capture properties: variational ordering HF > HF+MP2 > FCI for every molecule, and MP2 captures 50-80% of the FCI correlation gap.",
+    "passBar": "for every molecule: variational ordering holds AND MP2 captures 50% < ratio < 100% of the HF→FCI correlation gap",
+    "seed": "E27_MP2",
+    "warmup": 0,
+    "trials": 1
+  },
+  "env": {
+    "runtime": "node v24.5.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "timestamp": "2026-05-05T13:42:58.590Z",
+    "method": "Closed-shell MP2 on RHF MOs",
+    "erIntegralTransform": "AO→MO 4-pass O(n^5)"
+  },
+  "rows": [
+    {
+      "molecule": "H2 (R=0.7414Å)",
+      "E_HF_Ha": -1.1166842875436684,
+      "E_MP2_Ha": -1.1298550618158882,
+      "E_FCI_Ha": -1.137270093629508,
+      "pyscf_FCI_Ha": -1.13727,
+      "HF_correlation_mHa": -20.585806085839486,
+      "MP2_correlation_mHa": -13.17077427221983,
+      "capture_pct": 63.97988117297826,
+      "HF_seconds": 0.0002125829999999951,
+      "MP2_seconds": 0.0000922920000000147,
+      "FCI_seconds": 0.0013265409999999919
+    },
+    {
+      "molecule": "LiH s-only (R=1.595Å)",
+      "E_HF_Ha": -7.804242555836,
+      "E_MP2_Ha": -7.826157667133128,
+      "E_FCI_Ha": -7.843394187689861,
+      "pyscf_FCI_Ha": -7.8434,
+      "HF_correlation_mHa": -39.15163185386117,
+      "MP2_correlation_mHa": -21.915111297128078,
+      "capture_pct": 55.974962624621206,
+      "HF_seconds": 0.0012266250000000126,
+      "MP2_seconds": 0.00007945799999998826,
+      "FCI_seconds": 0.003670625000000001
+    },
+    {
+      "molecule": "BeH2 full (R=1.34Å)",
+      "E_HF_Ha": -15.559405238316737,
+      "E_MP2_Ha": -15.582893239885422,
+      "E_FCI_Ha": -15.594860699273873,
+      "pyscf_FCI_Ha": -15.5949,
+      "HF_correlation_mHa": -35.45546095713625,
+      "MP2_correlation_mHa": -23.488001568684645,
+      "capture_pct": 66.24649894435268,
+      "HF_seconds": 0.001909374999999983,
+      "MP2_seconds": 0.003768459000000007,
+      "FCI_seconds": 0.380280625
+    },
+    {
+      "molecule": "H2O",
+      "E_HF_Ha": -74.96292750353804,
+      "E_MP2_Ha": -74.99842013578841,
+      "E_FCI_Ha": -75.0124028760463,
+      "pyscf_FCI_Ha": -75.0124,
+      "HF_correlation_mHa": -49.47537250825462,
+      "MP2_correlation_mHa": -35.492632250373745,
+      "capture_pct": 71.73797881855674,
+      "HF_seconds": 0.0018289999999999509,
+      "MP2_seconds": 0.00019754199999999855,
+      "FCI_seconds": 0.300611667
+    },
+    {
+      "molecule": "CH4",
+      "E_HF_Ha": -39.726700688966574,
+      "E_MP2_Ha": -39.78326407789575,
+      "E_FCI_Ha": -39.806036,
+      "pyscf_FCI_Ha": -39.8068,
+      "HF_correlation_mHa": -79.33531103342517,
+      "MP2_correlation_mHa": -56.563388929175005,
+      "capture_pct": 71.29661205379783,
+      "HF_seconds": 0.002508833999999979,
+      "MP2_seconds": 0.0007527500000001055,
+      "FCI_seconds": null
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "MP2 captures 56.0-71.7% of FCI correlation across the standard set; variational ordering HF > MP2 > FCI holds for every molecule."
+}
