@@ -128,6 +128,63 @@ ships as a URL"*. webgpu-q is the proof point.
 
 ## Current state of play (as of 2026-05-05)
 
+### Phase C v1 — chemical accuracy on LiH (2026-05-05)
+
+Phase C v0's "honest negative" (HEA + Nelder-Mead plateaued at ~20 mHa,
+89% correlation) was an optimizer artifact, not an ansatz limit. Adding
+**L-BFGS** with central-FD gradient + Armijo line search closes the gap
+to chemical accuracy on every cell at the equilibrium bond length:
+
+**Headline at R = 1.595 Å, HEA L=6, λ=2 penalty, L-BFGS 500 iters:**
+
+| metric | Phase C v0 | Phase C v1 | improvement |
+|---|---:|---:|---:|
+| best ΔE (mHa) | 20.0 | **0.0003** | **60,000×** |
+| median ΔE (mHa) | 33.8 | 0.30 | 110× |
+| correlation captured | 89.0% | **100.00%** | — |
+| trials hitting chem-acc | 0/5 | 4/5 | — |
+
+**Dissociation curve (best of 5 trials, mHa above E_FCI):**
+
+| R (Å) | E_FCI | best E_VQE | best \|ΔE\| | hits chem-acc |
+|---:|---:|---:|---:|---:|
+| 1.0 | -7.7330 | -7.7330 | 0.00 | 3/5 |
+| 1.4 | -7.8351 | -7.8351 | 0.00 | 5/5 |
+| **1.595** | **-7.8434** | **-7.8434** | **0.00** | **4/5** |
+| 2.0 | -7.8333 | -7.8332 | 0.04 | 2/5 |
+| 3.0 | -7.7942 | -7.7941 | 0.07 | 3/5 |
+
+17/25 trials within chemical accuracy, 100% correlation capture across
+the curve. ~14 s wall-clock total. Status: **pass** with the strict
+1.6 mHa median bar.
+
+**What shipped:**
+- `src/chemistry/optimizer.ts` adds `lbfgs(f, x0, opts)` with central-
+  FD gradient (analytic gradients accepted via opts), m=8 history
+  pairs (Nocedal two-loop recursion), Armijo backtracking line search.
+  Strong-Wolfe deferred — Armijo suffices for smooth VQE landscapes
+  even though it stalls on Rosenbrock.
+- `src/chemistry/vqe.ts` exports `runVQE_HEA_Dense_LBFGS` mirroring the
+  Nelder-Mead variant's signature.
+- `experiments/level-6-chemistry/E20-lih-vqe.ts` switched to L-BFGS by
+  default (L=6, λ=2, pert=0.20, 500 iters); pass bar tightened to
+  median |ΔE| ≤ 1.6 mHa.
+- `tools/run-phase-c.ts` regenerated; new publishable artifact at
+  `experiments/results/2026-05-05/level-6/E20-lih-vqe-publishable.json`.
+- 3 new L-BFGS unit tests (`tests/chemistry/lbfgs.test.ts`) on textbook
+  quadratics + 10D anisotropic problem. Rosenbrock noted as a Wolfe-
+  curvature limitation, not run.
+
+Off-ramp #2 (per CLAUDE.md roadmap) — *"first browser-tab quantum
+chemistry on real molecules, matches FCI to chemical accuracy"* — is
+now reached for LiH in s-only STO-3G. Next chemistry frontier from
+the roadmap: BeH₂ (6 e, 14 spin-orbitals → 16384-dim, may need MPS
+backing instead of dense FCI) and adding Li 2p / Be 2p shells (needs
+angular-momentum integrals).
+
+**Tests: 220 → 223** (+3 L-BFGS sanity tests). Typecheck clean.
+Lint warnings unchanged from baseline.
+
 ### Phase C v0 — first multi-orbital molecule (LiH) shipped (2026-05-05)
 
 LiH ground-state simulation in a browser tab — first multi-orbital

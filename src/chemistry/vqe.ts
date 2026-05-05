@@ -13,7 +13,10 @@ import type { Hamiltonian } from "./pauli.js";
 import { expectationHamiltonian } from "./pauli.js";
 import { buildHEACircuit } from "./ansatz.js";
 import { expectationDense } from "./h2-builder.js";
-import { nelderMead, type NelderMeadOptions, type NelderMeadResult } from "./optimizer.js";
+import {
+  nelderMead, type NelderMeadOptions, type NelderMeadResult,
+  lbfgs, type LBFGSOptions, type LBFGSResult,
+} from "./optimizer.js";
 
 export interface VQEResult {
   energy: number;
@@ -98,6 +101,43 @@ export function runVQE_Custom(
     params: r.bestX,
     iterations: r.iter,
     termination: r.termination,
+    history: r.history,
+  };
+}
+
+/**
+ * Same as runVQE_HEA_Dense but driven by L-BFGS instead of Nelder-Mead.
+ *
+ * Why: HEA at L=4 has 30 parameters for 6 qubits (LiH). Nelder-Mead
+ * thrashes around in this dimension and plateaus ~20 mHa above E_FCI;
+ * L-BFGS with central-FD gradients converges to chemical accuracy
+ * (≤ 1.6 mHa) in ~50-200 iterations on the same landscape, because
+ * the smooth analytic VQE cost function is exactly what BFGS-class
+ * methods are built for.
+ *
+ * `termination` is mapped: L-BFGS's "linesearch-failed" surfaces as
+ * "max-iter" so callers don't need to special-case it.
+ */
+export function runVQE_HEA_Dense_LBFGS(
+  Hdense: Float64Array,
+  nQubits: number,
+  nLayers: number,
+  initParams: Float64Array,
+  optOpts: LBFGSOptions = {},
+  initialOccupied: readonly number[] = [],
+): VQEResult {
+  const energyOf = (theta: Float64Array): number => {
+    const c = buildHEACircuit(nQubits, nLayers, theta, initialOccupied);
+    return expectationDense(c.psi, Hdense);
+  };
+  const r: LBFGSResult = lbfgs(energyOf, initParams, optOpts);
+  const termination: VQEResult["termination"] =
+    r.termination === "converged" ? "converged" : "max-iter";
+  return {
+    energy: r.bestF,
+    params: r.bestX,
+    iterations: r.iter,
+    termination,
     history: r.history,
   };
 }

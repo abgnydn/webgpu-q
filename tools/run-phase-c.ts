@@ -8,7 +8,7 @@
 
 import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { runVQE_HEA_Dense } from "../src/chemistry/vqe.js";
+import { runVQE_HEA_Dense_LBFGS } from "../src/chemistry/vqe.js";
 import { heaParamCount, buildHEACircuit } from "../src/chemistry/ansatz.js";
 import { buildLiHDense, lowestInParticleSector } from "../src/chemistry/lih-builder.js";
 import { expectationDense } from "../src/chemistry/h2-builder.js";
@@ -18,10 +18,10 @@ const DIM = 1 << N_QUBITS;
 const TARGET_N = 4;
 
 const TRIALS = Number.parseInt(process.env["PHASE_C_TRIALS"] ?? "5", 10);
-const N_LAYERS = 4;
-const LAMBDA = 5;
-const MAX_ITER = 12000;
-const PASS_BAR_MHA = 50;
+const N_LAYERS = 6;
+const LAMBDA = 2;
+const PERTURBATION = 0.20;
+const MAX_ITER = 500;
 const CHEM_ACC_MHA = 1.6;
 const BONDS = [1.0, 1.4, 1.595, 2.0, 3.0];
 
@@ -101,12 +101,11 @@ for (const R of BONDS) {
     const seed = (0x201E11BE ^ (t * 0x9E3779B1) ^ (Math.round(R * 1e6) >>> 0)) >>> 0;
     const rng = mulberry32(seed);
     const init = new Float64Array(nParams);
-    for (let i = 0; i < nParams; i++) init[i] = (rng() - 0.5) * 0.05;
+    for (let i = 0; i < nParams; i++) init[i] = (rng() - 0.5) * PERTURBATION;
 
     const t0 = performance.now();
-    const r = runVQE_HEA_Dense(Hpen, N_QUBITS, N_LAYERS, init, {
-      maxIter: MAX_ITER, fTol: 1e-9, xTol: 1e-8, initialStep: 0.1,
-      seed: (seed * 0x85ebca6b) >>> 0,
+    const r = runVQE_HEA_Dense_LBFGS(Hpen, N_QUBITS, N_LAYERS, init, {
+      maxIter: MAX_ITER, fTol: 1e-10, gTol: 1e-7, fdStep: 1e-5,
     }, hfOccupied);
     const wall = (performance.now() - t0) / 1000;
 
@@ -152,17 +151,18 @@ for (const R of BONDS) {
 }
 
 const eqRow = summaries.find((s) => Math.abs(s.R_angstrom - 1.595) < 1e-9)!;
-const status: "pass" | "fail" = eqRow.bestDeltaMHa <= PASS_BAR_MHA ? "pass" : "fail";
+const status: "pass" | "fail" =
+  eqRow.medianDeltaMHa <= CHEM_ACC_MHA && eqRow.bestDeltaMHa <= CHEM_ACC_MHA ? "pass" : "fail";
 const diagnosis = status === "pass"
-  ? `LiH eq best ΔE = ${eqRow.bestDeltaMHa.toFixed(2)} mHa (corr capture ${eqRow.correlationCapturedPercent.toFixed(1)}%) ≤ 50 mHa pass bar. ` +
-    `Chemical-accuracy hits across all R: ${rows.filter((r) => r.hitChemicalAccuracy).length}/${rows.length}.`
-  : `LiH eq best ΔE = ${eqRow.bestDeltaMHa.toFixed(2)} mHa exceeded 50 mHa pass bar.`;
+  ? `LiH eq best ΔE = ${eqRow.bestDeltaMHa.toFixed(4)} mHa, median ΔE = ${eqRow.medianDeltaMHa.toFixed(4)} mHa (corr capture ${eqRow.correlationCapturedPercent.toFixed(2)}%) — chemical accuracy. ` +
+    `Total chemical-accuracy hits: ${rows.filter((r) => r.hitChemicalAccuracy).length}/${rows.length}.`
+  : `LiH eq median ΔE = ${eqRow.medianDeltaMHa.toFixed(4)} mHa exceeded ${CHEM_ACC_MHA} mHa pass bar.`;
 
 const artifact = {
   meta: {
     protocol: "E20-lih-vqe-publishable",
-    hypothesis: "VQE with HEA L=4 + particle-number penalty on LiH (STO-3G s-only, 6 qubits) recovers ≥ 70% of the correlation energy at R = 1.595 Å within ≤ 50 mHa of E_FCI.",
-    passBar: `best-of-${TRIALS}-trials |ΔE| ≤ 50 mHa at R = 1.595 Å`,
+    hypothesis: "VQE with HEA L=6 + particle-number penalty (λ=2) + L-BFGS reaches chemical accuracy on LiH (STO-3G s-only, 6 qubits) at R = 1.595 Å — median |ΔE| ≤ 1.6 mHa across all trials.",
+    passBar: `median |ΔE| ≤ ${CHEM_ACC_MHA} mHa AND best-of-${TRIALS}-trials |ΔE| ≤ ${CHEM_ACC_MHA} mHa at R = 1.595 Å`,
     seed: "E20_LIH_VQE",
     warmup: 0, trials: TRIALS,
   },
@@ -170,7 +170,9 @@ const artifact = {
     runtime: `node ${process.version}`,
     platform: process.platform, arch: process.arch,
     timestamp: new Date().toISOString(),
-    bonds: BONDS, nLayers: N_LAYERS, lambda: LAMBDA, maxIter: MAX_ITER,
+    bonds: BONDS, nLayers: N_LAYERS, lambda: LAMBDA,
+    perturbation: PERTURBATION, maxIter: MAX_ITER,
+    optimizer: "L-BFGS (Armijo backtracking, central-FD gradient)",
   },
   rows, summaries, status, diagnosis,
 };
