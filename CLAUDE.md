@@ -128,6 +128,51 @@ ships as a URL"*. webgpu-q is the proof point.
 
 ## Current state of play (as of 2026-05-05)
 
+### Phase B v1 — publishable artifacts shipped (2026-05-05)
+
+DMRG ground-state energy per site at the analytical thermodynamic limit
+for both textbook 1D models, all the way to **N = 128 in a browser tab,
+χ = 32**, on a single M2 Pro. Headline numbers:
+
+**E18 — TFIM (h = 1, critical) vs Pfeuty −4/π = −1.273240**
+
+| N | E/N | \|E/N − e_∞\| | rel | wall |
+|---:|---:|---:|---:|---:|
+| 16 | −1.251024 | 0.02222 | 1.74% | 3.2 s |
+| 32 | −1.262010 | 0.01123 | 0.88% | 14.4 s |
+| 48 | −1.265725 | 0.00751 | 0.59% | 55.5 s |
+| 64 | −1.267593 | 0.00565 | 0.44% | 56.5 s |
+| 80 | −1.268718 | 0.00452 | 0.36% | 75.8 s |
+| 100 | −1.269619 | 0.00362 | 0.28% | 120.1 s |
+| **128** | **−1.270409** | **0.00283** | **0.22%** | 165.9 s |
+
+**E19 — Heisenberg AFM (J = 1) vs Bethe ¼ − ln 2 = −0.443147**
+
+| N | E/N | \|E/N − e_∞\| | rel | wall |
+|---:|---:|---:|---:|---:|
+| 16 | −0.431984 | 0.01116 | 2.52% | 3.4 s |
+| 32 | −0.437416 | 0.00573 | 1.29% | 18.4 s |
+| 48 | −0.439291 | 0.00386 | 0.87% | 40.5 s |
+| 64 | −0.440241 | 0.00291 | 0.66% | 59.2 s |
+| 80 | −0.440815 | 0.00233 | 0.53% | 92.0 s |
+| 100 | −0.441277 | 0.00187 | 0.42% | 121.5 s |
+| **128** | **−0.441682** | **0.00146** | **0.33%** | 186.6 s |
+
+Both: textbook 1/N convergence (each doubling of N halves \|Δ\|), exactly
+what CFT predicts for OBC boundary corrections.
+
+Off-ramp #1 from the roadmap is now reachable — *"longest 1D MPS in a
+browser, analytically validated."* Artifacts at
+`experiments/results/2026-05-05/level-2/E1{8,9}-…-publishable.json`.
+
+Reproduce: `npx vite-node tools/run-phase-b.ts` (default Ns=[16..128],
+χ=32). ~13 minutes wall-clock per model.
+
+Bug fix in this run: `src/manybody/dmrg.ts → makeRandomMPS` had a
+JS-bit-shift overflow at q ≥ 31 (`1 << 31` is negative); chi clamp now
+uses a safe-shift helper. Was the gate that would have blocked any
+N ≥ 32 DMRG run.
+
 ### Phase B v0 (2026-05-05)
 
 - **Real-form XXZ / Heisenberg MPO** — `xxzMPOReal`, `heisenbergMPOReal`

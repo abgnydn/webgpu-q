@@ -1,0 +1,122 @@
+{
+  "meta": {
+    "protocol": "E19-heisenberg-bethe-publishable",
+    "hypothesis": "DMRG ground-state energy per site of the Heisenberg AFM chain at χ=64 converges to the Bethe ansatz limit J·(1/4 − ln 2) within 2% by N=128.",
+    "passBar": "|E/N − e_∞| ≤ 0.02 at N = 128, χ = 32.",
+    "seed": "E19_HEISENBERG_BETHE_PUBLISHABLE",
+    "warmup": 0,
+    "trials": 1
+  },
+  "env": {
+    "runtime": "node v24.5.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpus": "host CPU",
+    "timestamp": "2026-05-05T08:44:15.539Z",
+    "sweepNs": [
+      16,
+      32,
+      48,
+      64,
+      80,
+      100,
+      128
+    ],
+    "chiMax": 32
+  },
+  "rows": [
+    {
+      "N": 16,
+      "J": 1,
+      "chiMax": 32,
+      "energy": -6.911737143324132,
+      "energyPerSite": -0.43198357145775823,
+      "analyticalLimit": -0.4431471805599453,
+      "absDeviation": 0.011163609102187055,
+      "relDeviation": 0.025191650972665805,
+      "sweeps": 2,
+      "lanczosMatvecs": 420,
+      "wallSeconds": 3.402187291999988
+    },
+    {
+      "N": 32,
+      "J": 1,
+      "chiMax": 32,
+      "energy": -13.99731526686626,
+      "energyPerSite": -0.4374161020895706,
+      "analyticalLimit": -0.4431471805599453,
+      "absDeviation": 0.005731078470374684,
+      "relDeviation": 0.012932675015856118,
+      "sweeps": 3,
+      "lanczosMatvecs": 1765,
+      "wallSeconds": 18.43501133300003
+    },
+    {
+      "N": 48,
+      "J": 1,
+      "chiMax": 32,
+      "energy": -21.08595320085132,
+      "energyPerSite": -0.43929069168440255,
+      "analyticalLimit": -0.4431471805599453,
+      "absDeviation": 0.0038564888755427407,
+      "relDeviation": 0.00870250121115476,
+      "sweeps": 4,
+      "lanczosMatvecs": 3921,
+      "wallSeconds": 40.47685454200005
+    },
+    {
+      "N": 64,
+      "J": 1,
+      "chiMax": 32,
+      "energy": -28.175413244813605,
+      "energyPerSite": -0.4402408319502126,
+      "analyticalLimit": -0.4431471805599453,
+      "absDeviation": 0.002906348609732712,
+      "relDeviation": 0.0065584273966503666,
+      "sweeps": 4,
+      "lanczosMatvecs": 5968,
+      "wallSeconds": 59.186732833000015
+    },
+    {
+      "N": 80,
+      "J": 1,
+      "chiMax": 32,
+      "energy": -35.265208296744255,
+      "energyPerSite": -0.4408151037093032,
+      "analyticalLimit": -0.4431471805599453,
+      "absDeviation": 0.002332076850642073,
+      "relDeviation": 0.00526253342669436,
+      "sweeps": 5,
+      "lanczosMatvecs": 9259,
+      "wallSeconds": 92.0349504170001
+    },
+    {
+      "N": 100,
+      "J": 1,
+      "chiMax": 32,
+      "energy": -44.127674823199804,
+      "energyPerSite": -0.44127674823199803,
+      "analyticalLimit": -0.4431471805599453,
+      "absDeviation": 0.0018704323279472579,
+      "relDeviation": 0.004220792571858056,
+      "sweeps": 5,
+      "lanczosMatvecs": 12935,
+      "wallSeconds": 121.535463125
+    },
+    {
+      "N": 128,
+      "J": 1,
+      "chiMax": 32,
+      "energy": -56.53532405865393,
+      "energyPerSite": -0.4416822192082338,
+      "analyticalLimit": -0.4431471805599453,
+      "absDeviation": 0.0014649613517114801,
+      "relDeviation": 0.003305812190569296,
+      "sweeps": 6,
+      "lanczosMatvecs": 20067,
+      "wallSeconds": 186.58837445899997
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "Heisenberg AFM at N=128, χ=32 hits |E/N − e_∞|=0.00146 ≤ 0.02. N=16:|Δ|=0.01116, N=32:|Δ|=0.00573, N=48:|Δ|=0.00386, N=64:|Δ|=0.00291, N=80:|Δ|=0.00233, N=100:|Δ|=0.00187, N=128:|Δ|=0.00146."
+}

@@ -259,9 +259,14 @@ function rng32(seed: number): () => number {
 function makeRandomMPS(N: number, chiMax: number, seed: number): SiteTensor[] {
   // Allocate per-site bond dims following the natural growth law for
   // a 1D chain: chi_q = min(2^q, 2^(N-q), chiMax). Boundary chi = 1.
+  // Once q ≥ log₂(chiMax) the cap dominates, so we cap the shift at 30
+  // to avoid 1 << 31 wrapping to a negative int (JS bit shifts are 32-bit
+  // signed). This is the bug that blocked Phase B's N ≥ 32 runs.
+  const safeShift = (k: number): number =>
+    k >= 31 ? Number.MAX_SAFE_INTEGER : 1 << k;
   const chi: number[] = [1];
   for (let q = 1; q < N; q++) {
-    chi.push(Math.min(1 << q, 1 << (N - q), chiMax));
+    chi.push(Math.min(safeShift(q), safeShift(N - q), chiMax));
   }
   chi.push(1);
   const r = rng32(seed);

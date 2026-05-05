@@ -1,0 +1,129 @@
+{
+  "meta": {
+    "protocol": "E18-tfim-pfeuty-publishable",
+    "hypothesis": "DMRG ground-state energy per site of TFIM (h=1, critical) at χ=64 converges to Pfeuty's −4/π within 1% by N=128.",
+    "passBar": "|E/N − e_∞(λ=1)| ≤ 0.01 at N = 128, χ = 32.",
+    "seed": "E18_TFIM_PFEUTY_PUBLISHABLE",
+    "warmup": 0,
+    "trials": 1
+  },
+  "env": {
+    "runtime": "node v24.5.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpus": "host CPU",
+    "timestamp": "2026-05-05T08:35:33.922Z",
+    "sweepNs": [
+      16,
+      32,
+      48,
+      64,
+      80,
+      100,
+      128
+    ],
+    "chiMax": 32
+  },
+  "rows": [
+    {
+      "N": 16,
+      "J": 1,
+      "chiMax": 32,
+      "energy": -20.016387901030882,
+      "energyPerSite": -1.2510242438144301,
+      "analyticalLimit": -1.2732395447351628,
+      "absDeviation": 0.02221530092073265,
+      "relDeviation": 0.017447856542465064,
+      "sweeps": 2,
+      "lanczosMatvecs": 498,
+      "wallSeconds": 3.235926167,
+      "h": 1
+    },
+    {
+      "N": 32,
+      "J": 1,
+      "chiMax": 32,
+      "energy": -40.38431316112608,
+      "energyPerSite": -1.26200978628519,
+      "analyticalLimit": -1.2732395447351628,
+      "absDeviation": 0.01122975844997276,
+      "relDeviation": 0.00881983166200558,
+      "sweeps": 2,
+      "lanczosMatvecs": 2096,
+      "wallSeconds": 14.380609334,
+      "h": 1
+    },
+    {
+      "N": 48,
+      "J": 1,
+      "chiMax": 32,
+      "energy": -60.754816965502826,
+      "energyPerSite": -1.2657253534479755,
+      "analyticalLimit": -1.2732395447351628,
+      "absDeviation": 0.007514191287187222,
+      "relDeviation": 0.005901632036373952,
+      "sweeps": 6,
+      "lanczosMatvecs": 5279,
+      "wallSeconds": 55.543673291,
+      "h": 1
+    },
+    {
+      "N": 64,
+      "J": 1,
+      "chiMax": 32,
+      "energy": -81.12598012411378,
+      "energyPerSite": -1.2675934394392778,
+      "analyticalLimit": -1.2732395447351628,
+      "absDeviation": 0.00564610529588494,
+      "relDeviation": 0.004434440729736638,
+      "sweeps": 3,
+      "lanczosMatvecs": 7871,
+      "wallSeconds": 56.48456854199999,
+      "h": 1
+    },
+    {
+      "N": 80,
+      "J": 1,
+      "chiMax": 32,
+      "energy": -101.49740945197068,
+      "energyPerSite": -1.2687176181496336,
+      "analyticalLimit": -1.2732395447351628,
+      "absDeviation": 0.00452192658552919,
+      "relDeviation": 0.00355151283529272,
+      "sweeps": 3,
+      "lanczosMatvecs": 11275,
+      "wallSeconds": 75.761799542,
+      "h": 1
+    },
+    {
+      "N": 100,
+      "J": 1,
+      "chiMax": 32,
+      "energy": -126.96187673879903,
+      "energyPerSite": -1.2696187673879904,
+      "analyticalLimit": -1.2732395447351628,
+      "absDeviation": 0.003620777347172366,
+      "relDeviation": 0.002843751878540261,
+      "sweeps": 4,
+      "lanczosMatvecs": 16674,
+      "wallSeconds": 120.10012204199997,
+      "h": 1
+    },
+    {
+      "N": 128,
+      "J": 1,
+      "chiMax": 32,
+      "energy": -162.61230017641577,
+      "energyPerSite": -1.2704085951282482,
+      "analyticalLimit": -1.2732395447351628,
+      "absDeviation": 0.0028309496069145457,
+      "relDeviation": 0.002223422621941412,
+      "sweeps": 4,
+      "lanczosMatvecs": 23538,
+      "wallSeconds": 165.87188679200003,
+      "h": 1
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "TFIM (h=1) at N=128, χ=32 hits |E/N − e_∞|=0.00283 ≤ 0.01. N=16:|Δ|=0.02222, N=32:|Δ|=0.01123, N=48:|Δ|=0.00751, N=64:|Δ|=0.00565, N=80:|Δ|=0.00452, N=100:|Δ|=0.00362, N=128:|Δ|=0.00283."
+}
