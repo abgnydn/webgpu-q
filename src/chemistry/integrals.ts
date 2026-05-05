@@ -27,6 +27,128 @@ export const STO3G_H_1S = {
   c: [0.15432897, 0.53532814, 0.44463454] as const,
 };
 
+/** STO-3G 1s contraction for lithium. Tighter exponents than H 1s
+ *  (Z = 3 vs Z = 1 → orbital pulled in toward the nucleus). */
+export const STO3G_LI_1S = {
+  alpha: [16.1195750, 2.9362007, 0.7946505] as const,
+  c: [0.15432897, 0.53532814, 0.44463454] as const,
+};
+
+/** STO-3G 2s contraction for lithium — the *s component* of the L-shell.
+ *  Coefficients can be negative to produce the 2s radial node and to
+ *  enforce orthogonality with 1s after Löwdin orthogonalization.
+ *  STO-3G also defines a 2p L-shell on Li with the same exponents but
+ *  different (positive) coefficients; that is omitted from this v0
+ *  s-only basis (Phase C scope). */
+export const STO3G_LI_2S = {
+  alpha: [0.6362897, 0.1478601, 0.0480887] as const,
+  c: [-0.09996723, 0.39951283, 0.70011547] as const,
+};
+
+// ── Generic shell type + multi-shell integrals ───────────────
+//
+// A Shell is a contracted s-Gaussian: a center plus a list of
+// primitive exponents and coefficients. The existing H₂ pipeline
+// hard-codes H 1s; LiH (Phase C) needs to mix Li 1s, Li 2s, and
+// H 1s, each with their own (alpha, c) arrays. The shell-based
+// API below is the multi-element generalization.
+//
+// Per-primitive normalization N(α) = (2α/π)^(3/4) is applied
+// inside the contractions so callers pass "raw" Pople-style
+// d-coefficients (matching the constants above).
+
+export interface Shell {
+  /** Atomic center (Bohr). */
+  readonly center: readonly [number, number, number];
+  /** Primitive Gaussian exponents. */
+  readonly alpha: readonly number[];
+  /** Contraction coefficients (Pople d-style; primitive normalization rolled in here). */
+  readonly c: readonly number[];
+  /** Optional label, e.g. "Li:1s", "H:1s". For debugging only. */
+  readonly label?: string;
+}
+
+/** Convenience: build a Shell from a basis-set entry + atom center. */
+export function makeShell(
+  basis: { readonly alpha: readonly number[]; readonly c: readonly number[] },
+  center: readonly [number, number, number],
+  label?: string,
+): Shell {
+  return { center, alpha: basis.alpha, c: basis.c, label };
+}
+
+/** ⟨A|B⟩ overlap between two contracted s-shells. */
+export function S_shells(A: Shell, B: Shell): number {
+  let s = 0;
+  for (let i = 0; i < A.alpha.length; i++) {
+    const ai = A.alpha[i]!;
+    const ci = A.c[i]! * normS(ai);
+    for (let j = 0; j < B.alpha.length; j++) {
+      const bj = B.alpha[j]!;
+      const cj = B.c[j]! * normS(bj);
+      s += ci * cj * primS(ai, A.center, bj, B.center);
+    }
+  }
+  return s;
+}
+
+/** Kinetic ⟨A| -∇²/2 |B⟩ between two contracted s-shells. */
+export function T_shells(A: Shell, B: Shell): number {
+  let s = 0;
+  for (let i = 0; i < A.alpha.length; i++) {
+    const ai = A.alpha[i]!;
+    const ci = A.c[i]! * normS(ai);
+    for (let j = 0; j < B.alpha.length; j++) {
+      const bj = B.alpha[j]!;
+      const cj = B.c[j]! * normS(bj);
+      s += ci * cj * primT(ai, A.center, bj, B.center);
+    }
+  }
+  return s;
+}
+
+/** Nuclear attraction ⟨A| -Z_C/|r-C| |B⟩ between two contracted s-shells. */
+export function V_shells(
+  A: Shell, B: Shell,
+  Zc: number, C: readonly [number, number, number],
+): number {
+  let s = 0;
+  for (let i = 0; i < A.alpha.length; i++) {
+    const ai = A.alpha[i]!;
+    const ci = A.c[i]! * normS(ai);
+    for (let j = 0; j < B.alpha.length; j++) {
+      const bj = B.alpha[j]!;
+      const cj = B.c[j]! * normS(bj);
+      s += ci * cj * primV(ai, A.center, bj, B.center, Zc, C);
+    }
+  }
+  return s;
+}
+
+/** Two-electron repulsion (chemist notation): (A B | C D). */
+export function ERI_shells(A: Shell, B: Shell, Cs: Shell, Ds: Shell): number {
+  let s = 0;
+  for (let i = 0; i < A.alpha.length; i++) {
+    const ai = A.alpha[i]!;
+    const ni = normS(ai);
+    for (let j = 0; j < B.alpha.length; j++) {
+      const bj = B.alpha[j]!;
+      const nj = normS(bj);
+      for (let k = 0; k < Cs.alpha.length; k++) {
+        const ck = Cs.alpha[k]!;
+        const nk = normS(ck);
+        for (let l = 0; l < Ds.alpha.length; l++) {
+          const dl = Ds.alpha[l]!;
+          const nl = normS(dl);
+          const coeff = A.c[i]! * B.c[j]! * Cs.c[k]! * Ds.c[l]! * ni * nj * nk * nl;
+          s += coeff * primERI(ai, A.center, bj, B.center, ck, Cs.center, dl, Ds.center);
+        }
+      }
+    }
+  }
+  return s;
+}
+
 const SQRT_PI = Math.sqrt(Math.PI);
 
 /** Per-primitive normalization for an s-Gaussian: N(α) = (2α/π)^{3/4}. */

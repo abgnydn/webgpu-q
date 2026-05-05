@@ -128,6 +128,69 @@ ships as a URL"*. webgpu-q is the proof point.
 
 ## Current state of play (as of 2026-05-05)
 
+### Phase C v0 — first multi-orbital molecule (LiH) shipped (2026-05-05)
+
+LiH ground-state simulation in a browser tab — first multi-orbital
+chemistry in the project. Built from atomic STO-3G integrals on the fly,
+all the way down to a 64-dim dense Hamiltonian, FCI reference projected
+to the N=4 (neutral) sector, VQE recovering 89% of the correlation
+energy at equilibrium.
+
+**Headline (R = 1.595 Å, eq):**
+- E_HF = −7.6607 Ha (HEA at θ=0 with HF occupation)
+- E_VQE = −7.8234 Ha (HEA L=4 + λ=5 penalty, best of 5 random inits)
+- E_FCI = −7.8434 Ha (N=4 sector projection of dense H)
+- |ΔE| = 20.0 mHa, **89.0% of correlation energy captured**
+
+**Dissociation curve (best of 5, mHa above E_FCI):**
+
+| R (Å) | E_FCI | E_VQE | \|ΔE\| | corr capture |
+|---:|---:|---:|---:|---:|
+| 1.0 | −7.7327 | −7.7259 | 7.04 | 96.6% |
+| 1.4 | −7.8351 | −7.8235 | 11.62 | 94.1% |
+| **1.595** | **−7.8434** | **−7.8234** | **20.00** | **89.0%** |
+| 2.0 | −7.8329 | −7.8143 | 19.01 | 86.7% |
+| 3.0 | −7.7942 | −7.7585 | 35.69 | 48.6% |
+
+Honest-negative side: chemical accuracy (1.6 mHa) is NOT reached. HEA L=4
++ Nelder-Mead in 30 dims plateaus around 7–35 mHa. Closing the gap
+needs a particle-conserving ansatz (UCCSD) or gradient-based optimizer
+(BFGS / COBYLA) — Phase C v1 work. Multi-reference character at long
+bond (R = 3 Å, 49% capture) is the other half of that gap.
+
+**What shipped:**
+- `src/chemistry/integrals.ts` — generic `Shell` interface + multi-shell
+  S/T/V/ERI primitives. Existing H-1s API kept as backward-compat wrapper.
+- Li STO-3G basis: `STO3G_LI_1S` and `STO3G_LI_2S` (s-component of the
+  L-shell, Pople 1969). 2p sub-shell deferred (needs angular-momentum
+  integrals — Phase C v2).
+- `src/chemistry/lih-builder.ts` — 3 atomic shells → Löwdin → 64×64 dense
+  Hamiltonian via JW. `lowestInParticleSector(H, n, N)` projects to a
+  specific particle-number sector for clean FCI references (the global
+  ground state of H spans every sector since [H, N̂] = 0).
+- `experiments/level-6-chemistry/E20-lih-vqe.ts` + Level-6 dashboard
+  panel updated. Publishable artifact at
+  `experiments/results/2026-05-05/level-6/E20-lih-vqe-publishable.json`,
+  reproducible via `npx vite-node tools/run-phase-c.ts` (~6 s).
+- 19 new tests (10 in `integrals-shells.test.ts`, 9 in `lih.test.ts`).
+  Covers: H-1s consistency between old/new API, Li shell normalization,
+  AO matrix symmetry, [H, N̂] = 0, dissociation-curve shape, plateau
+  behaviour at large R.
+
+**Bug fixes shipped along the way:**
+- `src/chemistry/h2-builder.ts → expectationDense`: `N = 16` was hard-
+  coded, silently reading garbage when called with a 64-dim LiH H.
+  Now infers dim from `psi.length / 2`. Was the gate that capped
+  every multi-orbital VQE attempt at non-physical energies.
+- `src/chemistry/lih-builder.ts → lowestInParticleSector`: column-major
+  vs row-major eigenvector indexing (was reading row 0 of every column
+  instead of column 0). The wrong indexing made the projection look
+  like the global ground state at any sector — gave a misleading
+  E_FCI of −7.716 Ha instead of the correct −7.843 Ha.
+
+**Tests: 201 → 220** (+19 across integrals-shells / lih).
+Typecheck clean. Lint warnings unchanged from baseline.
+
 ### Phase B v1 — publishable artifacts shipped (2026-05-05)
 
 DMRG ground-state energy per site at the analytical thermodynamic limit

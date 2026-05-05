@@ -271,22 +271,26 @@ export function buildH2Dense(R_angstrom: number): { H: Float64Array; integrals: 
   return { H, integrals };
 }
 
-/** ⟨ψ|H|ψ⟩ for a dense Hermitian H acting on a length-2N interleaved Float64. */
+/**
+ * ⟨ψ|H|ψ⟩ for a dense real-symmetric H acting on a length-2·dim
+ * interleaved [re, im] Float64 statevector.
+ *
+ * Dimension is inferred from `psi.length / 2`. H must be (dim × dim)
+ * row-major real Float64. Originally hard-coded to dim=16 (H₂);
+ * generalized in Phase C so LiH (dim=64) and other multi-orbital
+ * molecules can share the same energy oracle.
+ */
 export function expectationDense(psi: Float64Array, H: Float64Array): number {
-  // (Hψ)_i = Σ_j H[i,j] · ψ_j.  E = Re(ψ† H ψ).
-  // Hermitian H has only real part for ⟨ψ|H|ψ⟩ when it's a real-symmetric
-  // matrix; for our chemistry H this is always the case.
+  const dim = psi.length >>> 1;
   let acc = 0;
-  for (let i = 0; i < N; i++) {
+  for (let i = 0; i < dim; i++) {
     let hpsiRe = 0, hpsiIm = 0;
-    for (let j = 0; j < N; j++) {
-      const h = H[i * N + j]!;
+    for (let j = 0; j < dim; j++) {
+      const h = H[i * dim + j]!;
       hpsiRe += h * psi[j * 2]!;
       hpsiIm += h * psi[j * 2 + 1]!;
     }
-    const psiRe = psi[i * 2]!;
-    const psiIm = psi[i * 2 + 1]!;
-    acc += psiRe * hpsiRe + psiIm * hpsiIm;
+    acc += psi[i * 2]! * hpsiRe + psi[i * 2 + 1]! * hpsiIm;
   }
   return acc;
 }

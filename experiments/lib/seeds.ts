@@ -36,6 +36,8 @@ export const SEEDS = {
   E18_TFIM_PFEUTY: 0x18FE7547,
   // E19 — DMRG Heisenberg AFM scaling vs Bethe ansatz limit (Phase B).
   E19_HEISENBERG_BETHE: 0x19BE7AE5,
+  // E20 — VQE on LiH ground state (Phase C, real-molecule chemistry).
+  E20_LIH_VQE: 0x201E11BE,
   // General-purpose seed for tests / smoke runs.
   SMOKE: 0xC0FFEE,
 } as const;
