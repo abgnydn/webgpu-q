@@ -1,0 +1,106 @@
+{
+  "meta": {
+    "protocol": "E26-hf-scf-publishable",
+    "hypothesis": "Closed-shell RHF SCF on the standard molecule set (H₂, LiH s-only, BeH₂ full, H₂O, CH₄) matches PySCF STO-3G HF energies to ≤ 1 mHa, and the correlation gap E_HF − E_FCI matches canonical literature values (~20-80 mHa).",
+    "passBar": "|E_HF − E_PySCF_HF| ≤ 1 mHa AND |E_FCI − E_PySCF_FCI| ≤ 1 mHa for every molecule",
+    "seed": "E26_HF_SCF",
+    "warmup": 0,
+    "trials": 1
+  },
+  "env": {
+    "runtime": "node v24.5.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "timestamp": "2026-05-05T12:52:14.451Z",
+    "method": "RHF Roothaan-Hall iteration with α=0.3 damping",
+    "convergence": {
+      "energyTol": 1e-10,
+      "densityTol": 1e-8,
+      "maxIter": 500
+    }
+  },
+  "rows": [
+    {
+      "molecule": "H2",
+      "nElectrons": 2,
+      "nSpatial": 2,
+      "E_HF_Ha": -1.1166842875436684,
+      "E_HF_PySCF_Ha": -1.116694,
+      "HF_delta_mHa": 0.0097124563316342,
+      "HF_iterations": 2,
+      "HF_converged": true,
+      "E_FCI_Ha": -1.137270093629508,
+      "E_FCI_PySCF_Ha": -1.13727,
+      "FCI_delta_mHa": -0.00009362950792457525,
+      "correlation_mHa": 20.585806085839486,
+      "HF_seconds": 0.000200917000000004,
+      "FCI_seconds": 0.0016936249999999972
+    },
+    {
+      "molecule": "LiH (s-only basis)",
+      "nElectrons": 4,
+      "nSpatial": 3,
+      "E_HF_Ha": -7.804242555836,
+      "E_HF_PySCF_Ha": -7.8042,
+      "HF_delta_mHa": -0.04255583599999113,
+      "HF_iterations": 57,
+      "HF_converged": true,
+      "E_FCI_Ha": -7.843394187689861,
+      "E_FCI_PySCF_Ha": -7.8434,
+      "FCI_delta_mHa": 0.005812310138963994,
+      "correlation_mHa": 39.15163185386117,
+      "HF_seconds": 0.0015107080000000223,
+      "FCI_seconds": 0.0035259159999999953
+    },
+    {
+      "molecule": "BeH2 (full STO-3G)",
+      "nElectrons": 6,
+      "nSpatial": 7,
+      "E_HF_Ha": -15.559405238316737,
+      "E_HF_PySCF_Ha": -15.5594,
+      "HF_delta_mHa": -0.005238316736821957,
+      "HF_iterations": 65,
+      "HF_converged": true,
+      "E_FCI_Ha": -15.594860699273873,
+      "E_FCI_PySCF_Ha": -15.5949,
+      "FCI_delta_mHa": 0.039300726127677876,
+      "correlation_mHa": 35.45546095713625,
+      "HF_seconds": 0.001859624999999994,
+      "FCI_seconds": 0.39721275
+    },
+    {
+      "molecule": "H2O",
+      "nElectrons": 10,
+      "nSpatial": 7,
+      "E_HF_Ha": -74.96292750353804,
+      "E_HF_PySCF_Ha": -74.9629,
+      "HF_delta_mHa": -0.027503538035489328,
+      "HF_iterations": 92,
+      "HF_converged": true,
+      "E_FCI_Ha": -75.0124028760463,
+      "E_FCI_PySCF_Ha": -75.0124,
+      "FCI_delta_mHa": -0.002876046295341439,
+      "correlation_mHa": 49.47537250825462,
+      "HF_seconds": 0.002402499999999918,
+      "FCI_seconds": 0.31665645800000003
+    },
+    {
+      "molecule": "CH4",
+      "nElectrons": 10,
+      "nSpatial": 9,
+      "E_HF_Ha": -39.726700688966574,
+      "E_HF_PySCF_Ha": -39.7267,
+      "HF_delta_mHa": -0.0006889665726816929,
+      "HF_iterations": 68,
+      "HF_converged": true,
+      "E_FCI_Ha": -39.80603567632523,
+      "E_FCI_PySCF_Ha": -39.8068,
+      "FCI_delta_mHa": 0.7643236747725268,
+      "correlation_mHa": 79.3349873586564,
+      "HF_seconds": 0.0024639580000000477,
+      "FCI_seconds": 86.1894215
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "All 5 molecules: HF matches PySCF to <1 mHa, FCI matches PySCF to <1 mHa. Correlation energies (mHa): H2=20.6, LiH (s-only basis)=39.2, BeH2 (full STO-3G)=35.5, H2O=49.5, CH4=79.3."
+}

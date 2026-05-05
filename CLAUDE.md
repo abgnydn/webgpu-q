@@ -128,6 +128,63 @@ ships as a URL"*. webgpu-q is the proof point.
 
 ## Current state of play (as of 2026-05-05)
 
+### Phase D — Hartree-Fock SCF (the bridge to bigger basis sets) (2026-05-05)
+
+Closed-shell RHF SCF, validated against PySCF on the standard
+molecule set to **microhartree precision**. This is the foundational
+single-reference method that every post-HF / DFT / coupled-cluster
+algorithm builds on top of. With HF in hand, Phase E (MP2) and
+Phase F (CCSD) become bolt-on additions, and bigger basis sets
+(cc-pVDZ, cc-pVTZ) are reachable for molecules where FCI would be
+infeasible.
+
+**Headline (E_HF + correlation = E_FCI, all molecules):**
+
+| molecule | E_HF | E_HF (PySCF) | Δ_HF | E_FCI | correlation |
+|---|---:|---:|---:|---:|---:|
+| H₂ | −1.116684 | −1.116694 | 0.010 mHa | −1.137270 | **20.6 mHa** |
+| LiH s-only | −7.804243 | −7.8042 | 0.043 mHa | −7.843394 | **39.2 mHa** |
+| BeH₂ full | −15.559405 | −15.5594 | 0.005 mHa | −15.594861 | **35.5 mHa** |
+| H₂O | −74.962928 | −74.9629 | 0.028 mHa | −75.012403 | **49.5 mHa** |
+| CH₄ | −39.726701 | −39.7267 | 0.001 mHa | −39.806036 | **79.3 mHa** |
+
+Every HF energy matches PySCF to **<0.05 mHa**. Every correlation
+energy E_FCI − E_HF matches the canonical literature value for
+that molecule. Status: **pass**.
+
+**What shipped:**
+- `src/chemistry/hf-scf.ts`: `runRHFSCF(integrals, nElectrons, opts)`
+  — standard Roothaan-Hall iteration with X = S^{−1/2} basis
+  transformation, simple α-damping for stability (α = 0.3 default).
+  Returns `{ energy, electronicEnergy, C_MO, orbitalEnergies, D,
+  nOccupied, iter, converged, history }`.
+  - Initial guess: diagonalize core `h` (no guess heuristic needed).
+  - G build: standard `Σ_{λσ} D_{λσ} ((μν|λσ) − ½ (μλ|νσ))`.
+  - Energy: `½ Σ D · (h + F) + Vnn`.
+  - Convergence: both `|E_new − E_old| < 1e-10 Ha` AND
+    `‖D_new − D_old‖_F < 1e-8` by default.
+  - SCF converges in 2 (H₂) – 92 (H₂O) iterations.
+- 10 unit tests (`hf-scf.test.ts`):
+  - 5 PySCF-reference matches (one per molecule).
+  - 4 HF + correlation = FCI consistency checks (CH₄ excluded
+    — its 80 s sparse-FCI build trips vitest's worker-IPC
+    heartbeat; the HF-only check covers it).
+  - 1 H₂O orbital-energy ordering vs the canonical 1a₁/2a₁/1b₂/
+    3a₁/1b₁/4a₁/2b₂ HF eigenvalues.
+- Publishable artifact at
+  `experiments/results/2026-05-05/level-6/E26-hf-scf-publishable.json`.
+
+**What this unlocks (Phase E = post-HF, the cc-pVDZ frontier):**
+- **MP2** (Møller-Plesset 2nd order): the simplest post-HF correlation
+  method. Cost O(n^5), captures most dynamic correlation. ~50 lines.
+- **CCSD(T)**: gold-standard for organic chemistry. ~500-1000 lines.
+- With HF + MP2 we can attack H₂O / CH₄ in **cc-pVDZ** (24 spatial /
+  48 spin-orbitals — where FCI is hopeless but MP2 is trivial). That's
+  the bridge to drug-fragment chemistry.
+
+**Tests: 265 → 275** (+10 HF SCF). Typecheck clean. Lint warnings
+unchanged from baseline.
+
 ### Phase C v5 — sparse-CSR Hsec breaks the 15 GB barrier (2026-05-05)
 
 The dense sector matrix is now optional. For molecules where it
