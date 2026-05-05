@@ -128,6 +128,59 @@ ships as a URL"*. webgpu-q is the proof point.
 
 ## Current state of play (as of 2026-05-05)
 
+### Phase C v3 stage 1 — Cartesian-Gaussian p-shell integrals (2026-05-05)
+
+The integral library that lets the chemistry pipeline see angular
+momentum. Adds Obara-Saika / McMurchie-Davidson machinery so we can
+compute S, T, V, ERI over arbitrary combinations of s and p shells —
+the foundation needed to add the Be 2p sub-shell to BeH₂ (Phase C
+v3 stage 2). All implemented in plain TypeScript, no external deps.
+
+**What shipped:**
+- `src/chemistry/integrals-cg.ts` (~400 lines):
+  - `CGShell` type — generalizes `Shell` with an angular-momentum
+    tuple `(n_x, n_y, n_z)`. `(0, 0, 0)` reduces to s; `(1, 0, 0)`
+    etc. give the three Cartesian p shells.
+  - 1D E-coefficient recurrence (Hermite-Gaussian expansion of a
+    Gaussian product, HJO Ch. 9.5).
+  - Boys function `F_n(t)` for n=0..6 — Taylor series for small t,
+    asymptotic form for large t, then numerically stable downward
+    recursion `F_{n−1} = (2t F_n + e^{−t}) / (2n − 1)`.
+  - Auxiliary `R^n_{tuv}(p, R)` integrals via the standard
+    one-down-and-one-out recursion.
+  - `S_cg`, `T_cg`, `V_cg`, `ERI_cg` for any (CGShell × CGShell …)
+    combinations — all built from the E + R machinery.
+- `STO3G_BE_2P` added to `integrals.ts` (Pople 1969 L-shell p
+  contraction; same exponents as `STO3G_BE_2S`, different coeffs).
+- 17 unit tests covering: Boys F_n properties (4), s-shell
+  consistency vs the legacy s-only API (4), p-shell physical
+  invariants (8 — self-overlap, rotation invariance,
+  same-center px ⊥ py, kinetic exact = 5α/2 for normalized p,
+  translation invariance, ERI 8-fold symmetry), full Be 5-shell
+  basis orthogonality (1).
+
+**Honest follow-on (Phase C v3 stage 2):**
+- Build the BeH₂-full Hamiltonian over 7 spatial / 14 spin-orbitals
+  (Be 1s + Be 2s + Be 2p_x/y/z + 2 H 1s = 16384-dim Hilbert space).
+- Crucial detail: a 16384² × 8 B = 2 GB dense matrix won't fit in
+  a browser tab. Must build the H *directly in the N=6 sector*
+  (C(14, 6) = 3003-dim → 72 MB). Refactor `addOneBody` /
+  `addTwoBody` to project on the fly.
+- FCI via matrix-free Lanczos (already in `src/manybody/lanczos.ts`)
+  on the 3003-dim sector — fast and clean.
+- VQE: HEA on 14 qubits with L-BFGS. Param count grows to ~210 at
+  L = 12, FD gradient cost ~420 evals × 16384-amp circuits per iter.
+  Estimated 2–5 min per trial.
+
+**Precision note:** the new CG path uses high-precision Boys
+(Taylor to 1e-18); the legacy s-only path uses Abramowitz &
+Stegun erf (~1e-7 max error). They agree to ~1e-7 not f64 — the
+new path is *more* accurate. Future cleanup option: route the
+legacy s-only path through `boysAll` from integrals-cg.ts.
+
+**Tests: 231 → 248** (+17). Typecheck clean. Lint warnings
+unchanged from baseline.
+
 ### Phase C v2 — first multi-atom molecule (BeH₂) at chemical accuracy (2026-05-05)
 
 Linear H–Be–H with the experimental Be–H bond R = 1.34 Å — **first

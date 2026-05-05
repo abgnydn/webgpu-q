@@ -42,12 +42,23 @@ export const STO3G_BE_1S = {
 };
 
 /** STO-3G 2s contraction for beryllium — the *s component* of the L-shell.
- *  Same exponent set as the 2p L-shell (omitted in v0); coefficients are
- *  Pople 1969 Table III. Negative leading coefficient produces the 2s
+ *  Same exponent set as the 2p L-shell (added in Phase C v3); coefficients
+ *  are Pople 1969 Table III. Negative leading coefficient produces the 2s
  *  radial node and enforces orthogonality with 1s post-Löwdin. */
 export const STO3G_BE_2S = {
   alpha: [1.3148331, 0.3055389, 0.0993707] as const,
   c: [-0.09996723, 0.39951283, 0.70011547] as const,
+};
+
+/** STO-3G 2p contraction for beryllium — the *p component* of the L-shell.
+ *  Same exponent set as STO3G_BE_2S; the only difference is the
+ *  contraction coefficients (all positive for p, since the 2p radial
+ *  has no node). One Cartesian-Gaussian shell per Cartesian direction
+ *  (p_x, p_y, p_z) — pair this with `makeCGShell(STO3G_BE_2P, center,
+ *  [1, 0, 0])` etc. from `integrals-cg.ts` to build them. */
+export const STO3G_BE_2P = {
+  alpha: [1.3148331, 0.3055389, 0.0993707] as const,
+  c: [0.15591627, 0.60768372, 0.39195739] as const,
 };
 
 /** STO-3G 2s contraction for lithium — the *s component* of the L-shell.
