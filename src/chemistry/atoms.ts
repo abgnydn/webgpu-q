@@ -13,11 +13,15 @@ import {
   STO3G_C_1S, STO3G_C_2S, STO3G_C_2P,
   STO3G_N_1S, STO3G_N_2S, STO3G_N_2P,
   STO3G_O_1S, STO3G_O_2S, STO3G_O_2P,
+  CCPVDZ_H_1S, CCPVDZ_H_2S, CCPVDZ_H_2P,
+  CCPVDZ_O_1S, CCPVDZ_O_2S, CCPVDZ_O_2S_P,
+  CCPVDZ_O_2P, CCPVDZ_O_2P_P, CCPVDZ_O_3D,
 } from "./integrals.js";
 import { type CGShell, makeCGShell } from "./integrals-cg.js";
 import { type Nucleus } from "./cg-molecular.js";
 
 export type AtomSymbol = "H" | "Li" | "Be" | "C" | "N" | "O";
+export type BasisName = "sto-3g" | "cc-pvdz";
 
 const ANGSTROM_TO_BOHR = 1 / 0.529177210903;
 
@@ -38,13 +42,27 @@ export const N_ELECTRONS_FOR: Readonly<Record<AtomSymbol, number>> = {
 };
 
 /**
- * Return the full STO-3G CG-shell list for a given atom centered at
- * `pos_bohr`. For first-row (H) we get [1s]. For second-row (Li, Be,
- * C, N, O) we get [1s, 2s, 2p_x, 2p_y, 2p_z]. Lithium intentionally
- * gets only 1s and 2s — its STO-3G 2p contraction is missing from
- * Pople's table for this atom.
+ * Return the CG-shell list for a given atom + basis set. Default
+ * basis is STO-3G for backward compatibility with v3-v5 callers.
+ *
+ * STO-3G:
+ *   H     → [1s]
+ *   Li    → [1s, 2s]                          (no 2p in this codebase)
+ *   Be    → [1s, 2s, 2p_x, 2p_y, 2p_z]
+ *   C/N/O → [1s, 2s, 2p_x, 2p_y, 2p_z]
+ *
+ * cc-pVDZ (Phase E stage 2):
+ *   H → [1s, 2s, 2p_x, 2p_y, 2p_z]            (5 funcs)
+ *   O → [1s, 2s, 2s', 2p, 2p', 3d_xx, 3d_yy,
+ *        3d_zz, 3d_xy, 3d_xz, 3d_yz]          (14 funcs)
+ *   (Other atoms not yet covered for cc-pVDZ.)
  */
-export function atomShells(symbol: AtomSymbol, pos_bohr: readonly [number, number, number]): CGShell[] {
+export function atomShells(
+  symbol: AtomSymbol,
+  pos_bohr: readonly [number, number, number],
+  basis: BasisName = "sto-3g",
+): CGShell[] {
+  if (basis === "cc-pvdz") return atomShellsCcPvdz(symbol, pos_bohr);
   switch (symbol) {
     case "H":
       return [makeCGShell(STO3G_H_1S, pos_bohr, [0, 0, 0], "H:1s")];
@@ -88,8 +106,46 @@ export function atomShells(symbol: AtomSymbol, pos_bohr: readonly [number, numbe
   }
 }
 
+/** cc-pVDZ shells. Currently supports H and O — the minimum needed for water. */
+function atomShellsCcPvdz(symbol: AtomSymbol, pos: readonly [number, number, number]): CGShell[] {
+  switch (symbol) {
+    case "H":
+      return [
+        makeCGShell(CCPVDZ_H_1S, pos, [0, 0, 0], "H:1s"),
+        makeCGShell(CCPVDZ_H_2S, pos, [0, 0, 0], "H:2s"),
+        makeCGShell(CCPVDZ_H_2P, pos, [1, 0, 0], "H:2p_x"),
+        makeCGShell(CCPVDZ_H_2P, pos, [0, 1, 0], "H:2p_y"),
+        makeCGShell(CCPVDZ_H_2P, pos, [0, 0, 1], "H:2p_z"),
+      ];
+    case "O":
+      return [
+        makeCGShell(CCPVDZ_O_1S,   pos, [0, 0, 0], "O:1s"),
+        makeCGShell(CCPVDZ_O_2S,   pos, [0, 0, 0], "O:2s"),
+        makeCGShell(CCPVDZ_O_2S_P, pos, [0, 0, 0], "O:2s'"),
+        makeCGShell(CCPVDZ_O_2P,   pos, [1, 0, 0], "O:2p_x"),
+        makeCGShell(CCPVDZ_O_2P,   pos, [0, 1, 0], "O:2p_y"),
+        makeCGShell(CCPVDZ_O_2P,   pos, [0, 0, 1], "O:2p_z"),
+        makeCGShell(CCPVDZ_O_2P_P, pos, [1, 0, 0], "O:2p'_x"),
+        makeCGShell(CCPVDZ_O_2P_P, pos, [0, 1, 0], "O:2p'_y"),
+        makeCGShell(CCPVDZ_O_2P_P, pos, [0, 0, 1], "O:2p'_z"),
+        // 6 Cartesian d functions: xx, yy, zz, xy, xz, yz.
+        makeCGShell(CCPVDZ_O_3D, pos, [2, 0, 0], "O:3d_xx"),
+        makeCGShell(CCPVDZ_O_3D, pos, [0, 2, 0], "O:3d_yy"),
+        makeCGShell(CCPVDZ_O_3D, pos, [0, 0, 2], "O:3d_zz"),
+        makeCGShell(CCPVDZ_O_3D, pos, [1, 1, 0], "O:3d_xy"),
+        makeCGShell(CCPVDZ_O_3D, pos, [1, 0, 1], "O:3d_xz"),
+        makeCGShell(CCPVDZ_O_3D, pos, [0, 1, 1], "O:3d_yz"),
+      ];
+    default:
+      throw new Error(`atomShells(cc-pVDZ): atom '${symbol}' not yet supported (only H and O wired in Phase E v2).`);
+  }
+}
+
 /** Convert a list of atoms (positions in Å) into CG shells (positions in Bohr) and Nuclei. */
-export function moleculeToShellsNuclei(atoms: readonly Atom[]): {
+export function moleculeToShellsNuclei(
+  atoms: readonly Atom[],
+  basis: BasisName = "sto-3g",
+): {
   shells: CGShell[];
   nuclei: Nucleus[];
   nElectrons: number;
@@ -103,7 +159,7 @@ export function moleculeToShellsNuclei(atoms: readonly Atom[]): {
       a.pos[1] * ANGSTROM_TO_BOHR,
       a.pos[2] * ANGSTROM_TO_BOHR,
     ];
-    shells.push(...atomShells(a.symbol, pos_bohr));
+    shells.push(...atomShells(a.symbol, pos_bohr, basis));
     nuclei.push({ Z: Z_FOR[a.symbol], pos: pos_bohr });
     nElectrons += N_ELECTRONS_FOR[a.symbol];
   }

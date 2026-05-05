@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "protocol": "E28-h2o-ccpvdz-publishable",
+    "hypothesis": "H₂O in cc-pVDZ HF + MP2 in a browser tab matches PySCF cc-pVDZ HF to <1 mHa, and MP2 captures ~4× more correlation (~205 mHa) than STO-3G's ~50 mHa, demonstrating that the chemistry pipeline scales transparently from minimal to standard basis sets.",
+    "passBar": "|E_HF − E_PySCF_HF| ≤ 1 mHa for both basis sets",
+    "seed": "E28_H2O_CCPVDZ",
+    "warmup": 0,
+    "trials": 1
+  },
+  "env": {
+    "runtime": "node v24.5.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "timestamp": "2026-05-05T13:54:42.287Z",
+    "note": "cc-pVDZ uses 6 Cartesian d-functions (vs PySCF default 5 spherical); the extra (d_xx + d_yy + d_zz)/√3 redundant linear combination is variationally absorbed by Löwdin orthogonalization."
+  },
+  "rows": [
+    {
+      "basis": "sto-3g",
+      "nShells": 7,
+      "nElectrons": 10,
+      "E_HF_Ha": -74.96292750353804,
+      "E_MP2_Ha": -74.99842013578841,
+      "MP2_corr_mHa": -35.492632250373745,
+      "HF_iters": 92,
+      "total_seconds": 0.05363575,
+      "pyscf_HF": -74.9629,
+      "pyscf_MP2": -74.9989
+    },
+    {
+      "basis": "cc-pvdz",
+      "nShells": 25,
+      "nElectrons": 10,
+      "E_HF_Ha": -76.02714052732918,
+      "E_MP2_Ha": -76.23465939506747,
+      "MP2_corr_mHa": -207.51886773829105,
+      "HF_iters": 101,
+      "total_seconds": 1.32047175,
+      "pyscf_HF": -76.0267,
+      "pyscf_MP2": -76.23
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "H₂O in cc-pVDZ HF matches PySCF to 0.440527329175211 mHa; MP2 captures 207.5 mHa correlation (vs 35.5 mHa in STO-3G — ~5.8× more)."
+}

@@ -115,6 +115,88 @@ export const STO3G_O_2P = {
   c: STO3G_L_2P_C,
 };
 
+// ── cc-pVDZ basis sets (Dunning, T.H. 1989) ───────────────────
+// "Correlation-consistent polarized valence double-zeta" — the
+// smallest "real" basis set chemistry codes use. STO-3G is a toy;
+// cc-pVDZ is what 90% of academic chemistry papers rely on for
+// preliminary calculations. Pharma uses cc-pVTZ or cc-pVQZ for
+// final numbers, but cc-pVDZ is the entry-level standard.
+//
+// For each atom cc-pVDZ has split valence + polarization shells.
+// Adopted convention (matches PySCF / EMSL Basis Set Exchange):
+//   H:   2s + 1p           (5 basis functions)
+//   C:   3s + 2p + 1d      (14 basis functions)
+//   N/O: 3s + 2p + 1d      (14 basis functions)
+//
+// Ordering of shell exports: contracted shells first, uncontracted
+// (single-primitive) split-valence shells next, polarization last.
+//
+// All coefficients from EMSL Basis Set Exchange, retrieved
+// 2026-05-05.
+
+// ── Hydrogen cc-pVDZ ─────────────────────────────────────────
+// 2 s-shells (one contracted, one uncontracted) + 1 p-shell.
+export const CCPVDZ_H_1S = {
+  alpha: [13.0107010, 1.9622572, 0.4445298] as const,
+  c: [0.0196850, 0.1379770, 0.4781480] as const,
+};
+export const CCPVDZ_H_2S = {
+  alpha: [0.1219496] as const,
+  c: [1.0] as const,
+};
+export const CCPVDZ_H_2P = {
+  alpha: [0.7270000] as const,
+  c: [1.0] as const,
+};
+
+// ── Oxygen cc-pVDZ ────────────────────────────────────────────
+// 3 s-shells + 2 p-shells + 1 d-shell. Coefficients are the
+// "general contraction" form: a single block of primitives with
+// per-shell contraction vectors. Here we expand to per-shell
+// contractions matching the integrals-cg.ts CGShell convention.
+//
+// EMSL ccPVDZ for O — radial primitives split into:
+//   1s (deep core, 8 prims), 2s (split valence, 8 prims contracted
+//   differently), 2s' (uncontracted), 2p, 2p', 3d.
+export const CCPVDZ_O_1S = {
+  alpha: [
+    11720.0000, 1759.0000, 400.8000, 113.7000, 37.0300,
+    13.2700, 5.0250, 1.0130,
+  ] as const,
+  c: [
+    0.000710, 0.005470, 0.027837, 0.104800, 0.283062,
+    0.448719, 0.270952, 0.015458,
+  ] as const,
+};
+// Inner valence "2s" — same primitive set as 1s, different coefficients.
+export const CCPVDZ_O_2S = {
+  alpha: [
+    11720.0000, 1759.0000, 400.8000, 113.7000, 37.0300,
+    13.2700, 5.0250, 1.0130,
+  ] as const,
+  c: [
+    -0.000160, -0.001263, -0.006267, -0.025716, -0.070924,
+    -0.165411, -0.116955, 0.557368,
+  ] as const,
+};
+// Outer valence (uncontracted single primitive).
+export const CCPVDZ_O_2S_P = {
+  alpha: [0.3023] as const,
+  c: [1.0] as const,
+};
+export const CCPVDZ_O_2P = {
+  alpha: [17.7000, 3.8540, 1.0460] as const,
+  c: [0.043018, 0.228913, 0.508728] as const,
+};
+export const CCPVDZ_O_2P_P = {
+  alpha: [0.2753] as const,
+  c: [1.0] as const,
+};
+export const CCPVDZ_O_3D = {
+  alpha: [1.1850] as const,
+  c: [1.0] as const,
+};
+
 /** STO-3G 2s contraction for lithium — the *s component* of the L-shell.
  *  Coefficients can be negative to produce the 2s radial node and to
  *  enforce orthogonality with 1s after Löwdin orthogonalization.

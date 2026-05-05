@@ -128,6 +128,65 @@ ships as a URL"*. webgpu-q is the proof point.
 
 ## Current state of play (as of 2026-05-05)
 
+### Phase E stage 2 — cc-pVDZ basis (the chemistry-grade frontier) (2026-05-05)
+
+First non-minimal basis set: cc-pVDZ (Dunning 1989) — the smallest
+"real" basis chemistry papers cite. Adds polarization functions (p
+on H, d on O) on top of split valence. The McMurchie-Davidson
+integral framework from Phase C v3 stage 1 handles d-shells natively;
+just had to type the basis-set constants and verify.
+
+**Headline (H₂O at experimental geometry, full HF + MP2 stack):**
+
+| basis | CG shells | E_HF | E_MP2 | MP2 correlation | Δ vs PySCF | wall |
+|---|---:|---:|---:|---:|---:|---:|
+| STO-3G | 7 | −74.962928 | −74.998420 | 35.5 mHa | 0.03 / 0.48 mHa | 0.05 s |
+| **cc-pVDZ** | **25** | **−76.027141** | **−76.234659** | **207.5 mHa** | **0.44 / −4.66 mHa** | **1.32 s** |
+
+cc-pVDZ HF matches PySCF to **0.44 mHa** (chemical-accuracy bar).
+MP2 captures **207 mHa** of correlation in cc-pVDZ vs 35 mHa in
+STO-3G — a 5.8× increase from the larger basis. The chemistry
+pipeline scales transparently from minimal to standard basis sets.
+
+**What shipped:**
+- `src/chemistry/integrals.ts`: cc-pVDZ basis constants for H
+  (1s + 2s + 1p) and O (3s + 2p + 1d), from EMSL Basis Set Exchange.
+- `src/chemistry/atoms.ts`: `BasisName` type, `atomShells(symbol,
+  pos, basis)` and `moleculeToShellsNuclei(atoms, basis)` switch
+  on `"sto-3g"` / `"cc-pvdz"`. `atomShellsCcPvdz()` produces
+  6 Cartesian d-functions per d-shell (vs PySCF's 5 spherical
+  harmonics — see note below).
+- 7 unit tests in `ccpvdz.test.ts`: d-shell self-overlap = 1
+  for each of (xx, yy, zz, xy, xz, yz); ⟨d_xx | d_yy⟩ = 1/3
+  Cartesian non-orthogonality; H₂O HF matches PySCF to 1 mHa;
+  H₂O MP2 captures ~205 mHa.
+- Publishable artifact at
+  `experiments/results/2026-05-05/level-6/E28-h2o-ccpvdz-publishable.json`.
+
+**Note on Cartesian vs spherical d:** this codebase uses 6
+Cartesian d-functions (d_xx, d_yy, d_zz, d_xy, d_xz, d_yz) per
+d-shell. PySCF default is 5 spherical-harmonic d functions. The
+redundant linear combination (d_xx + d_yy + d_zz)/√3 is an extra
+"3s" component that makes the Cartesian basis slightly LARGER and
+thus variationally LOWER. HF energies differ at the sub-mHa level;
+MP2 differs by a few mHa. Both are within the canonical
+Cartesian-vs-spherical tolerance reported in basis-set literature.
+
+**Honest negative on Stage 3 (CCSD):**
+Attempted closed-shell CCSD this session as a "linearised CCSD"
+implementation. Result: H₂ over-corrected by 3.4 mHa (CCSD must
+equal FCI for 2 electrons in 2 spin-orbitals, so this exposes a
+real bug); H₂O diverged by 580 mHa upward. The bug is in the T2
+residual — the linearised formulation drops quadratic τ² terms
+that prevent over-correction at large amplitudes. The full
+Stanton-Gauss-Watts-Bartlett 1991 closed-shell CCSD has ~30
+distinct contraction terms in the T2 residual; getting all of
+them right is its own multi-hour exercise. Code reverted; CCSD
+properly is **Phase E stage 3**, deferred to a dedicated session.
+
+**Tests: 283 → 290** (+7 cc-pVDZ). Typecheck clean. Lint warnings
+unchanged from baseline.
+
 ### Phase E stage 1 — MP2 post-HF correlation (2026-05-05)
 
 The simplest meaningful post-HF method now runs in a browser tab.
