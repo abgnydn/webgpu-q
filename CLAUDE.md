@@ -20,7 +20,184 @@ Scope-honest. See `~/.claude/skills/hero/SKILL.md`.
 
 ---
 
-## Current state of play (as of 2026-05-01)
+## Roadmap to the frontier (the path you're on)
+
+The project is past the launchpad — the four "ladder" levels are shipped
+(L1 statevector, L2 MPS, L3 fusion, L6 chemistry), GPU MPS goes through
+Phase 6 v1, and the repo is public + CI-green. The honest path from here
+to publishable frontier work is below. Each phase produces a real
+artifact; every off-ramp ships a real claim.
+
+### Phase A — Tighten the foundation (~1 session)
+
+The known weak points in today's stack:
+
+1. **GPU MPS truncation handling (Phase 4c gap).** Phase 4b/5 says
+   "no renormalization for unitary gates" — correct only when the chain
+   stays in canonical form AND no SVD truncation kicks in. At deep
+   circuits (depth ≥ log₂ χ_max) bonds saturate, kKeep < physicalRank,
+   and we lose probability mass. Fix: GPU-side canonical-form
+   renormalization on truncation paths.
+2. **MPO (Matrix Product Operator) representation** for 1D Hamiltonians.
+   Currently we have `Hamiltonian1D` as a list of bond terms; MPO is
+   the standard format every DMRG / TDVP routine expects.
+3. **Real two-site DMRG with Lanczos.** `src/manybody/dmrg.ts` is a stub
+   (direct diagonalization → MPS conversion). Replace with proper sweeps
+   + matrix-free Lanczos local eigensolver using the new MPO.
+
+**Unlocks:** χ ≤ 64 deep circuits, MPO infrastructure, real DMRG.
+
+### Phase B — 1D records (~2-3 sessions)
+
+1. Push 1D chains to N = 80, 100, 128 with chiMax = 64 (needs Phase A).
+2. Validate against analytical limits: Bethe ansatz for Heisenberg,
+   Pfeuty for TFIM critical exponents.
+3. Publish artifact: *"longest 1D MPS in a browser, ITensor-validated."*
+
+**Off-ramp #1: workshop paper here.** Most published 1D tensor-network
+results are at N ≤ 64; a browser-native N = 128 is paper-worthy.
+
+### Phase C — Real molecule chemistry (~2-3 sessions)
+
+1. Extend `src/chemistry/integrals.ts` from H 1s to multi-orbital atoms
+   (Li 1s/2s, Be 1s/2s, etc.).
+2. LiH builder (4 electrons, 6 spin-orbitals): `src/chemistry/lih-builder.ts`.
+   Active-space VQE, validate against PySCF FCI.
+3. BeH₂ next (6 electrons, 14 spin-orbitals).
+4. Add CCSD(T) reference comparison.
+
+**Off-ramp #2: chemistry paper here.** *"First browser-tab quantum
+chemistry on real molecules, matches PySCF to chemical accuracy."*
+
+### Phase D — Distributed via WebRTC (~3-5 sessions, the hard part)
+
+The L4 swarm we deferred. Genuinely two-process engineering.
+
+1. WebRTC signalling (or reuse `webgpu-p2p-evolution`'s 113-line relay).
+2. Cut a 1D chain at the midpoint: browser A holds sites 0..N/2,
+   browser B holds N/2..N-1. Each does its half's MPS, exchanges the
+   bond tensor at the cut over WebRTC.
+3. Recompute the full chain energy by combining both halves' contributions.
+4. Validate: same answer as single-browser N = 80 from Phase B.
+5. Push to N = 160 split across two machines.
+
+**Off-ramp #3: distributed-quantum-sim paper here.** Foundation for
+every subsequent moonshot.
+
+### Phase E — Pick a moonshot
+
+By this point: deep MPS at χ = 64, real-molecule VQE, WebRTC
+distributed contraction. Three branches, each genuinely paper-worthy:
+
+#### E.1 — Verify Sycamore (the public-benchmark moonshot)
+- Add 2D PEPS primitive (substantial, but math is in published papers).
+- Implement Sycamore gate set (fSim + single-qubit) and ingest Google's
+  published circuit JSON.
+- Distribute the PEPS contraction across N volunteer browsers via Phase D.
+- Reproduce Pan & Zhang 2021's classical-supremacy refutation in a tab.
+- Cross-check against Google's published output statistics.
+- ~3-5 sessions on top of Phase D.
+
+#### E.2 — Fault-tolerant qubit (the QC-future moonshot)
+- Stabilizer simulator (Clifford-only, scales to thousands via Gottesman-Knill).
+- Surface code at distance 3, 5, 7.
+- Syndrome extraction + minimum-weight perfect-matching decoder.
+- Noise model (depolarizing → biased → leakage).
+- Plot logical error rate vs physical, find the threshold curve.
+- Cross-check against IBM Heron / Quantinuum public data.
+- ~4-6 sessions.
+
+#### E.3 — Browser-native lattice QCD (the HPC-substrate moonshot)
+- 4D lattice (small: 8⁴ or 16⁴).
+- Wilson Dirac operator (or staggered fermions).
+- Conjugate-gradient solver fused into a single WebGPU dispatch.
+- Compute simplest hadron mass (pion or rho), validate against published lattice values.
+- May need scaled-int arithmetic for f32 stability.
+- ~6-10 sessions, hardest port.
+
+### Cleanest path that ships at every off-ramp
+
+**A → B → C → D → E.1**. ~10 sessions to the launchpad, +3-5 for
+Sycamore in a browser. Every step gives a real claim; if you stop early
+you still have something.
+
+The unifying thesis: *"every advanced physics simulation in the world
+ships as a URL"*. webgpu-q is the proof point.
+
+---
+
+## Current state of play (as of 2026-05-04)
+
+### What's shipped since 2026-05-01
+
+- **L3 Tier C** — 8×8 cascade fusion (5 ops → 1 dispatch), `src/three-qubit-dense.ts`,
+  E12. **4.18× headline at N=15 D=80**, worst F=0.9999988.
+- **L3 Tier D** — 16×16 cascade fusion (7 ops → 1 dispatch),
+  `src/four-qubit-dense.ts`, E13. **3.14× plateau, honest negative**:
+  per-block compute scales 4× per tier while memory traffic only 2×, so
+  Tier D crosses into compute-bound territory. Tier C remains the
+  bandwidth-bound sweet spot.
+- **GPU MPS Phase 5 v0** — rectangular SVD via padding (lifts the
+  square-matrix constraint). `src/shaders/mps-two-site-merge.wgsl` got
+  `mStride`, `applyTwoSite` zero-pads to nMax × nMax.
+- **GPU MPS Phase 5 fast-path** — `sigma-sort.wgsl` (single-thread
+  insertion sort) + single-submit. Per-gate cost ↓ ~25% (432 → 326 μs).
+- **GPU MPS Phase 5 v1** — canonical sweeps on GPU. New
+  `mps-two-site-extract-uS.wgsl` + `mps-two-site-build-vh.wgsl` for
+  the symmetric "push residual leftward" pipeline. `applyTwoSiteLeft` +
+  `canonicalize(targetBond)` methods on `MPSGpu`. Arbitrary gate
+  orderings now work, not just brick-wall.
+- **GPU MPS Phase 6 v0** — `jacobi-svd-large.wgsl` (n ≤ 48, 37 KB
+  workgroup storage; activates on adapters with the budget).
+- **GPU MPS Phase 6 v1** — `jacobi-svd-storage.wgsl`. A and V live in
+  global memory, only 4 active columns enter shared per (p,q) rotation.
+  Workgroup footprint constant 2.5 KB. **n ≤ 64 on every adapter** →
+  χ_max = 32 universally.
+- **DMRG-v0** — `src/manybody/dmrg.ts`. Direct dense diagonalization +
+  statevector → MPS conversion via SVD chain. ITensor cross-checked at
+  N=8 to f64 precision. Real two-site DMRG with Lanczos is Phase A.
+- **Mobile-first responsive** — viz / experiments / gpu-mps / landing /
+  demo all validated at 390×844 in Playwright. `e2e/mobile-smoke.spec.ts`.
+- **Public repo** — https://github.com/abgnydn/webgpu-q. MIT, CI green,
+  CHANGELOG, README badges + screenshots, **v0.1.0 release** tagged.
+- **Headline numbers on landing**: **4.18×** kernel fusion (Tier C),
+  ITensor-validated, **160 tests** + 11 e2e specs.
+
+### Test surface (current)
+
+- `npm run test` → **160 / 160** (was 122). Adds Tier C/D math (16),
+  three- and four-qubit cascade fusion, DMRG-v0 cross-checks (9),
+  remaining many-body + chemistry coverage.
+- `npx tsc --noEmit` → clean.
+- `npm run lint` → clean (1 unused-eslint-disable warning, pre-existing).
+- `npx playwright test` → **11 / 11** specs. Includes:
+  - `e2e/level-{1,2,3,6}.spec.ts` — full ladder e2e
+  - `e2e/gpu-mps.spec.ts` — Phases 1A / 1B / 2 / 4a / 4b/5 / 5 v1
+  - `e2e/landing-smoke.spec.ts`, `e2e/viz-smoke.spec.ts`
+  - `e2e/mobile-smoke.spec.ts` — 4 viewport tests at 390×844
+  - `e2e/generate-og.spec.ts` — OG image regenerator
+
+### Live deployment
+
+Same: https://webgpu-q.vercel.app. Redeploy:
+`vercel deploy --prod --scope ahmet-bar-gnaydns-projects`. **Standing
+preference: do NOT auto-deploy** — test locally only; deploy only when
+the user explicitly asks.
+
+### Companion repos polished in the same pass
+
+All 12 public repos at https://github.com/abgnydn now have LICENSE / CI /
+CHANGELOG / README badges / v0.1.0 release. Same playbook applied
+across `webgpu-dna`, `gpubench`, `zero-tvm`, `markview`, `safenpm`,
+`webgpu-fusion-max`, `wgpu-adas-bench`, `webgpu-p2p-evolution`,
+`webgpu-transformer-fusion`, `wgpu-native-bench`, plus the umbrella
+`webgpu-kernel-fusion`. `safenpm` had its npm version reset from
+1.0.0 → 0.1.0 (1.0.0 deprecated on the registry; `latest` dist-tag
+moved to 0.1.0).
+
+---
+
+## Current state of play (snapshot from 2026-05-01, kept for reference)
 
 ### What's green
 
@@ -176,13 +353,19 @@ Don't rename — artifacts reference them by string.
 
 ---
 
-## Resume instructions (next session, in order)
+## Resume instructions (snapshot — superseded by the roadmap above)
+
+**The "next step" is no longer wiring up E5 / E6 / E7 — those all shipped.
+The current next step is Phase A of the roadmap above** (truncation
+renormalization on GPU, MPO representation, real two-site DMRG with
+Lanczos). Everything below is preserved for reference but reflects the
+state circa 2026-04-22 when the project was still wiring Level 2.
 
 ### 1. Verify nothing rotted
 
 ```bash
 cd /Users/ahmetbarisgunaydin2/webgpu-q
-npm run test       # expect 73/73
+npm run test       # expect 160/160 (was 73/73 in old snapshot)
 npm run typecheck  # expect clean
 npm run lint       # clean on src/, tests/, experiments/
 ```
