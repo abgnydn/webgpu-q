@@ -61,6 +61,60 @@ export const STO3G_BE_2P = {
   c: [0.15591627, 0.60768372, 0.39195739] as const,
 };
 
+// ── Pople 1969 STO-3G for second-row atoms (B–Ne) ─────────────
+// All second-row atoms share the same s-shell d-coefficients
+// (radial form is universal in the STO-3G parametrization);
+// only the exponent sets differ from atom to atom.
+//
+// L-shell (2sp): same exponents for s and p; same s-d-coeffs and
+// p-d-coeffs as Be (Pople 1969 Table III).
+
+const STO3G_L_2S_C = [-0.09996723, 0.39951283, 0.70011547] as const;
+const STO3G_L_2P_C = [ 0.15591627, 0.60768372, 0.39195739] as const;
+const STO3G_S_C    = [ 0.15432897, 0.53532814, 0.44463454] as const;
+
+/** STO-3G 1s for carbon (Z = 6). Pople 1969. */
+export const STO3G_C_1S = {
+  alpha: [71.6168370, 13.0450960, 3.5305122] as const,
+  c: STO3G_S_C,
+};
+export const STO3G_C_2S = {
+  alpha: [2.9412494, 0.6834831, 0.2222899] as const,
+  c: STO3G_L_2S_C,
+};
+export const STO3G_C_2P = {
+  alpha: [2.9412494, 0.6834831, 0.2222899] as const,
+  c: STO3G_L_2P_C,
+};
+
+/** STO-3G 1s for nitrogen (Z = 7). Pople 1969. */
+export const STO3G_N_1S = {
+  alpha: [99.1061690, 18.0523120, 4.8856602] as const,
+  c: STO3G_S_C,
+};
+export const STO3G_N_2S = {
+  alpha: [3.7804559, 0.8784966, 0.2857144] as const,
+  c: STO3G_L_2S_C,
+};
+export const STO3G_N_2P = {
+  alpha: [3.7804559, 0.8784966, 0.2857144] as const,
+  c: STO3G_L_2P_C,
+};
+
+/** STO-3G 1s for oxygen (Z = 8). Pople 1969. */
+export const STO3G_O_1S = {
+  alpha: [130.7093200, 23.8088610, 6.4436083] as const,
+  c: STO3G_S_C,
+};
+export const STO3G_O_2S = {
+  alpha: [5.0331513, 1.1695961, 0.3803890] as const,
+  c: STO3G_L_2S_C,
+};
+export const STO3G_O_2P = {
+  alpha: [5.0331513, 1.1695961, 0.3803890] as const,
+  c: STO3G_L_2P_C,
+};
+
 /** STO-3G 2s contraction for lithium — the *s component* of the L-shell.
  *  Coefficients can be negative to produce the 2s radial node and to
  *  enforce orthogonality with 1s after Löwdin orthogonalization.

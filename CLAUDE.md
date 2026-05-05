@@ -128,6 +128,62 @@ ships as a URL"*. webgpu-q is the proof point.
 
 ## Current state of play (as of 2026-05-05)
 
+### Phase C v4 — water and methane in a browser tab (2026-05-05)
+
+H₂O and CH₄ in **full STO-3G FCI**, both matching PySCF. First
+non-linear molecule (water, bent at 104.52°) AND first molecule with
+4 hydrogens around a central atom (methane, tetrahedral). The
+chemistry pipeline now works for **any** molecule the user names —
+not just the dimers and triatomics we hand-coded.
+
+**Headline at experimental geometries:**
+
+| molecule | nQubits | sector dim | E_FCI (Ha) | PySCF (Ha) | \|Δ\| | wall |
+|---|---:|---:|---:|---:|---:|---:|
+| **H₂O** (R=0.9572 Å, ∠=104.52°) | 14 | C(14, 10) = **1001** | **−75.012403** | −75.0124 | **2.9 µHa** | 0.3 s |
+| **CH₄** (R=1.09 Å, tetrahedral) | 18 | C(18, 10) = **43758** | **−39.806036** | −39.8068 | **0.76 mHa** | 5 min |
+| BeH₂ full (R=1.34 Å) | 14 | C(14, 6) = 3003 | −15.594861 | −15.5949 | 39 µHa | 0.7 s |
+| LiH s-only (R=1.595 Å) | 6 | C(6, 4) = 15 | −7.843394 | (matches) | f64 | < 0.1 s |
+
+**H₂O symmetric stretch (∠HOH = 104.52° fixed, full curve in 3 s):**
+
+| R_OH (Å) | E_FCI (Ha) |
+|---:|---:|
+| 0.70 | −74.643706 |
+| 0.85 | −74.947345 |
+| **0.9572** | **−75.012403** ← experimental |
+| 1.05 | −75.019725 ← STO-3G minimum (basis-set bias toward longer bonds) |
+| 1.20 | −74.985111 |
+| 1.50 | −74.873426 |
+| 2.00 | −74.761985 |
+
+**What shipped:**
+- `src/chemistry/atoms.ts`: atom registry. `atomShells("O", pos)` →
+  `[1s, 2s, 2p_x, 2p_y, 2p_z]`. Supports H, Li, Be, C, N, O.
+- `src/chemistry/integrals.ts`: STO-3G basis constants for C, N, O
+  (1s + 2sp L-shell). Pople 1969 Table III.
+- `src/chemistry/molecule-builder.ts`: one-shot
+  `buildMoleculeFCI([{symbol, pos}, ...])` that produces the
+  sector-projected H + lazy `.fci()` Lanczos. Replaces all per-
+  molecule builder boilerplate.
+- 5 new tests (`molecule-builder.test.ts`): LiH cross-check via the
+  generic pipeline, H₂O FCI vs PySCF, V_nn correctness, Hsec
+  Hermiticity, sector dim sanity.
+- `tools/run-phase-c-v4.ts`: H₂O symmetric-stretch publishable +
+  optional CH₄ (`PHASE_C4_CH4=1`, ~5 min, ~15 GB RAM).
+- Publishable artifact: `experiments/results/2026-05-05/level-6/
+  E23-h2o-full-fci-publishable.json`.
+
+**Honest scope limit (Phase C v5):**
+CH₄'s 43758-dim sector materializes a 15 GB Hsec — at the
+hard memory edge of a 16 GB M2 Pro. Anything bigger (NH₃ in cc-pVDZ,
+H₂O in cc-pVTZ, glucose at any basis) needs a **fully matrix-free
+H apply** (compute matvec straight from h_OAO + eri_OAO without
+storing Hsec). That's Phase C v5 work — turns the 15 GB → ~50 MB
+working set, unlocks 20-qubit FCI in a tab.
+
+**Tests: 257 → 262** (+5). Typecheck clean. Lint warnings unchanged.
+
 ### Phase C v3 stage 2 — full STO-3G BeH₂ FCI matches PySCF (2026-05-05)
 
 The full quantum-chemistry stack at production basis-set quality, in

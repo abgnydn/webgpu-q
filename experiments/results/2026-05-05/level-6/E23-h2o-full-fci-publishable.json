@@ -1,0 +1,96 @@
+{
+  "meta": {
+    "protocol": "E23-h2o-full-fci-publishable",
+    "hypothesis": "Full STO-3G H₂O FCI in a browser tab matches PySCF at the experimental geometry (R_OH = 0.9572 Å, ∠HOH = 104.52°) within 1 mHa, and the symmetric-stretch dissociation minimum lands at R_OH ≈ 0.9572 Å.",
+    "passBar": "|E_FCI − E_PySCF| ≤ 1 mHa at experimental geometry AND min within 0.1 Å of 0.9572 Å",
+    "seed": "E23_H2O_FULL_FCI",
+    "warmup": 0,
+    "trials": 1
+  },
+  "env": {
+    "runtime": "node v24.5.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "timestamp": "2026-05-05T12:03:18.375Z",
+    "nSpatial": 7,
+    "nQubits": 14,
+    "nElectrons": 10,
+    "sectorDim": 1001,
+    "fciMethod": "matrix-free Lanczos",
+    "integrals": "McMurchie-Davidson Hermite-Gaussian (Phase C v3 stage 1)"
+  },
+  "rows": [
+    {
+      "R_OH_angstrom": 0.7,
+      "angle_degrees": 104.52,
+      "Vnn": 12.573457654929244,
+      "energyHartree": -74.64370624005173,
+      "pyscfDeltaMHa": null,
+      "lanczosIter": 49,
+      "buildSeconds": 0.22848641700000002,
+      "fciSeconds": 0.08275650000000001
+    },
+    {
+      "R_OH_angstrom": 0.85,
+      "angle_degrees": 104.52,
+      "Vnn": 10.354612186412318,
+      "energyHartree": -74.94734507786185,
+      "pyscfDeltaMHa": null,
+      "lanczosIter": 53,
+      "buildSeconds": 0.19764133300000003,
+      "fciSeconds": 0.08783166600000004
+    },
+    {
+      "R_OH_angstrom": 0.9572,
+      "angle_degrees": 104.52,
+      "Vnn": 9.194964854210685,
+      "energyHartree": -75.0124028760463,
+      "pyscfDeltaMHa": -0.002876046295341439,
+      "lanczosIter": 56,
+      "buildSeconds": 0.19379562499999997,
+      "fciSeconds": 0.09776220799999999
+    },
+    {
+      "R_OH_angstrom": 1.05,
+      "angle_degrees": 104.52,
+      "Vnn": 8.38230510328616,
+      "energyHartree": -75.0197254084158,
+      "pyscfDeltaMHa": null,
+      "lanczosIter": 61,
+      "buildSeconds": 0.19724108300000012,
+      "fciSeconds": 0.11807195799999999
+    },
+    {
+      "R_OH_angstrom": 1.2,
+      "angle_degrees": 104.52,
+      "Vnn": 7.334516965375391,
+      "energyHartree": -74.98511086515876,
+      "pyscfDeltaMHa": null,
+      "lanczosIter": 67,
+      "buildSeconds": 0.16853358400000001,
+      "fciSeconds": 0.15155424999999992
+    },
+    {
+      "R_OH_angstrom": 1.5,
+      "angle_degrees": 104.52,
+      "Vnn": 5.867613572300312,
+      "energyHartree": -74.87342628661686,
+      "pyscfDeltaMHa": null,
+      "lanczosIter": 89,
+      "buildSeconds": 0.17518775000000006,
+      "fciSeconds": 0.3621762919999999
+    },
+    {
+      "R_OH_angstrom": 2,
+      "angle_degrees": 104.52,
+      "Vnn": 4.400710179225234,
+      "energyHartree": -74.76198466706936,
+      "pyscfDeltaMHa": null,
+      "lanczosIter": 120,
+      "buildSeconds": 0.17467979100000003,
+      "fciSeconds": 1.0488307920000002
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "H₂O FCI matches PySCF to 0.0029 mHa at R_OH=0.9572 Å; dissociation min at R_OH=1.05 Å."
+}
