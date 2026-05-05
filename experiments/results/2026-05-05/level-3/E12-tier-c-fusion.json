@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "protocol": "E12-tier-c-fusion",
+    "hypothesis": "Three-qubit tile fusion (5 ops per tile per layer → 1 dense 8×8 dispatch) delivers ≥ 3× speedup vs the unfused 5-dispatch path at N ≥ 12, while staying within F ≥ 1 − 1e-5 of the unfused statevector.",
+    "passBar": "best (median over warmup+trials) speedup ≥ 3.0× AND worst F ≥ 1 − 1e-5",
+    "seed": "E12_TIERC_FUSION",
+    "warmup": 3,
+    "trials": 5
+  },
+  "env": {
+    "gitSha": "421b5fe95263",
+    "timestamp": "2026-05-05T07:20:17.933Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "platform": "Win32",
+    "adapter": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "limits": {
+      "maxBufferSize": 4294967292,
+      "maxStorageBufferBindingSize": 4294967292,
+      "maxComputeWorkgroupsPerDimension": 65535,
+      "maxComputeInvocationsPerWorkgroup": 256,
+      "maxComputeWorkgroupStorageSize": 32768
+    },
+    "hardwareConcurrency": 12,
+    "devicePixelRatio": 1
+  },
+  "rows": [
+    {
+      "nQubits": 12,
+      "depth": 20,
+      "tilesPerLayer": 4,
+      "unfusedSec": 0.015,
+      "fusedSec": 0.007700000002980233,
+      "speedup": 1.9480519472979678,
+      "fidelity": 1.000000439931512,
+      "unfusedNoisy": true,
+      "fusedNoisy": true
+    },
+    {
+      "nQubits": 12,
+      "depth": 80,
+      "tilesPerLayer": 4,
+      "unfusedSec": 0.07039999999105931,
+      "fusedSec": 0.023,
+      "speedup": 3.0608695648286655,
+      "fidelity": 1.0000002920971305,
+      "unfusedNoisy": false,
+      "fusedNoisy": true
+    },
+    {
+      "nQubits": 15,
+      "depth": 20,
+      "tilesPerLayer": 5,
+      "unfusedSec": 0.018299999997019766,
+      "fusedSec": 0.005099999994039536,
+      "speedup": 3.5882352977269245,
+      "fidelity": 1.0000000970307912,
+      "unfusedNoisy": false,
+      "fusedNoisy": false
+    },
+    {
+      "nQubits": 15,
+      "depth": 80,
+      "tilesPerLayer": 5,
+      "unfusedSec": 0.0641000000089407,
+      "fusedSec": 0.01519999998807907,
+      "speedup": 4.217105267053455,
+      "fidelity": 0.9999987851671726,
+      "unfusedNoisy": false,
+      "fusedNoisy": false
+    },
+    {
+      "nQubits": 18,
+      "depth": 20,
+      "tilesPerLayer": 6,
+      "unfusedSec": 0.021900000005960464,
+      "fusedSec": 0.010799999997019768,
+      "speedup": 2.0277777788892326,
+      "fidelity": 0.9999990389586265,
+      "unfusedNoisy": false,
+      "fusedNoisy": false
+    },
+    {
+      "nQubits": 18,
+      "depth": 80,
+      "tilesPerLayer": 6,
+      "unfusedSec": 0.07770000000298023,
+      "fusedSec": 0.03820000000298023,
+      "speedup": 2.0340314135318938,
+      "fidelity": 1.000002995031705,
+      "unfusedNoisy": false,
+      "fusedNoisy": false
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "Best speedup 4.22× at N=15 D=80. Worst F=0.9999988 (≥ 0.99999).",
+  "summary": {
+    "bestSpeedup": 4.217105267053455,
+    "bestSpeedupAt": {
+      "nQubits": 15,
+      "depth": 80
+    },
+    "worstFidelity": 0.9999987851671726
+  }
+}

@@ -1,0 +1,435 @@
+{
+  "meta": {
+    "protocol": "E7-chi-scaling",
+    "hypothesis": "For N=16 Haar-random 1D brick-wall circuits, χ required for F ≥ 0.999 satisfies log₂(χ_req) ≈ depth (slope ≈ 1.0 ± 0.2).",
+    "passBar": "fit slope ∈ [0.80, 1.20] AND < 10% of cells fail at χ=128",
+    "seed": "E7_MPS_CHI_SCALING",
+    "warmup": 0,
+    "trials": 5
+  },
+  "env": {
+    "gitSha": "421b5fe95263",
+    "timestamp": "2026-05-05T07:19:07.631Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "platform": "Win32",
+    "adapter": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "limits": {
+      "maxBufferSize": 4294967292,
+      "maxStorageBufferBindingSize": 4294967292,
+      "maxComputeWorkgroupsPerDimension": 65535,
+      "maxComputeInvocationsPerWorkgroup": 256,
+      "maxComputeWorkgroupStorageSize": 32768
+    },
+    "hardwareConcurrency": 12,
+    "devicePixelRatio": 1
+  },
+  "rows": [
+    {
+      "depth": 1,
+      "seed": 4227688560,
+      "cheapestChi": 2,
+      "log2ChiCheapest": 1,
+      "fidelityAtCheapest": 1.0000000000000022,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0,
+      "schmidtRankKept": 1,
+      "nQubits": 16
+    },
+    {
+      "depth": 1,
+      "seed": 1707741633,
+      "cheapestChi": 2,
+      "log2ChiCheapest": 1,
+      "fidelityAtCheapest": 1.0000000000000022,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0,
+      "schmidtRankKept": 1,
+      "nQubits": 16
+    },
+    {
+      "depth": 1,
+      "seed": 3348339474,
+      "cheapestChi": 2,
+      "log2ChiCheapest": 1,
+      "fidelityAtCheapest": 1.0000000000000013,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0,
+      "schmidtRankKept": 1,
+      "nQubits": 16
+    },
+    {
+      "depth": 1,
+      "seed": 559613283,
+      "cheapestChi": 2,
+      "log2ChiCheapest": 1,
+      "fidelityAtCheapest": 1.0000000000000022,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0,
+      "schmidtRankKept": 1,
+      "nQubits": 16
+    },
+    {
+      "depth": 1,
+      "seed": 2199948980,
+      "cheapestChi": 2,
+      "log2ChiCheapest": 1,
+      "fidelityAtCheapest": 1.0000000000000022,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0,
+      "schmidtRankKept": 1,
+      "nQubits": 16
+    },
+    {
+      "depth": 2,
+      "seed": 1503978147,
+      "cheapestChi": 2,
+      "log2ChiCheapest": 1,
+      "fidelityAtCheapest": 1.0000000000000013,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0.7367719332681821,
+      "schmidtRankKept": 2,
+      "nQubits": 16
+    },
+    {
+      "depth": 2,
+      "seed": 3348339474,
+      "cheapestChi": 2,
+      "log2ChiCheapest": 1,
+      "fidelityAtCheapest": 1.0000000000000013,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0.5999214741353475,
+      "schmidtRankKept": 2,
+      "nQubits": 16
+    },
+    {
+      "depth": 2,
+      "seed": 1707741633,
+      "cheapestChi": 2,
+      "log2ChiCheapest": 1,
+      "fidelityAtCheapest": 1.0000000000000036,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0.9842603570683688,
+      "schmidtRankKept": 2,
+      "nQubits": 16
+    },
+    {
+      "depth": 2,
+      "seed": 2197983152,
+      "cheapestChi": 2,
+      "log2ChiCheapest": 1,
+      "fidelityAtCheapest": 1.0000000000000027,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0.20302251401670138,
+      "schmidtRankKept": 2,
+      "nQubits": 16
+    },
+    {
+      "depth": 2,
+      "seed": 561579111,
+      "cheapestChi": 2,
+      "log2ChiCheapest": 1,
+      "fidelityAtCheapest": 1.0000000000000022,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0.8672317724563685,
+      "schmidtRankKept": 2,
+      "nQubits": 16
+    },
+    {
+      "depth": 3,
+      "seed": 3211558098,
+      "cheapestChi": 4,
+      "log2ChiCheapest": 2,
+      "fidelityAtCheapest": 1.0000000000000013,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0.872683144147935,
+      "schmidtRankKept": 2,
+      "nQubits": 16
+    },
+    {
+      "depth": 3,
+      "seed": 559613283,
+      "cheapestChi": 4,
+      "log2ChiCheapest": 2,
+      "fidelityAtCheapest": 1.0000000000000018,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0.8014417738826491,
+      "schmidtRankKept": 2,
+      "nQubits": 16
+    },
+    {
+      "depth": 3,
+      "seed": 2197983152,
+      "cheapestChi": 4,
+      "log2ChiCheapest": 2,
+      "fidelityAtCheapest": 1.0000000000000013,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0.20302251401670166,
+      "schmidtRankKept": 2,
+      "nQubits": 16
+    },
+    {
+      "depth": 3,
+      "seed": 1707741633,
+      "cheapestChi": 4,
+      "log2ChiCheapest": 2,
+      "fidelityAtCheapest": 1.000000000000003,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0.9842603570683691,
+      "schmidtRankKept": 2,
+      "nQubits": 16
+    },
+    {
+      "depth": 3,
+      "seed": 3350305302,
+      "cheapestChi": 4,
+      "log2ChiCheapest": 2,
+      "fidelityAtCheapest": 1.0000000000000018,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 0.6080488293285748,
+      "schmidtRankKept": 2,
+      "nQubits": 16
+    },
+    {
+      "depth": 4,
+      "seed": 488109829,
+      "cheapestChi": 4,
+      "log2ChiCheapest": 2,
+      "fidelityAtCheapest": 1.0000000000000027,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 1.4228487531690717,
+      "schmidtRankKept": 4,
+      "nQubits": 16
+    },
+    {
+      "depth": 4,
+      "seed": 2199948980,
+      "cheapestChi": 4,
+      "log2ChiCheapest": 2,
+      "fidelityAtCheapest": 1.0000000000000027,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 1.2389762138663578,
+      "schmidtRankKept": 4,
+      "nQubits": 16
+    },
+    {
+      "depth": 4,
+      "seed": 561579111,
+      "cheapestChi": 4,
+      "log2ChiCheapest": 2,
+      "fidelityAtCheapest": 1.000000000000004,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 1.5859599463265908,
+      "schmidtRankKept": 4,
+      "nQubits": 16
+    },
+    {
+      "depth": 4,
+      "seed": 3350305302,
+      "cheapestChi": 4,
+      "log2ChiCheapest": 2,
+      "fidelityAtCheapest": 1.0000000000000018,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 1.1861638788226083,
+      "schmidtRankKept": 4,
+      "nQubits": 16
+    },
+    {
+      "depth": 4,
+      "seed": 1707741633,
+      "cheapestChi": 4,
+      "log2ChiCheapest": 2,
+      "fidelityAtCheapest": 1.0000000000000044,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 1.2060869849884992,
+      "schmidtRankKept": 4,
+      "nQubits": 16
+    },
+    {
+      "depth": 5,
+      "seed": 1927246260,
+      "cheapestChi": 8,
+      "log2ChiCheapest": 3,
+      "fidelityAtCheapest": 1.0000000000000027,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 1.9039606608014443,
+      "schmidtRankKept": 4,
+      "nQubits": 16
+    },
+    {
+      "depth": 5,
+      "seed": 3974629381,
+      "cheapestChi": 8,
+      "log2ChiCheapest": 3,
+      "fidelityAtCheapest": 1.0000000000000004,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 1.3885025052432942,
+      "schmidtRankKept": 4,
+      "nQubits": 16
+    },
+    {
+      "depth": 5,
+      "seed": 1320256214,
+      "cheapestChi": 8,
+      "log2ChiCheapest": 3,
+      "fidelityAtCheapest": 1.0000000000000075,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 1.165224059365161,
+      "schmidtRankKept": 4,
+      "nQubits": 16
+    },
+    {
+      "depth": 5,
+      "seed": 2826509479,
+      "cheapestChi": 8,
+      "log2ChiCheapest": 3,
+      "fidelityAtCheapest": 1.0000000000000062,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 1.0303565419079257,
+      "schmidtRankKept": 4,
+      "nQubits": 16
+    },
+    {
+      "depth": 5,
+      "seed": 167942000,
+      "cheapestChi": 8,
+      "log2ChiCheapest": 3,
+      "fidelityAtCheapest": 1.000000000000003,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 1.3571166465517968,
+      "schmidtRankKept": 4,
+      "nQubits": 16
+    },
+    {
+      "depth": 6,
+      "seed": 3498494951,
+      "cheapestChi": 8,
+      "log2ChiCheapest": 3,
+      "fidelityAtCheapest": 1.0000000000000022,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 2.000911275617629,
+      "schmidtRankKept": 8,
+      "nQubits": 16
+    },
+    {
+      "depth": 6,
+      "seed": 1320268374,
+      "cheapestChi": 8,
+      "log2ChiCheapest": 3,
+      "fidelityAtCheapest": 1.0000000000000053,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 1.8539518865997064,
+      "schmidtRankKept": 8,
+      "nQubits": 16
+    },
+    {
+      "depth": 6,
+      "seed": 3974641797,
+      "cheapestChi": 8,
+      "log2ChiCheapest": 3,
+      "fidelityAtCheapest": 1.0000000000000107,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 1.6480080436785183,
+      "schmidtRankKept": 8,
+      "nQubits": 16
+    },
+    {
+      "depth": 6,
+      "seed": 169912052,
+      "cheapestChi": 8,
+      "log2ChiCheapest": 3,
+      "fidelityAtCheapest": 1.0000000000000058,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 1.4009880866062479,
+      "schmidtRankKept": 8,
+      "nQubits": 16
+    },
+    {
+      "depth": 6,
+      "seed": 2824547619,
+      "cheapestChi": 8,
+      "log2ChiCheapest": 3,
+      "fidelityAtCheapest": 1.0000000000000009,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 1.3283839180077206,
+      "schmidtRankKept": 8,
+      "nQubits": 16
+    },
+    {
+      "depth": 8,
+      "seed": 2490489929,
+      "cheapestChi": 16,
+      "log2ChiCheapest": 4,
+      "fidelityAtCheapest": 0.9999999999999345,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 2.5887502335708907,
+      "schmidtRankKept": 16,
+      "nQubits": 16
+    },
+    {
+      "depth": 8,
+      "seed": 172402168,
+      "cheapestChi": 16,
+      "log2ChiCheapest": 4,
+      "fidelityAtCheapest": 1.0000000000001563,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 2.0145062345995703,
+      "schmidtRankKept": 16,
+      "nQubits": 16
+    },
+    {
+      "depth": 8,
+      "seed": 2820615979,
+      "cheapestChi": 16,
+      "log2ChiCheapest": 4,
+      "fidelityAtCheapest": 1.000000000000162,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 2.1432920512158122,
+      "schmidtRankKept": 16,
+      "nQubits": 16
+    },
+    {
+      "depth": 8,
+      "seed": 1322758490,
+      "cheapestChi": 16,
+      "log2ChiCheapest": 4,
+      "fidelityAtCheapest": 0.9999999999995086,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 2.5596780739909315,
+      "schmidtRankKept": 16,
+      "nQubits": 16
+    },
+    {
+      "depth": 8,
+      "seed": 3970710157,
+      "cheapestChi": 16,
+      "log2ChiCheapest": 4,
+      "fidelityAtCheapest": 1.00000000000027,
+      "fidelityAtMaxChi": null,
+      "entropyMidCut": 2.0648918891867067,
+      "schmidtRankKept": 16,
+      "nQubits": 16
+    }
+  ],
+  "status": "fail",
+  "diagnosis": "slope=0.451 (need [0.80, 1.20]), intercept=0.42, R²=0.954, points=35.",
+  "fit": {
+    "slope": 0.4508196721311475,
+    "intercept": 0.4180327868852458,
+    "r2": 0.9536569987389658,
+    "depths": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      8
+    ],
+    "nPoints": 35
+  }
+}

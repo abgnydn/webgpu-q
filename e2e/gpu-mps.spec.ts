@@ -181,4 +181,33 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
     }
     await page.screenshot({ path: "e2e/.artifacts/gpu-mps-phase4b.png", fullPage: true });
   });
+
+  test("Phase A: deep brick-wall with chiMax < 2^d stays unit-norm and matches CPU truncated MPS", async ({ page }) => {
+    page.on("console", (msg) => {
+      const text = msg.text();
+      if (text.startsWith("{")) return;
+      // eslint-disable-next-line no-console
+      console.log(`[browser:${msg.type()}] ${text}`);
+    });
+    page.on("pageerror", (err) => {
+      // eslint-disable-next-line no-console
+      console.error(`[browser:pageerror] ${err.message}`);
+    });
+
+    await page.goto("/experiments/gpu-mps/", { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => window.__gpuMpsBench?.ready === true, undefined, { timeout: 15_000 });
+
+    const rows = await page.evaluate(async () => {
+      return await window.__gpuMpsBench!.runPhaseATrunc();
+    });
+
+    // eslint-disable-next-line no-console
+    console.log(`[gpu-mps-phaseA] ${rows.length} truncating configs tested`);
+    for (const r of rows) {
+      // eslint-disable-next-line no-console
+      console.log(`  N=${r.N} d=${r.depth} χ=${r.chiMax}: ‖ψ‖²=${r.normSq.toFixed(6)} F=${r.fidelity.toFixed(6)}`);
+      expect(Math.abs(r.normSq - 1), `N=${r.N} d=${r.depth} χ=${r.chiMax} norm-leak`).toBeLessThan(5e-3);
+    }
+    await page.screenshot({ path: "e2e/.artifacts/gpu-mps-phaseA.png", fullPage: true });
+  });
 });

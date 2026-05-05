@@ -25,6 +25,15 @@ import { type Hamiltonian1D, buildDense } from "./hamiltonian.js";
 import { eigsymmetric } from "./dense-eig.js";
 import { MPS } from "../mps.js";
 import { type ComplexMatrix, svd, zeros } from "../linalg.js";
+import { type MPO } from "./mpo.js";
+import {
+  type SiteTensor,
+  mpoToReal,
+  leftEnvSeed, rightEnvSeed,
+  leftEnvUpdate, rightEnvUpdate,
+  makeApplyHEff,
+} from "./dmrg-env.js";
+import { lanczosGroundState } from "./lanczos.js";
 
 export interface ExactGroundStateOpts {
   /** MPS bond-dim cap. Defaults to 2^(N/2) (no truncation for N ≤ 12). */
@@ -201,4 +210,343 @@ function setSiteTensor(mps: MPS, q: number, T: ComplexMatrix): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const internal = mps as unknown as { tensors: ComplexMatrix[] };
   internal.tensors[q] = T;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Phase A.3: real two-site DMRG with matrix-free Lanczos.
+// Operates on real-only MPOs (TFIM in this codebase); throws on
+// any non-zero imaginary entry. Heisenberg / XXZ extensions are
+// a follow-on (complex-Hermitian Lanczos + complex environments).
+// ─────────────────────────────────────────────────────────────
+
+export interface DmrgOpts {
+  /** MPS bond-dim cap. */
+  chiMax: number;
+  /** Max number of full sweeps (left+right). Default 16. */
+  maxSweeps?: number;
+  /** Energy-convergence tolerance between sweeps. Default 1e-8. */
+  tol?: number;
+  /** Lanczos max iterations per H_eff diagonalization. Default 60. */
+  lanczosMax?: number;
+  /** Lanczos tolerance per H_eff diagonalization. Default 1e-10. */
+  lanczosTol?: number;
+  /** Seed for the random initial MPS. */
+  seed?: number;
+}
+
+export interface DmrgResult {
+  /** Lowest energy after final sweep. */
+  energy: number;
+  /** Per-sweep energy trajectory. */
+  history: number[];
+  /** Final MPS in canonical form, capped at chiMax. */
+  mps: MPS;
+  /** Total Lanczos matvec count (matvec ≈ N · sweeps · iters). */
+  lanczosMatvecs: number;
+}
+
+function rng32(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296 - 0.5;
+  };
+}
+
+function makeRandomMPS(N: number, chiMax: number, seed: number): SiteTensor[] {
+  // Allocate per-site bond dims following the natural growth law for
+  // a 1D chain: chi_q = min(2^q, 2^(N-q), chiMax). Boundary chi = 1.
+  const chi: number[] = [1];
+  for (let q = 1; q < N; q++) {
+    chi.push(Math.min(1 << q, 1 << (N - q), chiMax));
+  }
+  chi.push(1);
+  const r = rng32(seed);
+  const sites: SiteTensor[] = [];
+  for (let q = 0; q < N; q++) {
+    const cL = chi[q]!;
+    const cR = chi[q + 1]!;
+    const data = new Float64Array(cL * 2 * cR);
+    for (let i = 0; i < data.length; i++) data[i] = r() * 0.1;
+    sites.push({ chiL: cL, chiR: cR, data });
+  }
+  return sites;
+}
+
+/** Lift a real SiteTensor to ComplexMatrix shape (chiL · 2, chiR). */
+function siteToComplexMatrix(T: SiteTensor): ComplexMatrix {
+  const M = zeros(T.chiL * 2, T.chiR);
+  for (let i = 0; i < T.chiL * 2 * T.chiR; i++) {
+    M.data[i * 2] = T.data[i]!;
+  }
+  return M;
+}
+
+/**
+ * Build initial mixed-canonical MPS at left edge (orthogonality center
+ * at site 0). Sweeps left-canonicalization right-to-left so every site
+ * 1..N-1 ends up right-canonical and site 0 carries the residual norm.
+ */
+function rightCanonicalizeChain(sites: SiteTensor[]): void {
+  // Right-canonical means T[a, σ, b] satisfies Σ_{σ, b} T[a, σ, b] · T[a', σ, b] = δ_{a,a'}.
+  // Equivalent: reshape T to (chiL, 2 · chiR) and treat as (chiL × m); want rows orthonormal.
+  // SVD: M = U σ V^H → set T ← V^H (rows orthonormal of length chiL ≤ rank).
+  // Push U σ into the previous site's right index.
+  for (let q = sites.length - 1; q >= 1; q--) {
+    const T = sites[q]!;
+    const m = T.chiL;
+    const n = 2 * T.chiR;
+    // Reshape T (chiL × 2 × chiR) to M (chiL × 2·chiR).
+    const M = zeros(m, n);
+    for (let a = 0; a < m; a++) {
+      for (let s = 0; s < 2; s++) {
+        for (let b = 0; b < T.chiR; b++) {
+          M.data[(a * n + (s * T.chiR + b)) * 2] = T.data[a * 2 * T.chiR + s * T.chiR + b]!;
+        }
+      }
+    }
+    const { U, sigma, Vh } = svd(M);
+    const k = Math.min(m, n, sigma.length);
+    // New T_q = top-k rows of V^H, reshape to (k × 2 × chiR).
+    const newData = new Float64Array(k * 2 * T.chiR);
+    for (let r = 0; r < k; r++) {
+      for (let s = 0; s < 2; s++) {
+        for (let b = 0; b < T.chiR; b++) {
+          newData[r * 2 * T.chiR + s * T.chiR + b] = Vh.data[(r * Vh.cols + (s * T.chiR + b)) * 2]!;
+        }
+      }
+    }
+    sites[q] = { chiL: k, chiR: T.chiR, data: newData };
+    // Push U · σ into site q-1's right index.
+    const prev = sites[q - 1]!;
+    // newPrev[a, σ, r] = Σ_b prev[a, σ, b] · (U · diag(σ))[b, r]
+    // Note prev.chiR was equal to old m (= sites[q].chiL).
+    if (prev.chiR !== m) {
+      throw new Error(`rightCanonicalizeChain: bond mismatch at q-1=${q - 1}: chiR=${prev.chiR}, m=${m}`);
+    }
+    const newPrev = new Float64Array(prev.chiL * 2 * k);
+    for (let a = 0; a < prev.chiL; a++) {
+      for (let s = 0; s < 2; s++) {
+        for (let r = 0; r < k; r++) {
+          let acc = 0;
+          for (let b = 0; b < m; b++) {
+            const Uv = U.data[(b * U.cols + r) * 2]!;
+            const sV = sigma[r]!;
+            acc += prev.data[a * 2 * prev.chiR + s * prev.chiR + b]! * Uv * sV;
+          }
+          newPrev[a * 2 * k + s * k + r] = acc;
+        }
+      }
+    }
+    sites[q - 1] = { chiL: prev.chiL, chiR: k, data: newPrev };
+  }
+}
+
+/**
+ * Run two-site DMRG to find the ground state of an MPO Hamiltonian.
+ * MPO must have all imaginary parts zero (TFIM is supported in v1;
+ * Heisenberg/XXZ require a complex-Hermitian extension).
+ */
+export function dmrgGroundState(M: MPO, opts: DmrgOpts): DmrgResult {
+  const N = M.nQubits;
+  const chiMax = opts.chiMax;
+  const maxSweeps = opts.maxSweeps ?? 16;
+  const tol = opts.tol ?? 1e-8;
+  const lanczosMax = opts.lanczosMax ?? 60;
+  const lanczosTol = opts.lanczosTol ?? 1e-10;
+  const seed = opts.seed ?? 0xDEAD_BEEF;
+
+  const W = mpoToReal(M);
+  const sites = makeRandomMPS(N, chiMax, seed);
+  rightCanonicalizeChain(sites);
+  // After rightCanonicalize, sites 1..N-1 are right-canonical and site 0
+  // carries the residual norm. Normalize site 0 to unit norm.
+  {
+    const T0 = sites[0]!;
+    let n2 = 0;
+    for (let i = 0; i < T0.data.length; i++) n2 += T0.data[i]! * T0.data[i]!;
+    const inv = 1 / Math.sqrt(Math.max(n2, 1e-300));
+    for (let i = 0; i < T0.data.length; i++) T0.data[i] = T0.data[i]! * inv;
+  }
+
+  // Build R[2..N] right environments. R[N] = seed.
+  const R: Float64Array[] = new Array(N + 1);
+  R[N] = rightEnvSeed();
+  for (let q = N - 1; q >= 2; q--) {
+    R[q] = rightEnvUpdate(R[q + 1]!, sites[q]!, W[q]!);
+  }
+  // L[0] seed; L[q] for q ≥ 1 are filled during right-sweep.
+  const L: Float64Array[] = new Array(N);
+  L[0] = leftEnvSeed();
+
+  const history: number[] = [];
+  let energy = Infinity;
+  let lanczosMatvecs = 0;
+
+  for (let sweep = 0; sweep < maxSweeps; sweep++) {
+    // ── Right sweep: optimize bonds 0, 1, …, N-2 ───────────
+    for (let q = 0; q < N - 1; q++) {
+      const Tq = sites[q]!;
+      const Tq1 = sites[q + 1]!;
+      const chiL = Tq.chiL;
+      const chiR = Tq1.chiR;
+      const apply = makeApplyHEff(L[q]!, R[q + 2]!, W[q]!, W[q + 1]!, chiL, chiR);
+
+      // Seed Lanczos with the current 2-site state ψ_local = T_q · T_{q+1}.
+      const dim = chiL * 4 * chiR;
+      const psi0 = new Float64Array(dim);
+      for (let a = 0; a < chiL; a++) {
+        for (let sq = 0; sq < 2; sq++) {
+          for (let b1 = 0; b1 < Tq.chiR; b1++) {
+            const tq = Tq.data[a * 2 * Tq.chiR + sq * Tq.chiR + b1]!;
+            for (let sq1 = 0; sq1 < 2; sq1++) {
+              for (let b = 0; b < chiR; b++) {
+                const tq1 = Tq1.data[b1 * 2 * Tq1.chiR + sq1 * Tq1.chiR + b]!;
+                const idx = a * 4 * chiR + sq * 2 * chiR + sq1 * chiR + b;
+                psi0[idx] = (psi0[idx] ?? 0) + tq * tq1;
+              }
+            }
+          }
+        }
+      }
+      const lan = lanczosGroundState(apply, psi0, { maxIter: lanczosMax, tol: lanczosTol });
+      lanczosMatvecs += lan.iter;
+      const psi = lan.vector;
+
+      // Reshape ψ (chiL · 2, 2 · chiR) for SVD.
+      const M2 = zeros(chiL * 2, 2 * chiR);
+      for (let a = 0; a < chiL; a++) {
+        for (let sq = 0; sq < 2; sq++) {
+          for (let sq1 = 0; sq1 < 2; sq1++) {
+            for (let b = 0; b < chiR; b++) {
+              const v = psi[a * 4 * chiR + sq * 2 * chiR + sq1 * chiR + b]!;
+              M2.data[((a * 2 + sq) * (2 * chiR) + (sq1 * chiR + b)) * 2] = v;
+            }
+          }
+        }
+      }
+      const { U, sigma, Vh } = svd(M2);
+      const fullRank = Math.min(M2.rows, M2.cols, sigma.length);
+      const k = Math.min(chiMax, fullRank);
+      // Right-sweep: T_q ← U[:, :k] (left-canonical), T_{q+1} ← σ V^H[:k, :].
+      const newTq = new Float64Array(chiL * 2 * k);
+      for (let row = 0; row < chiL * 2; row++) {
+        for (let r = 0; r < k; r++) {
+          newTq[row * k + r] = U.data[(row * U.cols + r) * 2]!;
+        }
+      }
+      // Reshape (chiL · 2, k) → (chiL, 2, k).
+      const newTqShaped = new Float64Array(chiL * 2 * k);
+      for (let a = 0; a < chiL; a++) {
+        for (let s = 0; s < 2; s++) {
+          for (let r = 0; r < k; r++) {
+            newTqShaped[a * 2 * k + s * k + r] = newTq[(a * 2 + s) * k + r]!;
+          }
+        }
+      }
+      sites[q] = { chiL, chiR: k, data: newTqShaped };
+      // T_{q+1} ← σ · V^H[:k, :] reshape (k, 2, chiR)
+      const newTq1 = new Float64Array(k * 2 * chiR);
+      for (let r = 0; r < k; r++) {
+        const s = sigma[r]!;
+        for (let sq1 = 0; sq1 < 2; sq1++) {
+          for (let b = 0; b < chiR; b++) {
+            const v = Vh.data[(r * Vh.cols + (sq1 * chiR + b)) * 2]!;
+            newTq1[r * 2 * chiR + sq1 * chiR + b] = s * v;
+          }
+        }
+      }
+      sites[q + 1] = { chiL: k, chiR, data: newTq1 };
+      // Update L[q+1] from L[q] + new T_q + W_q.
+      L[q + 1] = leftEnvUpdate(L[q]!, sites[q]!, W[q]!);
+      energy = lan.energy;
+    }
+    // ── Left sweep: optimize bonds N-2, N-3, …, 0 ─────────
+    for (let q = N - 2; q >= 0; q--) {
+      const Tq = sites[q]!;
+      const Tq1 = sites[q + 1]!;
+      const chiL = Tq.chiL;
+      const chiR = Tq1.chiR;
+      const apply = makeApplyHEff(L[q]!, R[q + 2]!, W[q]!, W[q + 1]!, chiL, chiR);
+
+      const dim = chiL * 4 * chiR;
+      const psi0 = new Float64Array(dim);
+      for (let a = 0; a < chiL; a++) {
+        for (let sq = 0; sq < 2; sq++) {
+          for (let b1 = 0; b1 < Tq.chiR; b1++) {
+            const tq = Tq.data[a * 2 * Tq.chiR + sq * Tq.chiR + b1]!;
+            for (let sq1 = 0; sq1 < 2; sq1++) {
+              for (let b = 0; b < chiR; b++) {
+                const tq1 = Tq1.data[b1 * 2 * Tq1.chiR + sq1 * Tq1.chiR + b]!;
+                const idx = a * 4 * chiR + sq * 2 * chiR + sq1 * chiR + b;
+                psi0[idx] = (psi0[idx] ?? 0) + tq * tq1;
+              }
+            }
+          }
+        }
+      }
+      const lan = lanczosGroundState(apply, psi0, { maxIter: lanczosMax, tol: lanczosTol });
+      lanczosMatvecs += lan.iter;
+      const psi = lan.vector;
+
+      const M2 = zeros(chiL * 2, 2 * chiR);
+      for (let a = 0; a < chiL; a++) {
+        for (let sq = 0; sq < 2; sq++) {
+          for (let sq1 = 0; sq1 < 2; sq1++) {
+            for (let b = 0; b < chiR; b++) {
+              const v = psi[a * 4 * chiR + sq * 2 * chiR + sq1 * chiR + b]!;
+              M2.data[((a * 2 + sq) * (2 * chiR) + (sq1 * chiR + b)) * 2] = v;
+            }
+          }
+        }
+      }
+      const { U, sigma, Vh } = svd(M2);
+      const fullRank = Math.min(M2.rows, M2.cols, sigma.length);
+      const k = Math.min(chiMax, fullRank);
+      // Left-sweep: T_q ← U · σ (carries residual), T_{q+1} ← V^H (right-canonical).
+      const newTq = new Float64Array(chiL * 2 * k);
+      for (let row = 0; row < chiL * 2; row++) {
+        for (let r = 0; r < k; r++) {
+          newTq[row * k + r] = U.data[(row * U.cols + r) * 2]! * sigma[r]!;
+        }
+      }
+      const newTqShaped = new Float64Array(chiL * 2 * k);
+      for (let a = 0; a < chiL; a++) {
+        for (let s = 0; s < 2; s++) {
+          for (let r = 0; r < k; r++) {
+            newTqShaped[a * 2 * k + s * k + r] = newTq[(a * 2 + s) * k + r]!;
+          }
+        }
+      }
+      sites[q] = { chiL, chiR: k, data: newTqShaped };
+      const newTq1 = new Float64Array(k * 2 * chiR);
+      for (let r = 0; r < k; r++) {
+        for (let sq1 = 0; sq1 < 2; sq1++) {
+          for (let b = 0; b < chiR; b++) {
+            newTq1[r * 2 * chiR + sq1 * chiR + b] = Vh.data[(r * Vh.cols + (sq1 * chiR + b)) * 2]!;
+          }
+        }
+      }
+      sites[q + 1] = { chiL: k, chiR, data: newTq1 };
+      // Update R[q+1] from R[q+2] + new T_{q+1} + W_{q+1}.
+      R[q + 1] = rightEnvUpdate(R[q + 2]!, sites[q + 1]!, W[q + 1]!);
+      energy = lan.energy;
+    }
+
+    history.push(energy);
+    if (history.length >= 2) {
+      const prev = history[history.length - 2]!;
+      if (Math.abs(energy - prev) < tol) break;
+    }
+  }
+
+  // Wrap into MPS for return.
+  const mps = new MPS({ nQubits: N, chiMax });
+  for (let q = 0; q < N; q++) {
+    setSiteTensor(mps, q, siteToComplexMatrix(sites[q]!));
+  }
+  return { energy, history, mps, lanczosMatvecs };
 }

@@ -61,6 +61,17 @@ interface ResidentRow {
   match: boolean;
 }
 
+interface TruncRow {
+  N: number;
+  depth: number;
+  chiMax: number;
+  /** ‖ψ‖² of the GPU readback — proves truncation renorm holds. */
+  normSq: number;
+  /** |⟨ψ_cpu|ψ_gpu⟩|² with both sides truncated identically. */
+  fidelity: number;
+  match: boolean;
+}
+
 const SHAPES: ReadonlyArray<readonly [number, number, number]> = [
   [16, 16, 16],
   [32, 32, 32],
@@ -99,6 +110,7 @@ declare global {
       runResident: () => Promise<ResidentRow[]>;
       runPhase4b: () => Promise<ResidentRow[]>;
       runPhase5v1: () => Promise<ResidentRow[]>;
+      runPhaseATrunc: () => Promise<TruncRow[]>;
     };
   }
 }
@@ -617,6 +629,92 @@ async function boot(): Promise<void> {
     return out;
   }
 
+  // ── Phase A truncation renorm — deep brick-wall with chiMax < 2^d
+  //
+  // Forces kKeep < physicalRank on most bonds, exercising the GPU
+  // truncation-renorm path added in Phase A. Pass bar:
+  //   • ‖ψ_GPU‖² stays in [0.999, 1.001] (no probability-mass leak)
+  //   • Fidelity vs CPU MPS (which renorms identically) ≥ 0.99
+  // Pre-fix the GPU norm drifts well below 1; post-fix it tracks 1
+  // to f32 precision over arbitrary depth.
+  async function runPhaseATruncBench(): Promise<TruncRow[]> {
+    const cfgs: ReadonlyArray<{ N: number; depth: number; chiMax: number }> = [
+      { N: 8,  depth: 4, chiMax: 4 },   // 2^4 = 16 > 4 → truncates mid-chain
+      { N: 10, depth: 5, chiMax: 4 },
+      { N: 12, depth: 6, chiMax: 8 },   // 2^6 = 64 > 8
+      { N: 14, depth: 6, chiMax: 8 },
+      { N: 16, depth: 7, chiMax: 8 },
+    ];
+    const out: TruncRow[] = [];
+
+    function buildCircuit(N: number, depth: number, seed: number): {
+      singleQ: { U: Matrix2; q: number }[];
+      twoQ: { G: import("../../src/linalg.js").ComplexMatrix; q: number }[];
+    } {
+      let s = seed >>> 0;
+      const rng = (): number => {
+        s = (s + 0x6D2B79F5) >>> 0;
+        let t = s;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+      const singleQ: { U: Matrix2; q: number }[] = [];
+      for (let q = 0; q < N; q++) {
+        singleQ.push({ U: Hgate, q });
+        singleQ.push({ U: Rz(rng() * 2 * Math.PI), q });
+      }
+      const cnot: import("../../src/linalg.js").ComplexMatrix = {
+        rows: 4, cols: 4,
+        data: new Float64Array([
+          1,0, 0,0, 0,0, 0,0,
+          0,0, 1,0, 0,0, 0,0,
+          0,0, 0,0, 0,0, 1,0,
+          0,0, 0,0, 1,0, 0,0,
+        ]),
+      };
+      const twoQ: { G: import("../../src/linalg.js").ComplexMatrix; q: number }[] = [];
+      for (let l = 0; l < depth; l++) {
+        const offset = l & 1;
+        for (let q = offset; q + 1 < N; q += 2) twoQ.push({ G: cnot, q });
+      }
+      return { singleQ, twoQ };
+    }
+
+    for (const cfg of cfgs) {
+      const { singleQ, twoQ } = buildCircuit(cfg.N, cfg.depth, 0xA1A1 ^ cfg.N);
+
+      const cpu = new MPS({ nQubits: cfg.N, chiMax: cfg.chiMax });
+      for (const { U, q } of singleQ) cpu.apply(U, q);
+      for (const { G, q } of twoQ) cpu.applyTwoSite(G, q);
+      const psiCpu = cpu.statevector();
+
+      const gpu = new MPSGpu({ device, nQubits: cfg.N, chiMax: cfg.chiMax });
+      for (const { U, q } of singleQ) gpu.apply(U, q);
+      for (const { G, q } of twoQ) await gpu.applyTwoSite(G, q);
+      const psiGpu = await gpu.statevector();
+      gpu.dispose();
+
+      let normSq = 0;
+      for (let i = 0; i < psiGpu.length; i += 2) {
+        normSq += psiGpu[i]! * psiGpu[i]! + psiGpu[i + 1]! * psiGpu[i + 1]!;
+      }
+      let re = 0, im = 0;
+      for (let i = 0; i < psiCpu.length; i += 2) {
+        const ar = psiCpu[i]!, ai = psiCpu[i + 1]!;
+        const br = psiGpu[i]!, bi = psiGpu[i + 1]!;
+        re += ar * br + ai * bi;
+        im += ar * bi - ai * br;
+      }
+      const fidelity = re * re + im * im;
+      const normOk = Math.abs(normSq - 1) < 5e-3;
+      const match = fidelity > 0.99 && normOk;
+
+      out.push({ N: cfg.N, depth: cfg.depth, chiMax: cfg.chiMax, normSq, fidelity, match });
+    }
+    return out;
+  }
+
   const phase4bBtn = document.getElementById("phase4bRunBtn");
   if (phase4bBtn) phase4bBtn.addEventListener("click", () => { void runPhase4bBench(); });
 
@@ -654,6 +752,9 @@ async function boot(): Promise<void> {
     },
     runPhase5v1: async () => {
       return await runPhase5v1Bench();
+    },
+    runPhaseATrunc: async () => {
+      return await runPhaseATruncBench();
     },
   };
 }

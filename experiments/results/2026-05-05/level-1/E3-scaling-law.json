@@ -1,0 +1,104 @@
+{
+  "meta": {
+    "protocol": "E3-scaling-law",
+    "hypothesis": "Per-gate time scales linearly with state size at N ≥ 22; fit slope ≈ 1.00 ± 0.08 on log–log.",
+    "passBar": "slope ∈ [0.92, 1.08] AND R² ≥ 0.95 for N ≥ 22 (R² waived if only 2 fit points)",
+    "seed": "E3_SCALING",
+    "warmup": 3,
+    "trials": 12
+  },
+  "env": {
+    "gitSha": "421b5fe95263",
+    "timestamp": "2026-05-05T07:18:45.628Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "platform": "Win32",
+    "adapter": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "limits": {
+      "maxBufferSize": 4294967292,
+      "maxStorageBufferBindingSize": 4294967292,
+      "maxComputeWorkgroupsPerDimension": 65535,
+      "maxComputeInvocationsPerWorkgroup": 256,
+      "maxComputeWorkgroupStorageSize": 32768
+    },
+    "hardwareConcurrency": 12,
+    "devicePixelRatio": 1
+  },
+  "rows": [
+    {
+      "nQubits": 12,
+      "nStates": 4096,
+      "gates": 144,
+      "layers": 8,
+      "medianSeconds": 0.007199999995529652,
+      "secondsPerGate": 0.00004999999996895592,
+      "noisy": true,
+      "effectiveGbps": 1.310720000813802
+    },
+    {
+      "nQubits": 16,
+      "nStates": 65536,
+      "gates": 192,
+      "layers": 8,
+      "medianSeconds": 0.01255000000447035,
+      "secondsPerGate": 0.00006536458335661641,
+      "noisy": true,
+      "effectiveGbps": 16.04195951619815
+    },
+    {
+      "nQubits": 18,
+      "nStates": 262144,
+      "gates": 216,
+      "layers": 8,
+      "medianSeconds": 0.015900000005960466,
+      "secondsPerGate": 0.00007361111113870586,
+      "noisy": true,
+      "effectiveGbps": 56.97922412958347
+    },
+    {
+      "nQubits": 20,
+      "nStates": 1048576,
+      "gates": 240,
+      "layers": 8,
+      "medianSeconds": 0.02044999999552965,
+      "secondsPerGate": 0.00008520833331470688,
+      "noisy": true,
+      "effectiveGbps": 196.8964225369289
+    },
+    {
+      "nQubits": 22,
+      "nStates": 4194304,
+      "gates": 264,
+      "layers": 8,
+      "medianSeconds": 0.11409999999403954,
+      "secondsPerGate": 0.0004321969696743922,
+      "noisy": false,
+      "effectiveGbps": 155.27379576621826
+    },
+    {
+      "nQubits": 24,
+      "nStates": 16777216,
+      "gates": 288,
+      "layers": 8,
+      "medianSeconds": 0.4817999999970197,
+      "secondsPerGate": 0.0016729166666563185,
+      "noisy": true,
+      "effectiveGbps": 160.45955028741847
+    }
+  ],
+  "status": "noisy",
+  "diagnosis": ">50% of cells NOISY — investigate before publishing (noisy cells: N=12,16,18,20,24).",
+  "fit": {
+    "slope": 0.9763023599661868,
+    "intercept": -9.830036776596131,
+    "r2": 1,
+    "nRegime": [
+      22,
+      24
+    ]
+  }
+}

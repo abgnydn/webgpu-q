@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "protocol": "E13-tier-d-fusion",
+    "hypothesis": "Four-qubit tile fusion (7 ops per tile per layer → 1 dense 16×16 dispatch) delivers ≥ 5× speedup vs the unfused 7-dispatch path at N ≥ 12, while staying within F ≥ 1 − 1e-5 of the unfused statevector.",
+    "passBar": "best (median over warmup+trials) speedup ≥ 5.0× AND worst F ≥ 1 − 1e-5",
+    "seed": "E13_TIERD_FUSION",
+    "warmup": 3,
+    "trials": 5
+  },
+  "env": {
+    "gitSha": "421b5fe95263",
+    "timestamp": "2026-05-05T07:20:21.354Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "platform": "Win32",
+    "adapter": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "limits": {
+      "maxBufferSize": 4294967292,
+      "maxStorageBufferBindingSize": 4294967292,
+      "maxComputeWorkgroupsPerDimension": 65535,
+      "maxComputeInvocationsPerWorkgroup": 256,
+      "maxComputeWorkgroupStorageSize": 32768
+    },
+    "hardwareConcurrency": 12,
+    "devicePixelRatio": 1
+  },
+  "rows": [
+    {
+      "nQubits": 12,
+      "depth": 20,
+      "tilesPerLayer": 3,
+      "unfusedSec": 0.0145,
+      "fusedSec": 0.008599999994039535,
+      "speedup": 1.6860465127964677,
+      "fidelity": 0.9999998577434457,
+      "unfusedNoisy": false,
+      "fusedNoisy": false
+    },
+    {
+      "nQubits": 12,
+      "depth": 80,
+      "tilesPerLayer": 3,
+      "unfusedSec": 0.05,
+      "fusedSec": 0.026,
+      "speedup": 1.9230769230769234,
+      "fidelity": 0.9999995174657166,
+      "unfusedNoisy": false,
+      "fusedNoisy": false
+    },
+    {
+      "nQubits": 16,
+      "depth": 20,
+      "tilesPerLayer": 4,
+      "unfusedSec": 0.019099999994039534,
+      "fusedSec": 0.010600000008940697,
+      "speedup": 1.801886790370699,
+      "fidelity": 0.9999996426625456,
+      "unfusedNoisy": false,
+      "fusedNoisy": false
+    },
+    {
+      "nQubits": 16,
+      "depth": 80,
+      "tilesPerLayer": 4,
+      "unfusedSec": 0.06960000000894069,
+      "fusedSec": 0.032599999994039536,
+      "speedup": 2.1349693258179787,
+      "fidelity": 1.000001878244071,
+      "unfusedNoisy": false,
+      "fusedNoisy": false
+    },
+    {
+      "nQubits": 20,
+      "depth": 20,
+      "tilesPerLayer": 5,
+      "unfusedSec": 0.040700000002980234,
+      "fusedSec": 0.01769999998807907,
+      "speedup": 2.299435029965629,
+      "fidelity": 0.9999998117249793,
+      "unfusedNoisy": false,
+      "fusedNoisy": false
+    },
+    {
+      "nQubits": 20,
+      "depth": 80,
+      "tilesPerLayer": 5,
+      "unfusedSec": 0.24090000000596046,
+      "fusedSec": 0.06370000000298023,
+      "speedup": 3.781789638849134,
+      "fidelity": 0.9999999950371412,
+      "unfusedNoisy": true,
+      "fusedNoisy": false
+    }
+  ],
+  "status": "fail",
+  "diagnosis": "Correctness OK (worst F=0.9999995) but best speedup 3.78× < 5. Honest negative: Tier D crosses into compute-bound territory — per-block cmul count (256) grows 4× over Tier C while memory traffic only 2×, so dispatch collapse no longer translates 1:1 into wall-time speedup. Tier C (8×8) remains the bandwidth-bound sweet spot at 4.18×.",
+  "summary": {
+    "bestSpeedup": 3.781789638849134,
+    "bestSpeedupAt": {
+      "nQubits": 20,
+      "depth": 80
+    },
+    "worstFidelity": 0.9999995174657166
+  }
+}

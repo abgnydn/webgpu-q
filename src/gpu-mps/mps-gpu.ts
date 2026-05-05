@@ -145,6 +145,11 @@ export class MPSGpu {
   private readonly siteShape: SiteShape[];
   /** Bytes per tensor buffer = 2 · 2 · (χ_max · χ_max) f32 = 16 χ_max² bytes. */
   private readonly maxTensorBytes: number;
+  /** Optional per-gate telemetry buffer for the truncation-renorm debug. */
+  private _renormHistory: { renorm: number; sumKept: number; kKeep: number; n: number }[] = [];
+  /** Persistent staging buffer for renorm readback when debug enabled. */
+  private _renormStage: GPUBuffer | null = null;
+  private _renormDebug = false;
 
   constructor({ device, nQubits, chiMax = 32 }: MPSGpuInit) {
     if (nQubits < 1) throw new Error("nQubits must be ≥ 1");
@@ -177,6 +182,28 @@ export class MPSGpu {
   dispose(): void {
     const pool = poolFor(this.device);
     for (const t of this.tensors) pool.release(t);
+    if (this._renormStage) {
+      this._renormStage.destroy();
+      this._renormStage = null;
+    }
+  }
+
+  /** Enable per-gate renorm telemetry readback (slow; debug only). */
+  enableRenormDebug(): void {
+    this._renormDebug = true;
+    this._renormHistory = [];
+    if (!this._renormStage) {
+      this._renormStage = this.device.createBuffer({
+        size: 16,
+        usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+        label: "mps-renorm-debug-stage",
+      });
+    }
+  }
+
+  /** Read the accumulated per-gate renorm history (after enableRenormDebug). */
+  renormHistory(): ReadonlyArray<{ renorm: number; sumKept: number; kKeep: number; n: number }> {
+    return this._renormHistory;
   }
 
   /** Bond dims χ_1..χ_{N-1}. */
@@ -246,6 +273,23 @@ export class MPSGpu {
    *   • No GPU-side canonicalization — caller is responsible for
    *     applying gates in an order where canonical-form invariants
    *     hold approximately (e.g. brick-wall with adequate chiMax).
+   *
+   * Phase A truncation renorm (this codepath): when kKeep < n the σ
+   * spectrum loses sumAll − sumKept; sigma-sort publishes the scalar
+   * √(sumAll/sumKept) and build-tj absorbs it cell-by-cell so the
+   * post-truncation T_q · T_{q+1} keeps the merged matrix's pre-SVD
+   * Frobenius norm. The chain stays unit-norm (verified at depths
+   * 4–7, χ_max 4–8 by the Phase A e2e bench). When kKeep = n the
+   * factor is 1.0, so the no-truncation hot path remains a single
+   * fused multiply with no extra dispatch.
+   *
+   * Known caveat: without GPU-side canonicalization (Phase 4c+)
+   * the σ values are SVD singular values of M, not Schmidt
+   * coefficients of the bipartition. Truncating the smallest σ is
+   * still norm-preserving but not error-optimal vs the CPU MPS
+   * (which canonicalizes pre-gate). Fidelity vs canonical CPU MPS
+   * degrades at heavy truncation; the *state norm* always stays
+   * within f32 precision of 1.
    */
   async applyTwoSite(G: ComplexMatrix, q: number): Promise<void> {
     if (q < 0 || q >= this.nQubits - 1) {
@@ -366,13 +410,19 @@ export class MPSGpu {
     const permBytes = Math.max(16, n * 4);
     const permBuf = pool.acquire(permBytes, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST, "tg-perm");
     const sortParams = pool.acquire(16, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST, "tg-sort-params");
-    device.queue.writeBuffer(sortParams, 0, new Uint32Array([n, 0, 0, 0]));
+    device.queue.writeBuffer(sortParams, 0, new Uint32Array([n, kKeep, 0, 0]));
+    const renormBuf = pool.acquire(
+      16,
+      GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+      "tg-renorm",
+    );
     const sortBind = device.createBindGroup({
       layout: set.sigmaSort.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: { buffer: sigmaBuf } },
         { binding: 1, resource: { buffer: permBuf } },
         { binding: 2, resource: { buffer: sortParams } },
+        { binding: 3, resource: { buffer: renormBuf } },
       ],
     });
 
@@ -402,6 +452,7 @@ export class MPSGpu {
         { binding: 2, resource: { buffer: permBuf } },
         { binding: 3, resource: { buffer: this.tensors[q + 1]! } },
         { binding: 4, resource: { buffer: buildParams } },
+        { binding: 5, resource: { buffer: renormBuf } },    // 1/√Σ_kept σ² (truncation renorm)
       ],
     });
 
@@ -427,11 +478,26 @@ export class MPSGpu {
     pass.setBindGroup(0, buildBind);
     pass.dispatchWorkgroups(Math.max(1, Math.ceil(newTjRows * chiR / 64)));
     pass.end();
+    if (this._renormDebug && this._renormStage) {
+      enc.copyBufferToBuffer(renormBuf, 0, this._renormStage, 0, 16);
+    }
     device.queue.submit([enc.finish()]);
 
     // Update CPU-side bond bookkeeping.
     this.siteShape[q] = { chiL, chiR: kKeep };
     this.siteShape[q + 1] = { chiL: kKeep, chiR };
+
+    if (this._renormDebug && this._renormStage) {
+      await this._renormStage.mapAsync(GPUMapMode.READ);
+      const view = new Float32Array(this._renormStage.getMappedRange().slice(0));
+      this._renormStage.unmap();
+      this._renormHistory.push({
+        renorm: view[0]!,
+        sumKept: view[1]!,
+        kKeep: view[2]!,
+        n: view[3]!,
+      });
+    }
 
     // Return all the scratch buffers to the pool.
     pool.release(gBuf);
@@ -443,6 +509,7 @@ export class MPSGpu {
     pool.release(colNormsParams);
     pool.release(permBuf);
     pool.release(sortParams);
+    pool.release(renormBuf);
     pool.release(extractParams);
     pool.release(buildParams);
   }
@@ -554,17 +621,23 @@ export class MPSGpu {
     const permBytes = Math.max(16, n * 4);
     const permBuf = pool.acquire(permBytes, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST, "tg-perm");
     const sortParams = pool.acquire(16, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST, "tg-sort-params");
-    device.queue.writeBuffer(sortParams, 0, new Uint32Array([n, 0, 0, 0]));
+    device.queue.writeBuffer(sortParams, 0, new Uint32Array([n, kKeep, 0, 0]));
+    const renormBuf = pool.acquire(
+      16,
+      GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+      "tg-renorm",
+    );
     const sortBind = device.createBindGroup({
       layout: set.sigmaSort.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: { buffer: sigmaBuf } },
         { binding: 1, resource: { buffer: permBuf } },
         { binding: 2, resource: { buffer: sortParams } },
+        { binding: 3, resource: { buffer: renormBuf } },
       ],
     });
 
-    // ── Right-canonical extract: T_q ← A_perm (carries σ),
+    // ── Right-canonical extract: T_q ← A_perm · renorm (carries σ),
     //    T_{q+1} ← V^H reshape (right-canonical isometry).
     const newTqRows = chiL * 2;
     const newTjRows = kKeep * 2;
@@ -577,6 +650,7 @@ export class MPSGpu {
         { binding: 1, resource: { buffer: permBuf } },
         { binding: 2, resource: { buffer: this.tensors[q]! } },
         { binding: 3, resource: { buffer: extractParams } },
+        { binding: 4, resource: { buffer: renormBuf } },
       ],
     });
 
@@ -627,6 +701,7 @@ export class MPSGpu {
     pool.release(colNormsParams);
     pool.release(permBuf);
     pool.release(sortParams);
+    pool.release(renormBuf);
     pool.release(extractParams);
     pool.release(buildParams);
   }
