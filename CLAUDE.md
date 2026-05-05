@@ -126,7 +126,43 @@ ships as a URL"*. webgpu-q is the proof point.
 
 ---
 
-## Current state of play (as of 2026-05-04)
+## Current state of play (as of 2026-05-05)
+
+### Phase B v0 (2026-05-05)
+
+- **Real-form XXZ / Heisenberg MPO** — `xxzMPOReal`, `heisenbergMPOReal`
+  in `src/manybody/mpo.ts` rewrite XX + YY = 2(S⁺S⁻ + S⁻S⁺), so the
+  bulk W has *zero* imaginary entries. Same operator as the imag-Y form
+  to f64 precision (5 cross-checks in `tests/manybody/mpo.test.ts`).
+  Lets the existing real-only DMRG + matrix-free Lanczos handle
+  Heisenberg / XXZ with no complex-Hermitian extension.
+- **DMRG on real-MPO Heisenberg / XXZ** validated against ITensor
+  (`tests/manybody/dmrg-real.test.ts`): Heisenberg N=8 within 1e-4,
+  XXZ N=16 (Δ=0.5 and Δ=1) within 1e-3 of the ITensor reference at
+  χ=32, ~3 s per N=16 run.
+- **Analytical thermodynamic limits** — `src/manybody/analytical.ts`:
+  - `tfimPfeutyEnergyPerBond(J, h)` — Simpson's-rule numerical Pfeuty
+    integral, exact at the special points (e_∞(λ=0)=−J, e_∞(λ=1)=−4J/π).
+  - `heisenbergBetheEnergyPerBond(J)` — closed form J·(¼ − ln 2).
+  - `xxBetheEnergyPerBond(J)` — closed form −2J/π for the free-fermion
+    XX point (Δ = 0). Sanity test: more negative than Heisenberg.
+- **E18 — DMRG TFIM vs Pfeuty** (`experiments/level-2-mps/E18-tfim-pfeuty.ts`).
+  UI default: N ∈ {16, 24, 32, 48}, h ∈ {0.5, 1, 2}, χ=32.
+  Publishable: pass `runE18({ Ns: [16,32,48,64,80,100,128], chiMax: 64 })`
+  from devtools.
+- **E19 — DMRG Heisenberg AFM vs Bethe** (`E19-heisenberg-bethe.ts`).
+  UI default: N ∈ {16, 24, 32, 48}, J=1, χ=32. Same publishable opts.
+- **`runLevel2()` runs E5/E6/E7 + E18 + E19**, dashboard panel updated
+  ("Run E5–E7 + E18 + E19", expected 3–12 min). Level-2 e2e timeout
+  bumped to 15 min.
+- **Convergence sanity tests** (`tests/manybody/dmrg-pfeuty-bethe.test.ts`,
+  ~19 s): both TFIM (h=1) and Heisenberg AFM show |E/N − e_∞| strictly
+  decreasing as N grows from 8 → 16 → 24, hitting < 0.07 / < 0.06 at
+  N=24 with χ=32. The boundary correction dominates at this size; the
+  publishable artifact at N=128, χ=64 should hit ≤ 0.01 / ≤ 0.02.
+- **Tests: 182 → 201** (+19 across mpo / dmrg-real / analytical /
+  dmrg-pfeuty-bethe). Typecheck clean. Lint warnings unchanged from
+  baseline.
 
 ### What's shipped since 2026-05-01
 

@@ -1,8 +1,9 @@
 // Two-site DMRG with matrix-free Lanczos, validated against
-// ITensor reference energies (TFIM only — XXZ/Heisenberg need a
-// complex-Hermitian Lanczos which is a follow-on).
+// ITensor reference energies. The (xxz, Heisenberg) tests use the
+// real-form S+/S-/Z MPOs added in Phase B — that rewriting drops
+// the imaginary Y entries so the existing real-only Lanczos works.
 import { describe, expect, test } from "vitest";
-import { tfimMPO } from "../../src/manybody/mpo.js";
+import { tfimMPO, xxzMPOReal, heisenbergMPOReal } from "../../src/manybody/mpo.js";
 import { dmrgGroundState } from "../../src/manybody/dmrg.js";
 import refData from "./itensor-reference.json" with { type: "json" };
 
@@ -47,6 +48,29 @@ describe("DMRG ground-state vs ITensor reference (TFIM)", () => {
     const res = dmrgGroundState(M, { chiMax: 16, maxSweeps: 12, tol: 1e-9 });
     expect(Math.abs(res.energy - ref.energy)).toBeLessThan(1e-5);
   }, 30_000);
+});
+
+describe("DMRG ground-state vs ITensor reference (Heisenberg / XXZ via real MPO)", () => {
+  test("Heisenberg N=8, J=1 — real-form MPO matches ITensor", () => {
+    const ref = findRef("heisenberg", 8, { "1": 1 });
+    const M = heisenbergMPOReal(8, 1);
+    const res = dmrgGroundState(M, { chiMax: 16, maxSweeps: 16, tol: 1e-9 });
+    expect(Math.abs(res.energy - ref.energy)).toBeLessThan(1e-4);
+  }, 60_000);
+
+  test("XXZ N=16, J=1, Δ=0.5 — real-form MPO matches ITensor", () => {
+    const ref = findRef("xxz", 16, { "1": 1, "2": 0.5 });
+    const M = xxzMPOReal(16, 1, 0.5);
+    const res = dmrgGroundState(M, { chiMax: 32, maxSweeps: 24, tol: 1e-9 });
+    expect(Math.abs(res.energy - ref.energy)).toBeLessThan(1e-3);
+  }, 90_000);
+
+  test("XXZ N=16, J=1, Δ=1 (Heisenberg) — real-form MPO matches ITensor", () => {
+    const ref = findRef("xxz", 16, { "1": 1, "2": 1 });
+    const M = xxzMPOReal(16, 1, 1);
+    const res = dmrgGroundState(M, { chiMax: 32, maxSweeps: 24, tol: 1e-9 });
+    expect(Math.abs(res.energy - ref.energy)).toBeLessThan(1e-3);
+  }, 90_000);
 });
 
 describe("DMRG basic mechanics", () => {

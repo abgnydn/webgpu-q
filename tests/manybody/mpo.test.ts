@@ -5,7 +5,8 @@
 import { describe, expect, test } from "vitest";
 import { tfim, heisenberg, xxz, buildDense } from "../../src/manybody/hamiltonian.js";
 import {
-  tfimMPO, heisenbergMPO, xxzMPO, mpoToDense, complexMatrixFrobDistance,
+  tfimMPO, heisenbergMPO, xxzMPO, xxzMPOReal, heisenbergMPOReal,
+  mpoToDense, complexMatrixFrobDistance,
   zeroMPOTensor,
   type MPO,
 } from "../../src/manybody/mpo.js";
@@ -76,6 +77,54 @@ describe("MPO equals bond-list dense Hamiltonian", () => {
     const mpoDense = mpoToDense(xxzMPO(N, 1, 0.5));
     const dist = complexMatrixFrobDistance(realToComplex(dense, 1 << N), mpoDense);
     expect(dist).toBeLessThan(1e-12);
+  });
+});
+
+describe("Real-form (S+/S-/Z) MPO matches dense Hamiltonian", () => {
+  // The real-form MPO uses the rewriting XX + YY = 2(S+S- + S-S+) so
+  // every entry is real. It must produce the same operator as both the
+  // imaginary-Y MPO and the bond-list dense Hamiltonian.
+  test("xxzMPOReal N=4 (J=1, Δ=1) ≡ Heisenberg dense", () => {
+    const N = 4;
+    const dense = buildDense(heisenberg(N, 1));
+    const mpoDense = mpoToDense(xxzMPOReal(N, 0.25, 1));
+    const dist = complexMatrixFrobDistance(realToComplex(dense, 1 << N), mpoDense);
+    expect(dist).toBeLessThan(1e-12);
+  });
+
+  test("xxzMPOReal N=6 (J=1, Δ=2) ≡ xxz dense", () => {
+    const N = 6;
+    const dense = buildDense(xxz(N, 1, 2));
+    const mpoDense = mpoToDense(xxzMPOReal(N, 1, 2));
+    const dist = complexMatrixFrobDistance(realToComplex(dense, 1 << N), mpoDense);
+    expect(dist).toBeLessThan(1e-12);
+  });
+
+  test("xxzMPOReal N=6 (J=1, Δ=0.5) ≡ xxz dense", () => {
+    const N = 6;
+    const dense = buildDense(xxz(N, 1, 0.5));
+    const mpoDense = mpoToDense(xxzMPOReal(N, 1, 0.5));
+    const dist = complexMatrixFrobDistance(realToComplex(dense, 1 << N), mpoDense);
+    expect(dist).toBeLessThan(1e-12);
+  });
+
+  test("heisenbergMPOReal N=8 (J=1) ≡ heisenberg dense", () => {
+    const N = 8;
+    const dense = buildDense(heisenberg(N, 1));
+    const mpoDense = mpoToDense(heisenbergMPOReal(N, 1));
+    const dist = complexMatrixFrobDistance(realToComplex(dense, 1 << N), mpoDense);
+    expect(dist).toBeLessThan(1e-12);
+  });
+
+  test("real-form MPO has zero imaginary entries everywhere", () => {
+    const M = heisenbergMPOReal(8, 1);
+    let maxImag = 0;
+    for (const W of M.tensors) {
+      for (let i = 1; i < W.data.length; i += 2) {
+        maxImag = Math.max(maxImag, Math.abs(W.data[i]!));
+      }
+    }
+    expect(maxImag).toBe(0);
   });
 });
 

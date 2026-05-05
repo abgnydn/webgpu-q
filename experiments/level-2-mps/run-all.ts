@@ -14,6 +14,8 @@
 import { runE5 } from "./E5-mps-correctness.js";
 import { runE6 } from "./E6-qubit-ceiling.js";
 import { runE7 } from "./E7-chi-scaling.js";
+import { runE18 } from "./E18-tfim-pfeuty.js";
+import { runE19 } from "./E19-heisenberg-bethe.js";
 import { downloadArtifact, emitArtifact } from "../lib/runner.js";
 
 export async function runLevel2(): Promise<{
@@ -39,7 +41,17 @@ export async function runLevel2(): Promise<{
   const e7 = await runE7();
   emitArtifact(e7);
 
-  const all = [e5, e6, e7];
+
+  console.log("Running E18 (TFIM vs Pfeuty) …");
+  const e18 = await runE18();
+  emitArtifact(e18);
+
+
+  console.log("Running E19 (Heisenberg vs Bethe) …");
+  const e19 = await runE19();
+  emitArtifact(e19);
+
+  const all = [e5, e6, e7, e18, e19];
   const status: "pass" | "fail" | "noisy" =
     all.some((a) => a.status === "fail") ? "fail" :
     all.some((a) => a.status === "noisy") ? "noisy" : "pass";
@@ -86,9 +98,11 @@ export function wireRunLevel2Button(): void {
     banner.className = "";
 
     const tasks: Array<[string, string, () => Promise<unknown>]> = [
-      ["E5", "MPS correctness vs CPU statevector (N ≤ 20)", async () => runE5()],
-      ["E6", "qubit-count ceiling (χ=32, depth=4)",          async () => runE6()],
-      ["E7", "χ scaling vs depth (Haar brick-wall, N=16)",    async () => runE7()],
+      ["E5",  "MPS correctness vs CPU statevector (N ≤ 20)", async () => runE5()],
+      ["E6",  "qubit-count ceiling (χ=32, depth=4)",          async () => runE6()],
+      ["E7",  "χ scaling vs depth (Haar brick-wall, N=16)",   async () => runE7()],
+      ["E18", "TFIM E/N vs Pfeuty thermodynamic limit",       async () => runE18()],
+      ["E19", "Heisenberg E/N vs Bethe ansatz limit",         async () => runE19()],
     ];
 
     const artifacts: Array<{ status: string; [k: string]: unknown }> = [];

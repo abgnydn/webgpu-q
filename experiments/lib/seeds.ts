@@ -32,6 +32,10 @@ export const SEEDS = {
   E13_TIERD_FUSION: 0xD4CA5CD2,
   // E16 — VQE on H₂ ground state (random-init seeds for each trial).
   E16_H2_VQE: 0x16C0DE16,
+  // E18 — DMRG TFIM scaling vs Pfeuty thermodynamic limit (Phase B).
+  E18_TFIM_PFEUTY: 0x18FE7547,
+  // E19 — DMRG Heisenberg AFM scaling vs Bethe ansatz limit (Phase B).
+  E19_HEISENBERG_BETHE: 0x19BE7AE5,
   // General-purpose seed for tests / smoke runs.
   SMOKE: 0xC0FFEE,
 } as const;

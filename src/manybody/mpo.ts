@@ -199,6 +199,69 @@ export function heisenbergMPO(N: number, J = 1): MPO {
   return { ...inner, modelName: `Heisenberg(N=${N}, J=${J})` };
 }
 
+// ── Real-form XXZ MPO (S+ / S- / Z ladder) ──────────────────
+//
+// Same operator as `xxzMPO`, rewritten with the identity
+//   X_iX_{i+1} + Y_iY_{i+1} = 2 (S+_i S-_{i+1} + S-_i S+_{i+1})
+// so all entries are real (S± are real 2×2 ladder operators).
+// The DMRG / environment code in dmrg-env.ts requires a
+// real-only MPO; this is the path Heisenberg / XXZ ground-state
+// runs use. The two MPOs produce the same dense Hamiltonian to
+// f64 precision (cross-checked in mpo.test.ts).
+//
+// Bulk W (D = 5):
+//   ⎛ I    2J·S+    2J·S-    JΔZ    0  ⎞
+//   ⎜ 0      0        0       0    S-  ⎟
+//   ⎜ 0      0        0       0    S+  ⎟
+//   ⎜ 0      0        0       0    Z   ⎟
+//   ⎝ 0      0        0       0    I   ⎠
+
+const SP_OP: readonly [number, number, number, number] = [0, 1, 0, 0];   // S+
+const SM_OP: readonly [number, number, number, number] = [0, 0, 1, 0];   // S-
+
+export function xxzMPOReal(N: number, J = 1, delta = 1): MPO {
+  if (N < 2) throw new Error(`xxzMPOReal: N must be ≥ 2`);
+  const D = 5;
+  const tensors: MPOTensor[] = [];
+
+  // Left boundary (D_l = 1, D_r = 5): row 0 of the bulk.
+  const W0 = zeroMPOTensor(1, D);
+  setReal2x2(W0, 0, 0, I_OP);
+  setReal2x2(W0, 0, 1, scaledReal(SP_OP, 2 * J));
+  setReal2x2(W0, 0, 2, scaledReal(SM_OP, 2 * J));
+  setReal2x2(W0, 0, 3, scaledReal(Z_OP, J * delta));
+  tensors.push(W0);
+
+  // Bulk for sites 1..N-2.
+  for (let q = 1; q < N - 1; q++) {
+    const W = zeroMPOTensor(D, D);
+    setReal2x2(W, 0, 0, I_OP);
+    setReal2x2(W, 0, 1, scaledReal(SP_OP, 2 * J));
+    setReal2x2(W, 0, 2, scaledReal(SM_OP, 2 * J));
+    setReal2x2(W, 0, 3, scaledReal(Z_OP, J * delta));
+    setReal2x2(W, 1, 4, SM_OP);
+    setReal2x2(W, 2, 4, SP_OP);
+    setReal2x2(W, 3, 4, Z_OP);
+    setReal2x2(W, 4, 4, I_OP);
+    tensors.push(W);
+  }
+
+  // Right boundary (D_l = 5, D_r = 1): column 4 of the bulk.
+  const Wlast = zeroMPOTensor(D, 1);
+  setReal2x2(Wlast, 1, 0, SM_OP);
+  setReal2x2(Wlast, 2, 0, SP_OP);
+  setReal2x2(Wlast, 3, 0, Z_OP);
+  setReal2x2(Wlast, 4, 0, I_OP);
+  tensors.push(Wlast);
+
+  return { nQubits: N, modelName: `XXZ-real(N=${N}, J=${J}, Δ=${delta})`, tensors };
+}
+
+export function heisenbergMPOReal(N: number, J = 1): MPO {
+  const inner = xxzMPOReal(N, J / 4, 1);
+  return { ...inner, modelName: `Heisenberg-real(N=${N}, J=${J})` };
+}
+
 // ── Dense contraction (cross-validation oracle) ─────────────
 //
 // Contract the entire MPO chain to a 2^N × 2^N complex dense
