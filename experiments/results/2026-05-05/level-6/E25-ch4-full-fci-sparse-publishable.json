@@ -1,0 +1,37 @@
+{
+  "meta": {
+    "protocol": "E25-ch4-full-fci-sparse-publishable",
+    "hypothesis": "Full STO-3G CH₄ FCI in a browser tab via sparse-CSR Hsec (dense would be 15 GB); matches PySCF (-39.8068 Ha) within chemical accuracy at R_CH = 1.09 Å tetrahedral.",
+    "passBar": "|E_FCI − E_PySCF| ≤ 1.6 mHa (chemical accuracy) at R_CH = 1.09 Å AND sparse memory ≤ 1 GB",
+    "seed": "E25_CH4_FULL_FCI_SPARSE",
+    "warmup": 0,
+    "trials": 1
+  },
+  "env": {
+    "runtime": "node v24.5.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "timestamp": "2026-05-05T12:28:41.369Z",
+    "nSpatial": 9,
+    "nQubits": 18,
+    "nElectrons": 10,
+    "sectorDim": 43758,
+    "storage": "sparse",
+    "nnz": 20009392,
+    "sparseMemoryMB": 240.112704,
+    "denseMemoryGB": 15.318100512,
+    "fciMethod": "matrix-free Lanczos on sparse-CSR Hsec",
+    "integrals": "McMurchie-Davidson Hermite-Gaussian (Phase C v3 stage 1)"
+  },
+  "row": {
+    "R_CH_angstrom": 1.09,
+    "Vnn": 13.435389254132351,
+    "energyHartree": -39.80603567632523,
+    "pyscfDeltaMHa": 0.7643236747725268,
+    "lanczosIter": 54,
+    "buildSeconds": 92.26518216699999,
+    "fciSeconds": 1.2924157089999935
+  },
+  "status": "pass",
+  "diagnosis": "CH₄ FCI = -39.806036 Ha, |Δ vs PySCF| = 0.764 mHa (chemical accuracy). Sparse Hsec = 240.1 MB (64× smaller than dense)."
+}

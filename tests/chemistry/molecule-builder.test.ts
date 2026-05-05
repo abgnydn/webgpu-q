@@ -38,11 +38,13 @@ describe("H₂O full STO-3G FCI vs PySCF reference", () => {
   ];
 
   test("Hilbert space + sector setup as expected", () => {
-    const data = buildMoleculeFCI(atoms);
+    // Force dense storage so the test pins the storage path used.
+    const data = buildMoleculeFCI(atoms, { storage: "dense" });
     expect(data.nSpatial).toBe(7);   // O 1s + O 2s + O 2p_x/y/z + 2 H 1s
     expect(data.nQubits).toBe(14);
     expect(data.nElectrons).toBe(10);
-    expect(data.sector.k).toBe(1001);  // C(14, 10)
+    expect(data.sector!.k).toBe(1001);  // C(14, 10)
+    expect(data.storage).toBe("dense");
   });
 
   test("FCI matches PySCF reference (-75.0124 Ha) to better than 1 mHa", () => {
@@ -62,8 +64,8 @@ describe("H₂O full STO-3G FCI vs PySCF reference", () => {
   });
 
   test("Hsec is real symmetric to f64 precision", () => {
-    const data = buildMoleculeFCI(atoms);
-    const { H, k } = data.sector;
+    const data = buildMoleculeFCI(atoms, { storage: "dense" });
+    const { H, k } = data.sector!;
     let maxAsym = 0;
     for (let i = 0; i < k; i++) {
       for (let j = i + 1; j < k; j++) {

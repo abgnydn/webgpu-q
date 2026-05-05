@@ -128,6 +128,55 @@ ships as a URL"*. webgpu-q is the proof point.
 
 ## Current state of play (as of 2026-05-05)
 
+### Phase C v5 — sparse-CSR Hsec breaks the 15 GB barrier (2026-05-05)
+
+The dense sector matrix is now optional. For molecules where it
+would blow past tab-memory limits (CH₄ in STO-3G = 15 GB), we
+build the Hamiltonian as a **sparse-CSR matrix** instead. CH₄'s
+H is 99.998% zeros, so sparse storage is 240 MB — **64× smaller
+than dense** — and matvec is **~100× faster** because Lanczos
+only walks the nonzero entries.
+
+**Headline (CH₄, R = 1.09 Å, tetrahedral, full STO-3G):**
+
+| metric | Phase C v4 (dense) | Phase C v5 (sparse) | improvement |
+|---|---:|---:|---:|
+| Hsec memory | 15.32 GB | **240 MB** | **64× smaller** |
+| Lanczos wall | ~245 s | **1.29 s** | **190× faster** |
+| build wall | 55 s | 92 s | 1.7× slower (Map overhead) |
+| total | ~5 min | **~1.5 min** | 3.3× faster end-to-end |
+| E_FCI | -39.806036 Ha | -39.806036 Ha | identical to f64 |
+| Δ vs PySCF | 0.76 mHa | 0.76 mHa | (chemical accuracy) |
+
+**Cross-checks (sparse ≡ dense to f64):**
+- LiH N=4 (k=15): \|Δ\| < 1e-10
+- H₂O N=10 (k=1001): \|Δ\| = 2.5e-10, sparse 760 KB vs dense 8 MB
+- BeH₂-full N=6 (k=3003): \|Δ\| = 5.0e-11, sparse 1.9 MB vs dense 72 MB
+
+**What shipped:**
+- `src/chemistry/sector-matvec.ts`: `buildSparseSectorH` builds a
+  CSR sector H by accumulating per-row Map entries during the
+  same operator iteration that `buildSectorH` uses, then deduping
+  + sorting into final CSR arrays. `sparseMatvec(H, x, y)` walks
+  the CSR for fast matvec.
+- `src/chemistry/molecule-builder.ts`: now picks `dense` for
+  k ≤ 2000 (cheap, lets us cross-check with Jacobi) and `sparse`
+  for k > 2000. `buildMoleculeFCI(...)` returns either `sector`
+  or `sparseSector` depending on the choice.
+- 3 sparse-vs-dense cross-check tests in `sparse-sector.test.ts`.
+- Publishable artifact at
+  `experiments/results/2026-05-05/level-6/E25-ch4-full-fci-sparse-publishable.json`.
+
+**What this unlocks (Phase C v6 reach):**
+- NH₃ (k = 43758, same as CH₄) — should be trivial.
+- N₂, O₂, CO (10-orbital dimers, k ~ 50k–200k) — feasible.
+- Acetylene C₂H₂ (k ~ 2 million) — sparse Hsec ~10 GB. Still too
+  big. Needs Slater-Condon matrix-free matvec (no precomputed
+  storage). That's the Phase C v6 lift.
+
+**Tests: 262 → 265** (+3 sparse cross-checks). Typecheck clean.
+Lint warnings unchanged from baseline.
+
 ### Phase C v4 — water and methane in a browser tab (2026-05-05)
 
 H₂O and CH₄ in **full STO-3G FCI**, both matching PySCF. First
