@@ -14,6 +14,7 @@
 
 import { runE16 } from "./E16-h2-vqe.js";
 import { runE20 } from "./E20-lih-vqe.js";
+import { runE21 } from "./E21-beh2-vqe.js";
 import { downloadArtifact, emitArtifact } from "../lib/runner.js";
 
 export async function runLevel6(): Promise<{
@@ -33,7 +34,12 @@ export async function runLevel6(): Promise<{
   const e20 = await runE20();
   emitArtifact(e20);
 
-  const all = [e16, e20];
+
+  console.log("Running E21 (BeH₂ VQE, Phase C v2) …");
+  const e21 = await runE21();
+  emitArtifact(e21);
+
+  const all = [e16, e20, e21];
   const status: "pass" | "fail" | "noisy" =
     all.some((a) => a.status === "fail") ? "fail" :
     all.some((a) => a.status === "noisy") ? "noisy" : "pass";
@@ -81,7 +87,8 @@ export function wireRunLevel6Button(): void {
 
     const tasks: Array<[string, string, () => Promise<unknown>]> = [
       ["E16", "VQE H₂ STO-3G — 10 random inits at R=0.7414 Å",            async () => runE16()],
-      ["E20", "VQE LiH STO-3G s-only — 5 inits, 5 R values (Phase C)",    async () => runE20()],
+      ["E20", "VQE LiH STO-3G s-only — 5 inits, 5 R values (Phase C v1)", async () => runE20()],
+      ["E21", "VQE BeH₂ STO-3G s-only — 5 inits, 5 R values (Phase C v2)", async () => runE21()],
     ];
 
     const artifacts: Array<{ status: string; [k: string]: unknown }> = [];

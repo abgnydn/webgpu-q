@@ -228,17 +228,18 @@
     <p>
       Hypothesis: (E16) VQE on H₂ in STO-3G with a hardware-efficient ansatz
       reaches chemical accuracy (|ΔE| ≤ 1.6 mHa) at every bond length;
-      (E20, Phase C) VQE on LiH in STO-3G s-only (Li 1s, 2s + H 1s, 6 qubits)
-      with HEA + particle-number penalty recovers ≥ 70% of the correlation
-      energy at the equilibrium bond length R = 1.595 Å (best-of-5 |ΔE| ≤
-      50 mHa above E_FCI). Hamiltonians built from molecular integrals on
-      the fly; reference E_FCI is the Jacobi-diagonalized spectrum projected
-      to the physical N=4 sector.
+      (E20, Phase C v1) VQE on LiH in STO-3G s-only (6 qubits) with HEA
+      L=6 + L-BFGS reaches chemical accuracy at the equilibrium bond length;
+      (E21, Phase C v2) VQE on BeH₂ in STO-3G s-only (8 qubits, 256-dim)
+      with HEA L=10 + L-BFGS reaches chemical accuracy on the best-of-5
+      trials at R = 1.34 Å. All three Hamiltonians built from molecular
+      integrals on the fly; reference E_FCI is the Jacobi-diagonalized
+      spectrum projected to the physical particle-number sector.
     </p>
     <div class="panel">
-      <button id="run-level-6">Run E16 + E20</button>
+      <button id="run-level-6">Run E16 + E20 + E21</button>
       <span style="margin-left: 12px; color: var(--muted);">
-        Expect 1–3 min. H₂ (5 R × 10 trials) + LiH (5 R × 5 trials). CPU-only.
+        Expect 15–25 min. H₂ (fast), LiH (~14 s), BeH₂ (~15 min). CPU-only.
       </span>
     </div>
     <div class="table-wrap"><table id="level-6-results">

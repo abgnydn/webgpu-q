@@ -38,6 +38,8 @@ export const SEEDS = {
   E19_HEISENBERG_BETHE: 0x19BE7AE5,
   // E20 — VQE on LiH ground state (Phase C, real-molecule chemistry).
   E20_LIH_VQE: 0x201E11BE,
+  // E21 — VQE on BeH₂ ground state (Phase C v2, multi-atom).
+  E21_BEH2_VQE: 0x21BE211E,
   // General-purpose seed for tests / smoke runs.
   SMOKE: 0xC0FFEE,
 } as const;

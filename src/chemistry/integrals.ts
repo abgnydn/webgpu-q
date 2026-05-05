@@ -34,6 +34,22 @@ export const STO3G_LI_1S = {
   c: [0.15432897, 0.53532814, 0.44463454] as const,
 };
 
+/** STO-3G 1s contraction for beryllium (Z = 4). Tighter exponents than
+ *  Li 1s (Z = 3); the L-shell coefficients below carry the 2s character. */
+export const STO3G_BE_1S = {
+  alpha: [30.1678710, 5.4951153, 1.4871927] as const,
+  c: [0.15432897, 0.53532814, 0.44463454] as const,
+};
+
+/** STO-3G 2s contraction for beryllium — the *s component* of the L-shell.
+ *  Same exponent set as the 2p L-shell (omitted in v0); coefficients are
+ *  Pople 1969 Table III. Negative leading coefficient produces the 2s
+ *  radial node and enforces orthogonality with 1s post-Löwdin. */
+export const STO3G_BE_2S = {
+  alpha: [1.3148331, 0.3055389, 0.0993707] as const,
+  c: [-0.09996723, 0.39951283, 0.70011547] as const,
+};
+
 /** STO-3G 2s contraction for lithium — the *s component* of the L-shell.
  *  Coefficients can be negative to produce the 2s radial node and to
  *  enforce orthogonality with 1s after Löwdin orthogonalization.

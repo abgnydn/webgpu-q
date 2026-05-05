@@ -128,6 +128,74 @@ ships as a URL"*. webgpu-q is the proof point.
 
 ## Current state of play (as of 2026-05-05)
 
+### Phase C v2 — first multi-atom molecule (BeH₂) at chemical accuracy (2026-05-05)
+
+Linear H–Be–H with the experimental Be–H bond R = 1.34 Å — **first
+multi-atom molecule** in the project. STO-3G s-only basis (Be 1s, 2s
++ 2 × H 1s = 4 spatial / **8 spin-orbitals** / 256-dim Hilbert space,
+6 electrons in the neutral molecule). Phase C v2 deliberately omits
+Be 2p (would lift to 14 spin-orbitals / 16384-dim, requires Cartesian-
+Gaussian p-shell integrals — Phase C v3).
+
+**Headline at R = 1.34 Å (HEA L=12, λ=2 penalty, L-BFGS 1500 iters):**
+
+| metric | value |
+|---|---:|
+| best ΔE | **0.044 mHa = 44 microhartree** (36× under chem-acc bar) |
+| median ΔE | 3.03 mHa |
+| correlation captured | **100.00%** |
+| trials hitting chem-acc | 2/5 |
+
+**Symmetric stretch curve (best of 5 trials):**
+
+| R (Å) | E_FCI | best E_VQE | best \|ΔE\| | corr capture | chem-acc hits |
+|---:|---:|---:|---:|---:|---:|
+| 1.0 | -15.2785 | -15.2785 | 0.028 | 100.00% | 4/5 |
+| 1.2 | -15.3492 | -15.3477 | 1.525 | 99.88% | 1/5 |
+| **1.34** | **-15.3492** | **-15.3491** | **0.044** | **100.00%** | **2/5** |
+| 1.6 | -15.3144 | -15.3144 | 0.043 | 100.00% | 2/5 |
+| 2.0 | -15.2748 | -15.2748 | 0.019 | 100.00% | 3/5 |
+
+12/25 trials within strict chemical accuracy (48%). Minimum of the
+dissociation curve at R = 1.34 Å — exactly the experimental Be–H
+bond. ~21 min wall-clock (5 R × 5 trials × ~50 s/trial on M2 Pro).
+Status: **pass**.
+
+**Path that worked (first try almost did):**
+v0 attempt at HEA L=10 missed by 0.6 mHa — the high trial-to-trial
+variance from 88-parameter Nelder-Mead-ish landscapes meant only
+1/5 trials cleanly converged. L=12 (104 params) sharply tightened
+the variance: every R above gets ≥ 1/5 chem-acc, most get 2-4/5,
+medians dropped from 11-25 mHa → 0.08-7 mHa. The deeper ansatz
+isn't more expressive — it's more *robust* across random inits.
+
+**Scope honesty (still s-only):**
+- BeH₂ s-only FCI = -15.349 Ha at R=1.34. Full STO-3G (with Be 2p)
+  is closer to -15.6 Ha — the missing 2p shell gives ~250 mHa of
+  dynamic correlation we can't access until Phase C v3 ships
+  Cartesian-Gaussian p-shell integrals (Obara-Saika recurrence).
+- HF reference energy is -13.32 Ha (correlation gap = 2 Ha, vs LiH's
+  0.18 Ha) because the AO HF determinant is asymmetric. Phase C v2.5
+  could add HF SCF + MO transformation to drop this gap by ~40×.
+
+**What shipped:**
+- `src/chemistry/integrals.ts`: Be STO-3G shells (`STO3G_BE_1S`,
+  `STO3G_BE_2S`).
+- `src/chemistry/sector.ts`: pulled `lowestInParticleSector` out of
+  lih-builder for sharing across molecular builders.
+- `src/chemistry/beh2-builder.ts`: 4 atomic shells → Löwdin → 256×256
+  dense Hamiltonian via JW. Same template as lih-builder.
+- `experiments/level-6-chemistry/E21-beh2-vqe.ts` + Level-6 dashboard
+  panel updated. Publishable artifact at
+  `experiments/results/2026-05-05/level-6/E21-beh2-vqe-publishable.json`,
+  reproducible via `npx vite-node tools/run-phase-c-v2.ts` (~21 min).
+- 8 new BeH₂ tests (`tests/chemistry/beh2.test.ts`): integral
+  invariants, Hermiticity, [H, N̂] = 0, dissociation-curve minimum
+  at the experimental Be–H bond.
+
+**Tests: 223 → 231** (+8 BeH₂). Typecheck clean. Lint warnings
+unchanged from baseline.
+
 ### Phase C v1 — chemical accuracy on LiH (2026-05-05)
 
 Phase C v0's "honest negative" (HEA + Nelder-Mead plateaued at ~20 mHa,

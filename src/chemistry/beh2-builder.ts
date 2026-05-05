@@ -1,37 +1,43 @@
 // ─────────────────────────────────────────────────────────────
-// lih-builder.ts — LiH ground-state Hamiltonian, STO-3G s-only.
+// beh2-builder.ts — BeH₂ ground-state Hamiltonian, STO-3G s-only.
 //
-// Basis (3 spatial orbitals, 6 spin-orbitals):
-//   • Li 1s   (Z = 3 core, 3 primitive Gaussians)
-//   • Li 2s   (s-component of the L-shell)
-//   • H 1s    (3 primitive Gaussians)
+// Linear H–Be–H with Be at the origin and the two H atoms at
+// (±R, 0, 0) for symmetric stretch. 4 atomic shells / 8 spin-
+// orbitals / 256-dim Hilbert space; 6 electrons in the neutral
+// molecule. Minimal s-only basis:
+//   • Be 1s   (Z = 4 core, 3 primitives)
+//   • Be 2s   (s component of the L-shell)
+//   • H 1s × 2 (one per hydrogen)
 //
-// Phase-C scope deliberately excludes the Li 2p sub-shell. With
-// 2p the basis would be 6 spatial / 12 spin-orbitals = 4096-dim
-// Hilbert space — manageable but slow for the dense Jacobi
-// solver; and STO-3G p-shell ERIs need angular-momentum-aware
-// Obara–Saika integrals not yet implemented in integrals.ts.
+// Phase-C v2 scope deliberately excludes the Be 2p sub-shell.
+// Including 2p would lift the basis to 7 spatial / 14 spin-
+// orbitals / 16384-dim Hilbert space (sector-restricted FCI to
+// N=6 still tractable at C(14, 6) = 3003 dim) but requires
+// Cartesian-Gaussian p-shell integrals (Obara-Saika recurrence)
+// not yet implemented in integrals.ts. That's Phase C v3 work.
 //
-// Pipeline:
-//   1. Build 3×3 AO matrices S, h^AO = T + V_Li + V_H.
-//   2. Build 3⁴ AO ERI tensor (μν|λσ).
+// Pipeline mirrors lih-builder.ts:
+//   1. Build 4×4 AO matrices S, h^AO = T + V_Be + V_H1 + V_H2.
+//   2. Build 4⁴ AO ERI tensor (μν|λσ).
 //   3. Löwdin orthogonalize: X = S^{-1/2}, transform h and ERI.
 //   4. Spin-orbital ordering q = 2·spatial + spin.
-//      Spatial 0 = Li 1s, 1 = Li 2s, 2 = H 1s.
-//      HF reference: Li 1s² 2s¹ + H 1s¹ → spin-orbitals
-//      {0, 1, 2, 4} occupied (4 electrons).
-//   5. JW-build the 64×64 dense Hamiltonian.
+//      Spatial 0 = Be 1s, 1 = Be 2s, 2 = H_left 1s, 3 = H_right 1s.
+//      HF reference (singlet, 6 e⁻): doubly occupy the 3 lowest
+//      spatial orbitals → spin-orbitals {0,1,2,3,4,5}. The 4th
+//      spatial (H_right 1s in this AO labelling) is empty in
+//      the HF determinant; the optimizer then mixes it in.
+//   5. JW-build the 256×256 dense Hamiltonian.
 //
-// Cross-checks (lih.test.ts):
+// Cross-checks (beh2.test.ts):
 //   • Hermiticity (real symmetric).
-//   • Block-diagonal in particle number — eigenstates conserve N_e.
-//   • Singlet ground state (S_z = 0 sector dominates lowest band).
-//   • Dissociation: at large R, E_GS(R) approaches E(Li atom in
-//     Li-only basis) + E(H atom in H-only basis).
+//   • [H, N̂] = 0.
+//   • Symmetric-stretch dissociation: minimum near R = 1.34 Å
+//     (experimental Be-H bond length).
+//   • Ground state lives in the N=6 sector, energy < HF reference.
 // ─────────────────────────────────────────────────────────────
 
 import {
-  STO3G_LI_1S, STO3G_LI_2S, STO3G_H_1S,
+  STO3G_BE_1S, STO3G_BE_2S, STO3G_H_1S,
   S_shells, T_shells, V_shells, ERI_shells,
   makeShell, type Shell,
 } from "./integrals.js";
@@ -41,52 +47,60 @@ const ANGSTROM_TO_BOHR = 1 / 0.529177210903;
 
 type Center = readonly [number, number, number];
 
-export interface LiHIntegrals {
-  /** Bond length (Bohr). */
+export interface BeH2Integrals {
+  /** Be–H bond length (Bohr). The two H atoms are at ±R from Be. */
   readonly R_Bohr: number;
-  /** Atom centers — [0]=Li, [1]=H. */
-  readonly centers: readonly [Center, Center];
-  /** Atomic shells in spatial-orbital order (Li 1s, Li 2s, H 1s). */
-  readonly shells: readonly [Shell, Shell, Shell];
-  /** AO overlap S, 3×3 row-major. */
+  /** Atom centers — [0]=Be, [1]=H_left, [2]=H_right. */
+  readonly centers: readonly [Center, Center, Center];
+  /** Atomic shells in spatial-orbital order. */
+  readonly shells: readonly [Shell, Shell, Shell, Shell];
+  /** AO overlap S, 4×4 row-major. */
   readonly S_AO: Float64Array;
-  /** AO core h = T + V_Li + V_H, 3×3 row-major. */
+  /** AO core h = T + Σ_C V_C, 4×4 row-major. */
   readonly h_AO: Float64Array;
-  /** AO ERI (μν|λσ), 3⁴ row-major as [μν λσ]. */
+  /** AO ERI (μν|λσ), 4⁴ row-major as [μν λσ]. */
   readonly eri_AO: Float64Array;
-  /** Löwdin transform X = S^{-1/2}, 3×3 row-major. */
+  /** Löwdin transform X = S^{-1/2}, 4×4. */
   readonly X: Float64Array;
-  /** Orthogonalized one-electron h^OAO, 3×3. */
+  /** Orthogonalized one-electron h^OAO, 4×4. */
   readonly h_OAO: Float64Array;
-  /** Orthogonalized two-electron tensor, 3⁴. */
+  /** Orthogonalized two-electron tensor, 4⁴. */
   readonly eri_OAO: Float64Array;
-  /** Nuclear-nuclear repulsion 3·1/R (Z_Li · Z_H = 3). */
+  /** Nuclear repulsion: Z_Be · Z_H / R_BeH × 2 + Z_H² / (2R_BeH).
+   *  = 4·1/R + 4·1/R + 1/(2R) = 8/R + 1/(2R) = 17/(2R). */
   readonly Vnn: number;
 }
 
-export interface LiHHamiltonian {
-  readonly H: Float64Array;          // 64×64 dense, real-symmetric
-  readonly nQubits: 6;
-  readonly integrals: LiHIntegrals;
-  /** Spin-orbital indices occupied in the Hartree–Fock reference
-   *  state |Li 1s² 2s¹ + H 1s¹⟩, ready for runVQE_HEA_Dense. */
+export interface BeH2Hamiltonian {
+  readonly H: Float64Array;          // 256×256 dense, real-symmetric
+  readonly nQubits: 8;
+  readonly integrals: BeH2Integrals;
+  /** Spin-orbital indices occupied in the Hartree-Fock reference
+   *  (closed-shell singlet, 6 electrons in 3 lowest spatial orbitals). */
   readonly hfOccupied: readonly number[];
 }
 
-const N_ATOMIC = 3;       // 3 spatial orbitals
-const N_QUBITS = 6;       // 6 spin-orbitals
-const DIM = 1 << N_QUBITS; // 64
+const N_ATOMIC = 4;        // 4 spatial orbitals
+const N_QUBITS = 8;        // 8 spin-orbitals
+const DIM = 1 << N_QUBITS; // 256
 
-/** Compute all integrals for LiH at bond length R (Å). */
-export function computeLiHIntegrals(R_angstrom: number): LiHIntegrals {
+/** Compute all integrals for BeH₂ at Be–H bond length R (Å). */
+export function computeBeH2Integrals(R_angstrom: number): BeH2Integrals {
   const R = R_angstrom * ANGSTROM_TO_BOHR;
-  const Li_pos: Center = [0, 0, 0];
-  const H_pos: Center = [0, 0, R];
+  const Be_pos: Center = [0, 0, 0];
+  const HL_pos: Center = [0, 0, -R];
+  const HR_pos: Center = [0, 0, +R];
 
-  const liShell1s = makeShell(STO3G_LI_1S, Li_pos, "Li:1s");
-  const liShell2s = makeShell(STO3G_LI_2S, Li_pos, "Li:2s");
-  const hShell    = makeShell(STO3G_H_1S,  H_pos,  "H:1s");
-  const shells = [liShell1s, liShell2s, hShell] as const;
+  const beShell1s = makeShell(STO3G_BE_1S, Be_pos, "Be:1s");
+  const beShell2s = makeShell(STO3G_BE_2S, Be_pos, "Be:2s");
+  const hLShell   = makeShell(STO3G_H_1S, HL_pos, "H_L:1s");
+  const hRShell   = makeShell(STO3G_H_1S, HR_pos, "H_R:1s");
+  const shells = [beShell1s, beShell2s, hLShell, hRShell] as const;
+  const nuclei = [
+    { Z: 4, pos: Be_pos },
+    { Z: 1, pos: HL_pos },
+    { Z: 1, pos: HR_pos },
+  ];
 
   // ── AO overlap and one-electron core ────────────────────
   const S_AO = new Float64Array(N_ATOMIC * N_ATOMIC);
@@ -95,12 +109,11 @@ export function computeLiHIntegrals(R_angstrom: number): LiHIntegrals {
     for (let nu = mu; nu < N_ATOMIC; nu++) {
       const sij = S_shells(shells[mu]!, shells[nu]!);
       const tij = T_shells(shells[mu]!, shells[nu]!);
-      // V_Li (Z = 3) + V_H (Z = 1).
-      const vLi = V_shells(shells[mu]!, shells[nu]!, 3, Li_pos);
-      const vH  = V_shells(shells[mu]!, shells[nu]!, 1, H_pos);
+      let vSum = 0;
+      for (const { Z, pos } of nuclei) vSum += V_shells(shells[mu]!, shells[nu]!, Z, pos);
       S_AO[mu * N_ATOMIC + nu] = sij;
       S_AO[nu * N_ATOMIC + mu] = sij;
-      const h = tij + vLi + vH;
+      const h = tij + vSum;
       h_AO[mu * N_ATOMIC + nu] = h;
       h_AO[nu * N_ATOMIC + mu] = h;
     }
@@ -119,9 +132,7 @@ export function computeLiHIntegrals(R_angstrom: number): LiHIntegrals {
     }
   }
 
-  // ── Löwdin orthogonalization X = S^{-1/2} ──────────────
-  // S = U Σ U^T → X = U Σ^{-1/2} U^T.  eigsymmetric returns
-  // eigenvectors stored column-major: vectors[k*N+r] = U[r,k].
+  // ── Löwdin orthogonalization ───────────────────────────
   const eig = eigsymmetric(S_AO, N_ATOMIC);
   const X = new Float64Array(N_ATOMIC * N_ATOMIC);
   for (let r = 0; r < N_ATOMIC; r++) {
@@ -130,7 +141,7 @@ export function computeLiHIntegrals(R_angstrom: number): LiHIntegrals {
       for (let k = 0; k < N_ATOMIC; k++) {
         const lam = eig.values[k]!;
         if (lam <= 0) {
-          throw new Error(`computeLiHIntegrals: AO overlap eigenvalue ${lam} is non-positive`);
+          throw new Error(`computeBeH2Integrals: AO overlap eigenvalue ${lam} ≤ 0 — basis degenerate`);
         }
         s += eig.vectors[k * N_ATOMIC + r]! * Math.pow(lam, -0.5) * eig.vectors[k * N_ATOMIC + c]!;
       }
@@ -138,29 +149,32 @@ export function computeLiHIntegrals(R_angstrom: number): LiHIntegrals {
     }
   }
 
-  // ── Transform h and ERI to orthogonal basis ─────────────
+  // ── Transform h, ERI to orthogonal basis ────────────────
   const h_OAO = transform2(h_AO, X, N_ATOMIC);
   const eri_OAO = transform4(eri_AO, X, N_ATOMIC);
 
-  // ── V_nn = Z_Li · Z_H / R = 3 / R ──────────────────────
-  const Vnn = 3 / R;
+  // ── V_nn: Be↔H_L (4·1/R) + Be↔H_R (4·1/R) + H_L↔H_R (1/(2R))
+  const Vnn = (4 / R) + (4 / R) + (1 / (2 * R));
 
   return {
     R_Bohr: R,
-    centers: [Li_pos, H_pos] as const,
-    shells: shells as readonly [Shell, Shell, Shell],
+    centers: [Be_pos, HL_pos, HR_pos] as const,
+    shells: shells as readonly [Shell, Shell, Shell, Shell],
     S_AO, h_AO, eri_AO, X, h_OAO, eri_OAO, Vnn,
   };
 }
 
 /**
- * Build the 64×64 dense LiH Hamiltonian at bond length R (Å).
- * The HF reference (Li 1s² 2s¹, H 1s¹) lives at spin-orbital
- * indices {0, 1, 2, 4} — matched to the q = 2·spatial + spin
- * convention used by runVQE_HEA_Dense.
+ * Build the 256×256 dense BeH₂ Hamiltonian at bond length R (Å).
+ *
+ * HF reference: closed-shell singlet, 6 electrons in the 3 lowest
+ * AO-orthogonalized spatial orbitals (Be 1s, Be 2s, H_left 1s after
+ * Löwdin). One spatial orbital (H_right 1s in the AO labelling) is
+ * empty in the HF determinant — the optimizer mixes it in via the
+ * symmetric MO combination during VQE.
  */
-export function buildLiHDense(R_angstrom: number): LiHHamiltonian {
-  const integrals = computeLiHIntegrals(R_angstrom);
+export function buildBeH2Dense(R_angstrom: number): BeH2Hamiltonian {
+  const integrals = computeBeH2Integrals(R_angstrom);
   const H = new Float64Array(DIM * DIM);
 
   // V_nn on the diagonal.
@@ -193,25 +207,16 @@ export function buildLiHDense(R_angstrom: number): LiHHamiltonian {
     }
   }
 
-  // HF reference: Li 1s² (spin-orbitals 0, 1) + Li 2s¹ (sp-orbital 2)
-  // + H 1s¹ (sp-orbital 4) = singlet with 4 electrons in the Li 1s/2s
-  // and H 1s shells. Spin-orbital 5 (H 1s β) is empty so the 2s¹ + 1s¹
-  // pair is high-spin α; the singlet/triplet sorting is left to the
-  // optimizer. Common active-space convention.
-  // Note: a strict closed-shell HF for LiH would put both Li 2s and
-  // H 1s electrons paired in the bonding σ MO — we keep the AO picture
-  // here so the VQE oracle has clean orbital labels.
-  const hfOccupied = [0, 1, 2, 4] as const;
+  // 6-electron closed-shell HF: spatial 0, 1, 2 doubly occupied.
+  // Spin-orbital indices: 0=Be1s↑, 1=Be1s↓, 2=Be2s↑, 3=Be2s↓, 4=H_L↑, 5=H_L↓.
+  // Spin-orbitals 6, 7 (H_R 1s ↑, ↓) are empty in this AO determinant;
+  // the σ_g/σ_u MO combinations mix them in via the optimizer.
+  const hfOccupied = [0, 1, 2, 3, 4, 5] as const;
 
   return { H, nQubits: N_QUBITS, integrals, hfOccupied: [...hfOccupied] };
 }
 
-// `lowestInParticleSector` lives in src/chemistry/sector.ts (Phase C v2
-// pulled it out for sharing with beh2-builder and future molecules).
-// Re-exported here so existing imports from lih-builder still resolve.
-export { lowestInParticleSector } from "./sector.js";
-
-// ── Local helpers (mirror h2-builder / hn-builder) ───────────
+// ── Local helpers ─────────────────────────────────────────────
 
 function idx4(mu: number, nu: number, la: number, si: number): number {
   return ((mu * N_ATOMIC + nu) * N_ATOMIC + la) * N_ATOMIC + si;
@@ -234,7 +239,7 @@ function transform2(M_AO: Float64Array, X: Float64Array, n: number): Float64Arra
 }
 
 function transform4(eri_AO: Float64Array, X: Float64Array, n: number): Float64Array {
-  // Four sequential 2-index contractions, O(n⁵) each.
+  // O(n⁵) per pass, 4 passes — fine for n = 4 (1024 ops per pass).
   let buf1 = new Float64Array(n * n * n * n);
   for (let p = 0; p < n; p++) {
     for (let nu = 0; nu < n; nu++) {
