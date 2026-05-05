@@ -1,0 +1,136 @@
+{
+  "meta": {
+    "protocol": "E22-beh2-full-fci-publishable",
+    "hypothesis": "Full STO-3G BeH₂ FCI (7 spatial / 14 spin-orbitals, sector-projected to N=6) reproduces the PySCF reference at R = 1.34 Å within 1 mHa, recovers ≥ 200 mHa of correlation vs the s-only basis, and shows the dissociation-curve minimum at the experimental Be-H bond.",
+    "passBar": "|E_FCI − E_PySCF| ≤ 1 mHa at R=1.34 Å AND ≥ 200 mHa correlation gain vs s-only AND min at R=1.34 Å",
+    "seed": "E22_BEH2_FULL_FCI",
+    "warmup": 0,
+    "trials": 1
+  },
+  "env": {
+    "runtime": "node v24.5.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "timestamp": "2026-05-05T11:43:58.791Z",
+    "bonds": [
+      0.8,
+      1,
+      1.2,
+      1.34,
+      1.5,
+      1.7,
+      2,
+      2.5,
+      3
+    ],
+    "sectorDim": 3003,
+    "nQubits": 14,
+    "nSpatial": 7,
+    "particleNumber": 6,
+    "fciMethod": "matrix-free Lanczos",
+    "integrals": "McMurchie-Davidson Hermite-Gaussian (Phase C v3 stage 1)"
+  },
+  "rows": [
+    {
+      "R_angstrom": 0.8,
+      "R_bohr": 1.5117808997006161,
+      "Vnn": 5.6225078658443755,
+      "fciHartree": -15.172805399371835,
+      "sOnlyDeltaMHa": 176.35660062816427,
+      "pyscfDeltaMHa": null,
+      "lanczosIter": 51,
+      "buildSeconds": 0.326041166,
+      "fciSeconds": 0.528809584
+    },
+    {
+      "R_angstrom": 1,
+      "R_bohr": 1.8897261246257702,
+      "Vnn": 4.4980062926755,
+      "fciHartree": -15.481741319831036,
+      "sOnlyDeltaMHa": -132.57931983103612,
+      "pyscfDeltaMHa": null,
+      "lanczosIter": 49,
+      "buildSeconds": 0.29182925,
+      "fciSeconds": 0.4791761669999999
+    },
+    {
+      "R_angstrom": 1.2,
+      "R_bohr": 2.267671349550924,
+      "Vnn": 3.748338577229583,
+      "fciHartree": -15.5838120121068,
+      "sOnlyDeltaMHa": -234.65001210679935,
+      "pyscfDeltaMHa": null,
+      "lanczosIter": 48,
+      "buildSeconds": 0.25835474999999997,
+      "fciSeconds": 0.56115575
+    },
+    {
+      "R_angstrom": 1.34,
+      "R_bohr": 2.532233006998532,
+      "Vnn": 3.3567211139369397,
+      "fciHartree": -15.594860699273873,
+      "sOnlyDeltaMHa": -245.69869927387344,
+      "pyscfDeltaMHa": 0.039300726127677876,
+      "lanczosIter": 48,
+      "buildSeconds": 0.26002416700000003,
+      "fciSeconds": 0.44930820900000024
+    },
+    {
+      "R_angstrom": 1.5,
+      "R_bohr": 2.834589186938655,
+      "Vnn": 2.998670861783667,
+      "fciHartree": -15.576051016689746,
+      "sOnlyDeltaMHa": -226.88901668974637,
+      "pyscfDeltaMHa": null,
+      "lanczosIter": 50,
+      "buildSeconds": 0.24518383399999993,
+      "fciSeconds": 0.49020916599999964
+    },
+    {
+      "R_angstrom": 1.7,
+      "R_bohr": 3.212534411863809,
+      "Vnn": 2.6458860545150005,
+      "fciHartree": -15.52912117394775,
+      "sOnlyDeltaMHa": -179.95917394775063,
+      "pyscfDeltaMHa": null,
+      "lanczosIter": 50,
+      "buildSeconds": 0.2925839159999996,
+      "fciSeconds": 0.4721000830000003
+    },
+    {
+      "R_angstrom": 2,
+      "R_bohr": 3.7794522492515403,
+      "Vnn": 2.24900314633775,
+      "fciHartree": -15.446093686311544,
+      "sOnlyDeltaMHa": -96.93168631154414,
+      "pyscfDeltaMHa": null,
+      "lanczosIter": 59,
+      "buildSeconds": 0.29454274999999963,
+      "fciSeconds": 0.5879617090000001
+    },
+    {
+      "R_angstrom": 2.5,
+      "R_bohr": 4.724315311564426,
+      "Vnn": 1.7992025170702,
+      "fciHartree": -15.351834318764347,
+      "sOnlyDeltaMHa": -2.672318764346926,
+      "pyscfDeltaMHa": null,
+      "lanczosIter": 81,
+      "buildSeconds": 0.25346779200000036,
+      "fciSeconds": 1.05030775
+    },
+    {
+      "R_angstrom": 3,
+      "R_bohr": 5.66917837387731,
+      "Vnn": 1.4993354308918334,
+      "fciHartree": -15.336804259289849,
+      "sOnlyDeltaMHa": 12.357740710150722,
+      "pyscfDeltaMHa": null,
+      "lanczosIter": 94,
+      "buildSeconds": 0.23277308300000005,
+      "fciSeconds": 1.2236490829999993
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "Full STO-3G BeH₂ FCI matches PySCF (0.039 mHa at R=1.34 Å); Be 2p adds 245.7 mHa correlation; minimum at R=1.34."
+}

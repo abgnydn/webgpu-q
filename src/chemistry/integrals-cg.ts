@@ -121,21 +121,53 @@ function eCoefTable(
 // ── Boys function F_n(t) ──────────────────────────────────────
 //
 // F_n(t) = ∫₀¹ s^(2n) exp(−t s²) ds.
-// • t small  → Taylor series Σ_k (−t)^k / (k! (2n + 2k + 1)).
-// • t large  → asymptotic F_n(t) ≈ (2n−1)!! / (2^(n+1)) · √(π / t^(2n+1)).
 //
-// We compute F_nMax(t) directly and then walk *down* via the
-// recurrence F_{n−1}(t) = (2t F_n + e^(−t)) / (2n − 1), which is
-// numerically stable (the upward recurrence loses precision).
+// Strategy (stable across all t we see, t ∈ [0, ~50]):
+//   • F_0 always from the closed form
+//       F_0(t) = ½ √(π/t) · erf(√t),
+//     using the Abramowitz-Stegun 7.1.26 erf (~1.5e-7 max error).
+//     This matches the legacy s-only path's precision exactly.
+//   • For n ≥ 1:
+//       — t > 1: upward recurrence
+//           F_n(t) = ((2n − 1) F_{n−1}(t) − e^{−t}) / (2t).
+//         Stable because each step *divides* by 2t > 2.
+//       — t ≤ 1: Taylor series Σ_k (−t)^k / (k!·(2n + 2k + 1)).
+//         Terms decay fast; no cancellation.
+//
+// Why this matters: a naive Taylor for F_n at moderate t (say
+// t = 22) accumulates intermediate sums of order e^t ≈ 10^9 that
+// must cancel down to F_0 ≈ 0.19 — f64 leaves only ~10^-7 absolute
+// precision in F_0, which the LiH cross-shell matrix elements
+// translate into ~mHa errors in the final FCI energy.
 
-const BOYS_TAYLOR_TERMS = 50;
+const SQRT_PI_BOYS = Math.sqrt(Math.PI);
 
-function boysTopTaylor(n: number, t: number): number {
-  // Σ_k (−t)^k / (k! · (2n + 2k + 1)).  Converges for any finite t
-  // but is fast only for small t (we use it when t < ~25).
+/** Abramowitz & Stegun 7.1.26 — same erf the legacy s-only path uses. */
+function erfApprox(x: number): number {
+  const sign = x < 0 ? -1 : 1;
+  const ax = Math.abs(x);
+  const a1 =  0.254829592;
+  const a2 = -0.284496736;
+  const a3 =  1.421413741;
+  const a4 = -1.453152027;
+  const a5 =  1.061405429;
+  const p  =  0.3275911;
+  const tt = 1 / (1 + p * ax);
+  const y = 1 - (((((a5 * tt + a4) * tt) + a3) * tt + a2) * tt + a1) * tt * Math.exp(-ax * ax);
+  return sign * y;
+}
+
+function boys0(t: number): number {
+  if (t < 1e-12) return 1 - t / 3 + (t * t) / 10;
+  const s = Math.sqrt(t);
+  return 0.5 * SQRT_PI_BOYS / s * erfApprox(s);
+}
+
+function boysNTaylor(n: number, t: number): number {
+  // Σ_k (−t)^k / (k! · (2n + 2k + 1)). Stable for t ≤ 1.
   let sum = 0;
   let term = 1 / (2 * n + 1);
-  for (let k = 0; k < BOYS_TAYLOR_TERMS; k++) {
+  for (let k = 0; k < 30; k++) {
     sum += term;
     term *= -t / (k + 1) * (2 * n + 2 * k + 1) / (2 * n + 2 * k + 3);
     if (Math.abs(term) < 1e-18 * Math.abs(sum)) break;
@@ -143,32 +175,28 @@ function boysTopTaylor(n: number, t: number): number {
   return sum;
 }
 
-function boysTopAsymptotic(n: number, t: number): number {
-  // Large-t form: F_n(t) ≈ (2n − 1)!! / 2^(n+1) · √(π / t^(2n+1))
-  const dfn = doubleFactOdd(n);
-  return (dfn / Math.pow(2, n + 1)) * Math.sqrt(Math.PI) / Math.pow(t, n + 0.5);
-}
-
 /**
  * Compute F_0(t), F_1(t), …, F_nMax(t) and return them in a length-(nMax+1)
- * Float64Array. Stable across the small/large-t regimes.
+ * Float64Array. Stable across all t we use.
  */
 export function boysAll(nMax: number, t: number): Float64Array {
   const out = new Float64Array(nMax + 1);
   if (t < 1e-12) {
-    // F_n(0) = 1 / (2n + 1).
     for (let n = 0; n <= nMax; n++) out[n] = 1 / (2 * n + 1);
     return out;
   }
-  // Compute F_nMax via Taylor (small t) or asymptotic (large t),
-  // then walk down via stable downward recurrence.
-  let fTop = t < 25 ? boysTopTaylor(nMax, t) : boysTopAsymptotic(nMax, t);
-  out[nMax] = fTop;
-  const expMt = Math.exp(-t);
-  for (let n = nMax; n > 0; n--) {
-    // F_{n−1} = (2t F_n + e^(−t)) / (2n − 1)
-    fTop = (2 * t * fTop + expMt) / (2 * n - 1);
-    out[n - 1] = fTop;
+  // F_0 always from closed form.
+  out[0] = boys0(t);
+  if (nMax === 0) return out;
+  if (t > 1) {
+    // Upward recurrence is stable when 2t > 2.
+    const expMt = Math.exp(-t);
+    for (let n = 1; n <= nMax; n++) {
+      out[n] = ((2 * n - 1) * out[n - 1]! - expMt) / (2 * t);
+    }
+  } else {
+    // Small-t Taylor for each n — no cancellation since terms decay fast.
+    for (let n = 1; n <= nMax; n++) out[n] = boysNTaylor(n, t);
   }
   return out;
 }

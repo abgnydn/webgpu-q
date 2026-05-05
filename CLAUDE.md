@@ -128,6 +128,74 @@ ships as a URL"*. webgpu-q is the proof point.
 
 ## Current state of play (as of 2026-05-05)
 
+### Phase C v3 stage 2 — full STO-3G BeH₂ FCI matches PySCF (2026-05-05)
+
+The full quantum-chemistry stack at production basis-set quality, in
+a browser tab. Linear H–Be–H in **full STO-3G** (Be 1s + Be 2s + Be 2p_x
++ Be 2p_y + Be 2p_z + 2 H 1s = 7 spatial / **14 spin-orbitals**), 6
+electrons in the neutral molecule, FCI from a sector-projected Lanczos.
+
+**Headline at R = 1.34 Å (experimental Be–H bond):**
+
+| metric | value |
+|---|---:|
+| sector dim (N=6) | C(14, 6) = 3003 |
+| nQubits | 14 |
+| E_FCI (full STO-3G) | **−15.594861 Ha** |
+| PySCF reference | −15.5949 Ha |
+| ‖Δ vs PySCF‖ | **39 µHa** (40× under chemical accuracy) |
+| Be 2p correlation gain | 245.7 mHa over s-only |
+| build (integrals + Hsec) | 0.26 s |
+| FCI (Lanczos) | 0.45 s, 48 iters |
+
+**Symmetric stretch (full STO-3G FCI):**
+
+| R (Å) | E_FCI (Ha) | Δ vs s-only (mHa) | wall |
+|---:|---:|---:|---:|
+| 0.80 | −15.1728 | +176.4 (s-only is more bound at this compressed geometry) | 0.86 s |
+| 1.00 | −15.4817 | −132.6 | 0.77 s |
+| 1.20 | −15.5838 | −234.7 | 0.82 s |
+| **1.34** | **−15.5949** | **−245.7** | 0.71 s |
+| 1.50 | −15.5761 | −226.9 | 0.74 s |
+| 1.70 | −15.5291 | −180.0 | 0.76 s |
+| 2.00 | −15.4461 | −96.9 | 0.88 s |
+| 2.50 | −15.3518 | −2.7 | 1.30 s |
+| 3.00 | −15.3368 | +12.4 (s-only mistakenly captures dissociation here; full FCI is honest) | 1.45 s |
+
+Whole 9-R curve: **~6 seconds wall-clock**. Status: **pass**.
+Off-ramp #2 from CLAUDE.md (*"first browser-tab quantum chemistry on
+real molecules, matches FCI to chemical accuracy"*) is now real for
+**LiH + BeH₂ in full STO-3G** — paper-worthy.
+
+**What shipped:**
+- `src/chemistry/cg-molecular.ts`: generic AO-integrals-over-CG-shells
+  builder. Replaces the per-molecule integral duplication of
+  lih-builder / beh2-builder for any future v3 molecules.
+- `src/chemistry/sector-builder.ts`: builds the second-quantized H
+  *directly in a chosen particle-number sector* via JW. Critical for
+  BeH₂-full — the full 16384² dense H = 2 GB won't fit in a browser
+  tab, but the C(14, 6) = 3003-dim N=6 sector is just 72 MB.
+- `src/chemistry/beh2-full-builder.ts`: 7 atomic shells → Löwdin →
+  sector-direct H. Combines cg-molecular + sector-builder.
+- `tools/run-phase-c-v3.ts` + publishable JSON at
+  `experiments/results/2026-05-05/level-6/E22-beh2-full-fci-publishable.json`.
+- 9 new tests (`beh2-full.test.ts` 6 + `sector-builder.test.ts` 3).
+  Sector-direct builder cross-checked against the existing dense+
+  project path on LiH N=4 to f64 precision (8.88e-16). BeH₂-full
+  Hsec Hermitian to 1e-15. PySCF reference matched to ≤ 0.5 mHa.
+
+**Bug fix shipped along the way:** Boys function `boysAll` in
+`integrals-cg.ts` was using a Taylor series that suffered catastrophic
+cancellation at moderate t (e.g. t = 22 from a Li-1s × H-1s primitive
+pair: intermediate sums of order 10¹⁰ cancelling down to 0.19, leaving
+~1e-7 absolute precision and ~10 mHa errors in cross-shell V matrix
+elements). Now uses the closed-form F_0(t) = ½√(π/t)·erf(√t) with the
+A&S 7.1.26 erf, plus upward recurrence for n ≥ 1 (stable for t > 1)
+and Taylor for small t. Matches the legacy s-only path to f64
+precision after the fix; LiH FCI old vs new = 8.88e-16.
+
+**Tests: 248 → 257** (+9). Typecheck clean. Lint warnings unchanged.
+
 ### Phase C v3 stage 1 — Cartesian-Gaussian p-shell integrals (2026-05-05)
 
 The integral library that lets the chemistry pipeline see angular

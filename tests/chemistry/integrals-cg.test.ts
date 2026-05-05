@@ -32,8 +32,10 @@ describe("Boys function F_n(t)", () => {
 
   test("F_0(1) closed form: 0.5 √π · erf(1)", () => {
     const F = boysAll(0, 1);
-    // F_0(1) = ½ √π erf(1) ≈ 0.74682413...
-    expect(F[0]).toBeCloseTo(0.74682413281242703, 10);
+    // F_0(1) = ½ √π erf(1) ≈ 0.74682413... — the A&S 7.1.26 erf
+    // approximation in boys0 is good to ~1.5e-7 absolute, matching
+    // the legacy s-only path's precision exactly.
+    expect(F[0]).toBeCloseTo(0.74682413281242703, 6);
   });
 
   test("downward recurrence is consistent: F_{n−1} = (2t F_n + e^(−t)) / (2n − 1)", () => {
