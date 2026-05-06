@@ -121,39 +121,43 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 5 — analytical HF gradients.**
+**Latest milestone: Tier 2 stage 5b — HF gradient speedup.**
+The Pulay-1969 analytical gradient now actually beats FD. Three
+optimizations on top of the stage-5a correctness implementation:
+- **8-fold canonical ERI loop**: iterate (μ ≥ ν, λ ≥ σ, (μν) ≥
+  (λσ)) only, computing one set of three derivative ERIs (∂A, ∂B,
+  ∂C; ∂D from translational invariance) per canonical quartet.
+  J + K combine via a unified Γ-coupling sum over the 8 ERI-
+  symmetric permutations (deduplicated for low-multiplicity
+  canonicals where μ = ν, λ = σ, or (μν) = (λσ)). 16× fewer
+  derivative ERI evaluations than the naive loop.
+- **Schwarz screening**: precompute Q_μν = √|⟨μν|μν⟩| and skip
+  canonical quartets with `Q_μν · Q_λσ · |Γ| < 1e-10`.
+- **1-electron pair symmetry**: μ ≥ ν loop with sym = 2 for off-
+  diagonals, sym = 1 for the diagonal (where bra and ket sides
+  go to the same atom — the conditional matters and was the
+  source of the only bug introduced during this stage).
+
+H₂O STO-3G headline (M2 Pro, single-threaded TS):
+- HF energy: 86 ms.
+- Analytical gradient: **4500 ms → 440 ms** (10× speedup).
+- Geometry optimization: **52 s → 6.6 s analytical** (2.2× faster
+  than FD's 14.5 s; was 3× SLOWER than FD before this stage).
+- Same final energy E = −74.96590049 to 8 decimals as the FD path.
+- Full vitest suite: 47 s → 22 s on the chemistry track.
+
+The 8-fold canonical loop has a defensive moat: per-pair Γ-coef
+is computed by enumerating the 8 permutations and deduplicating
+on the fly, so it handles every (μ = ν, λ = σ, (μν) = (λσ))
+multiplicity case without case analysis.
+
+**Tier 2 stage 5a — analytical HF gradients (correctness).**
 Pulay 1969 gradient via integral derivatives. FD-validated to
-1e-5 Ha/Bohr per component on H₂ / H₂O / BeH₂ STO-3G. Translational
-invariance Σ ∇E = 0 holds to 1e-9.
-
-What got built:
-- **Primitive integral derivatives** (`integrals-cg.ts`): `dS_cg_dA`,
-  `dT_cg_dA`, `dV_cg_dA`, `dERI_cg_dX`. Each uses the standard
-  bra-side Hellmann-Feynman shift `2α·prim(I+1) − I_axis·prim(I−1)`
-  applied at the primitive level with the original normalization.
-  Translational invariance recovers ∂/∂B for one-electron, ∂/∂C
-  for V, and ∂/∂D for ERI for free.
-- **Pulay gradient assembler** (`hf-gradient.ts`): builds the
-  energy-weighted density W = 2·Σ_i ε_i C_i C_i^T and assembles
-    ∂E/∂R_N =  Σ P·∂h + ½ΣPP·∂(μν|λσ) − ¼ΣPP·∂(μλ|νσ)
-              − Σ W·∂S + ∂V_NN/∂R_N
-  with shell→atom routing via `shellAtomIdx`.
-- **`optimizeGeometry({ useAnalyticGrad: true })`** is the new
-  default, with `useAnalyticGrad: false` retained as an FD fallback
-  / cross-check. Same final geometry as the FD path (E = -74.96590
-  Ha to 8 decimals on H₂O STO-3G).
-
-**Honest negative on speed:** the current gradient is `O(n^4 · 12)`
-primitive-quartet derivatives, no 8-fold ERI symmetry, no
-shell-pair caching. On STO-3G H₂O one analytical gradient takes
-~4.5 s vs ~85 ms for one HF energy — 53× slower per call. Net,
-the analytic path is ~**3× slower than FD on STO-3G H₂O** (52 s
-vs 16 s for the full geom-opt) at the moment. Same correctness,
-worse wall-clock. The 3-50× promised speedup needs ERI symmetry
-+ Schwarz screening on the derivative loop — that's the follow-up
-(`hf-gradient-speedup`). The win for cc-pVDZ where ERI cost
-dominates is even larger, but bottlenecked the same way until
-that follow-up lands.
+1e-5 Ha/Bohr per component on H₂ / H₂O / BeH₂ STO-3G.
+Translational invariance Σ ∇E = 0 holds to 1e-9. Integral
+derivatives via bra-side Hellmann-Feynman shift
+`2α·prim(I+1) − I_axis·prim(I−1)` at the primitive level;
+translational invariance recovers the partner-center derivatives.
 
 **Tier 2 stage 4 — LYP correlation + B3LYP5.**
 Two functionals shipped on top of the Tier 2 stage 3 GGA + hybrid
@@ -263,17 +267,15 @@ E1–E5, viz extensions, public-repo polish, hardened-SVD fix, Tier B/C/D
 fusion): read `git log` — every phase shipped its own commit with full
 benchmarks in the message body. Don't replicate that history here.
 
-**Next up (per the roadmap above):** the immediate follow-up is
-**HF gradient speedup** — exploit 8-fold ERI symmetry +
-Schwarz screening + shell-pair E-coefficient caching to land the
-3–50× speedup the Tier 2 stage 5 milestone teed up but didn't
-deliver yet. Then **DFT analytical gradients** (same Pulay
-machinery, plus the XC quadrature derivative — straightforward
-once the HF gradient is fast). Then **WebGPU port of the (T)
-kernel** (10–100× → cc-pVTZ CCSD(T) routine), then **EOM-CCSD**
-for excited states. Optional: Lebedev angular quadrature for DFT.
-After Tier 2 the project becomes a "real undergrad chemistry tool
-in a browser tab."
+**Next up (per the roadmap above):** **DFT analytical gradients**
+— same Pulay machinery as HF + the XC quadrature derivative
+(Becke 1988 form: ∂E_xc/∂R = Σ_p w_p (∂ε/∂ρ)·(∂ρ/∂R) +
+∂grid_weight/∂R · ε terms). Straightforward now that the HF
+gradient is fast. Then **WebGPU port of the (T) kernel** (10–100×
+→ cc-pVTZ CCSD(T) routine), then **EOM-CCSD** for excited states.
+Optional: Lebedev angular quadrature for DFT. After Tier 2 the
+project becomes a "real undergrad chemistry tool in a browser
+tab."
 
 ---
 

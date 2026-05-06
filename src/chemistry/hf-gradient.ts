@@ -38,6 +38,9 @@ import {
 } from "./integrals-cg.js";
 import type { MolecularIntegrals, Nucleus } from "./cg-molecular.js";
 
+/** Schwarz screening tolerance — same as `cg-molecular.ts`. */
+const SCHWARZ_TOL = 1e-10;
+
 export interface HFGradientInputs {
   /** Same shells / nuclei used to build the SCF integrals. */
   readonly shells: readonly CGShell[];
@@ -79,10 +82,15 @@ export function buildEnergyWeightedDensity(
  * atom, returned as a (3·nAtoms) Float64Array, ordered as
  *   [dE/dR_0_x, dE/dR_0_y, dE/dR_0_z, dE/dR_1_x, …].
  *
- * Cost: dominated by ERI derivative loop, O(n^4) shell quartets each
- * with three primitive-quartet derivative integrals (∂A, ∂B, ∂C);
- * ∂D recovered from translational invariance. For STO-3G H₂O
- * (n=7) this is ~10× the cost of one HF energy build.
+ * Optimizations (Tier 2 stage 5b):
+ *   • 1-electron loop: μ ≤ ν only, ×2 for off-diagonal.
+ *   • ERI 8-fold canonical loop: iterate (μ ≥ ν, λ ≥ σ, (μν) ≥ (λσ)),
+ *     applying the J + K coupling sum across all 8 permutations as
+ *     one Γ-coefficient. Each canonical quartet costs ONE set of
+ *     three derivative ERIs (∂A, ∂B, ∂C; ∂D from invariance) instead
+ *     of six (J + K paths separately).
+ *   • Schwarz screening: skip canonical quartets with
+ *     Q_μν · Q_λσ · |coupling| below SCHWARZ_TOL.
  */
 export function hfGradient(inp: HFGradientInputs): Float64Array {
   const { shells, nuclei, shellAtomIdx, P, W } = inp;
@@ -91,37 +99,36 @@ export function hfGradient(inp: HFGradientInputs): Float64Array {
   const grad = new Float64Array(3 * nAtoms);
 
   // ── 1-electron contributions: T, V, S ──────────────────────
-  // Loop over UNIQUE pairs (μ, ν), using S, h symmetry: contribution
-  // is (P_μν · ∂h_μν − W_μν · ∂S_μν) summed; the (μ ≠ ν) factor of 2
-  // is absorbed by upper-triangular iteration with a 2× multiplier.
+  // Iterate over UNIQUE pairs (μ ≥ ν) and absorb the (μ, ν) ↔ (ν, μ)
+  // duplication into a 2× multiplier on the off-diagonal pairs. On
+  // the diagonal both bra-side and ket-side derivatives go to the
+  // SAME atom (atom of shell μ), so we still add BOTH contributions
+  // — there is no "ket-side that would have come from the (ν, μ)
+  // iteration" double-count to worry about, because (μ, μ) is its
+  // own swap.
   for (let mu = 0; mu < n; mu++) {
     const aMu = shellAtomIdx[mu]!;
-    for (let nu = 0; nu < n; nu++) {
+    for (let nu = 0; nu <= mu; nu++) {
       const aNu = shellAtomIdx[nu]!;
-      const Pmn = P[mu * n + nu]!;
-      const Wmn = W[mu * n + nu]!;
+      const sym = mu === nu ? 1 : 2;
+      const Pmn = P[mu * n + nu]! * sym;
+      const Wmn = W[mu * n + nu]! * sym;
       if (Pmn === 0 && Wmn === 0) continue;
 
-      // dS/dA, dT/dA per axis. Translational invariance gives
-      // dS/dB = −dS/dA, dT/dB = −dT/dA — atoms move independently
-      // so we apply both contributions separately to grad[aMu] and
-      // grad[aNu].
       for (let axis = 0; axis < 3; axis++) {
+        // Bra-side derivative: ∂/∂R(atom of shell μ) = ∂/∂A.
         const dS_dA = dS_cg_dA(shells[mu]!, shells[nu]!, axis as 0 | 1 | 2);
         const dT_dA = dT_cg_dA(shells[mu]!, shells[nu]!, axis as 0 | 1 | 2);
-
-        // h-derivative bra-side: ∂T_μν/∂R(aMu) + Σ_C ∂V_μν^C/∂R(aMu).
         let dh_dA = dT_dA;
-        // V_C derivative: bra-side contribution to atom owning shell μ.
         for (const { Z, pos } of nuclei) {
           dh_dA += dV_cg_dA(shells[mu]!, shells[nu]!, axis as 0 | 1 | 2, Z, pos);
         }
         grad[aMu * 3 + axis]! += Pmn * dh_dA - Wmn * dS_dA;
-        // Ket-side contribution: dS/dB = −dS/dA, dT/dB = −dT/dA, but
-        // V_μν^C(B) is computed independently by swapping bra/ket roles
-        // (i.e. dV/dB of (μν;C) = dV/dA of (νμ;C)). With S, T this is
-        // also = bra(νμ): so we just use the same routines on swapped
-        // shells, which automatically accounts for sign.
+
+        // Ket-side derivative: ∂/∂R(atom of shell ν) = ∂/∂B.
+        // Computed by swapping bra/ket (dS/dB(μ,ν) = dS/dA(ν,μ)).
+        // Goes to atom(ν) — which on the diagonal IS atom(μ), so the
+        // contribution simply sums into the same gradient slot.
         const dS_dB = dS_cg_dA(shells[nu]!, shells[mu]!, axis as 0 | 1 | 2);
         const dT_dB = dT_cg_dA(shells[nu]!, shells[mu]!, axis as 0 | 1 | 2);
         let dh_dB = dT_dB;
@@ -130,11 +137,8 @@ export function hfGradient(inp: HFGradientInputs): Float64Array {
         }
         grad[aNu * 3 + axis]! += Pmn * dh_dB - Wmn * dS_dB;
 
-        // V_C operator-side derivative: when C is itself a moving
-        // nucleus, the integral changes through the Hellmann-Feynman
-        // site. Recovered via translational invariance:
-        //   ∂V/∂C = − (∂V/∂A + ∂V/∂B)
-        // for each (μ, ν, C) triple, attributed to atom owning C.
+        // V_C operator-side derivative: ∂V/∂C = − (∂V/∂A + ∂V/∂B)
+        // by translational invariance, attributed to atom owning C.
         for (let cIdx = 0; cIdx < nAtoms; cIdx++) {
           const { Z, pos } = nuclei[cIdx]!;
           const dV_dA = dV_cg_dA(shells[mu]!, shells[nu]!, axis as 0 | 1 | 2, Z, pos);
@@ -146,55 +150,96 @@ export function hfGradient(inp: HFGradientInputs): Float64Array {
     }
   }
 
-  // ── 2-electron ERI contributions ───────────────────────────
-  // E_J = (1/2) Σ_μνλσ P_μν P_λσ (μν|λσ)
-  // E_K = (1/4) Σ_μνλσ P_μν P_λσ (μλ|νσ)
-  // d/dR(N) acts via shell μ (=A) and λ (=C in chemist notation
-  // (μν|λσ), where the "C" of dERI_cg_dX is the bra of the second
-  // electron — DON'T confuse with V_C). Each shell µ in the
-  // 4-center ERI quartet picks up its own atom's gradient slot.
+  // ── 2-electron ERI contributions: 8-fold canonical loop ─────
+  // For each canonical (μ ≥ ν, λ ≥ σ, (μν) ≥ (λσ)), the 8
+  // ERI-symmetric permutations all share the same integral value
+  // and share the SAME slot-by-slot derivative ∂(μν|λσ)/∂R_atom(slot).
+  // What varies across permutations is the P-coupling. We sum the
+  // 8 couplings (deduplicated for low-multiplicity canonicals) into
+  // a single Γ-coefficient and then apply ONE set of derivative
+  // contributions per atom slot.
+  //
+  // The coupling per ordered (a, b, c, d) tuple is
+  //    (1/2)·P_ab·P_cd  (J)  −  (1/4)·P_ac·P_bd  (K).
+  //
+  // Cost: O(n^4 / 8) canonical quartets, each with 3 derivative ERIs
+  // (∂A, ∂B, ∂C), instead of n^4 quartets with 6 derivative ERIs in
+  // the naive version — 16× fewer integral derivative evaluations
+  // before Schwarz screening.
+
+  // Schwarz Q_μν = √|⟨μν|μν⟩| precomputed once (O(n²) ERI evals).
+  const Q = new Float64Array(n * n);
+  for (let mu = 0; mu < n; mu++) {
+    for (let nu = 0; nu <= mu; nu++) {
+      const q = Math.sqrt(Math.abs(ERI_cg(shells[mu]!, shells[nu]!, shells[mu]!, shells[nu]!)));
+      Q[mu * n + nu] = q;
+      Q[nu * n + mu] = q;
+    }
+  }
+
+  // Scratch for the 8 permutations of (μ, ν, λ, σ).
+  const permBuf: [number, number, number, number][] = new Array(8) as never;
+  for (let i = 0; i < 8; i++) permBuf[i] = [0, 0, 0, 0];
+
   for (let mu = 0; mu < n; mu++) {
     const aMu = shellAtomIdx[mu]!;
-    for (let nu = 0; nu < n; nu++) {
+    for (let nu = 0; nu <= mu; nu++) {
       const aNu = shellAtomIdx[nu]!;
+      const munu = mu * n + nu;
+      const Qmn = Q[munu]!;
       for (let la = 0; la < n; la++) {
         const aLa = shellAtomIdx[la]!;
-        for (let si = 0; si < n; si++) {
+        for (let si = 0; si <= la; si++) {
           const aSi = shellAtomIdx[si]!;
-          // Two ERIs needed per quartet: J piece (μν|λσ) and K piece (μλ|νσ).
-          // P_μν P_λσ for J; P_μν P_λσ for K (same product structure but
-          // index permutation on the integral). Build coefficients first.
-          const Pmn = P[mu * n + nu]!;
-          const Pls = P[la * n + si]!;
-          const cJ = 0.5 * Pmn * Pls;
+          const lasi = la * n + si;
+          if (lasi > munu) continue;          // (μν) ≥ (λσ) canonical bra-ket
+          const Qls = Q[lasi]!;
 
-          // Exchange uses (μλ|νσ) — same density product but index-
-          // permuted on the integral side. Coefficient is −1/4·P_μν·P_λσ.
-          const cK = -0.25 * Pmn * Pls;
-
-          if (cJ === 0 && cK === 0) continue;
+          // Build the Γ-coupling: sum over the (deduplicated) 8
+          // permutations of (μ,ν,λ,σ) of (1/2)·P_ab P_cd − (1/4)·P_ac P_bd.
+          // For symmetric P this collapses to a closed form by mult, but
+          // the explicit sum over deduped tuples handles every special
+          // case (μ=ν, λ=σ, (μν)=(λσ), and combinations) without case
+          // analysis.
+          permBuf[0]![0] = mu; permBuf[0]![1] = nu; permBuf[0]![2] = la; permBuf[0]![3] = si;
+          permBuf[1]![0] = nu; permBuf[1]![1] = mu; permBuf[1]![2] = la; permBuf[1]![3] = si;
+          permBuf[2]![0] = mu; permBuf[2]![1] = nu; permBuf[2]![2] = si; permBuf[2]![3] = la;
+          permBuf[3]![0] = nu; permBuf[3]![1] = mu; permBuf[3]![2] = si; permBuf[3]![3] = la;
+          permBuf[4]![0] = la; permBuf[4]![1] = si; permBuf[4]![2] = mu; permBuf[4]![3] = nu;
+          permBuf[5]![0] = si; permBuf[5]![1] = la; permBuf[5]![2] = mu; permBuf[5]![3] = nu;
+          permBuf[6]![0] = la; permBuf[6]![1] = si; permBuf[6]![2] = nu; permBuf[6]![3] = mu;
+          permBuf[7]![0] = si; permBuf[7]![1] = la; permBuf[7]![2] = nu; permBuf[7]![3] = mu;
+          let coef = 0;
+          for (let i = 0; i < 8; i++) {
+            // Deduplicate against previously seen tuples.
+            let dup = false;
+            const pi = permBuf[i]!;
+            for (let j = 0; j < i; j++) {
+              const pj = permBuf[j]!;
+              if (pi[0] === pj[0] && pi[1] === pj[1] && pi[2] === pj[2] && pi[3] === pj[3]) {
+                dup = true; break;
+              }
+            }
+            if (dup) continue;
+            const a = pi[0], b = pi[1], c = pi[2], d = pi[3];
+            coef += 0.5 * P[a * n + b]! * P[c * n + d]!
+                  - 0.25 * P[a * n + c]! * P[b * n + d]!;
+          }
+          if (coef === 0) continue;
+          // Schwarz: skip if Q_μν·Q_λσ·|coef| is below the integral-
+          // precision floor. The 1e-10 threshold matches the energy
+          // build's screening.
+          if (Qmn * Qls * Math.abs(coef) < SCHWARZ_TOL) continue;
 
           for (let axis = 0; axis < 3; axis++) {
-            // J-piece derivatives (μν|λσ).
-            const dJ_dA = dERI_cg_dX(shells[mu]!, shells[nu]!, shells[la]!, shells[si]!, axis as 0 | 1 | 2, "A");
-            const dJ_dB = dERI_cg_dX(shells[mu]!, shells[nu]!, shells[la]!, shells[si]!, axis as 0 | 1 | 2, "B");
-            const dJ_dC = dERI_cg_dX(shells[mu]!, shells[nu]!, shells[la]!, shells[si]!, axis as 0 | 1 | 2, "C");
-            const dJ_dD = -(dJ_dA + dJ_dB + dJ_dC);
-            grad[aMu * 3 + axis]! += cJ * dJ_dA;
-            grad[aNu * 3 + axis]! += cJ * dJ_dB;
-            grad[aLa * 3 + axis]! += cJ * dJ_dC;
-            grad[aSi * 3 + axis]! += cJ * dJ_dD;
-
-            // K-piece derivatives (μλ|νσ). Note shell ordering changes:
-            // μ → A, λ → B, ν → C, σ → D. Atom assignments follow.
-            const dK_dA = dERI_cg_dX(shells[mu]!, shells[la]!, shells[nu]!, shells[si]!, axis as 0 | 1 | 2, "A");
-            const dK_dB = dERI_cg_dX(shells[mu]!, shells[la]!, shells[nu]!, shells[si]!, axis as 0 | 1 | 2, "B");
-            const dK_dC = dERI_cg_dX(shells[mu]!, shells[la]!, shells[nu]!, shells[si]!, axis as 0 | 1 | 2, "C");
-            const dK_dD = -(dK_dA + dK_dB + dK_dC);
-            grad[aMu * 3 + axis]! += cK * dK_dA;
-            grad[aLa * 3 + axis]! += cK * dK_dB;
-            grad[aNu * 3 + axis]! += cK * dK_dC;
-            grad[aSi * 3 + axis]! += cK * dK_dD;
+            const dA = dERI_cg_dX(shells[mu]!, shells[nu]!, shells[la]!, shells[si]!, axis as 0 | 1 | 2, "A");
+            const dB = dERI_cg_dX(shells[mu]!, shells[nu]!, shells[la]!, shells[si]!, axis as 0 | 1 | 2, "B");
+            const dC = dERI_cg_dX(shells[mu]!, shells[nu]!, shells[la]!, shells[si]!, axis as 0 | 1 | 2, "C");
+            const dD = -(dA + dB + dC);
+            grad[aMu * 3 + axis]! += coef * dA;
+            grad[aNu * 3 + axis]! += coef * dB;
+            grad[aLa * 3 + axis]! += coef * dC;
+            grad[aSi * 3 + axis]! += coef * dD;
           }
         }
       }
