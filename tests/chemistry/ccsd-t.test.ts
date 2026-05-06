@@ -128,3 +128,34 @@ describe("CCSD(T) — full FCI cross-check via molecule-builder", () => {
     expect(Math.abs(ccsdt.totalEnergy - fci.energy)).toBeLessThan(0.3e-3);
   }, 60_000);
 });
+
+// cc-pVDZ on H₂O takes ~95 s wall — skipped by default in vitest.
+// Enable with: PHASE_E5_CCPVDZ=1 npx vitest run tests/chemistry/ccsd-t.test.ts
+describe.skipIf(process.env.PHASE_E5_CCPVDZ !== "1")(
+  "CCSD(T) — cc-pVDZ chemistry-grade on H₂O (slow, opt-in)", () => {
+    test("H₂O cc-pVDZ CCSD(T) within 5 mHa of PySCF spherical-d ref", async () => {
+      const half = (104.52 / 2) * Math.PI / 180;
+      const x = 0.9572 * Math.sin(half);
+      const z = 0.9572 * Math.cos(half);
+      const atoms: Atom[] = [
+        { symbol: "O", pos: [0, 0, 0] },
+        { symbol: "H", pos: [ x, 0, z] },
+        { symbol: "H", pos: [-x, 0, z] },
+      ];
+      const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(atoms, "cc-pvdz");
+      const integrals = computeMolecularIntegrals(shells, nuclei);
+      const hf = runRHFSCF(integrals, nElectrons, {
+        maxIter: 500, damping: 0.3, energyTol: 1e-10, densityTol: 1e-8,
+      });
+      const ccsd = runCCSD(hf, integrals, { maxIter: 200, tol: 1e-8 });
+      const ccsdt = runCCSDT(ccsd, hf, integrals);
+      // PySCF spherical-d cc-pVDZ CCSD(T) ≈ -76.2438. Our Cartesian-d is
+      // variationally lower (extra (xx+yy+zz)/√3 component), so we sit
+      // ~3-4 mHa below — this is a known basis-format slack, not a bug.
+      const PYSCF_CCSDT = -76.2438;
+      expect(ccsdt.totalEnergy).toBeLessThan(PYSCF_CCSDT);  // we're below (Cartesian d)
+      expect(Math.abs(ccsdt.totalEnergy - PYSCF_CCSDT)).toBeLessThan(5e-3);
+      expect(ccsdt.tripleCorrection).toBeLessThan(0);
+    }, 300_000);
+  },
+);

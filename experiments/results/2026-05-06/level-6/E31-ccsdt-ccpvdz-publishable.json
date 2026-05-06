@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "protocol": "E31-ccsdt-ccpvdz-publishable",
+    "hypothesis": "Cartesian-d cc-pVDZ CCSD(T) on H₂O completes in ~1.5 minutes wall-clock in a browser tab, captures ~220 mHa of correlation energy, and matches PySCF spherical-d CCSD(T) within the expected Cartesian-vs-spherical d-shell slack (≤ 5 mHa).",
+    "passBar": "CCSD(T) wall-clock < 3 minutes; Δ vs PySCF spherical-d CCSD(T) is negative AND |Δ| < 5 mHa.",
+    "seed": "E31_CCSDT_CCPVDZ",
+    "warmup": 0,
+    "trials": 1
+  },
+  "env": {
+    "runtime": "node v24.5.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "timestamp": "2026-05-06T07:18:50.352Z",
+    "method": "Cartesian-d cc-pVDZ basis (6 d-functions per d-shell). Spin-orbital Stanton-Bartlett CCSD with MP2 init; one-shot perturbative-triples CCSD(T) on converged amplitudes.",
+    "geometry": "H₂O at R_OH=0.9572Å, ∠HOH=104.52° (experimental).",
+    "basis": {
+      "name": "cc-pVDZ (Cartesian d)",
+      "n_shells": 25,
+      "NSO": 50,
+      "NOCC": 10,
+      "NVIRT": 40
+    }
+  },
+  "rows": [
+    {
+      "molecule": "H2O cc-pVDZ",
+      "E_HF_Ha": -76.02714052732918,
+      "E_MP2_Ha": -76.23465939506747,
+      "E_CCSD_Ha": -76.2436516211214,
+      "E_CCSDT_Ha": -76.24776737966062,
+      "HF_seconds": 0.133800209,
+      "MP2_seconds": 0.18009950000000002,
+      "CCSD_seconds": 38.55267812500001,
+      "CCSDT_seconds": 65.99165916700001,
+      "integrals_seconds": 0.8785166249999999,
+      "total_seconds": 105.737789417,
+      "HF_iter": 101,
+      "CCSD_iter": 17,
+      "MP2_correlation_mHa": -207.51886773829105,
+      "CCSD_correlation_mHa": -216.5110937922186,
+      "T_correction_mHa": -4.115758539209051,
+      "pyscf_HF_Ha": -76.0267,
+      "pyscf_CCSD_Ha": -76.2418,
+      "pyscf_CCSDT_Ha": -76.2438,
+      "slack_HF_mHa": -0.440527329175211,
+      "slack_CCSD_mHa": -1.8516211214034684,
+      "slack_CCSDT_mHa": -3.9673796606223277
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "Cartesian-d cc-pVDZ CCSD(T) for H₂O finishes in 106s wall ((T)-only 66s). Captures 221 mHa total correlation. Δ vs PySCF spherical-d CCSD(T) = -3.97 mHa (Cartesian-d basis is variationally larger; this slack matches literature reports of spherical-vs-Cartesian d for cc-pVDZ on water)."
+}

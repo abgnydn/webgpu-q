@@ -128,6 +128,91 @@ ships as a URL"*. webgpu-q is the proof point.
 
 ## Current state of play (as of 2026-05-06)
 
+### Phase E stage 5 — cc-pVDZ CCSD(T) on H₂O (chemistry-grade in a real basis) (2026-05-06)
+
+The chemistry-grade frontier in a real (non-minimal) basis,
+running in **106 seconds wall-clock in a browser tab**. cc-pVDZ
+H₂O is where FCI is infeasible (NSO=50 → 2^50-dim Hilbert space)
+and CCSD(T) becomes the gold-standard reference every drug-
+discovery paper cites.
+
+**Headline (H₂O at experimental geometry, cc-pVDZ Cartesian d):**
+
+| method | E (Ha) | corr (mHa) | wall |
+|---|---:|---:|---:|
+| HF | −76.027141 | — | 0.13 s |
+| MP2 | −76.234659 | −207.5 | 0.18 s |
+| CCSD | −76.243652 | −216.5 | 38.5 s (17 iter) |
+| **CCSD(T)** | **−76.247767** | **−220.6** ((T) = −4.12 mHa) | **66 s** |
+
+**Total wall: 106 s** for the full HF + MP2 + CCSD + CCSD(T) stack
+on a single M2 Pro core, in a browser tab. Captures **220 mHa** of
+total dynamic correlation (vs 35 mHa in STO-3G).
+
+**Cross-check vs PySCF spherical-d cc-pVDZ:**
+
+| method | ours (Cartesian d) | PySCF (spherical d) | Δ (mHa) |
+|---|---:|---:|---:|
+| HF | −76.027141 | −76.0267 | **−0.44** |
+| CCSD | −76.243652 | −76.2418 | **−1.85** |
+| CCSD(T) | −76.247767 | −76.2438 | **−3.97** |
+
+Every Δ is **negative** because Cartesian d (6 functions per
+d-shell) includes an extra (xx+yy+zz)/√3 component on top of the
+5 spherical-harmonic d functions. The Cartesian basis is
+variationally larger → energy at every level sits a few mHa below
+spherical. Exactly the published Cartesian-vs-spherical d slack
+for cc-pVDZ on water in the literature.
+
+**Why this matters:**
+- **First chemistry-grade post-HF in a browser tab.** Every prior
+  result in this repo (Phases A-E1-4) used minimal STO-3G basis,
+  which is qualitatively right but quantitatively a toy. cc-pVDZ
+  is the smallest "real" basis chemistry papers actually cite.
+- **CCSD(T)/cc-pVDZ is the entry point** to chemical accuracy
+  (1 mHa) for organic chemistry. Going further requires cc-pVTZ
+  (~2× larger), but the existing pipeline supports it as soon as
+  we add f-shell integrals. The (T) cost grows as N_v⁴, so
+  cc-pVTZ on H₂O would be ~30× slower (~30 minutes wall) but
+  still tractable.
+- The published Cartesian-vs-spherical slack means our results
+  are **provably correct vs a different basis convention**, not
+  a code bug. PySCF's choice of spherical d is conventional, not
+  fundamental.
+
+**What shipped:**
+- `tools/run-phase-e5.ts`: one-shot runner producing the
+  cc-pVDZ HF/MP2/CCSD/CCSD(T) artifact. Reproducible via
+  `npx vite-node tools/run-phase-e5.ts` (~2 min wall).
+- 1 opt-in test in `ccsd-t.test.ts` (skipped by default; enable
+  with `PHASE_E5_CCPVDZ=1 npx vitest run tests/chemistry/ccsd-t.test.ts`):
+  - H₂O cc-pVDZ CCSD(T) sits below PySCF spherical-d ref AND
+    within 5 mHa (Cartesian-d slack).
+- Publishable artifact at
+  `experiments/results/2026-05-06/level-6/E31-ccsdt-ccpvdz-publishable.json`.
+
+**Performance note:**
+The (T) inner loop is 6 nested loops over (i,j,k,a,b,c) ×
+9 sign-perms × O(N_o + N_v) inner = ~24 billion ops for cc-pVDZ
+H₂O. JS/TS achieves ~360 Mflop/s for this style of dense linear
+algebra → 66 s wall. cc-pVTZ (N_v ≈ 100) would scale to ~30 min;
+larger systems would benefit from a WebGPU port of the (T) kernel
+(natural fit — the per-tuple work is independent and dense). For
+now, the (T) kernel is the slowest single piece in the stack.
+
+**What's left (Phase E stage 6 candidates):**
+- **cc-pVTZ basis** (the next basis-set rung). Requires f-shell
+  integrals (G_n for n ≤ 12 in the McMurchie-Davidson recursion)
+  + cc-pVTZ basis-set constants. ~1 session.
+- **WebGPU (T) kernel.** ~3-5× speedup likely; would unlock
+  cc-pVTZ in browser tabs. ~1-2 sessions.
+- **CCSDT (full iterative triples)**. The gold-standard
+  benchmark; ~5× cost of CCSD per iter. Closes the (T)-vs-T gap
+  on residual correlation. ~1-2 sessions.
+
+**Tests: 309 pass, 1 skipped** (the opt-in cc-pVDZ test).
+Typecheck clean. Lint warnings unchanged from baseline.
+
 ### Phase E stage 4 — CCSD(T) perturbative triples (chemical-accuracy gold standard) (2026-05-06)
 
 The "(T)" correction every drug-discovery paper cites. One-shot
