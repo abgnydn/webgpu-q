@@ -561,3 +561,160 @@ export function makeCGShell(
 }
 
 void SQRT_PI; // suppress unused warning; legibility only
+
+// ─────────────────────────────────────────────────────────────
+// Integral derivatives w.r.t. AO center.
+//
+// For an unnormalized primitive Cartesian Gaussian
+//   G_I(r; A, α) = (x − A_x)^{i_x} (y − A_y)^{i_y} (z − A_z)^{i_z}
+//                  · exp(−α |r − A|²)
+// the derivative w.r.t. A_axis is the standard Hellmann-Feynman shift
+//   ∂G_I/∂A_axis = 2α · G_{I + 1_axis} − I_axis · G_{I − 1_axis}.
+//
+// Pulled inside an integral with A in the bra:
+//   ∂(prim integral)/∂A_axis = 2α · (same integral with I → I + 1_axis)
+//                              − I_axis · (same integral with I → I − 1_axis)
+//
+// At the contracted shell level the original normalization
+// N(α, I) is fixed (the AO has fixed angular L), so the derivative
+// of the contracted, normalized integral is the same combination
+// applied at every primitive pair, with the ORIGINAL N(α, I) factor:
+//   dS_cg/dA_axis = Σ_{p,q} c_p c_q · N(α_p, I) N(β_q, J)
+//                   · [ 2α_p · S_prim(α_p, A, I+1_axis, β_q, B, J)
+//                       − I_axis · S_prim(α_p, A, I−1_axis, β_q, B, J) ]
+//
+// Translational invariance gives the partner derivatives for free:
+//   dS_cg/dA + dS_cg/dB = 0
+//   dV_cg/dA + dV_cg/dB + dV_cg/dC = 0
+//   dERI_cg/dA + dERI_cg/dB + dERI_cg/dC + dERI_cg/dD = 0
+// We use these identities to skip the operator-side V_C derivative
+// and the fourth ERI center.
+// ─────────────────────────────────────────────────────────────
+
+const ZERO_TUPLE: readonly [number, number, number] = [0, 0, 0];
+
+/** Apply the bra-side Hellmann-Feynman shift to a primitive integral. */
+function dPrimDA<T extends (Iarg: readonly [number, number, number]) => number>(
+  alpha: number,
+  I: readonly [number, number, number],
+  axis: 0 | 1 | 2,
+  primAt: T,
+): number {
+  const Ip: [number, number, number] = [I[0], I[1], I[2]];
+  Ip[axis] += 1;
+  let s = 2 * alpha * primAt(Ip);
+  const li = I[axis]!;
+  if (li > 0) {
+    const Im: [number, number, number] = [I[0], I[1], I[2]];
+    Im[axis] -= 1;
+    s -= li * primAt(Im);
+  }
+  return s;
+}
+
+/**
+ * Contracted-shell derivative of S(A, B) w.r.t. A.center[axis].
+ * The partner derivative ∂S/∂B = −∂S/∂A by translational invariance.
+ */
+export function dS_cg_dA(A: CGShell, B: CGShell, axis: 0 | 1 | 2): number {
+  let s = 0;
+  for (let i = 0; i < A.alpha.length; i++) {
+    const ai = A.alpha[i]!;
+    const ci = A.c[i]! * normCG(ai, A.angular);
+    for (let j = 0; j < B.alpha.length; j++) {
+      const bj = B.alpha[j]!;
+      const cj = B.c[j]! * normCG(bj, B.angular);
+      const d = dPrimDA(ai, A.angular, axis, (Ip) =>
+        primOverlap(ai, A.center, Ip, bj, B.center, B.angular));
+      s += ci * cj * d;
+    }
+  }
+  return s;
+}
+
+/** Contracted-shell derivative of T(A, B) w.r.t. A.center[axis]. */
+export function dT_cg_dA(A: CGShell, B: CGShell, axis: 0 | 1 | 2): number {
+  let s = 0;
+  for (let i = 0; i < A.alpha.length; i++) {
+    const ai = A.alpha[i]!;
+    const ci = A.c[i]! * normCG(ai, A.angular);
+    for (let j = 0; j < B.alpha.length; j++) {
+      const bj = B.alpha[j]!;
+      const cj = B.c[j]! * normCG(bj, B.angular);
+      const d = dPrimDA(ai, A.angular, axis, (Ip) =>
+        primKinetic(ai, A.center, Ip, bj, B.center, B.angular));
+      s += ci * cj * d;
+    }
+  }
+  return s;
+}
+
+/**
+ * Contracted-shell derivative of V(A, B; Z, C) w.r.t. A.center[axis].
+ * The bra-shell-side derivative — same algebra as overlap/kinetic,
+ * just reusing primNuclear inside dPrimDA.
+ */
+export function dV_cg_dA(
+  A: CGShell, B: CGShell, axis: 0 | 1 | 2,
+  Z: number, C: readonly [number, number, number],
+): number {
+  let s = 0;
+  for (let i = 0; i < A.alpha.length; i++) {
+    const ai = A.alpha[i]!;
+    const ci = A.c[i]! * normCG(ai, A.angular);
+    for (let j = 0; j < B.alpha.length; j++) {
+      const bj = B.alpha[j]!;
+      const cj = B.c[j]! * normCG(bj, B.angular);
+      const d = dPrimDA(ai, A.angular, axis, (Ip) =>
+        primNuclear(ai, A.center, Ip, bj, B.center, B.angular, Z, C));
+      s += ci * cj * d;
+    }
+  }
+  return s;
+}
+
+/**
+ * Contracted-shell derivative of (A B | C D) w.r.t. center X ∈ {A, B, C}.
+ * The fourth derivative ∂/∂D is recovered by translational invariance:
+ *   ∂/∂A + ∂/∂B + ∂/∂C + ∂/∂D = 0.
+ *
+ * Implemented as a single function with a `which` selector to avoid
+ * three near-identical 4-deep loops.
+ */
+export function dERI_cg_dX(
+  A: CGShell, B: CGShell, C: CGShell, D: CGShell,
+  axis: 0 | 1 | 2,
+  which: "A" | "B" | "C",
+): number {
+  let s = 0;
+  for (let i = 0; i < A.alpha.length; i++) {
+    const ai = A.alpha[i]!, ci = A.c[i]! * normCG(ai, A.angular);
+    for (let j = 0; j < B.alpha.length; j++) {
+      const bj = B.alpha[j]!, cj = B.c[j]! * normCG(bj, B.angular);
+      for (let k = 0; k < C.alpha.length; k++) {
+        const ck = C.alpha[k]!, cck = C.c[k]! * normCG(ck, C.angular);
+        for (let l = 0; l < D.alpha.length; l++) {
+          const dl = D.alpha[l]!, cdl = D.c[l]! * normCG(dl, D.angular);
+          let d: number;
+          if (which === "A") {
+            d = dPrimDA(ai, A.angular, axis, (Ip) =>
+              primERI(ai, A.center, Ip,    bj, B.center, B.angular,
+                      ck, C.center, C.angular, dl, D.center, D.angular));
+          } else if (which === "B") {
+            d = dPrimDA(bj, B.angular, axis, (Jp) =>
+              primERI(ai, A.center, A.angular, bj, B.center, Jp,
+                      ck, C.center, C.angular, dl, D.center, D.angular));
+          } else {
+            d = dPrimDA(ck, C.angular, axis, (Kp) =>
+              primERI(ai, A.center, A.angular, bj, B.center, B.angular,
+                      ck, C.center, Kp,        dl, D.center, D.angular));
+          }
+          s += ci * cj * cck * cdl * d;
+        }
+      }
+    }
+  }
+  return s;
+}
+
+void ZERO_TUPLE; // tuple kept for legibility above; suppress unused warning

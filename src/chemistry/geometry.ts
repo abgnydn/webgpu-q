@@ -1,28 +1,32 @@
 // ─────────────────────────────────────────────────────────────
 // geometry.ts — molecular geometry optimization on the HF
-// energy surface. Tier 2 / Phase E stage 6: BFGS minimization
-// of E_HF(R) with central finite-difference gradients.
+// energy surface. Tier 2 stage 1: BFGS minimization of E_HF(R).
+// Tier 2 stage 5: switch to analytical gradients via Pulay 1969
+// + integral derivatives (`hf-gradient.ts`).
 //
-// Why FD first: analytical gradients require derivative integrals
-// (dS/dR, dh/dR, dERI/dR) which is ~500 LOC of new integral
-// machinery. FD is ~50 LOC and works immediately. Same final API
-// as analytical-gradient optimization, so swapping in analytical
-// later is a one-line change. For STO-3G molecules HF is fast
-// enough (~10ms) that 6·N_atoms FD calls per gradient sweep is
-// trivial; for cc-pVDZ scale problems analytical becomes
-// worthwhile.
+// Two gradient paths:
+//   • `useAnalyticGrad: true` (DEFAULT) — analytical Pulay
+//     gradients. Each gradient costs ~10× one HF energy. So
+//     a step costs (1 energy + 1 gradient) ≈ 11×. The FD path
+//     would cost (1 energy + 6·N_atoms energies) ≈ 7–22× for
+//     N_atoms = 1–4 — analytical is faster from N_atoms ≥ 2.
+//   • `useAnalyticGrad: false` — central FD. Kept for cross-
+//     checks and as a fallback if the analytical path is
+//     ever suspected of bugs.
 //
-// Scale of FD step: positions are in Ångströms, HF energy in
-// Hartrees with ~10 digits of relative precision (DIIS converges
-// to 1e-10 Ha). Optimal central-FD step h satisfies h² ≈ ε|E|/g,
-// so h ≈ √(1e-10 · 100 / 1) ≈ 1e-4 Å. Default is 1e-3 Å which is
-// generous but well within stable territory.
+// Scale of FD step (FD path only): positions are in Å, HF energy
+// in Hartrees with ~10 digits of relative precision (DIIS to
+// 1e-10 Ha). Optimal central-FD step h satisfies h² ≈ ε|E|/g, so
+// h ≈ √(1e-10 · 100 / 1) ≈ 1e-4 Å. Default 1e-3 Å is generous.
 // ─────────────────────────────────────────────────────────────
 
 import { computeMolecularIntegrals, type IntegralOpts } from "./cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom, type BasisName } from "./atoms.js";
 import { runRHFSCF, type HFOpts } from "./hf-scf.js";
 import { lbfgs, type LBFGSOptions, type LBFGSResult } from "./optimizer.js";
+import { hfGradient, buildEnergyWeightedDensity } from "./hf-gradient.js";
+
+const ANGSTROM_TO_BOHR = 1.8897261339;
 
 export interface GeometryOptOpts {
   /** Basis set (default sto-3g). */
@@ -33,6 +37,8 @@ export interface GeometryOptOpts {
   readonly hf?: HFOpts;
   /** L-BFGS options. fdStep default overridden to 1e-3 Å. */
   readonly lbfgs?: LBFGSOptions;
+  /** Use analytical HF gradient (default true). False falls back to FD. */
+  readonly useAnalyticGrad?: boolean;
 }
 
 export interface GeometryOptResult {
@@ -80,16 +86,38 @@ export function optimizeGeometry(
     return hf.energy;
   };
 
+  const useAnalytic = opts.useAnalyticGrad ?? true;
+  // Analytical gradient: integrate hf-gradient.ts. Atoms are in Å,
+  // gradient comes back in Ha/Bohr; convert to Ha/Å for the optimizer
+  // (matches the FD path's units).
+  const gradientAt = useAnalytic ? (x: Float64Array): Float64Array => {
+    nEvals++;
+    const moved = vectorToAtoms(x, atoms);
+    const { shells, nuclei, nElectrons, shellAtomIdx } =
+      moleculeToShellsNuclei(moved, basis);
+    const integrals = computeMolecularIntegrals(shells, nuclei, integralOpts);
+    const hf = runRHFSCF(integrals, nElectrons, hfOpts);
+    const W = buildEnergyWeightedDensity(
+      hf.C_MO, hf.orbitalEnergies, hf.nOccupied, integrals.n,
+    );
+    const gBohr = hfGradient({ shells, nuclei, shellAtomIdx, P: hf.D, W });
+    // Ha/Bohr → Ha/Å: dE/d(R_Å) = dE/d(R_Bohr) · (dR_Bohr/dR_Å) = dE/d(R_Bohr) · ANG_TO_BOHR.
+    const gAng = new Float64Array(gBohr.length);
+    for (let i = 0; i < gBohr.length; i++) gAng[i] = gBohr[i]! * ANGSTROM_TO_BOHR;
+    return gAng;
+  } : undefined;
+
   const x0 = atomsToVector(atoms);
-  const lbfgsOpts: LBFGSOptions = {
+  const lbfgsOpts: LBFGSOptions & { gradient?: typeof gradientAt } = {
     maxIter: 100,
     fTol: 1e-8,
     gTol: 1e-4,        // 0.0001 Ha/Å — tight but achievable with 1e-3 FD step
     historySize: 8,
-    fdStep: 1e-3,      // Å scale
+    fdStep: 1e-3,      // Å scale (only used when useAnalyticGrad = false)
     initialStep: 0.5,  // half-Å starter is conservative; line search adapts
     ...opts.lbfgs,
   };
+  if (gradientAt) lbfgsOpts.gradient = gradientAt;
   const result = lbfgs(energyAt, x0, lbfgsOpts);
   const finalAtoms = vectorToAtoms(result.bestX, atoms);
   return {

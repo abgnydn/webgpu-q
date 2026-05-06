@@ -207,19 +207,27 @@ export function moleculeToShellsNuclei(
   shells: CGShell[];
   nuclei: Nucleus[];
   nElectrons: number;
+  /** Atom index that owns each shell (length = shells.length). Required for analytical
+   *  HF gradients — when the nucleus moves, every shell whose AO is anchored on it
+   *  contributes to the basis-side derivative. Atom index aligns with `nuclei[i]`. */
+  shellAtomIdx: number[];
 } {
   const shells: CGShell[] = [];
   const nuclei: Nucleus[] = [];
+  const shellAtomIdx: number[] = [];
   let nElectrons = 0;
-  for (const a of atoms) {
+  for (let ai = 0; ai < atoms.length; ai++) {
+    const a = atoms[ai]!;
     const pos_bohr: [number, number, number] = [
       a.pos[0] * ANGSTROM_TO_BOHR,
       a.pos[1] * ANGSTROM_TO_BOHR,
       a.pos[2] * ANGSTROM_TO_BOHR,
     ];
-    shells.push(...atomShells(a.symbol, pos_bohr, basis));
+    const newShells = atomShells(a.symbol, pos_bohr, basis);
+    shells.push(...newShells);
+    for (let s = 0; s < newShells.length; s++) shellAtomIdx.push(ai);
     nuclei.push({ Z: Z_FOR[a.symbol], pos: pos_bohr });
     nElectrons += N_ELECTRONS_FOR[a.symbol];
   }
-  return { shells, nuclei, nElectrons };
+  return { shells, nuclei, nElectrons, shellAtomIdx };
 }
