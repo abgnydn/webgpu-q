@@ -146,3 +146,66 @@ describe("RKS-DFT (B3VWN5 = Becke3 hybrid w/ VWN5) — hybrid Fock build", () =>
     }, 60_000);
   }
 });
+
+describe("RKS-DFT (BLYP = Slater + B88 + LYP) — Tier 2 stage 4 GGA", () => {
+  // Standard BLYP. LYP closed-shell collapse cross-checked against
+  // the libxc Maple source `gga_c_lyp.mpl`, with a point-wise
+  // FD self-test in lyp.test.ts as the secondary bug guard.
+  // Pass bars:
+  //   • DFT converges
+  //   • E_xc < 0 (the integral is negative even though the LYP
+  //     point-wise integrand can be locally positive)
+  //   • BLYP lies BELOW HF (clearly more correlation)
+  //   • BLYP lies ABOVE BVWN5 (LYP gives less total correlation
+  //     than VWN5 for first-row systems — a robust qualitative
+  //     fact across closed-shell minimal-basis chemistry)
+  //   • |BLYP − HF| ≤ 0.5 Ha (sanity bound — kernel scale not
+  //     blown out as in the prior buggy attempt)
+  for (const m of MOLECULES) {
+    test(`${m.name}: BLYP converges, lies below HF, scale-OK`, () => {
+      const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(m.atoms);
+      const integrals = computeMolecularIntegrals(shells, nuclei);
+      const symbols = m.atoms.map((a) => a.symbol);
+      const hf = runRHFSCF(integrals, nElectrons, {
+        useDIIS: true, energyTol: 1e-10, densityTol: 1e-8, maxIter: 200,
+      });
+      const bvwn5 = runRKSDFT(integrals, nElectrons, symbols, { functional: "bvwn5" });
+      const blyp  = runRKSDFT(integrals, nElectrons, symbols, { functional: "blyp" });
+      expect(blyp.converged).toBe(true);
+      expect(blyp.exchangeCorrelationEnergy).toBeLessThan(0);
+      expect(blyp.energy).toBeLessThan(hf.energy);
+      expect(blyp.energy).toBeGreaterThan(bvwn5.energy);
+      expect(Math.abs(blyp.energy - hf.energy)).toBeLessThan(0.5);
+    }, 60_000);
+  }
+});
+
+describe("RKS-DFT (B3LYP5 = published B3LYP w/ VWN5) — full Becke 1993 hybrid", () => {
+  // E_xc = 0.20 E_x^HF + 0.80 E_x^Slater + 0.72 ΔE_x^B88
+  //      + 0.81 E_c^LYP + 0.19 E_c^VWN5
+  // (Stephens et al. 1994, with VWN5 in place of VWN_RPA.) Pass bars:
+  //   • DFT converges
+  //   • E_xc + E_HFx < 0
+  //   • B3LYP5 lies BELOW HF (hybrid is more correlated than HF)
+  //   • |B3LYP5 − BLYP| ≤ 50 mHa (hybrid is "close to" BLYP — they
+  //     aren't required to bracket HF since hybrids are not
+  //     constrained to lie strictly between their GGA parent and
+  //     HF; for small minimal-basis systems hybrid can dip slightly
+  //     below the pure GGA).
+  for (const m of MOLECULES) {
+    test(`${m.name}: B3LYP5 converges, near BLYP, below HF`, () => {
+      const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(m.atoms);
+      const integrals = computeMolecularIntegrals(shells, nuclei);
+      const symbols = m.atoms.map((a) => a.symbol);
+      const hf = runRHFSCF(integrals, nElectrons, {
+        useDIIS: true, energyTol: 1e-10, densityTol: 1e-8, maxIter: 200,
+      });
+      const blyp = runRKSDFT(integrals, nElectrons, symbols, { functional: "blyp" });
+      const b3lyp5 = runRKSDFT(integrals, nElectrons, symbols, { functional: "b3lyp5" });
+      expect(b3lyp5.converged).toBe(true);
+      expect(b3lyp5.exchangeCorrelationEnergy).toBeLessThan(0);
+      expect(b3lyp5.energy).toBeLessThan(hf.energy);
+      expect(Math.abs(b3lyp5.energy - blyp.energy)).toBeLessThan(0.05);
+    }, 60_000);
+  }
+});

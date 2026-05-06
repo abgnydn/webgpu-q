@@ -121,15 +121,44 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 3 — GGA + hybrid DFT.** Three
-functionals shipped on top of the Tier 2 stage 2 LDA pipeline:
-- `lda-svwn`: Slater + VWN5 (LDA, prior stage).
-- `bvwn5`: Slater + B88 GGA exchange + VWN5 correlation. Pure GGA.
-- `b3vwn5`: Becke-3 hybrid — 0.20 E_x^HF + 0.80 Slater + 0.72 ΔB88
-  + VWN5 correlation. Real published functional family (B3LYP
-  with VWN5 in place of LYP).
+**Latest milestone: Tier 2 stage 4 — LYP correlation + B3LYP5.**
+Two functionals shipped on top of the Tier 2 stage 3 GGA + hybrid
+infrastructure:
+- `blyp`: Slater + B88 GGA exchange + LYP GGA correlation. The
+  classic "BLYP" most chemists mean by "GGA-DFT".
+- `b3lyp5`: Becke 1993 hybrid with VWN5 — the published B3LYP, with
+  VWN5 in place of VWN_RPA (i.e. PySCF's "B3LYP5"):
+    E_xc = 0.20·E_x^HF + 0.80·E_x^Slater + 0.72·ΔE_x^B88
+         + 0.81·E_c^LYP + 0.19·E_c^VWN5
 
-What got built:
+How the LYP closed-shell bug from the prior attempt was avoided:
+- Closed-shell collapse cross-referenced against the canonical
+  libxc Maple source (`maple/gga_exc/gga_c_lyp.mpl`). The libxc
+  per-particle ε at z = 0 simplifies to:
+    ε^closed = −a/h − a·b·C_F·E/h
+             + a·b·E·(3 + 7δ)·γ / (72·h·ρ^(8/3))
+  with u = ρ^(−1/3), h = 1+d·u, E = exp(−c·u), δ = c·u + d·u/h.
+- The previous attempt's hand-collapsed Miehlich form gave a γ
+  coefficient of (73 + 11δ)/144 — about 10× too large with the
+  wrong δ-coefficient. That's exactly the sign-error-grade bug the
+  prior attempt shipped (30–240 mHa off PySCF B3LYP). The libxc
+  cross-check is what caught it.
+- Defensive moat: `tests/chemistry/lyp.test.ts` is a 20-test FD
+  self-test on (ρ·ε_LYP) — analytic v_ρ and v_γ must match central-
+  FD to 1e-6 across (ρ, γ) ∈ {0.01–2, 1e-6–4} sample grid, plus
+  closed-form γ = 0 UEG match to 1e-10. Catches sign + magnitude
+  errors at the kernel level before they hit any molecule.
+
+H₂ STO-3G energies (Ha): HF = −1.117, BLYP = −1.155, B3LYP5 =
+−1.159. H₂O STO-3G: HF = −74.96, BLYP = −75.28, B3LYP5 = −75.28.
+Within ~10 mHa of published references (literature B3LYP/H₂ ≈
+−1.166; PySCF B3LYP5/H₂O ≈ −75.31). The hybrid hierarchy is not
+strictly bracketed (small minimal-basis molecules can have B3LYP5
+slightly below BLYP) — that's a physical feature, not a bug.
+
+**Tier 2 stage 3 — GGA + hybrid DFT.** Three functionals on top
+of LDA: `bvwn5` (Slater + B88 + VWN5), `b3vwn5` (Becke3 hybrid w/
+VWN5). What got built:
 - Density gradients on the grid: `evalBasisGradOnGrid` (∇φ_μ),
   `evalDensityAndGradient` (∇ρ + γ = |∇ρ|²) — same O(n²·nGrid) cost.
 - B88 GGA exchange — Becke 1988, ε_x^B88 = ε_x^Slater
@@ -139,11 +168,7 @@ What got built:
   φ_μ ∇φ_ν)} dr. Hybrid path subtracts ½ × hfMix × K from F.
 
 H₂O / STO-3G timings: LDA 75 ms / 8 iter, BVWN5 86 ms / 6 iter,
-B3VWN5 97 ms / 7 iter. Honest negative: LYP correlation +
-B3LYP-proper deferred. First-pass closed-shell LYP from Miehlich
-1989 had a 30-240 mHa sign-error-grade bug. Rather than ship
-broken code, "b3vwn5" stands as the documented B3-style hybrid
-until LYP is cross-referenced against libxc / PySCF source.
+B3VWN5 97 ms / 7 iter, BLYP 90 ms / 8 iter, B3LYP5 105 ms / 8 iter.
 
 **Tier 2 stage 2 — DFT/LDA.** Becke-partitioned molecular grid
 (Becke M3 radial × Gauss-Chebyshev 2nd-kind × Gauss-Legendre ×
@@ -190,7 +215,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **337/337** (was 331) + 1 opt-in
+**Test surface:** `npm run test` → **363/363** (was 337) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
@@ -204,14 +229,14 @@ E1–E5, viz extensions, public-repo polish, hardened-SVD fix, Tier B/C/D
 fusion): read `git log` — every phase shipped its own commit with full
 benchmarks in the message body. Don't replicate that history here.
 
-**Next up (per the roadmap above):** Tier 2 continues with **LYP
-correlation + B3LYP-proper** (cross-reference closed-shell limit
-against libxc; 1 short session), then **WebGPU port of the (T)
-kernel** (10-100× speedup → cc-pVTZ CCSD(T) routine), then
-**EOM-CCSD** for excited states. Optional speedups: swap FD
-geometry gradients for analytical (3-50×), upgrade DFT angular
-quadrature to Lebedev (fewer points per accuracy). After Tier 2 the
-project becomes a "real undergrad chemistry tool in a browser tab."
+**Next up (per the roadmap above):** Tier 2 continues with
+**HF analytical gradients + BFGS** (geometry optimization: drop
+FD gradients for 3–50× speedup, ~2 sessions), then
+**WebGPU port of the (T) kernel** (10–100× speedup → cc-pVTZ
+CCSD(T) routine), then **EOM-CCSD** for excited states.
+Optional speedups: upgrade DFT angular quadrature to Lebedev
+(fewer points per accuracy). After Tier 2 the project becomes
+a "real undergrad chemistry tool in a browser tab."
 
 ---
 

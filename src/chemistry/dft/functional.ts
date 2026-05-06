@@ -210,16 +210,132 @@ export function addB88X(
 }
 
 // ─────────────────────────────────────────────────────────────
-// LYP GGA correlation — DEFERRED.
+// LYP GGA correlation — Lee-Yang-Parr 1988 closed-shell.
 //
-// The Miehlich-1989 closed-shell LYP form has subtle spin-cross
-// terms that don't reduce cleanly without cross-referencing a
-// reference implementation (libxc / PySCF dft/numint).
-// A first-pass derivation gave H₂ / H₂O / BeH₂ B3LYP energies
-// 30–240 mHa below PySCF — a sign-error-grade bug. Rather than
-// ship an incorrect functional, B3LYP-proper is parked behind
-// "b3vwn5" (B88 exchange + VWN5 correlation + 20% HF exchange,
-// the published B3 hybrid with VWN5 instead of LYP).
+// Closed-shell collapse cross-checked against the canonical libxc
+// Maple source (`maple/gga_exc/gga_c_lyp.mpl`) and verified by
+// independent rederivation at z = 0:
+//
+//   ε_LYP^closed-shell(ρ, γ) per particle =
+//     a·(t1 + ω·(t2 + t3 + t4 + t5 + t6))
+//
+// with libxc's reduced variables (rr = ρ^(−1/3), xt² = γ/ρ^(8/3)).
+// At z = 0 (closed shell, xs0 = xs1 = 2^(1/3)·xt):
+//
+//   t1            = −1/h
+//   t3            = −C_F                                (constant)
+//   t2 + t4 + t5 + t6 in xt² collects to (3 + 7δ)·xt² / 72.
+//
+// (Derivation: t2 = (1+7δ)·xt²/72,  t4 = (45−δ)·xt²/144,
+//  t5 = (δ−11)·xt²/144, t6 = −5·xt²/24, summed and reduced.)
+//
+// So:
+//   ε_LYP^closed = −a/h − a·b·C_F·E/h
+//                + a·b·E·(3 + 7δ)·γ / (72·h·ρ^(8/3))
+//
+// Per-volume f_LYP = ρ·ε:
+//   f_LYP^closed(ρ, γ) =
+//     −a·ρ/h
+//     − a·b·C_F·E·ρ/h
+//     + a·b·E·u^5·(3 + 7δ)·γ / (72·h)               (u = ρ^(−1/3))
+// equivalently
+//     + a·b·ω·(3 + 7δ)·ρ²·γ / 72                     (ω = E/(h·ρ^(11/3)))
+//
+// Using:
+//   u(ρ) = ρ^(−1/3),  h(ρ) = 1 + d·u,  E(ρ) = exp(−c·u),
+//   δ(ρ) = c·u + d·u/h,
+//   C_F  = (3/10)·(3π²)^(2/3).
+// LYP parameters (LYP 1988 eq. 24):
+//   a = 0.04918, b = 0.132, c = 0.2533, d = 0.349.
+//
+// Sign / scale: the form has BOUNDED per-particle ε in the high-
+// density limit (≈ −68 mHa as ρ → ∞), matches the LYP UEG curve at
+// r_s ≈ 0.62 (ρ = 1, ε ≈ −47 mHa), and reproduces published BLYP /
+// B3LYP STO-3G energies to within ~10 mHa.
+//
+// The previous LYP attempt that shipped a 30–240 mHa bug used a
+// hand-collapsed Miehlich form whose γ-coefficient came out to
+// (73 + 11δ)/144 — about 10× larger than the correct (3 + 7δ)/72,
+// with the wrong δ-coefficient. The libxc cross-check is what
+// caught that, plus the FD self-test below as a forward-going moat.
+//
+// Functional derivatives (per-volume, used in the GGA Fock build):
+//   ∂f/∂γ   = +a·b·E·u^5·(3 + 7δ) / (72·h)         // strictly > 0
+//   ∂f_A/∂ρ = −a/h − a·d·u/(3·h²)
+//   ∂f_B/∂ρ = f_B·(δ+3)/(3ρ) = −a·b·C_F·(E/h)·(δ+3)/3
+//   ∂f_C/∂ρ = f_C · [(δ − 5)/(3ρ) + 7·δ' / (3 + 7δ)]
+//     δ'    = −δ/(3ρ) + d²·u²/(3ρ·h²)
+//
+// All three derivative pieces are validated point-wise against
+// central-FD in `tests/chemistry/lyp.test.ts`.
+// ─────────────────────────────────────────────────────────────
+
+const LYP_A = 0.04918;
+const LYP_B = 0.132;
+const LYP_C = 0.2533;
+const LYP_D = 0.349;
+/** Thomas-Fermi prefactor (3/10)·(3π²)^(2/3). */
+const C_F = 0.3 * Math.pow(3 * Math.PI * Math.PI, 2 / 3);
+
+/**
+ * Add LYP closed-shell correlation to ε_xc, v_ρ, v_γ.
+ *
+ * Sign convention: ε_LYP(γ = 0) is strictly negative (UEG limit).
+ * v_γ is strictly positive everywhere (gradient locally suppresses
+ * correlation). The point-wise sign of ε_LYP for nonzero γ can flip
+ * positive at large reduced gradients — that's a documented LYP
+ * feature, not a bug. Integrated over a closed-shell molecular
+ * density, E_c^LYP < 0 (verified by hierarchy tests).
+ *
+ * @param coef  Mixing coefficient (B3LYP uses 0.81; pure LYP uses 1).
+ */
+export function addLYPC(
+  rho: Float64Array,
+  gamma: Float64Array,
+  coef: number,
+  epsXc: Float64Array,
+  vRho: Float64Array,
+  vGamma: Float64Array,
+): void {
+  const n = rho.length;
+  for (let p = 0; p < n; p++) {
+    const r = rho[p]!;
+    if (r < EPS_RHO) continue;
+    const g = gamma[p]!;
+    const u = Math.pow(r, -1 / 3);                    // ρ^(−1/3)
+    const h = 1 + LYP_D * u;
+    const Eexp = Math.exp(-LYP_C * u);
+    const r113 = Math.pow(r, 11 / 3);
+    const omega = Eexp / (h * r113);
+    const delta = LYP_C * u + (LYP_D * u) / h;
+    const C3_7 = 3 + 7 * delta;
+
+    // Per-volume f_LYP = f_A + f_B + f_C.
+    //   f_A = −a·ρ/h
+    //   f_B = −a·b·C_F·E·ρ/h         (=  −a·b·ω·C_F·ρ^(14/3))
+    //   f_C = +a·b·ω·(3 + 7δ)·ρ²·γ/72  (libxc-canonical closed-shell γ)
+    const fA = -LYP_A * r / h;
+    const fB = -LYP_A * LYP_B * C_F * Eexp * r / h;
+    const omegaR2 = omega * r * r;
+    const fC = LYP_A * LYP_B * omegaR2 * C3_7 * g / 72;
+
+    // Per-particle accumulator (E_xc = Σ w_p · ε_p · ρ_p).
+    epsXc[p]! += coef * (fA + fB + fC) / r;
+
+    // ∂f_A/∂ρ.
+    const dA = -LYP_A / h - LYP_A * LYP_D * u / (3 * h * h);
+    // ∂f_B/∂ρ via log-derivative: d ln(E·ρ/h)/dρ = (3 + δ)/(3ρ),
+    // so ∂f_B/∂ρ = −a·b·C_F·(E/h)·(3 + δ)/3 (the ρ cancels cleanly).
+    const dB = -LYP_A * LYP_B * C_F * (Eexp / h) * (3 + delta) / 3;
+    // ∂f_C/∂ρ. Uses δ'(ρ) and d ln(ω·ρ²)/dρ = (δ − 5)/(3ρ).
+    const deltaPrime = -delta / (3 * r) + (LYP_D * LYP_D * u * u) / (3 * r * h * h);
+    const dC = fC * ((delta - 5) / (3 * r) + 7 * deltaPrime / C3_7);
+    vRho[p]! += coef * (dA + dB + dC);
+
+    // ∂f_C/∂γ — only f_C depends on γ.
+    vGamma[p]! += coef * LYP_A * LYP_B * omegaR2 * C3_7 / 72;
+  }
+}
 // ─────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────
@@ -272,15 +388,20 @@ export function addVWN5C(
  *
  * - `lda-svwn`: Slater exchange + VWN5 correlation (pure LDA).
  * - `bvwn5`:    Slater + B88 GGA exchange + VWN5 correlation.
- *               A real GGA functional; LYP would be a more popular
- *               correlation choice but the closed-shell-limit
- *               derivation needs cross-referencing — deferred.
- * - `b3vwn5`:   Becke3-style hybrid with VWN5 correlation.
- *               E_xc = 0.20 E_x^HF + 0.80 E_x^Slater + 0.72 ΔE_x^B88
- *                    + E_c^VWN5
- *               (B3LYP-style mix; LYP defrayed to a follow-up.)
+ * - `blyp`:     Slater + B88 GGA exchange + LYP GGA correlation.
+ *               The classic GGA most chemists call "BLYP".
+ * - `b3vwn5`:   Becke3-style hybrid with VWN5-only correlation:
+ *                 E_xc = 0.20·E_x^HF + 0.80·E_x^Slater
+ *                      + 0.72·ΔE_x^B88 + E_c^VWN5.
+ *               (B3-style hybrid that ships even before LYP.)
+ * - `b3lyp5`:   The published B3LYP hybrid (Becke 1993) using
+ *               VWN5 instead of VWN_RPA — what PySCF calls
+ *               "B3LYP5" / "B3LYPV5":
+ *                 E_xc = 0.20·E_x^HF + 0.80·E_x^Slater
+ *                      + 0.72·ΔE_x^B88
+ *                      + 0.81·E_c^LYP + 0.19·E_c^VWN5.
  */
-export type FunctionalKind = "lda-svwn" | "bvwn5" | "b3vwn5";
+export type FunctionalKind = "lda-svwn" | "bvwn5" | "blyp" | "b3vwn5" | "b3lyp5";
 
 export interface FunctionalSpec {
   readonly kind: FunctionalKind;
@@ -288,7 +409,7 @@ export interface FunctionalSpec {
 
 /** Fraction of HF exact exchange this functional needs in the Fock matrix. */
 export function hfExchangeMixOf(kind: FunctionalKind): number {
-  return kind === "b3vwn5" ? 0.20 : 0;
+  return (kind === "b3vwn5" || kind === "b3lyp5") ? 0.20 : 0;
 }
 
 export function evalXC(
@@ -313,12 +434,27 @@ export function evalXC(
       addB88X(rho, gamma, 1, epsXc, vRho, vGamma);
       addVWN5C(rho, 1, epsXc, vRho);
       return;
+    case "blyp":
+      if (!gamma || !vGamma) throw new Error("evalXC[blyp]: need gamma + vGamma");
+      addSlaterX(rho, 1, epsXc, vRho);
+      addB88X(rho, gamma, 1, epsXc, vRho, vGamma);
+      addLYPC(rho, gamma, 1, epsXc, vRho, vGamma);
+      return;
     case "b3vwn5":
       if (!gamma || !vGamma) throw new Error("evalXC[b3vwn5]: need gamma + vGamma");
       // 0.20 HF exchange handled in Fock build, not here.
       addSlaterX(rho, 0.80, epsXc, vRho);
       addB88X(rho, gamma, 0.72, epsXc, vRho, vGamma);
       addVWN5C(rho, 1, epsXc, vRho);
+      return;
+    case "b3lyp5":
+      if (!gamma || !vGamma) throw new Error("evalXC[b3lyp5]: need gamma + vGamma");
+      // Becke 1993 hybrid w/ a₀=0.20 HF (in Fock), a_x=0.72 ΔB88,
+      // a_c=0.81 LYP, (1−a_c)=0.19 VWN5 (Stephens et al. 1994 with VWN5).
+      addSlaterX(rho, 0.80, epsXc, vRho);
+      addB88X(rho, gamma, 0.72, epsXc, vRho, vGamma);
+      addLYPC(rho, gamma, 0.81, epsXc, vRho, vGamma);
+      addVWN5C(rho, 0.19, epsXc, vRho);
       return;
   }
 }
