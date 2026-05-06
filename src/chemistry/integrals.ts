@@ -197,6 +197,39 @@ export const CCPVDZ_O_3D = {
   c: [1.0] as const,
 };
 
+// ── aug-cc-pVDZ diffuse functions ────────────────────────────
+// Dunning's augmented basis: cc-pVDZ + one diffuse primitive per
+// angular momentum class. Diffuse exponents are 1-2 orders of
+// magnitude smaller than the smallest valence exponent, so the
+// resulting basis covers the long tail of electron density that
+// minimal/double-zeta basis sets miss. Required for any anion,
+// excited state, or van der Waals interaction; for neutral
+// closed-shell ground states it shifts HF by 1-3 mHa.
+//
+// Exponents from EMSL Basis Set Exchange aug-cc-pVDZ (retrieved
+// 2026-05-06). Other atoms beyond H and O can be added the same
+// way when needed.
+export const AUG_CCPVDZ_H_DIFFUSE_S = {
+  alpha: [0.0297400] as const,
+  c: [1.0] as const,
+};
+export const AUG_CCPVDZ_H_DIFFUSE_P = {
+  alpha: [0.1410000] as const,
+  c: [1.0] as const,
+};
+export const AUG_CCPVDZ_O_DIFFUSE_S = {
+  alpha: [0.0845800] as const,
+  c: [1.0] as const,
+};
+export const AUG_CCPVDZ_O_DIFFUSE_P = {
+  alpha: [0.0856000] as const,
+  c: [1.0] as const,
+};
+export const AUG_CCPVDZ_O_DIFFUSE_D = {
+  alpha: [0.3320000] as const,
+  c: [1.0] as const,
+};
+
 /** STO-3G 2s contraction for lithium — the *s component* of the L-shell.
  *  Coefficients can be negative to produce the 2s radial node and to
  *  enforce orthogonality with 1s after Löwdin orthogonalization.

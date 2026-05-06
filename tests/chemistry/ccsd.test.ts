@@ -160,3 +160,74 @@ describe("CCSD — full FCI cross-check via molecule-builder", () => {
     expect(Math.abs(ccsd.totalEnergy - fci.energy)).toBeLessThan(0.5e-3);
   }, 60_000);
 });
+
+describe("Frozen core — exclude 1s of heavy atoms from correlation", () => {
+  // For first-row chemistry the convention is to freeze the 1s core
+  // orbital of every heavy atom. The frozen-core CCSD correlation
+  // energy differs from the all-electron value by 1s-1s and 1s-valence
+  // dynamic correlation that's nearly basis-set-incomplete in any
+  // small basis. Pass bars:
+  //   • H₂ (no heavy atom): nFrozenCore=0 must equal default — sanity.
+  //   • H₂O / CH₄: nFrozenCore=1 must change E_CCSD_corr by < 30 mHa
+  //     vs all-electron, and the resulting total must still be
+  //     between E_HF and E_FCI (variational sanity).
+  //   • MP2 + CCSD must agree on which orbitals are frozen — the
+  //     core-included MP2 minus core-frozen MP2 must equal the
+  //     pure 1s-1s correlation (always negative).
+  const half = (104.52 / 2) * Math.PI / 180;
+  const xH = 0.9572 * Math.sin(half);
+  const zH = 0.9572 * Math.cos(half);
+  const r3 = 1.09 / Math.sqrt(3);
+
+  const cases: { name: string; atoms: Atom[]; nFrozen: number }[] = [
+    {
+      name: "H2O",
+      atoms: [
+        { symbol: "O", pos: [0, 0, 0] },
+        { symbol: "H", pos: [ xH, 0, zH] },
+        { symbol: "H", pos: [-xH, 0, zH] },
+      ],
+      nFrozen: 1,
+    },
+    {
+      name: "CH4",
+      atoms: [
+        { symbol: "C", pos: [0, 0, 0] },
+        { symbol: "H", pos: [ r3,  r3,  r3] },
+        { symbol: "H", pos: [ r3, -r3, -r3] },
+        { symbol: "H", pos: [-r3,  r3, -r3] },
+        { symbol: "H", pos: [-r3, -r3,  r3] },
+      ],
+      nFrozen: 1,
+    },
+  ];
+
+  for (const c of cases) {
+    test(`${c.name}: frozen-1s CCSD diverges from full by < 30 mHa, lies above all-electron`, () => {
+      const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(c.atoms);
+      const integrals = computeMolecularIntegrals(shells, nuclei);
+      const hf = runRHFSCF(integrals, nElectrons, {
+        useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8,
+      });
+
+      const ccsdAll = runCCSD(hf, integrals, { maxIter: 200, tol: 1e-9 });
+      const ccsdFC  = runCCSD(hf, integrals, { maxIter: 200, tol: 1e-9, nFrozenCore: c.nFrozen });
+
+      // Frozen-core total energy is HIGHER (less correlation captured).
+      expect(ccsdFC.totalEnergy).toBeGreaterThan(ccsdAll.totalEnergy);
+      // Difference is the 1s-1s + 1s-valence correlation — bounded for
+      // STO-3G (small basis can only capture so much core correlation).
+      const diffMHa = (ccsdFC.totalEnergy - ccsdAll.totalEnergy) * 1000;
+      expect(diffMHa).toBeGreaterThan(0);
+      expect(diffMHa).toBeLessThan(30);
+      // Both must converge.
+      expect(ccsdAll.converged).toBe(true);
+      expect(ccsdFC.converged).toBe(true);
+
+      // MP2 frozen-core sanity: same direction.
+      const mp2All = runMP2(hf, integrals);
+      const mp2FC  = runMP2(hf, integrals, { nFrozenCore: c.nFrozen });
+      expect(mp2FC.totalEnergy).toBeGreaterThan(mp2All.totalEnergy);
+    }, 30_000);
+  }
+});

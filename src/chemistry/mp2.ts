@@ -44,21 +44,39 @@ export interface MP2Result {
   readonly nOccupied: number;
 }
 
+export interface MP2Opts {
+  /**
+   * Number of frozen-core spatial orbitals — the lowest `nFrozenCore`
+   * occupied MOs are excluded from the correlation sum. Default 0.
+   * For first-row chemistry the convention is the 1s of each heavy
+   * atom (see `defaultFrozenCore` in atoms.ts).
+   */
+  readonly nFrozenCore?: number;
+}
+
 /**
  * Closed-shell MP2 on top of an existing HF result.
  * `hf.C_MO` columns are the HF MOs (sorted by energy ascending);
  * the lowest `hf.nOccupied` are doubly occupied, the rest virtual.
  */
-export function runMP2(hf: HFResult, integrals: MolecularIntegrals): MP2Result {
+export function runMP2(
+  hf: HFResult,
+  integrals: MolecularIntegrals,
+  opts: MP2Opts = {},
+): MP2Result {
   const { C_MO, orbitalEnergies, nOccupied } = hf;
   const { eri_AO, n } = integrals;
   const eri_MO = transformERIToMO(eri_AO, C_MO, n);
+  const nFrozen = opts.nFrozenCore ?? 0;
+  if (nFrozen < 0 || nFrozen > nOccupied) {
+    throw new Error(`runMP2: nFrozenCore=${nFrozen} out of range [0, ${nOccupied}]`);
+  }
 
-  // E_MP2 = Σ_{ij occ} Σ_{ab virt}
+  // E_MP2 = Σ_{ij active-occ} Σ_{ab virt}
   //           (ia|jb) · (2 (ia|jb) − (ib|ja)) / (ε_i + ε_j − ε_a − ε_b)
   let E_corr = 0;
-  for (let i = 0; i < nOccupied; i++) {
-    for (let j = 0; j < nOccupied; j++) {
+  for (let i = nFrozen; i < nOccupied; i++) {
+    for (let j = nFrozen; j < nOccupied; j++) {
       for (let a = nOccupied; a < n; a++) {
         for (let b = nOccupied; b < n; b++) {
           const iajb = eri_MO[((i * n + a) * n + j) * n + b]!;

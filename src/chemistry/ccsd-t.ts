@@ -63,10 +63,22 @@ export interface CCSDTResult {
   readonly seconds: number;
 }
 
+export interface CCSDTOpts {
+  /**
+   * Number of frozen-core spatial orbitals — the lowest `nFrozenCore`
+   * occupied MOs are excluded from the (T) sum. Should match the
+   * value passed to runCCSD; the CCSD amplitudes for core indices
+   * are zero so the inner contractions still compute correctly,
+   * but skipping the outer i/j/k core loops gives a 2-3× speedup.
+   */
+  readonly nFrozenCore?: number;
+}
+
 export function runCCSDT(
   ccsd: CCSDResult,
   hf: HFResult,
   integrals: MolecularIntegrals,
+  opts: CCSDTOpts = {},
 ): CCSDTResult {
   const tStart = performance.now();
   const n = integrals.n;
@@ -74,8 +86,9 @@ export function runCCSDT(
   const NOCC = 2 * hf.nOccupied;
   const NVIRT = NSO - NOCC;
 
+  const nFrozenSO = 2 * (opts.nFrozenCore ?? 0);
   // No triple excitations possible if either block is too small.
-  if (NOCC < 3 || NVIRT < 3) {
+  if (NOCC - nFrozenSO < 3 || NVIRT < 3) {
     return { tripleCorrection: 0, totalEnergy: ccsd.totalEnergy, seconds: 0 };
   }
 
@@ -126,11 +139,11 @@ export function runCCSDT(
   };
 
   let E_T = 0;
-  for (let i = 0; i < NOCC; i++) {
+  for (let i = nFrozenSO; i < NOCC; i++) {
     const ei = eps[i]!;
-    for (let j = 0; j < NOCC; j++) {
+    for (let j = nFrozenSO; j < NOCC; j++) {
       const ej = eps[j]!;
-      for (let k = 0; k < NOCC; k++) {
+      for (let k = nFrozenSO; k < NOCC; k++) {
         const ek = eps[k]!;
         for (let a = 0; a < NVIRT; a++) {
           const ea = eps[a + NOCC]!;

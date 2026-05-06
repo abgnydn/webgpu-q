@@ -16,12 +16,14 @@ import {
   CCPVDZ_H_1S, CCPVDZ_H_2S, CCPVDZ_H_2P,
   CCPVDZ_O_1S, CCPVDZ_O_2S, CCPVDZ_O_2S_P,
   CCPVDZ_O_2P, CCPVDZ_O_2P_P, CCPVDZ_O_3D,
+  AUG_CCPVDZ_H_DIFFUSE_S, AUG_CCPVDZ_H_DIFFUSE_P,
+  AUG_CCPVDZ_O_DIFFUSE_S, AUG_CCPVDZ_O_DIFFUSE_P, AUG_CCPVDZ_O_DIFFUSE_D,
 } from "./integrals.js";
 import { type CGShell, makeCGShell } from "./integrals-cg.js";
 import { type Nucleus } from "./cg-molecular.js";
 
 export type AtomSymbol = "H" | "Li" | "Be" | "C" | "N" | "O";
-export type BasisName = "sto-3g" | "cc-pvdz";
+export type BasisName = "sto-3g" | "cc-pvdz" | "aug-cc-pvdz";
 
 const ANGSTROM_TO_BOHR = 1 / 0.529177210903;
 
@@ -40,6 +42,27 @@ export const Z_FOR: Readonly<Record<AtomSymbol, number>> = {
 export const N_ELECTRONS_FOR: Readonly<Record<AtomSymbol, number>> = {
   H: 1, Li: 3, Be: 4, C: 6, N: 7, O: 8,
 };
+
+/**
+ * Canonical frozen-core count for each atom.
+ *
+ * For first-row chemistry the convention is to freeze the 1s core
+ * orbital of every heavy atom (Li → Ne). Hydrogen has nothing to
+ * freeze. Freezing core orbitals from the correlation treatment
+ * gives 2-3× speedup on CCSD/CCSD(T) with sub-µHa impact on
+ * relative energies (the same chemistry observable that any
+ * comparative calculation cares about).
+ */
+export const FROZEN_CORE_FOR: Readonly<Record<AtomSymbol, number>> = {
+  H: 0, Li: 1, Be: 1, C: 1, N: 1, O: 1,
+};
+
+/** Default frozen-core count for a molecule (sum of per-atom 1s cores). */
+export function defaultFrozenCore(atoms: readonly Atom[]): number {
+  let n = 0;
+  for (const a of atoms) n += FROZEN_CORE_FOR[a.symbol];
+  return n;
+}
 
 /**
  * Return the CG-shell list for a given atom + basis set. Default
@@ -63,6 +86,9 @@ export function atomShells(
   basis: BasisName = "sto-3g",
 ): CGShell[] {
   if (basis === "cc-pvdz") return atomShellsCcPvdz(symbol, pos_bohr);
+  if (basis === "aug-cc-pvdz") {
+    return [...atomShellsCcPvdz(symbol, pos_bohr), ...atomShellsAugDiffuse(symbol, pos_bohr)];
+  }
   switch (symbol) {
     case "H":
       return [makeCGShell(STO3G_H_1S, pos_bohr, [0, 0, 0], "H:1s")];
@@ -138,6 +164,38 @@ function atomShellsCcPvdz(symbol: AtomSymbol, pos: readonly [number, number, num
       ];
     default:
       throw new Error(`atomShells(cc-pVDZ): atom '${symbol}' not yet supported (only H and O wired in Phase E v2).`);
+  }
+}
+
+/**
+ * Augmentation-only shells for aug-cc-pVDZ — one diffuse function per
+ * angular momentum class, appended to the existing cc-pVDZ shell list.
+ * Currently supports H (s + p diffuse) and O (s + p + d diffuse).
+ */
+function atomShellsAugDiffuse(symbol: AtomSymbol, pos: readonly [number, number, number]): CGShell[] {
+  switch (symbol) {
+    case "H":
+      return [
+        makeCGShell(AUG_CCPVDZ_H_DIFFUSE_S, pos, [0, 0, 0], "H:aug-s"),
+        makeCGShell(AUG_CCPVDZ_H_DIFFUSE_P, pos, [1, 0, 0], "H:aug-p_x"),
+        makeCGShell(AUG_CCPVDZ_H_DIFFUSE_P, pos, [0, 1, 0], "H:aug-p_y"),
+        makeCGShell(AUG_CCPVDZ_H_DIFFUSE_P, pos, [0, 0, 1], "H:aug-p_z"),
+      ];
+    case "O":
+      return [
+        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_S, pos, [0, 0, 0], "O:aug-s"),
+        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_P, pos, [1, 0, 0], "O:aug-p_x"),
+        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_P, pos, [0, 1, 0], "O:aug-p_y"),
+        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_P, pos, [0, 0, 1], "O:aug-p_z"),
+        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_D, pos, [2, 0, 0], "O:aug-d_xx"),
+        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_D, pos, [0, 2, 0], "O:aug-d_yy"),
+        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_D, pos, [0, 0, 2], "O:aug-d_zz"),
+        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_D, pos, [1, 1, 0], "O:aug-d_xy"),
+        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_D, pos, [1, 0, 1], "O:aug-d_xz"),
+        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_D, pos, [0, 1, 1], "O:aug-d_yz"),
+      ];
+    default:
+      throw new Error(`atomShells(aug-cc-pVDZ): atom '${symbol}' not yet supported (only H and O wired).`);
   }
 }
 

@@ -164,10 +164,14 @@ function boys0(t: number): number {
 }
 
 function boysNTaylor(n: number, t: number): number {
-  // Σ_k (−t)^k / (k! · (2n + 2k + 1)). Stable for t ≤ 1.
+  // Σ_k (−t)^k / (k! · (2n + 2k + 1)). Stable for t ≤ ~10 even at high
+  // n. Beyond that the peak term magnitude grows like e^t / √(2πt) and
+  // f64 cancellation limits relative precision.
   let sum = 0;
   let term = 1 / (2 * n + 1);
-  for (let k = 0; k < 30; k++) {
+  // Cap iterations at 200 — peak occurs around k ≈ t, terms decay
+  // rapidly past that. 200 is more than enough up to t ~ 30.
+  for (let k = 0; k < 200; k++) {
     sum += term;
     term *= -t / (k + 1) * (2 * n + 2 * k + 1) / (2 * n + 2 * k + 3);
     if (Math.abs(term) < 1e-18 * Math.abs(sum)) break;
@@ -177,7 +181,23 @@ function boysNTaylor(n: number, t: number): number {
 
 /**
  * Compute F_0(t), F_1(t), …, F_nMax(t) and return them in a length-(nMax+1)
- * Float64Array. Stable across all t we use.
+ * Float64Array. Stable across all (nMax, t) we use, including high-L
+ * basis sets like cc-pVTZ where nMax can reach 12.
+ *
+ * Strategy:
+ *   • t < 1e-12: limit value F_n(0) = 1/(2n+1).
+ *   • t < (2 nMax − 1) / 2: Taylor for each F_n directly. The series
+ *     Σ (−t)^k / (k! · (2n + 2k + 1)) converges in ~2t terms with peak
+ *     magnitude ~e^t/√(2πt). f64 handles up to ~10 orders of
+ *     cancellation, so this branch covers t up to ~10–12.
+ *   • t ≥ (2 nMax − 1) / 2: upward recurrence from F_0(t). The error
+ *     growth per step is (2n−1)/(2t) ≤ 1 over the whole n range, so
+ *     the closed-form F_0 precision (≈ 1.5e-7) is preserved.
+ *
+ * The threshold (2·nMax − 1)/2 is exactly where upward recurrence stops
+ * amplifying errors: it's the point at which (2n − 1)/(2t) = 1 at the
+ * worst-case n = nMax. Below the threshold, Taylor's well-conditioned
+ * series wins; above it, upward's closed-form anchor wins.
  */
 export function boysAll(nMax: number, t: number): Float64Array {
   const out = new Float64Array(nMax + 1);
@@ -185,18 +205,20 @@ export function boysAll(nMax: number, t: number): Float64Array {
     for (let n = 0; n <= nMax; n++) out[n] = 1 / (2 * n + 1);
     return out;
   }
-  // F_0 always from closed form.
+
+  const tUpwardThreshold = (2 * nMax - 1) / 2;
+
+  if (t < tUpwardThreshold) {
+    for (let n = 0; n <= nMax; n++) out[n] = boysNTaylor(n, t);
+    return out;
+  }
+
   out[0] = boys0(t);
   if (nMax === 0) return out;
-  if (t > 1) {
-    // Upward recurrence is stable when 2t > 2.
-    const expMt = Math.exp(-t);
-    for (let n = 1; n <= nMax; n++) {
-      out[n] = ((2 * n - 1) * out[n - 1]! - expMt) / (2 * t);
-    }
-  } else {
-    // Small-t Taylor for each n — no cancellation since terms decay fast.
-    for (let n = 1; n <= nMax; n++) out[n] = boysNTaylor(n, t);
+
+  const expMt = Math.exp(-t);
+  for (let n = 1; n <= nMax; n++) {
+    out[n] = ((2 * n - 1) * out[n - 1]! - expMt) / (2 * t);
   }
   return out;
 }

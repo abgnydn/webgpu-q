@@ -143,3 +143,40 @@ describe("RHF SCF — orbital structure", () => {
     expect(eps[6]!).toBeGreaterThan(0);
   }, 30_000);
 });
+
+describe("DIIS extrapolation — converges in fewer iterations than damping", () => {
+  // DIIS is the default convergence accelerator. The pass bar:
+  //   STO-3G H₂O    DIIS ≤ 15 iter (vs ~92 with damping)
+  //   cc-pVDZ H₂O   DIIS ≤ 25 iter (vs ~101 with damping)
+  // Both DIIS and damping must converge to the same energy to ≤ 1e-9 Ha.
+  const half = (104.52 / 2) * Math.PI / 180;
+  const xH = 0.9572 * Math.sin(half);
+  const zH = 0.9572 * Math.cos(half);
+  const h2o: Atom[] = [
+    { symbol: "O", pos: [0, 0, 0] },
+    { symbol: "H", pos: [ xH, 0, zH] },
+    { symbol: "H", pos: [-xH, 0, zH] },
+  ];
+
+  for (const { basis, diisCap } of [
+    { basis: "sto-3g" as const, diisCap: 15 },
+    { basis: "cc-pvdz" as const, diisCap: 25 },
+  ]) {
+    test(`H₂O ${basis}: DIIS ≤ ${diisCap} iter, energies agree to 1e-9`, () => {
+      const { shells, nuclei } = moleculeToShellsNuclei(h2o, basis);
+      const integrals = computeMolecularIntegrals(shells, nuclei);
+
+      const diis = runRHFSCF(integrals, 10, {
+        useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8,
+      });
+      expect(diis.converged, "DIIS did not converge").toBe(true);
+      expect(diis.iter).toBeLessThanOrEqual(diisCap);
+
+      const damp = runRHFSCF(integrals, 10, {
+        useDIIS: false, damping: 0.3, maxIter: 500, energyTol: 1e-10, densityTol: 1e-8,
+      });
+      expect(damp.converged, "damping did not converge").toBe(true);
+      expect(Math.abs(diis.energy - damp.energy)).toBeLessThan(1e-9);
+    }, 30_000);
+  }
+});

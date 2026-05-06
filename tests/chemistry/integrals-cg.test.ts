@@ -53,6 +53,34 @@ describe("Boys function F_n(t)", () => {
       expect(F[n]!).toBeLessThan(F[n - 1]!);
     }
   });
+
+  test("F_12(t) matches Simpson reference to ≥ 1e-7 across the chemistry-grade t range", () => {
+    // Tier 1 Boys upgrade: extends the function to nMax = 12 (cc-pVTZ
+    // basis; max n needed = 4 · L_max = 4 · 3 = 12 for an f-shell ERI).
+    // The previous upward-only recurrence had ~1.5% error at n = 12,
+    // t ≈ 2.5; the per-n Taylor branch fixes it.
+    function boysReference(n: number, t: number): number {
+      const N = 100000;
+      const h = 1 / N;
+      let s = 0;
+      for (let i = 0; i <= N; i++) {
+        const x = i * h;
+        const f = Math.pow(x, 2 * n) * Math.exp(-t * x * x);
+        const w = (i === 0 || i === N) ? 1 : (i % 2 === 1 ? 4 : 2);
+        s += w * f;
+      }
+      return s * h / 3;
+    }
+    for (const t of [0.5, 2.5, 5.0, 7.5, 10.0, 15.0, 30.0]) {
+      const F = boysAll(12, t);
+      for (const n of [4, 6, 8, 10, 12]) {
+        const ref = boysReference(n, t);
+        const got = F[n]!;
+        const rel = Math.abs(got - ref) / Math.max(Math.abs(ref), 1e-30);
+        expect(rel, `F_${n}(${t})`).toBeLessThan(1e-7);
+      }
+    }
+  });
 });
 
 describe("CG integrals reduce to the s-only API on s-shell inputs", () => {

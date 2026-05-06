@@ -70,6 +70,13 @@ export interface CCSDOpts {
   readonly tol?: number;
   /** Damping for amplitude update. 1.0 = none (default). 0.5 = half-step. */
   readonly damping?: number;
+  /**
+   * Number of frozen-core spatial orbitals. The lowest `nFrozenCore`
+   * occupied MOs are excluded from the correlation treatment by
+   * zeroing T1[i,*] and T2[i,*,*,*] in the core block (and the
+   * corresponding j blocks) at every iteration. Default 0.
+   */
+  readonly nFrozenCore?: number;
 }
 
 export function runCCSD(
@@ -83,6 +90,13 @@ export function runCCSD(
   const NVIRT = NSO - NOCC;
   if (NOCC === 0 || NVIRT === 0) {
     throw new Error(`runCCSD: trivial system (NOCC=${NOCC}, NVIRT=${NVIRT})`);
+  }
+  const nFrozenSO = 2 * (opts.nFrozenCore ?? 0);
+  if (nFrozenSO < 0 || nFrozenSO >= NOCC) {
+    throw new Error(
+      `runCCSD: nFrozenCore=${opts.nFrozenCore} leaves no active occupied orbitals ` +
+      `(NOCC=${NOCC} spin-orbitals)`,
+    );
   }
 
   const eri_MO = transformERIToMO(integrals.eri_AO, hf.C_MO, n);
@@ -125,6 +139,11 @@ export function runCCSD(
       }
     }
   }
+  // Frozen-core: zero amplitudes whose occupied index falls in the core
+  // block. The CC residual machinery preserves zeros when the input
+  // amplitudes are zero (every term either pairs with or excites out
+  // of the core), so re-zeroing each iter keeps the core inactive.
+  zeroCoreAmplitudes(T1, T2, nFrozenSO, NOCC, NVIRT);
 
   const maxIter = opts.maxIter ?? 100;
   const tol = opts.tol ?? 1e-9;
@@ -171,6 +190,7 @@ export function runCCSD(
         }
       }
     }
+    zeroCoreAmplitudes(T1, T2, nFrozenSO, NOCC, NVIRT);
 
     E_corr = computeECorr(T1, T2, eri, NOCC, NVIRT, NSO);
     history.push(E_corr);
@@ -227,6 +247,31 @@ export function buildSpinOrbitalERI(eri_MO_chem: Float64Array, n: number): Float
 function oovv(eri: Float64Array, NSO: number, NOCC: number,
               i: number, j: number, a: number, b: number): number {
   return eri[((i * NSO + j) * NSO + (a + NOCC)) * NSO + (b + NOCC)]!;
+}
+
+/**
+ * Zero out amplitudes whose occupied spin-orbital index falls in the
+ * frozen-core block [0, nFrozenSO). The CC residual equations are
+ * homogeneous in T1, T2 across each occupied row/column — if every
+ * core-row amplitude is zero on entry, every core-row residual is
+ * also zero on exit. So re-zeroing each iter is equivalent to
+ * solving the CC equations with the constraint T_core = 0.
+ */
+function zeroCoreAmplitudes(
+  T1: Float64Array, T2: Float64Array,
+  nFrozenSO: number, NOCC: number, NVIRT: number,
+): void {
+  if (nFrozenSO === 0) return;
+  for (let i = 0; i < nFrozenSO; i++) {
+    for (let a = 0; a < NVIRT; a++) T1[i * NVIRT + a] = 0;
+  }
+  for (let i = 0; i < NOCC; i++) {
+    for (let j = 0; j < NOCC; j++) {
+      if (i >= nFrozenSO && j >= nFrozenSO) continue;
+      const base = ((i * NOCC + j) * NVIRT) * NVIRT;
+      for (let k = 0; k < NVIRT * NVIRT; k++) T2[base + k] = 0;
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
