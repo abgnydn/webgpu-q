@@ -26,6 +26,16 @@ export interface BasisValuesOnGrid {
   readonly nGrid: number;
 }
 
+/** Pre-computed basis gradients: ∇φ_μ(r_p) row-major as phi[p · n · 3 + μ · 3 + d]. */
+export interface BasisGradientsOnGrid {
+  /** ∂φ_μ/∂x at r_p — phix[p · n + μ]. */
+  readonly phix: Float64Array;
+  readonly phiy: Float64Array;
+  readonly phiz: Float64Array;
+  readonly n: number;
+  readonly nGrid: number;
+}
+
 /**
  * Evaluate every basis function at every grid point. Cost:
  * O(nGrid · n · n_prim) — the dominant per-DFT-iter expense.
@@ -113,6 +123,135 @@ export function integrateOverGrid(values: Float64Array, grid: MolecularGrid): nu
   let s = 0;
   for (let p = 0; p < values.length; p++) s += grid.w[p]! * values[p]!;
   return s;
+}
+
+/**
+ * Evaluate ∇φ_μ at every grid point. Same cost as evalBasisOnGrid (3
+ * polynomial × Gaussian evals per shell). Foundation for any GGA
+ * functional which needs ∇ρ.
+ *
+ * For a primitive Cartesian Gaussian
+ *   φ_p(r) = N(α, I) · (x−A_x)^{i_x} (y−A_y)^{i_y} (z−A_z)^{i_z} · exp(−α |r−A|²),
+ * the partial wrt x is
+ *   ∂φ/∂x = N · [i_x · (x−A_x)^{i_x−1} − 2α · (x−A_x)^{i_x+1}]
+ *           · (y−A_y)^{i_y} (z−A_z)^{i_z} · exp(−α r²).
+ * The per-primitive normalization N(α, I) is unchanged across the
+ * derivative (we differentiate the basis function, not relabel it),
+ * so the same `cnorm` table used for φ values applies here.
+ */
+export function evalBasisGradOnGrid(
+  shells: readonly CGShell[],
+  grid: MolecularGrid,
+): BasisGradientsOnGrid {
+  const n = shells.length;
+  const nGrid = grid.x.length;
+  const phix = new Float64Array(nGrid * n);
+  const phiy = new Float64Array(nGrid * n);
+  const phiz = new Float64Array(nGrid * n);
+
+  const cnorm: Float64Array[] = shells.map((s) => {
+    const out = new Float64Array(s.alpha.length);
+    for (let p = 0; p < s.alpha.length; p++) {
+      out[p] = (s.c[p] ?? 0) * normCG(s.alpha[p]!, s.angular);
+    }
+    return out;
+  });
+
+  for (let p = 0; p < nGrid; p++) {
+    const rx = grid.x[p]!;
+    const ry = grid.y[p]!;
+    const rz = grid.z[p]!;
+    for (let mu = 0; mu < n; mu++) {
+      const s = shells[mu]!;
+      const dx = rx - s.center[0];
+      const dy = ry - s.center[1];
+      const dz = rz - s.center[2];
+      const r2 = dx * dx + dy * dy + dz * dz;
+      const ix = s.angular[0], iy = s.angular[1], iz = s.angular[2];
+      // Cartesian polynomials at (i_x, i_y, i_z), i_x±1.
+      const polyx = ix === 0 ? 1 : Math.pow(dx, ix);
+      const polyy = iy === 0 ? 1 : Math.pow(dy, iy);
+      const polyz = iz === 0 ? 1 : Math.pow(dz, iz);
+      const polyxm = ix === 0 ? 0 : (ix === 1 ? 1 : Math.pow(dx, ix - 1));
+      const polyym = iy === 0 ? 0 : (iy === 1 ? 1 : Math.pow(dy, iy - 1));
+      const polyzm = iz === 0 ? 0 : (iz === 1 ? 1 : Math.pow(dz, iz - 1));
+      const polyxp = Math.pow(dx, ix + 1);
+      const polyyp = Math.pow(dy, iy + 1);
+      const polyzp = Math.pow(dz, iz + 1);
+
+      // Sum over primitives. ∂_x φ collects ix · poly_{ix−1} (Gauss-independent
+      // term) plus −2α_p · poly_{ix+1} (Gauss-decay term, primitive-dependent).
+      let gx = 0, gy = 0, gz = 0;
+      const cn = cnorm[mu]!;
+      for (let pp = 0; pp < s.alpha.length; pp++) {
+        const a = s.alpha[pp]!;
+        const c = cn[pp]!;
+        const e = c * Math.exp(-a * r2);
+        // ∂/∂x:  e · [ix · polyxm · polyy · polyz  −  2α · polyxp · polyy · polyz]
+        gx += e * (ix * polyxm * polyy * polyz - 2 * a * polyxp * polyy * polyz);
+        gy += e * (iy * polyx * polyym * polyz - 2 * a * polyx * polyyp * polyz);
+        gz += e * (iz * polyx * polyy * polyzm - 2 * a * polyx * polyy * polyzp);
+      }
+      phix[p * n + mu] = gx;
+      phiy[p * n + mu] = gy;
+      phiz[p * n + mu] = gz;
+    }
+  }
+
+  return { phix, phiy, phiz, n, nGrid };
+}
+
+/**
+ * Combined evaluator: ρ, ∇ρ_x, ∇ρ_y, ∇ρ_z, γ = |∇ρ|² at every grid
+ * point, in one O(n² · nGrid) pass.
+ *
+ *   ρ(r)     = Σ_{μν} D_{μν} φ_μ(r) φ_ν(r)
+ *   ∇ρ(r)   = 2 Σ_{μν} D_{μν} φ_μ(r) ∇φ_ν(r)    (D symmetric)
+ *
+ * The factor of 2 comes from the symmetry of D (each μν pair is
+ * counted twice).
+ */
+export function evalDensityAndGradient(
+  D: Float64Array,
+  basis: BasisValuesOnGrid,
+  basisGrad: BasisGradientsOnGrid,
+): { rho: Float64Array; gradX: Float64Array; gradY: Float64Array; gradZ: Float64Array; gamma: Float64Array } {
+  const { phi, n, nGrid } = basis;
+  if (basisGrad.n !== n || basisGrad.nGrid !== nGrid) {
+    throw new Error("evalDensityAndGradient: basis/grid shape mismatch");
+  }
+  const rho = new Float64Array(nGrid);
+  const gx = new Float64Array(nGrid);
+  const gy = new Float64Array(nGrid);
+  const gz = new Float64Array(nGrid);
+  const gamma = new Float64Array(nGrid);
+  const Dphi = new Float64Array(n);
+  for (let p = 0; p < nGrid; p++) {
+    const off = p * n;
+    // (Dφ)_μ at this grid point.
+    for (let mu = 0; mu < n; mu++) {
+      let s = 0;
+      for (let nu = 0; nu < n; nu++) {
+        s += D[mu * n + nu]! * phi[off + nu]!;
+      }
+      Dphi[mu] = s;
+    }
+    let r = 0, rx = 0, ry = 0, rz = 0;
+    for (let mu = 0; mu < n; mu++) {
+      const phimu = phi[off + mu]!;
+      r  += phimu * Dphi[mu]!;
+      rx += basisGrad.phix[off + mu]! * Dphi[mu]!;
+      ry += basisGrad.phiy[off + mu]! * Dphi[mu]!;
+      rz += basisGrad.phiz[off + mu]! * Dphi[mu]!;
+    }
+    rho[p] = r;
+    // factor of 2 from D symmetry: ∇ρ = 2 Σ φ ∇φ_ν · D
+    gx[p] = 2 * rx;
+    gy[p] = 2 * ry;
+    gz[p] = 2 * rz;
+    gamma[p] = gx[p]! * gx[p]! + gy[p]! * gy[p]! + gz[p]! * gz[p]!;
+  }
+  return { rho, gradX: gx, gradY: gy, gradZ: gz, gamma };
 }
 
 // ── Cartesian-Gaussian normalization (mirrors integrals-cg.ts) ──

@@ -132,3 +132,193 @@ function vwn5(rs: number): { ec: number; vc: number } {
 export const VWN5_PARAMS = {
   A: VWN_A, x0: VWN_X0, b: VWN_B, c: VWN_C, Q: VWN_Q, Xx0: VWN_X_X0,
 };
+
+// ─────────────────────────────────────────────────────────────
+// B88 GGA exchange — Becke 1988.
+// Closed-shell form via spin-decomposition with ρ_α = ρ_β = ρ/2:
+//
+//   F(u)       = u² / [1 + 6β u · arcsinh u]
+//   ε_x^B88   = ε_x^LDA  −  2^(−1/3) β ρ^(1/3) · F(u),   u = 2^(1/3) σ
+//   σ          = √γ / ρ^(4/3)        (closed-shell reduced gradient)
+//
+// We write the result as the GGA CORRECTION on top of Slater so the
+// composite "B3LYP" mix can scale Slater independently from the GGA
+// gradient correction (Becke 1988's a_x parameter).
+//
+// Outputs add into existing arrays scaled by `coef` so multiple
+// functional pieces compose without intermediate buffers.
+// ─────────────────────────────────────────────────────────────
+
+const B88_BETA = 0.0042;
+const POW_2_THIRD = Math.pow(2, 1 / 3);            // ≈ 1.25992
+const POW_2_NEG_THIRD = Math.pow(2, -1 / 3);       // ≈ 0.79370
+
+/**
+ * Add B88 GGA gradient-correction to ε_x and its v_ρ, v_γ.
+ *
+ * Sign convention: the correction is NEGATIVE — adds to the LDA
+ * exchange to lower the energy (matches B88 1988).
+ *
+ * @param rho     ρ at each grid point.
+ * @param gamma   γ = |∇ρ|² at each grid point.
+ * @param coef    Mixing coefficient (B3LYP uses 0.72).
+ * @param epsXc   in/out: ε_xc per particle accumulator.
+ * @param vRho    in/out: ∂(ρ ε_xc)/∂ρ accumulator.
+ * @param vGamma  in/out: ∂(ρ ε_xc)/∂γ accumulator.
+ */
+export function addB88X(
+  rho: Float64Array,
+  gamma: Float64Array,
+  coef: number,
+  epsXc: Float64Array,
+  vRho: Float64Array,
+  vGamma: Float64Array,
+): void {
+  const n = rho.length;
+  for (let p = 0; p < n; p++) {
+    const r = rho[p]!;
+    if (r < EPS_RHO) continue;
+    const g = gamma[p]!;
+    const r13 = Math.cbrt(r);
+    const r43 = r * r13;            // ρ^(4/3)
+    const sigma = Math.sqrt(Math.max(g, 0)) / r43;
+    const u = POW_2_THIRD * sigma;
+    // F(u) and F'(u) using arcsinh.
+    const sh = Math.asinh(u);
+    const root = Math.sqrt(1 + u * u);
+    const D = 1 + 6 * B88_BETA * u * sh;
+    const F = (u * u) / D;
+    const Dp = 6 * B88_BETA * (sh + u / root);
+    // F'(u) = (2u D − u² D') / D²
+    const Fp = (2 * u * D - u * u * Dp) / (D * D);
+    // Energy density (per particle) correction: -2^(-1/3) β ρ^(1/3) F(u)
+    const dEps = -POW_2_NEG_THIRD * B88_BETA * r13 * F;
+    // ρ · dEps gives the per-volume correction (let g(ρ, γ) = ρ · dEps_perParticle).
+    // ∂g/∂ρ |_γ = -(4/3) · 2^(-1/3) β · ρ^(1/3) [ F(u) - u F'(u) ]
+    //   (derivation in functional.ts header comment above)
+    const dVRho = -(4 / 3) * POW_2_NEG_THIRD * B88_BETA * r13 * (F - u * Fp);
+    // ∂g/∂γ |_ρ = -2^(-1/3) β ρ^(4/3) · F'(u) · u / (2 γ)
+    //   well-defined for γ > 0; vanishes as γ → 0 because F'(u) ∝ u.
+    let dVGamma = 0;
+    if (g > EPS_RHO) {
+      dVGamma = -POW_2_NEG_THIRD * B88_BETA * r43 * Fp * u / (2 * g);
+    }
+    epsXc[p]! += coef * dEps;
+    vRho[p]!  += coef * dVRho;
+    vGamma[p]! += coef * dVGamma;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// LYP GGA correlation — DEFERRED.
+//
+// The Miehlich-1989 closed-shell LYP form has subtle spin-cross
+// terms that don't reduce cleanly without cross-referencing a
+// reference implementation (libxc / PySCF dft/numint).
+// A first-pass derivation gave H₂ / H₂O / BeH₂ B3LYP energies
+// 30–240 mHa below PySCF — a sign-error-grade bug. Rather than
+// ship an incorrect functional, B3LYP-proper is parked behind
+// "b3vwn5" (B88 exchange + VWN5 correlation + 20% HF exchange,
+// the published B3 hybrid with VWN5 instead of LYP).
+// ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// Slater-only and VWN5-only "add" routines, for composing custom
+// XC mixes (e.g. B3VWN5 needs 0.80 Slater + 0.72 B88 + 1.0 VWN5
+// + 0.20 HF exchange).
+// ─────────────────────────────────────────────────────────────
+
+export function addSlaterX(
+  rho: Float64Array,
+  coef: number,
+  epsXc: Float64Array,
+  vRho: Float64Array,
+): void {
+  const n = rho.length;
+  for (let p = 0; p < n; p++) {
+    const r = rho[p]!;
+    if (r < EPS_RHO) continue;
+    const r13 = Math.cbrt(r);
+    epsXc[p]! += coef * C_X * r13;
+    vRho[p]!  += coef * VX_PREFACTOR * r13;
+  }
+}
+
+export function addVWN5C(
+  rho: Float64Array,
+  coef: number,
+  epsXc: Float64Array,
+  vRho: Float64Array,
+): void {
+  const n = rho.length;
+  for (let p = 0; p < n; p++) {
+    const r = rho[p]!;
+    if (r < EPS_RHO) continue;
+    const r13 = Math.cbrt(r);
+    const rs = C_RS / r13;
+    const { ec, vc } = vwn5(rs);
+    epsXc[p]! += coef * ec;
+    vRho[p]!  += coef * vc;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// High-level dispatch: evaluate the requested XC functional and
+// fill ε_xc, v_ρ, v_γ at every grid point.
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Standard functional kinds.
+ *
+ * - `lda-svwn`: Slater exchange + VWN5 correlation (pure LDA).
+ * - `bvwn5`:    Slater + B88 GGA exchange + VWN5 correlation.
+ *               A real GGA functional; LYP would be a more popular
+ *               correlation choice but the closed-shell-limit
+ *               derivation needs cross-referencing — deferred.
+ * - `b3vwn5`:   Becke3-style hybrid with VWN5 correlation.
+ *               E_xc = 0.20 E_x^HF + 0.80 E_x^Slater + 0.72 ΔE_x^B88
+ *                    + E_c^VWN5
+ *               (B3LYP-style mix; LYP defrayed to a follow-up.)
+ */
+export type FunctionalKind = "lda-svwn" | "bvwn5" | "b3vwn5";
+
+export interface FunctionalSpec {
+  readonly kind: FunctionalKind;
+}
+
+/** Fraction of HF exact exchange this functional needs in the Fock matrix. */
+export function hfExchangeMixOf(kind: FunctionalKind): number {
+  return kind === "b3vwn5" ? 0.20 : 0;
+}
+
+export function evalXC(
+  kind: FunctionalKind,
+  rho: Float64Array,
+  gamma: Float64Array | null,
+  epsXc: Float64Array,
+  vRho: Float64Array,
+  vGamma: Float64Array | null,
+): void {
+  epsXc.fill(0);
+  vRho.fill(0);
+  if (vGamma) vGamma.fill(0);
+  switch (kind) {
+    case "lda-svwn":
+      addSlaterX(rho, 1, epsXc, vRho);
+      addVWN5C(rho, 1, epsXc, vRho);
+      return;
+    case "bvwn5":
+      if (!gamma || !vGamma) throw new Error("evalXC[bvwn5]: need gamma + vGamma");
+      addSlaterX(rho, 1, epsXc, vRho);
+      addB88X(rho, gamma, 1, epsXc, vRho, vGamma);
+      addVWN5C(rho, 1, epsXc, vRho);
+      return;
+    case "b3vwn5":
+      if (!gamma || !vGamma) throw new Error("evalXC[b3vwn5]: need gamma + vGamma");
+      // 0.20 HF exchange handled in Fock build, not here.
+      addSlaterX(rho, 0.80, epsXc, vRho);
+      addB88X(rho, gamma, 0.72, epsXc, vRho, vGamma);
+      addVWN5C(rho, 1, epsXc, vRho);
+      return;
+  }
+}

@@ -22,8 +22,12 @@
 import { type MolecularIntegrals } from "../cg-molecular.js";
 import { eigsymmetric } from "../../manybody/dense-eig.js";
 import { molecularGrid, type GridOpts, type MolecularGrid } from "./grid.js";
-import { evalBasisOnGrid, evalDensityOnGrid, type BasisValuesOnGrid } from "./density.js";
-import { evalLDA } from "./functional.js";
+import {
+  evalBasisOnGrid, evalBasisGradOnGrid,
+  evalDensityOnGrid, evalDensityAndGradient,
+  type BasisValuesOnGrid, type BasisGradientsOnGrid,
+} from "./density.js";
+import { evalXC, hfExchangeMixOf, type FunctionalKind } from "./functional.js";
 import type { AtomSymbol } from "../atoms.js";
 
 export interface RKSResult {
@@ -52,6 +56,8 @@ export interface RKSResult {
 }
 
 export interface RKSOpts {
+  /** XC functional. Default "lda-svwn" (Slater + VWN5). */
+  readonly functional?: FunctionalKind;
   /** Hard cap on SCF iterations. Default 100. */
   readonly maxIter?: number;
   /** Energy tolerance for convergence (Ha). Default 1e-7. */
@@ -92,6 +98,9 @@ export function runRKSDFT(
     throw new Error(`runRKSDFT: ${nElectrons} electrons in ${n} spatial orbitals — too many`);
   }
 
+  const functional: FunctionalKind = opts.functional ?? "lda-svwn";
+  const isGGA = functional !== "lda-svwn";
+  const hfMix = hfExchangeMixOf(functional);
   const maxIter = opts.maxIter ?? 100;
   const eTol = opts.energyTol ?? 1e-7;
   const rTol = opts.residualTol ?? 1e-5;
@@ -104,6 +113,8 @@ export function runRKSDFT(
   // ── Build molecular grid + precompute basis values ─────────
   const grid: MolecularGrid = molecularGrid(integrals.nuclei, nucleiSymbols, opts.grid ?? {});
   const basisVals: BasisValuesOnGrid = evalBasisOnGrid(integrals.shells, grid);
+  const basisGrad: BasisGradientsOnGrid | null =
+    isGGA ? evalBasisGradOnGrid(integrals.shells, grid) : null;
   const nGrid = grid.x.length;
 
   // ── Initial guess: diagonalize core h ──────────────────────
@@ -121,29 +132,58 @@ export function runRKSDFT(
 
   // Scratch buffers reused across iterations.
   const epsXc = new Float64Array(nGrid);
-  const vXc   = new Float64Array(nGrid);
+  const vRho   = new Float64Array(nGrid);
+  const vGamma = isGGA ? new Float64Array(nGrid) : null;
 
   for (iter = 1; iter <= maxIter; iter++) {
-    // ── J(D) and DFT V_xc(ρ) ────────────────────────────────
+    // ── J(D) (and optional K for hybrid) ────────────────────
     const J  = buildJ(D, eri_AO, n);
-    const rho = evalDensityOnGrid(D, basisVals);
-    evalLDA(rho, epsXc, vXc);
-    const Vxc = buildVxcAO(vXc, basisVals, grid.w);
+    const K  = hfMix > 0 ? buildK(D, eri_AO, n) : null;
 
-    // ── Fock = h + J + V_xc ────────────────────────────────
+    // ── Density (and ∇ρ for GGA) ────────────────────────────
+    let rho: Float64Array;
+    let gradX: Float64Array | null = null;
+    let gradY: Float64Array | null = null;
+    let gradZ: Float64Array | null = null;
+    let gamma: Float64Array | null = null;
+    if (isGGA && basisGrad) {
+      const dg = evalDensityAndGradient(D, basisVals, basisGrad);
+      rho = dg.rho;
+      gradX = dg.gradX;
+      gradY = dg.gradY;
+      gradZ = dg.gradZ;
+      gamma = dg.gamma;
+    } else {
+      rho = evalDensityOnGrid(D, basisVals);
+    }
+
+    // ── Functional eval ─────────────────────────────────────
+    evalXC(functional, rho, gamma, epsXc, vRho, vGamma);
+
+    // ── V_xc AO matrix ─────────────────────────────────────
+    const Vxc = isGGA && basisGrad && gamma && gradX && gradY && gradZ && vGamma
+      ? buildVxcGGA(vRho, vGamma, gradX, gradY, gradZ, basisVals, basisGrad, grid.w)
+      : buildVxcLDA(vRho, basisVals, grid.w);
+
+    // ── Fock = h + J + V_xc  (− hfMix · ½ K for hybrid) ────
     const F = new Float64Array(n * n);
     for (let i = 0; i < n * n; i++) F[i] = h_AO[i]! + J[i]! + Vxc[i]!;
+    if (K && hfMix > 0) {
+      for (let i = 0; i < n * n; i++) F[i]! -= 0.5 * hfMix * K[i]!;
+    }
 
-    // ── Energy: Σ D h + ½ Σ D J + E_xc + V_nn ──────────────
-    let Eone = 0, Ej = 0, Exc = 0;
+    // ── Energy: Σ D h + ½ Σ D J + E_xc + V_nn − ¼ hfMix Σ D K + V_nn ─
+    let Eone = 0, Ej = 0, Exc = 0, Ek = 0;
     for (let i = 0; i < n * n; i++) {
       Eone += D[i]! * h_AO[i]!;
       Ej   += D[i]! * J[i]!;
+      if (K) Ek += D[i]! * K[i]!;
     }
     for (let p = 0; p < nGrid; p++) Exc += grid.w[p]! * epsXc[p]! * rho[p]!;
-    const E = Eone + 0.5 * Ej + Exc + Vnn;
+    const Ehfx = -0.25 * hfMix * Ek;            // hybrid HF-exchange energy
+    const E = Eone + 0.5 * Ej + Exc + Ehfx + Vnn;
     history.push(E);
-    E_xc_last = Exc;
+    E_xc_last = Exc + Ehfx;
 
     // ── DIIS error vector + extrapolation ──────────────────
     let F_use: Float64Array = F;
@@ -283,21 +323,38 @@ function buildJ(D: Float64Array, eri_AO: Float64Array, n: number): Float64Array 
   return J;
 }
 
+/** HF exchange K[μν] = Σ_{λσ} D_{λσ} (μλ|νσ) — needed for hybrid functionals. */
+function buildK(D: Float64Array, eri_AO: Float64Array, n: number): Float64Array {
+  const K = new Float64Array(n * n);
+  for (let mu = 0; mu < n; mu++) {
+    for (let nu = 0; nu < n; nu++) {
+      let s = 0;
+      for (let la = 0; la < n; la++) {
+        for (let si = 0; si < n; si++) {
+          const Dls = D[la * n + si]!;
+          if (Dls === 0) continue;
+          s += Dls * eri_AO[((mu * n + la) * n + nu) * n + si]!;
+        }
+      }
+      K[mu * n + nu] = s;
+    }
+  }
+  return K;
+}
+
 /**
- * V_xc[μν] = Σ_p w_p v_xc(ρ_p) φ_μ(r_p) φ_ν(r_p).
- *
- * Cost: O(n² · nGrid). Hot loop of every DFT iter — vectorized as
- * Σ_p (w · v) · φ_μ · φ_ν with all per-grid-point numbers folded.
+ * LDA V_xc:  V[μν] = Σ_p w_p · v_ρ(ρ_p) · φ_μ(r_p) φ_ν(r_p).
+ * Cost O(n² · nGrid). Standard hot loop.
  */
-function buildVxcAO(
-  vXc: Float64Array,
+function buildVxcLDA(
+  vRho: Float64Array,
   basis: { phi: Float64Array; n: number; nGrid: number },
   weights: Float64Array,
 ): Float64Array {
   const { phi, n, nGrid } = basis;
   const V = new Float64Array(n * n);
   for (let p = 0; p < nGrid; p++) {
-    const c = weights[p]! * vXc[p]!;
+    const c = weights[p]! * vRho[p]!;
     if (c === 0) continue;
     const off = p * n;
     for (let mu = 0; mu < n; mu++) {
@@ -309,7 +366,63 @@ function buildVxcAO(
       }
     }
   }
-  // Symmetrize.
+  for (let mu = 0; mu < n; mu++) {
+    for (let nu = 0; nu < mu; nu++) {
+      V[nu * n + mu] = V[mu * n + nu]!;
+    }
+  }
+  return V;
+}
+
+/**
+ * GGA V_xc:
+ *   V[μν] = Σ_p w_p {
+ *             v_ρ φ_μ φ_ν
+ *           + 2 v_γ [(∇ρ · ∇φ_μ) φ_ν + φ_μ (∇ρ · ∇φ_ν)]
+ *           }
+ *
+ * Cost O(n² · nGrid) — same as LDA, just more flops per (μν, p) pair.
+ * Per-grid scratch (∇ρ · ∇φ_μ) is computed inline to save on memory.
+ */
+function buildVxcGGA(
+  vRho: Float64Array,
+  vGamma: Float64Array,
+  gradX: Float64Array,
+  gradY: Float64Array,
+  gradZ: Float64Array,
+  basis: BasisValuesOnGrid,
+  basisGrad: BasisGradientsOnGrid,
+  weights: Float64Array,
+): Float64Array {
+  const { phi, n, nGrid } = basis;
+  const { phix, phiy, phiz } = basisGrad;
+  const V = new Float64Array(n * n);
+  // Per-point scratch for (∇ρ · ∇φ_μ).
+  const dot = new Float64Array(n);
+  for (let p = 0; p < nGrid; p++) {
+    const w = weights[p]!;
+    const cRho = w * vRho[p]!;
+    const cGam2 = 2 * w * vGamma[p]!;
+    if (cRho === 0 && cGam2 === 0) continue;
+    const off = p * n;
+    const rx = gradX[p]!, ry = gradY[p]!, rz = gradZ[p]!;
+    // Precompute ∇ρ · ∇φ_μ for every μ at this grid point.
+    for (let mu = 0; mu < n; mu++) {
+      dot[mu] = rx * phix[off + mu]! + ry * phiy[off + mu]! + rz * phiz[off + mu]!;
+    }
+    for (let mu = 0; mu < n; mu++) {
+      const phimu = phi[off + mu]!;
+      const dmu = dot[mu]!;
+      // Pure-density contribution + GGA cross-term ∇ρ · ∇φ_μ · φ_ν.
+      const aMu = cRho * phimu + cGam2 * dmu;
+      // Symmetric counterpart: φ_μ · ∇ρ · ∇φ_ν inside the inner loop.
+      for (let nu = 0; nu <= mu; nu++) {
+        const phinu = phi[off + nu]!;
+        const dnu = dot[nu]!;
+        V[mu * n + nu]! += aMu * phinu + cGam2 * phimu * dnu;
+      }
+    }
+  }
   for (let mu = 0; mu < n; mu++) {
     for (let nu = 0; nu < mu; nu++) {
       V[nu * n + mu] = V[mu * n + nu]!;

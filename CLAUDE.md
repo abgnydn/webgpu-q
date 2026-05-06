@@ -121,14 +121,35 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 2 — DFT (LDA).** Closed-shell
-Restricted Kohn-Sham SCF with Slater exchange + VWN5 correlation,
-running on a Becke-partitioned molecular grid (Becke M3 radial via
-Gauss-Chebyshev 2nd-kind × Gauss-Legendre × uniform-φ angular).
-Default grid 50r × 12θ × 24φ per atom integrates ρ to 10⁻⁵–10⁻⁷ e
-on H₂ / H₂O / BeH₂. DFT/STO-3G energies match PySCF SVWN5 within
-~5 mHa across the standard set. ~5–8 SCF iters / 75 ms on H₂O.
-New modules: `src/chemistry/dft/{grid,density,functional,rks-scf}.ts`.
+**Latest milestone: Tier 2 stage 3 — GGA + hybrid DFT.** Three
+functionals shipped on top of the Tier 2 stage 2 LDA pipeline:
+- `lda-svwn`: Slater + VWN5 (LDA, prior stage).
+- `bvwn5`: Slater + B88 GGA exchange + VWN5 correlation. Pure GGA.
+- `b3vwn5`: Becke-3 hybrid — 0.20 E_x^HF + 0.80 Slater + 0.72 ΔB88
+  + VWN5 correlation. Real published functional family (B3LYP
+  with VWN5 in place of LYP).
+
+What got built:
+- Density gradients on the grid: `evalBasisGradOnGrid` (∇φ_μ),
+  `evalDensityAndGradient` (∇ρ + γ = |∇ρ|²) — same O(n²·nGrid) cost.
+- B88 GGA exchange — Becke 1988, ε_x^B88 = ε_x^Slater
+  − 2^(−1/3) β ρ^(1/3) F(u), F(u) = u²/(1 + 6β u arcsinh u).
+  Analytical v_ρ + v_γ.
+- GGA Fock build: V_xc[μν] = ∫{v_ρ φ_μ φ_ν + 2 v_γ ∇ρ·(∇φ_μ φ_ν +
+  φ_μ ∇φ_ν)} dr. Hybrid path subtracts ½ × hfMix × K from F.
+
+H₂O / STO-3G timings: LDA 75 ms / 8 iter, BVWN5 86 ms / 6 iter,
+B3VWN5 97 ms / 7 iter. Honest negative: LYP correlation +
+B3LYP-proper deferred. First-pass closed-shell LYP from Miehlich
+1989 had a 30-240 mHa sign-error-grade bug. Rather than ship
+broken code, "b3vwn5" stands as the documented B3-style hybrid
+until LYP is cross-referenced against libxc / PySCF source.
+
+**Tier 2 stage 2 — DFT/LDA.** Becke-partitioned molecular grid
+(Becke M3 radial × Gauss-Chebyshev 2nd-kind × Gauss-Legendre ×
+uniform-φ angular). Default 50r × 12θ × 24φ per atom integrates
+ρ to 10⁻⁵–10⁻⁷ e. DFT/STO-3G LDA matches PySCF SVWN5 within ~5 mHa.
+Modules: `src/chemistry/dft/{grid,density,functional,rks-scf}.ts`.
 
 **Tier 2 stage 1 — geometry optimization.** `optimizeGeometry(atoms,
 opts)` minimizes E_HF over atomic positions with central-FD
@@ -169,7 +190,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **331/331** (was 325) + 1 opt-in
+**Test surface:** `npm run test` → **337/337** (was 331) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
@@ -183,11 +204,11 @@ E1–E5, viz extensions, public-repo polish, hardened-SVD fix, Tier B/C/D
 fusion): read `git log` — every phase shipped its own commit with full
 benchmarks in the message body. Don't replicate that history here.
 
-**Next up (per the roadmap above):** Tier 2 continues with **GGA
-+ B3LYP** on top of LDA (B88 exchange, LYP correlation, 20% exact-
-exchange mix — ~90% of real chemistry uses B3LYP), then **WebGPU
-port of the (T) kernel** (10-100× speedup → cc-pVTZ CCSD(T) routine),
-then **EOM-CCSD** for excited states. Optional speedups: swap FD
+**Next up (per the roadmap above):** Tier 2 continues with **LYP
+correlation + B3LYP-proper** (cross-reference closed-shell limit
+against libxc; 1 short session), then **WebGPU port of the (T)
+kernel** (10-100× speedup → cc-pVTZ CCSD(T) routine), then
+**EOM-CCSD** for excited states. Optional speedups: swap FD
 geometry gradients for analytical (3-50×), upgrade DFT angular
 quadrature to Lebedev (fewer points per accuracy). After Tier 2 the
 project becomes a "real undergrad chemistry tool in a browser tab."
