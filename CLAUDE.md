@@ -22,107 +22,100 @@ Scope-honest. See `~/.claude/skills/hero/SKILL.md`.
 
 ## Roadmap to the frontier (the path you're on)
 
-The project is past the launchpad — the four "ladder" levels are shipped
-(L1 statevector, L2 MPS, L3 fusion, L6 chemistry), GPU MPS goes through
-Phase 6 v1, and the repo is public + CI-green. The honest path from here
-to publishable frontier work is below. Each phase produces a real
-artifact; every off-ramp ships a real claim.
+The project is past the launchpad. **All six chemistry-track phases are
+shipped** (A through E5: foundation → 1D records → real molecules → HF
+SCF → MP2 → cc-pVDZ basis → CCSD → CCSD(T) → cc-pVDZ CCSD(T) on H₂O).
+The repo is public + CI-green. The honest path from here is below —
+ranked by *what it costs vs what it unlocks*, not by ladder position.
 
-### Phase A — Tighten the foundation (~1 session)
+### What's shipped (recap)
 
-The known weak points in today's stack:
+- ✓ **L1 statevector**, **L2 MPS** (incl. GPU MPS through Phase 6 v1
+  with χ ≤ 64), **L3 kernel fusion** (Tier B/C/D — 4.18× headline),
+  **L6 chemistry** (full quantum-chemistry stack)
+- ✓ **DMRG** with Lanczos + MPO; ITensor cross-checked at N = 8 to f64
+- ✓ **Phase B**: TFIM/Heisenberg N = 128 in browser, validated vs Pfeuty/Bethe
+- ✓ **Phase C/D/E1-5**: HF / MP2 / FCI / CCSD / CCSD(T) on
+  H₂ → LiH → BeH₂ → H₂O → CH₄ in STO-3G; **cc-pVDZ CCSD(T) on H₂O in 106 s**
+- ✓ 309 unit tests, 11 e2e specs, all green; CI live
 
-1. **GPU MPS truncation handling (Phase 4c gap).** Phase 4b/5 says
-   "no renormalization for unitary gates" — correct only when the chain
-   stays in canonical form AND no SVD truncation kicks in. At deep
-   circuits (depth ≥ log₂ χ_max) bonds saturate, kKeep < physicalRank,
-   and we lose probability mass. Fix: GPU-side canonical-form
-   renormalization on truncation paths.
-2. **MPO (Matrix Product Operator) representation** for 1D Hamiltonians.
-   Currently we have `Hamiltonian1D` as a list of bond terms; MPO is
-   the standard format every DMRG / TDVP routine expects.
-3. **Real two-site DMRG with Lanczos.** `src/manybody/dmrg.ts` is a stub
-   (direct diagonalization → MPS conversion). Replace with proper sweeps
-   + matrix-free Lanczos local eigensolver using the new MPO.
+### Next: chemistry-track tier roadmap
 
-**Unlocks:** χ ≤ 64 deep circuits, MPO infrastructure, real DMRG.
+Ranked by ROI. Cost in "sessions" assumes one focused session = a few
+hours. The tier framework exists because each subsequent feature stops
+being free physics ladder-rungs and starts being grungy engineering — so
+order matters.
 
-### Phase B — 1D records (~2-3 sessions)
+#### Tier 1 — Quick wins (~1 session bundled)
 
-1. Push 1D chains to N = 80, 100, 128 with chiMax = 64 (needs Phase A).
-2. Validate against analytical limits: Bethe ansatz for Heisenberg,
-   Pfeuty for TFIM critical exponents.
-3. Publish artifact: *"longest 1D MPS in a browser, ITensor-validated."*
+Each takes ≤1 hour, kills a real gap, ships in one combined commit:
 
-**Off-ramp #1: workshop paper here.** Most published 1D tensor-network
-results are at N ≤ 64; a browser-native N = 128 is paper-worthy.
+| feature | LOC | unlocks |
+|---|---:|---|
+| **f, g, h orbital integrals** | ~50 | cc-pVTZ basis (need only Boys F_n table extension to n ≤ 12 + EMSL constants — `integrals-cg.ts` already handles arbitrary L) |
+| **Spherical-harmonic basis** | ~150 | bit-exact match to PySCF (kills the 4 mHa Cartesian-d slack) |
+| **DIIS SCF accelerator** | ~100 | 5-10× HF speedup (H₂O cc-pVDZ: 101 iter → ~10) |
+| **Frozen core** | ~30 | 2-3× CCSD(T) speedup |
+| **Diffuse functions** | ~30 | aug-cc-pVDZ — anions, excited states |
+| **Schwarz integral screening** | ~50 | 2-5× ERI speedup |
 
-### Phase C — Real molecule chemistry (~2-3 sessions)
+After this single bundle: **bit-exact PySCF agreement at every level**,
+plus 5-10× across-the-board speedup. Highest-ROI session in the project.
 
-1. Extend `src/chemistry/integrals.ts` from H 1s to multi-orbital atoms
-   (Li 1s/2s, Be 1s/2s, etc.).
-2. LiH builder (4 electrons, 6 spin-orbitals): `src/chemistry/lih-builder.ts`.
-   Active-space VQE, validate against PySCF FCI.
-3. BeH₂ next (6 electrons, 14 spin-orbitals).
-4. Add CCSD(T) reference comparison.
+#### Tier 2 — Major capability (~10 sessions total)
 
-**Off-ramp #2: chemistry paper here.** *"First browser-tab quantum
-chemistry on real molecules, matches PySCF to chemical accuracy."*
+| feature | sessions | unlocks |
+|---|---:|---|
+| **DFT (LDA + B3LYP + Lebedev grids)** | 2 | **~90% of all real chemistry** uses DFT |
+| **HF analytical gradients + BFGS** | 2 | **geometry optimization** — find equilibrium structures |
+| **WebGPU port of (T) kernel** | 3 | 10-100× speedup on (T); cc-pVTZ CCSD(T) becomes routine |
+| **EOM-CCSD (excited states)** | 1-2 | UV-vis, photochemistry — reuses CCSD intermediates |
+| **UHF + open-shell CCSD** | 2 | radicals, transition-metal complexes |
+| **Density fitting (RI)** | 1 | 3-5× speedup + half memory → cc-pVTZ becomes routine |
 
-### Phase D — Distributed via WebRTC (~3-5 sessions, the hard part)
+After Tier 2: **a genuinely useful undergrad chemistry tool**. Drug-style
+geometry optimizations + DFT vibrational analysis + UV-vis spectra in a
+browser tab.
 
-The L4 swarm we deferred. Genuinely two-process engineering.
+#### Tier 3 — Substantial (~25 sessions)
 
-1. WebRTC signalling (or reuse `webgpu-p2p-evolution`'s 113-line relay).
-2. Cut a 1D chain at the midpoint: browser A holds sites 0..N/2,
-   browser B holds N/2..N-1. Each does its half's MPS, exchanges the
-   bond tensor at the cut over WebRTC.
-3. Recompute the full chain energy by combining both halves' contributions.
-4. Validate: same answer as single-browser N = 80 from Phase B.
-5. Push to N = 160 split across two machines.
+CCSDT (full triples), CASSCF (multi-reference), TD-DFT, MP2/CCSD
+gradients (Z-vector), PCM solvent, coupled-perturbed HF (NMR /
+polarizabilities), WebGPU integral parallelization. Each is well-defined
+but takes a few sessions of careful work.
 
-**Off-ramp #3: distributed-quantum-sim paper here.** Foundation for
-every subsequent moonshot.
+#### Tier 4 — Genuinely hard (a season each)
 
-### Phase E — Pick a moonshot
+CASPT2 / NEVPT2 (multi-ref perturbation, intruder states), periodic DFT
+(k-points, Brillouin zone), spin-orbit / X2C (two-component spinors),
+analytical CC gradients (Lagrangian per method), QM/MM. Possible but
+expensive; do later.
 
-By this point: deep MPS at χ = 64, real-molecule VQE, WebRTC
-distributed contraction. Three branches, each genuinely paper-worthy:
+### Deferred: the original moonshots
 
-#### E.1 — Verify Sycamore (the public-benchmark moonshot)
-- Add 2D PEPS primitive (substantial, but math is in published papers).
-- Implement Sycamore gate set (fSim + single-qubit) and ingest Google's
-  published circuit JSON.
-- Distribute the PEPS contraction across N volunteer browsers via Phase D.
-- Reproduce Pan & Zhang 2021's classical-supremacy refutation in a tab.
-- Cross-check against Google's published output statistics.
-- ~3-5 sessions on top of Phase D.
+Still on the table, but lower priority than chemistry depth right now:
 
-#### E.2 — Fault-tolerant qubit (the QC-future moonshot)
-- Stabilizer simulator (Clifford-only, scales to thousands via Gottesman-Knill).
-- Surface code at distance 3, 5, 7.
-- Syndrome extraction + minimum-weight perfect-matching decoder.
-- Noise model (depolarizing → biased → leakage).
-- Plot logical error rate vs physical, find the threshold curve.
-- Cross-check against IBM Heron / Quantinuum public data.
-- ~4-6 sessions.
+- **Phase D (WebRTC swarm)** — distributed 1D chain across browsers.
+  ~3-5 sessions. Foundation for any multi-machine moonshot. Reuse
+  `webgpu-p2p-evolution`'s relay.
+- **E.1 — Verify Sycamore** — 2D PEPS primitive + Sycamore gate set
+  + distributed contraction via Phase D. Reproduce Pan & Zhang 2021 in
+  a browser. ~3-5 sessions on top of Phase D.
+- **E.2 — Fault-tolerant qubit** — stabilizer sim + surface code +
+  syndrome decoder + threshold curve. ~4-6 sessions, no Phase D needed.
+- **E.3 — Browser-native lattice QCD** — 4D lattice + Wilson Dirac +
+  fused CG solver. ~6-10 sessions, hardest port.
 
-#### E.3 — Browser-native lattice QCD (the HPC-substrate moonshot)
-- 4D lattice (small: 8⁴ or 16⁴).
-- Wilson Dirac operator (or staggered fermions).
-- Conjugate-gradient solver fused into a single WebGPU dispatch.
-- Compute simplest hadron mass (pion or rho), validate against published lattice values.
-- May need scaled-int arithmetic for f32 stability.
-- ~6-10 sessions, hardest port.
+### Cleanest near-term path
 
-### Cleanest path that ships at every off-ramp
+**Tier 1 bundle → HF gradients → DFT → WebGPU (T) → EOM-CCSD**.
+~8-9 sessions to a "real chemistry tool in a browser tab." Every step
+ships a publishable artifact; if you stop early you still have a
+strictly more useful repo than yesterday.
 
-**A → B → C → D → E.1**. ~10 sessions to the launchpad, +3-5 for
-Sycamore in a browser. Every step gives a real claim; if you stop early
-you still have something.
-
-The unifying thesis: *"every advanced physics simulation in the world
-ships as a URL"*. webgpu-q is the proof point.
+The unifying thesis stays the same: *"every advanced physics
+simulation in the world ships as a URL"*. webgpu-q is the proof point;
+the chemistry track is its highest-leverage demonstration.
 
 ---
 
