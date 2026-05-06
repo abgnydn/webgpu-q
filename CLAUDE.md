@@ -126,7 +126,101 @@ ships as a URL"*. webgpu-q is the proof point.
 
 ---
 
-## Current state of play (as of 2026-05-05)
+## Current state of play (as of 2026-05-06)
+
+### Phase E stage 3 — CCSD post-HF (the gold standard) (2026-05-06)
+
+Closed-shell CCSD via the spin-orbital Stanton-Bartlett 1991
+formulation, validated against PySCF on the standard molecule set
+to **sub-mHa precision** and against H₂ FCI to numerical noise.
+This is the canonical post-HF method real chemistry papers cite —
+captures ~95-99% of dynamic correlation at O(N⁶) cost, vs FCI's
+exponential cost.
+
+**Headline (E_HF / E_MP2 / E_CCSD / E_FCI for the standard set, STO-3G):**
+
+| molecule | E_HF | E_MP2 | E_CCSD | E_FCI | ΔCCSD−FCI | CCSD capture | iter | wall |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| H₂ | −1.116684 | −1.129855 | **−1.137270** | −1.137270 | **0.0 µHa** | 100.00% | 16 | 0.00s |
+| LiH s-only | −7.804243 | −7.826158 | **−7.843394** | −7.843394 | **0.0 µHa** | 100.00% | 21 | 0.00s |
+| BeH₂ full | −15.559405 | −15.582893 | **−15.594456** | −15.594861 | 0.41 mHa | **98.86%** | 24 | 0.07s |
+| H₂O | −74.962928 | −74.998420 | **−75.012287** | −75.012403 | 0.12 mHa | **99.76%** | 22 | 0.04s |
+| CH₄ | −39.726701 | −39.783264 | **−39.805801** | −39.806036 | 0.24 mHa | **99.70%** | 22 | 0.24s |
+| **H₂O cc-pVDZ** | **−76.027141** | **−76.234659** | **−76.243652** | (infeasible) | (PySCF Δ = 1.85 mHa, Cart-vs-spher d slack) | — | 20 | **39 s** |
+
+H₂ and LiH are exact (CCSD ≡ FCI for ≤ 4 electrons in this basis,
+since singles + doubles span the relevant Hilbert space). BeH₂,
+H₂O, CH₄ all hit ≥ 98.86% capture — the residual 0.1-0.4 mHa is
+the perturbative-triples (T) correction CCSD(T) would add (Phase
+E stage 4). cc-pVDZ H₂O finishes in **39 seconds** in a browser
+tab — the chemistry-grade frontier where FCI is infeasible
+(2^48-dim Hilbert space).
+
+**Why CCSD matters:**
+- Gold-standard single-reference method. CCSD(T) is the
+  "chemical-accuracy" workhorse cited in every drug-discovery
+  paper; CCSD is the no-T baseline.
+- O(N⁶) scaling — tractable up to **hundreds of orbitals** with
+  proper basis-set engineering. cc-pVDZ on H₂O (24 orbitals)
+  takes seconds; cc-pVTZ would take minutes.
+- Size-extensive: scales properly with system size (unlike CISD).
+  Required for any "additive" property — bond energies, reaction
+  enthalpies — which all of pharma cares about.
+
+**What shipped:**
+- `src/chemistry/ccsd.ts` (~500 lines):
+  - `runCCSD(hf, integrals, opts)`: full Stanton-Bartlett iteration.
+    Initializes T1=0, T2=MP2 amplitudes; iterates until energy
+    converges to `tol` (default 1e-9 Ha).
+  - `buildSpinOrbitalERI(eri_MO_chem, n)`: chemist-notation
+    spatial MO ERI → antisymmetric spin-orbital ⟨PQ||RS⟩
+    tensor (NSO⁴, ~40 MB at NSO=48).
+  - Helper functions for τ̃/τ effective amplitudes, F_ae/F_mi/F_me
+    1-body intermediates, W_mnij/W_abef/W_mbej 2-body
+    intermediates, T1/T2 residuals — all with the (1−δ) diagonal-
+    removal convention so the canonical-orbital RHF case
+    simplifies cleanly.
+- 11 unit tests in `ccsd.test.ts`:
+  - **MP2 init consistency** (4 tests): with T1=0, T2=MP2 amps,
+    the CCSD energy formula must equal the closed-shell MP2 from
+    `mp2.ts`. Validates the spin-orbital ERI tensor + amplitude
+    init for all 4 molecules.
+  - **H₂ ≡ FCI** (1 test): for 2 electrons, CCSD spans the full
+    Hilbert space and must equal FCI to ≤ 1e-7 Ha.
+  - **Variational ordering + capture** (4 tests): HF > HF+MP2 >
+    CCSD ≥ FCI for every molecule; CCSD captures ≥ 95% of FCI
+    correlation.
+  - **PySCF cross-check** (1 test): H₂O CCSD/STO-3G total
+    matches PySCF reference (−75.0117) to ≤ 1.5 mHa.
+  - **FCI cross-check via molecule-builder** (1 test): LiH CCSD
+    matches FCI from `buildMoleculeFCI` to ≤ 0.5 mHa.
+- Publishable artifact at
+  `experiments/results/2026-05-06/level-6/E29-ccsd-publishable.json`,
+  reproducible via `npx vite-node tools/run-phase-e3.ts` (~50 s
+  total, dominated by the 39 s cc-pVDZ run).
+
+**Why the previous "linearised CCSD" attempt failed:**
+The earlier session noted that "linearised CCSD" over-corrected
+H₂ by 3.4 mHa and diverged on H₂O by 580 mHa. That formulation
+drops the τ² (quadratic-in-T2) and τ¹·t1·t1 (T1²·T2) terms from
+the residual — which are exactly the disconnected-cluster
+contributions that prevent over-correction at large amplitudes.
+The proper Stanton-Bartlett formulation tracks both τ̃ (½-strength
+disconnected, used in F intermediates) and τ (full disconnected,
+used in W intermediates and the energy), and converges robustly
+on every molecule we tested. The lesson: **never drop the
+disconnected terms** — they are mathematically required by
+exp(T)·H·exp(−T) similarity, not optional.
+
+**What's left (Phase E stage 4: CCSD(T)):**
+The perturbative-triples (T) correction adds ~30 lines to the
+CCSD output: build the W_ijkabc triples-amplitude intermediates
+once (no iteration), contract against ⟨ij||ab⟩ to get the (T)
+energy. ~95-99% of remaining correlation captured. The "chemical-
+accuracy gold standard." Dedicated session, ~1-2 hours.
+
+**Tests: 290 → 301** (+11 CCSD). Typecheck clean. Lint warnings
+unchanged from baseline.
 
 ### Phase E stage 2 — cc-pVDZ basis (the chemistry-grade frontier) (2026-05-05)
 

@@ -1,0 +1,689 @@
+// ─────────────────────────────────────────────────────────────
+// ccsd.ts — closed-shell CCSD (Coupled Cluster Singles Doubles)
+// via the spin-orbital formulation. Phase E stage 3: the gold-
+// standard single-reference correlation method, captures ≥ 95%
+// of correlation for closed-shell molecules near equilibrium.
+//
+// Reference: Stanton, Gauss, Watts, Bartlett (1991) J. Chem.
+// Phys. 94, 4334. Equations as restated in
+//   Crawford & Schaefer, Reviews in Comp. Chem. vol 14 (2000),
+//   "An Introduction to Coupled Cluster Theory", Table 1.
+//
+// Spin-orbital convention: spin-orbital P encodes spatial p =
+// P >> 1, spin σ_P = P & 1. For closed-shell RHF, alpha (P=2p)
+// and beta (P=2p+1) share spatial MOs and orbital energies, and
+// the Fock matrix is diagonal: f_PQ = δ_PQ ε_p.
+//
+// Algorithm:
+//   1. Convert MO chemist-notation (pq|rs) to spin-orbital
+//      antisymmetric ⟨PQ||RS⟩ tensor (NSO⁴, ~40 MB at NSO=48).
+//   2. Initialize T1 = 0, T2 = MP2 amplitudes
+//      T2[i,j,a,b] = ⟨ij||ab⟩ / (ε_i + ε_j − ε_a − ε_b).
+//   3. Iterate Stanton-Bartlett residual equations until energy
+//      converges. Each iteration:
+//        a. Build effective amplitudes
+//             τ̃_ij^ab = t_ij^ab + ½(t_i^a t_j^b − t_i^b t_j^a)
+//             τ_ij^ab  = t_ij^ab +   (t_i^a t_j^b − t_i^b t_j^a)
+//        b. Build 1-body intermediates F_ae, F_mi, F_me.
+//        c. Build 2-body intermediates W_mnij, W_abef, W_mbej.
+//        d. Build T1, T2 residual RHS.
+//        e. Update amplitudes by dividing by orbital-energy
+//           denominators D_ia = ε_i − ε_a, D_ijab = ε_i + ε_j
+//           − ε_a − ε_b.
+//   4. E_CCSD_corr = ¼ Σ_ijab ⟨ij||ab⟩ τ_ij^ab
+//      (canonical RHF: f_ia = 0, so Σ f_ia t_i^a vanishes).
+//
+// Cost: dominated by W_abef and the (½) Σ_ef τ_ij^ef W_abef
+// contraction in the T2 residual, both O(N_o N_v⁴ + N_o² N_v⁴).
+// For STO-3G H₂O (N_o=10, N_v=4): ~25k ops/iter, milliseconds.
+// For cc-pVDZ H₂O (N_o=10, N_v=38): ~200M ops/iter, ~5 s/iter
+// in plain TS, ~30 iters → minutes.
+//
+// For 2-electron systems (H₂), CCSD is exact (singles + doubles
+// span the full Hilbert space). |E_CCSD − E_FCI| < 1e-7 is the
+// strongest correctness check.
+// ─────────────────────────────────────────────────────────────
+
+import type { MolecularIntegrals } from "./cg-molecular.js";
+import type { HFResult } from "./hf-scf.js";
+import { transformERIToMO } from "./mp2.js";
+
+export interface CCSDResult {
+  /** CCSD correlation energy (Hartree). Negative for closed-shell near eq. */
+  readonly correlationEnergy: number;
+  /** Total CCSD energy = E_HF + E_CCSD_corr. */
+  readonly totalEnergy: number;
+  /** Singles amplitudes [i*nVirt + a], spin-orbital. */
+  readonly T1: Float64Array;
+  /** Doubles amplitudes [((i*nOcc + j)*nVirt + a)*nVirt + b]. */
+  readonly T2: Float64Array;
+  /** Per-iteration correlation energy trace. */
+  readonly history: readonly number[];
+  /** Number of iterations performed. */
+  readonly iter: number;
+  /** True if energy converged to within tol. */
+  readonly converged: boolean;
+}
+
+export interface CCSDOpts {
+  readonly maxIter?: number;
+  readonly tol?: number;
+  /** Damping for amplitude update. 1.0 = none (default). 0.5 = half-step. */
+  readonly damping?: number;
+}
+
+export function runCCSD(
+  hf: HFResult,
+  integrals: MolecularIntegrals,
+  opts: CCSDOpts = {},
+): CCSDResult {
+  const n = integrals.n;
+  const NSO = 2 * n;
+  const NOCC = 2 * hf.nOccupied;
+  const NVIRT = NSO - NOCC;
+  if (NOCC === 0 || NVIRT === 0) {
+    throw new Error(`runCCSD: trivial system (NOCC=${NOCC}, NVIRT=${NVIRT})`);
+  }
+
+  const eri_MO = transformERIToMO(integrals.eri_AO, hf.C_MO, n);
+  const eri = buildSpinOrbitalERI(eri_MO, n);
+
+  // Spin-orbital orbital energies (each spatial → 2 spin orbitals).
+  const eps = new Float64Array(NSO);
+  for (let P = 0; P < NSO; P++) eps[P] = hf.orbitalEnergies[P >> 1]!;
+
+  // Energy denominators.
+  const D_ia = new Float64Array(NOCC * NVIRT);
+  for (let i = 0; i < NOCC; i++) {
+    for (let a = 0; a < NVIRT; a++) {
+      D_ia[i * NVIRT + a] = eps[i]! - eps[a + NOCC]!;
+    }
+  }
+  const D_ijab = new Float64Array(NOCC * NOCC * NVIRT * NVIRT);
+  for (let i = 0; i < NOCC; i++) {
+    for (let j = 0; j < NOCC; j++) {
+      for (let a = 0; a < NVIRT; a++) {
+        for (let b = 0; b < NVIRT; b++) {
+          D_ijab[((i * NOCC + j) * NVIRT + a) * NVIRT + b] =
+            eps[i]! + eps[j]! - eps[a + NOCC]! - eps[b + NOCC]!;
+        }
+      }
+    }
+  }
+
+  // Initial T1 = 0, T2 = MP2 amplitudes.
+  const T1 = new Float64Array(NOCC * NVIRT);
+  const T2 = new Float64Array(NOCC * NOCC * NVIRT * NVIRT);
+  for (let i = 0; i < NOCC; i++) {
+    for (let j = 0; j < NOCC; j++) {
+      for (let a = 0; a < NVIRT; a++) {
+        for (let b = 0; b < NVIRT; b++) {
+          const idx = ((i * NOCC + j) * NVIRT + a) * NVIRT + b;
+          const v = oovv(eri, NSO, NOCC, i, j, a, b);
+          T2[idx] = v / D_ijab[idx]!;
+        }
+      }
+    }
+  }
+
+  const maxIter = opts.maxIter ?? 100;
+  const tol = opts.tol ?? 1e-9;
+  const damping = opts.damping ?? 1.0;
+
+  let E_corr = computeECorr(T1, T2, eri, NOCC, NVIRT, NSO);
+  const history: number[] = [E_corr];
+  let converged = false;
+  let iter = 0;
+  let E_old = E_corr;
+
+  for (iter = 1; iter <= maxIter; iter++) {
+    const tau_t = makeTau(T1, T2, NOCC, NVIRT, 0.5);
+    const tau   = makeTau(T1, T2, NOCC, NVIRT, 1.0);
+
+    const F_ae = makeF_ae(T1, eps, eri, tau_t, NOCC, NVIRT, NSO);
+    const F_mi = makeF_mi(T1, eps, eri, tau_t, NOCC, NVIRT, NSO);
+    const F_me = makeF_me(T1, eri, NOCC, NVIRT, NSO);
+
+    const W_mnij = makeW_mnij(T1, tau, eri, NOCC, NVIRT, NSO);
+    const W_abef = makeW_abef(T1, tau, eri, NOCC, NVIRT, NSO);
+    const W_mbej = makeW_mbej(T1, T2, eri, NOCC, NVIRT, NSO);
+
+    const r1 = makeRHS_T1(T1, T2, F_ae, F_mi, F_me, eri, NOCC, NVIRT, NSO);
+    const r2 = makeRHS_T2(T1, T2, tau, F_ae, F_mi, F_me,
+                          W_mnij, W_abef, W_mbej, eri, NOCC, NVIRT, NSO);
+
+    // Update amplitudes via energy denominators.
+    for (let i = 0; i < NOCC; i++) {
+      for (let a = 0; a < NVIRT; a++) {
+        const idx = i * NVIRT + a;
+        const tnew = r1[idx]! / D_ia[idx]!;
+        T1[idx] = damping * tnew + (1 - damping) * T1[idx]!;
+      }
+    }
+    for (let i = 0; i < NOCC; i++) {
+      for (let j = 0; j < NOCC; j++) {
+        for (let a = 0; a < NVIRT; a++) {
+          for (let b = 0; b < NVIRT; b++) {
+            const idx = ((i * NOCC + j) * NVIRT + a) * NVIRT + b;
+            const tnew = r2[idx]! / D_ijab[idx]!;
+            T2[idx] = damping * tnew + (1 - damping) * T2[idx]!;
+          }
+        }
+      }
+    }
+
+    E_corr = computeECorr(T1, T2, eri, NOCC, NVIRT, NSO);
+    history.push(E_corr);
+
+    if (Math.abs(E_corr - E_old) < tol) {
+      converged = true;
+      break;
+    }
+    E_old = E_corr;
+  }
+
+  return {
+    correlationEnergy: E_corr,
+    totalEnergy: hf.energy + E_corr,
+    T1, T2, history, iter, converged,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Spin-orbital antisymmetric ERI tensor builder.
+//
+// Convention: chemist's notation in the spatial MO ERI is
+// (pq|rs) = ∫∫ φ_p(1) φ_q(1) (1/r12) φ_r(2) φ_s(2).
+// Physicist's: ⟨pq|rs⟩ = (pr|qs).  Antisymm: ⟨pq||rs⟩ = ⟨pq|rs⟩
+// − ⟨pq|sr⟩ = (pr|qs) − (ps|qr).
+//
+// Spin block: ⟨PQ|RS⟩_phys = ⟨pq|rs⟩_phys δ(σ_P,σ_R) δ(σ_Q,σ_S).
+// ─────────────────────────────────────────────────────────────
+export function buildSpinOrbitalERI(eri_MO_chem: Float64Array, n: number): Float64Array {
+  const NSO = 2 * n;
+  const out = new Float64Array(NSO * NSO * NSO * NSO);
+  for (let P = 0; P < NSO; P++) {
+    const p = P >> 1, sp = P & 1;
+    for (let Q = 0; Q < NSO; Q++) {
+      const q = Q >> 1, sq = Q & 1;
+      for (let R = 0; R < NSO; R++) {
+        const r = R >> 1, sr = R & 1;
+        for (let S = 0; S < NSO; S++) {
+          const s = S >> 1, ss = S & 1;
+          const direct = (sp === sr && sq === ss)
+            ? eri_MO_chem[((p * n + r) * n + q) * n + s]! : 0;
+          const exch = (sp === ss && sq === sr)
+            ? eri_MO_chem[((p * n + s) * n + q) * n + r]! : 0;
+          out[((P * NSO + Q) * NSO + R) * NSO + S] = direct - exch;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+// Convenience accessor for ⟨ij||ab⟩ where i,j are occ-block indices,
+// a,b are virt-block indices. Spin-orb idx = i for occ, a + NOCC for virt.
+function oovv(eri: Float64Array, NSO: number, NOCC: number,
+              i: number, j: number, a: number, b: number): number {
+  return eri[((i * NSO + j) * NSO + (a + NOCC)) * NSO + (b + NOCC)]!;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Effective amplitudes:
+//   τ̃ (alpha=½): t_ij^ab + ½ (t_i^a t_j^b − t_i^b t_j^a)   used in F intermediates
+//   τ  (alpha=1): t_ij^ab + (t_i^a t_j^b − t_i^b t_j^a)     used in W intermediates + energy
+// ─────────────────────────────────────────────────────────────
+function makeTau(T1: Float64Array, T2: Float64Array,
+                 NOCC: number, NVIRT: number, alpha: number): Float64Array {
+  const out = new Float64Array(T2.length);
+  for (let i = 0; i < NOCC; i++) {
+    for (let j = 0; j < NOCC; j++) {
+      for (let a = 0; a < NVIRT; a++) {
+        for (let b = 0; b < NVIRT; b++) {
+          const idx = ((i * NOCC + j) * NVIRT + a) * NVIRT + b;
+          const tia = T1[i * NVIRT + a]!;
+          const tjb = T1[j * NVIRT + b]!;
+          const tib = T1[i * NVIRT + b]!;
+          const tja = T1[j * NVIRT + a]!;
+          out[idx] = T2[idx]! + alpha * (tia * tjb - tib * tja);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 1-body intermediates (Stanton-Bartlett, canonical-RHF form).
+// In canonical RHF, f_PQ is diagonal so (1−δ) f_off = 0 and the
+// f_me, f_ia blocks vanish identically. We keep the f_me terms
+// explicit (would matter for non-canonical bases) but evaluate
+// them using the diagonal-f shortcut: f_PQ = δ_PQ ε_p.
+//
+// F_ae = − ½ Σ_m f_me t_m^a + Σ_mf t_m^f ⟨ma||fe⟩
+//        − ½ Σ_mnf τ̃_mn^af ⟨mn||ef⟩
+// F_mi = + ½ Σ_e t_i^e f_me + Σ_en t_n^e ⟨mn||ie⟩
+//        + ½ Σ_nef τ̃_in^ef ⟨mn||ef⟩
+// F_me = f_me + Σ_nf t_n^f ⟨mn||ef⟩
+//
+// For canonical RHF, f_me = δ_me ε_e but m is occupied and e
+// virtual (different blocks) → f_me ≡ 0. We just drop those
+// terms here.
+// ─────────────────────────────────────────────────────────────
+
+function makeF_ae(T1: Float64Array, eps: Float64Array, eri: Float64Array,
+                  tau_t: Float64Array, NOCC: number, NVIRT: number, NSO: number): Float64Array {
+  const F = new Float64Array(NVIRT * NVIRT);
+  for (let a = 0; a < NVIRT; a++) {
+    const A = a + NOCC;
+    for (let e = 0; e < NVIRT; e++) {
+      const E = e + NOCC;
+      let s = 0;
+      // Σ_mf t_m^f ⟨ma||fe⟩
+      for (let m = 0; m < NOCC; m++) {
+        for (let f = 0; f < NVIRT; f++) {
+          const F_v = f + NOCC;
+          s += T1[m * NVIRT + f]! * eri[((m * NSO + A) * NSO + F_v) * NSO + E]!;
+        }
+      }
+      // − ½ Σ_mnf τ̃_mn^af ⟨mn||ef⟩
+      for (let m = 0; m < NOCC; m++) {
+        for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+          for (let f = 0; f < NVIRT; f++) {
+            const F_v = f + NOCC;
+            s -= 0.5 * tau_t[((m * NOCC + nIdx) * NVIRT + a) * NVIRT + f]! *
+                       eri[((m * NSO + nIdx) * NSO + E) * NSO + F_v]!;
+          }
+        }
+      }
+      // Note: − ½ Σ_m f_me t_m^a — vanishes in canonical RHF (f_me = 0).
+      F[a * NVIRT + e] = s;
+    }
+  }
+  void eps;
+  return F;
+}
+
+function makeF_mi(T1: Float64Array, eps: Float64Array, eri: Float64Array,
+                  tau_t: Float64Array, NOCC: number, NVIRT: number, NSO: number): Float64Array {
+  const F = new Float64Array(NOCC * NOCC);
+  for (let m = 0; m < NOCC; m++) {
+    for (let i = 0; i < NOCC; i++) {
+      let s = 0;
+      // Σ_en t_n^e ⟨mn||ie⟩
+      for (let e = 0; e < NVIRT; e++) {
+        const E = e + NOCC;
+        for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+          s += T1[nIdx * NVIRT + e]! * eri[((m * NSO + nIdx) * NSO + i) * NSO + E]!;
+        }
+      }
+      // + ½ Σ_nef τ̃_in^ef ⟨mn||ef⟩
+      for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+        for (let e = 0; e < NVIRT; e++) {
+          const E = e + NOCC;
+          for (let f = 0; f < NVIRT; f++) {
+            const F_v = f + NOCC;
+            s += 0.5 * tau_t[((i * NOCC + nIdx) * NVIRT + e) * NVIRT + f]! *
+                       eri[((m * NSO + nIdx) * NSO + E) * NSO + F_v]!;
+          }
+        }
+      }
+      // Note: + ½ Σ_e t_i^e f_me — vanishes in canonical RHF.
+      F[m * NOCC + i] = s;
+    }
+  }
+  void eps;
+  return F;
+}
+
+function makeF_me(T1: Float64Array, eri: Float64Array,
+                  NOCC: number, NVIRT: number, NSO: number): Float64Array {
+  const F = new Float64Array(NOCC * NVIRT);
+  // Canonical RHF: f_me = 0. Just Σ_nf t_n^f ⟨mn||ef⟩.
+  for (let m = 0; m < NOCC; m++) {
+    for (let e = 0; e < NVIRT; e++) {
+      const E = e + NOCC;
+      let s = 0;
+      for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+        for (let f = 0; f < NVIRT; f++) {
+          const F_v = f + NOCC;
+          s += T1[nIdx * NVIRT + f]! * eri[((m * NSO + nIdx) * NSO + E) * NSO + F_v]!;
+        }
+      }
+      F[m * NVIRT + e] = s;
+    }
+  }
+  return F;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 2-body intermediates.
+//
+// W_mnij = ⟨mn||ij⟩ + P(ij) Σ_e t_j^e ⟨mn||ie⟩ + ¼ Σ_ef τ_ij^ef ⟨mn||ef⟩
+// W_abef = ⟨ab||ef⟩ − P(ab) Σ_m t_m^b ⟨am||ef⟩ + ¼ Σ_mn τ_mn^ab ⟨mn||ef⟩
+// W_mbej = ⟨mb||ej⟩ + Σ_f t_j^f ⟨mb||ef⟩ − Σ_n t_n^b ⟨mn||ej⟩
+//          − Σ_nf (½ t_jn^fb + t_j^f t_n^b) ⟨mn||ef⟩
+//
+// P(ij) X[i,j] = X[i,j] − X[j,i].
+// ─────────────────────────────────────────────────────────────
+
+function makeW_mnij(T1: Float64Array, tau: Float64Array, eri: Float64Array,
+                    NOCC: number, NVIRT: number, NSO: number): Float64Array {
+  const W = new Float64Array(NOCC * NOCC * NOCC * NOCC);
+  for (let m = 0; m < NOCC; m++) {
+    for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+      for (let i = 0; i < NOCC; i++) {
+        for (let j = 0; j < NOCC; j++) {
+          let s = eri[((m * NSO + nIdx) * NSO + i) * NSO + j]!;  // ⟨mn||ij⟩
+          // P(ij) Σ_e t_j^e ⟨mn||ie⟩  =  Σ_e t_j^e ⟨mn||ie⟩ − Σ_e t_i^e ⟨mn||je⟩
+          for (let e = 0; e < NVIRT; e++) {
+            const E = e + NOCC;
+            s += T1[j * NVIRT + e]! * eri[((m * NSO + nIdx) * NSO + i) * NSO + E]!;
+            s -= T1[i * NVIRT + e]! * eri[((m * NSO + nIdx) * NSO + j) * NSO + E]!;
+          }
+          // ¼ Σ_ef τ_ij^ef ⟨mn||ef⟩
+          let q = 0;
+          for (let e = 0; e < NVIRT; e++) {
+            const E = e + NOCC;
+            for (let f = 0; f < NVIRT; f++) {
+              const F_v = f + NOCC;
+              q += tau[((i * NOCC + j) * NVIRT + e) * NVIRT + f]! *
+                   eri[((m * NSO + nIdx) * NSO + E) * NSO + F_v]!;
+            }
+          }
+          s += 0.25 * q;
+          W[((m * NOCC + nIdx) * NOCC + i) * NOCC + j] = s;
+        }
+      }
+    }
+  }
+  return W;
+}
+
+function makeW_abef(T1: Float64Array, tau: Float64Array, eri: Float64Array,
+                    NOCC: number, NVIRT: number, NSO: number): Float64Array {
+  const W = new Float64Array(NVIRT * NVIRT * NVIRT * NVIRT);
+  for (let a = 0; a < NVIRT; a++) {
+    const A = a + NOCC;
+    for (let b = 0; b < NVIRT; b++) {
+      const B = b + NOCC;
+      for (let e = 0; e < NVIRT; e++) {
+        const E = e + NOCC;
+        for (let f = 0; f < NVIRT; f++) {
+          const F_v = f + NOCC;
+          let s = eri[((A * NSO + B) * NSO + E) * NSO + F_v]!;  // ⟨ab||ef⟩
+          // − P(ab) Σ_m t_m^b ⟨am||ef⟩
+          for (let m = 0; m < NOCC; m++) {
+            s -= T1[m * NVIRT + b]! * eri[((A * NSO + m) * NSO + E) * NSO + F_v]!;
+            s += T1[m * NVIRT + a]! * eri[((B * NSO + m) * NSO + E) * NSO + F_v]!;
+          }
+          // ¼ Σ_mn τ_mn^ab ⟨mn||ef⟩
+          let q = 0;
+          for (let m = 0; m < NOCC; m++) {
+            for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+              q += tau[((m * NOCC + nIdx) * NVIRT + a) * NVIRT + b]! *
+                   eri[((m * NSO + nIdx) * NSO + E) * NSO + F_v]!;
+            }
+          }
+          s += 0.25 * q;
+          W[((a * NVIRT + b) * NVIRT + e) * NVIRT + f] = s;
+        }
+      }
+    }
+  }
+  return W;
+}
+
+function makeW_mbej(T1: Float64Array, T2: Float64Array, eri: Float64Array,
+                    NOCC: number, NVIRT: number, NSO: number): Float64Array {
+  const W = new Float64Array(NOCC * NVIRT * NVIRT * NOCC);
+  for (let m = 0; m < NOCC; m++) {
+    for (let b = 0; b < NVIRT; b++) {
+      const B = b + NOCC;
+      for (let e = 0; e < NVIRT; e++) {
+        const E = e + NOCC;
+        for (let j = 0; j < NOCC; j++) {
+          let s = eri[((m * NSO + B) * NSO + E) * NSO + j]!;  // ⟨mb||ej⟩
+          // + Σ_f t_j^f ⟨mb||ef⟩
+          for (let f = 0; f < NVIRT; f++) {
+            const F_v = f + NOCC;
+            s += T1[j * NVIRT + f]! * eri[((m * NSO + B) * NSO + E) * NSO + F_v]!;
+          }
+          // − Σ_n t_n^b ⟨mn||ej⟩
+          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+            s -= T1[nIdx * NVIRT + b]! * eri[((m * NSO + nIdx) * NSO + E) * NSO + j]!;
+          }
+          // − Σ_nf (½ t_jn^fb + t_j^f t_n^b) ⟨mn||ef⟩
+          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+            for (let f = 0; f < NVIRT; f++) {
+              const F_v = f + NOCC;
+              const t2val = T2[((j * NOCC + nIdx) * NVIRT + f) * NVIRT + b]!;
+              const t1prod = T1[j * NVIRT + f]! * T1[nIdx * NVIRT + b]!;
+              const eriVal = eri[((m * NSO + nIdx) * NSO + E) * NSO + F_v]!;
+              s -= (0.5 * t2val + t1prod) * eriVal;
+            }
+          }
+          W[((m * NVIRT + b) * NVIRT + e) * NOCC + j] = s;
+        }
+      }
+    }
+  }
+  return W;
+}
+
+// ─────────────────────────────────────────────────────────────
+// T1 residual (RHS of  D_ia · t_i^a = RHS):
+//   RHS = f_ia + Σ_e t_i^e F_ae − Σ_m t_m^a F_mi + Σ_me t_im^ae F_me
+//        − Σ_nf t_n^f ⟨na||if⟩
+//        − ½ Σ_mef t_im^ef ⟨ma||ef⟩
+//        − ½ Σ_mne t_mn^ae ⟨nm||ei⟩
+// f_ia = 0 in canonical RHF.
+// ─────────────────────────────────────────────────────────────
+function makeRHS_T1(T1: Float64Array, T2: Float64Array,
+                    F_ae: Float64Array, F_mi: Float64Array, F_me: Float64Array,
+                    eri: Float64Array, NOCC: number, NVIRT: number, NSO: number): Float64Array {
+  const r = new Float64Array(NOCC * NVIRT);
+  for (let i = 0; i < NOCC; i++) {
+    for (let a = 0; a < NVIRT; a++) {
+      const A = a + NOCC;
+      let s = 0;
+      // Σ_e t_i^e F_ae
+      for (let e = 0; e < NVIRT; e++) {
+        s += T1[i * NVIRT + e]! * F_ae[a * NVIRT + e]!;
+      }
+      // − Σ_m t_m^a F_mi
+      for (let m = 0; m < NOCC; m++) {
+        s -= T1[m * NVIRT + a]! * F_mi[m * NOCC + i]!;
+      }
+      // + Σ_me t_im^ae F_me
+      for (let m = 0; m < NOCC; m++) {
+        for (let e = 0; e < NVIRT; e++) {
+          s += T2[((i * NOCC + m) * NVIRT + a) * NVIRT + e]! * F_me[m * NVIRT + e]!;
+        }
+      }
+      // − Σ_nf t_n^f ⟨na||if⟩
+      for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+        for (let f = 0; f < NVIRT; f++) {
+          const F_v = f + NOCC;
+          s -= T1[nIdx * NVIRT + f]! * eri[((nIdx * NSO + A) * NSO + i) * NSO + F_v]!;
+        }
+      }
+      // − ½ Σ_mef t_im^ef ⟨ma||ef⟩
+      for (let m = 0; m < NOCC; m++) {
+        for (let e = 0; e < NVIRT; e++) {
+          const E = e + NOCC;
+          for (let f = 0; f < NVIRT; f++) {
+            const F_v = f + NOCC;
+            s -= 0.5 * T2[((i * NOCC + m) * NVIRT + e) * NVIRT + f]! *
+                       eri[((m * NSO + A) * NSO + E) * NSO + F_v]!;
+          }
+        }
+      }
+      // − ½ Σ_mne t_mn^ae ⟨nm||ei⟩
+      for (let m = 0; m < NOCC; m++) {
+        for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+          for (let e = 0; e < NVIRT; e++) {
+            const E = e + NOCC;
+            s -= 0.5 * T2[((m * NOCC + nIdx) * NVIRT + a) * NVIRT + e]! *
+                       eri[((nIdx * NSO + m) * NSO + E) * NSO + i]!;
+          }
+        }
+      }
+      r[i * NVIRT + a] = s;
+    }
+  }
+  return r;
+}
+
+// ─────────────────────────────────────────────────────────────
+// T2 residual (RHS of  D_ijab · t_ij^ab = RHS):
+//   RHS = ⟨ij||ab⟩
+//       + P(ab) Σ_e t_ij^ae · (F_be − ½ Σ_m t_m^b F_me)
+//       − P(ij) Σ_m t_im^ab · (F_mj + ½ Σ_e t_j^e F_me)
+//       + ½ Σ_mn τ_mn^ab W_mnij
+//       + ½ Σ_ef τ_ij^ef W_abef
+//       + P(ij) P(ab) Σ_me [ t_im^ae W_mbej − t_i^e t_m^a ⟨mb||ej⟩ ]
+//       + P(ij) Σ_e t_i^e ⟨ab||ej⟩
+//       − P(ab) Σ_m t_m^a ⟨mb||ij⟩
+// ─────────────────────────────────────────────────────────────
+function makeRHS_T2(T1: Float64Array, T2: Float64Array, tau: Float64Array,
+                    F_ae: Float64Array, _F_mi: Float64Array, F_me: Float64Array,
+                    W_mnij: Float64Array, W_abef: Float64Array, W_mbej: Float64Array,
+                    eri: Float64Array, NOCC: number, NVIRT: number, NSO: number): Float64Array {
+  const F_mi = _F_mi;
+  const r = new Float64Array(NOCC * NOCC * NVIRT * NVIRT);
+
+  // Helper: an effective F_be_eff[b,e] = F_be − ½ Σ_m t_m^b F_me  (for the t_ij^ae · F_be_eff term)
+  const F_be_eff = new Float64Array(NVIRT * NVIRT);
+  for (let bIdx = 0; bIdx < NVIRT; bIdx++) {
+    for (let eIdx = 0; eIdx < NVIRT; eIdx++) {
+      let s = F_ae[bIdx * NVIRT + eIdx]!;
+      for (let m = 0; m < NOCC; m++) {
+        s -= 0.5 * T1[m * NVIRT + bIdx]! * F_me[m * NVIRT + eIdx]!;
+      }
+      F_be_eff[bIdx * NVIRT + eIdx] = s;
+    }
+  }
+  // Effective F_mj_eff[m,j] = F_mj + ½ Σ_e t_j^e F_me
+  const F_mj_eff = new Float64Array(NOCC * NOCC);
+  for (let m = 0; m < NOCC; m++) {
+    for (let j = 0; j < NOCC; j++) {
+      let s = F_mi[m * NOCC + j]!;
+      for (let e = 0; e < NVIRT; e++) {
+        s += 0.5 * T1[j * NVIRT + e]! * F_me[m * NVIRT + e]!;
+      }
+      F_mj_eff[m * NOCC + j] = s;
+    }
+  }
+
+  for (let i = 0; i < NOCC; i++) {
+    for (let j = 0; j < NOCC; j++) {
+      for (let a = 0; a < NVIRT; a++) {
+        const A = a + NOCC;
+        for (let b = 0; b < NVIRT; b++) {
+          const B = b + NOCC;
+          // ⟨ij||ab⟩
+          let s = oovv(eri, NSO, NOCC, i, j, a, b);
+
+          // + P(ab) Σ_e t_ij^ae F_be_eff
+          for (let e = 0; e < NVIRT; e++) {
+            s += T2[((i * NOCC + j) * NVIRT + a) * NVIRT + e]! * F_be_eff[b * NVIRT + e]!;
+            s -= T2[((i * NOCC + j) * NVIRT + b) * NVIRT + e]! * F_be_eff[a * NVIRT + e]!;
+          }
+          // − P(ij) Σ_m t_im^ab F_mj_eff
+          for (let m = 0; m < NOCC; m++) {
+            s -= T2[((i * NOCC + m) * NVIRT + a) * NVIRT + b]! * F_mj_eff[m * NOCC + j]!;
+            s += T2[((j * NOCC + m) * NVIRT + a) * NVIRT + b]! * F_mj_eff[m * NOCC + i]!;
+          }
+          // + ½ Σ_mn τ_mn^ab W_mnij
+          let q1 = 0;
+          for (let m = 0; m < NOCC; m++) {
+            for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+              q1 += tau[((m * NOCC + nIdx) * NVIRT + a) * NVIRT + b]! *
+                    W_mnij[((m * NOCC + nIdx) * NOCC + i) * NOCC + j]!;
+            }
+          }
+          s += 0.5 * q1;
+          // + ½ Σ_ef τ_ij^ef W_abef
+          let q2 = 0;
+          for (let e = 0; e < NVIRT; e++) {
+            for (let f = 0; f < NVIRT; f++) {
+              q2 += tau[((i * NOCC + j) * NVIRT + e) * NVIRT + f]! *
+                    W_abef[((a * NVIRT + b) * NVIRT + e) * NVIRT + f]!;
+            }
+          }
+          s += 0.5 * q2;
+          // + P(ij) P(ab) Σ_me [ t_im^ae W_mbej − t_i^e t_m^a ⟨mb||ej⟩ ]
+          // Compute base T(i,j,a,b) = Σ_me [ ... ], then add T − Tji − Tab + Tjiab.
+          for (let m = 0; m < NOCC; m++) {
+            for (let e = 0; e < NVIRT; e++) {
+              const E = e + NOCC;
+              const w_iajb = W_mbej[((m * NVIRT + b) * NVIRT + e) * NOCC + j]!;
+              const w_jaib = W_mbej[((m * NVIRT + b) * NVIRT + e) * NOCC + i]!;
+              const w_ibja = W_mbej[((m * NVIRT + a) * NVIRT + e) * NOCC + j]!;
+              const w_jbia = W_mbej[((m * NVIRT + a) * NVIRT + e) * NOCC + i]!;
+              const eri_jb = eri[((m * NSO + B) * NSO + E) * NSO + j]!;
+              const eri_ib = eri[((m * NSO + B) * NSO + E) * NSO + i]!;
+              const eri_ja = eri[((m * NSO + A) * NSO + E) * NSO + j]!;
+              const eri_ia = eri[((m * NSO + A) * NSO + E) * NSO + i]!;
+              const t_imae = T2[((i * NOCC + m) * NVIRT + a) * NVIRT + e]!;
+              const t_jmae = T2[((j * NOCC + m) * NVIRT + a) * NVIRT + e]!;
+              const t_imbe = T2[((i * NOCC + m) * NVIRT + b) * NVIRT + e]!;
+              const t_jmbe = T2[((j * NOCC + m) * NVIRT + b) * NVIRT + e]!;
+              const t_ie = T1[i * NVIRT + e]!;
+              const t_je = T1[j * NVIRT + e]!;
+              const t_ma = T1[m * NVIRT + a]!;
+              const t_mb = T1[m * NVIRT + b]!;
+              // T(i,j,a,b) = t_im^ae W_mbej − t_i^e t_m^a ⟨mb||ej⟩
+              const T_ijab = t_imae * w_iajb - t_ie * t_ma * eri_jb;
+              const T_jiab = t_jmae * w_jaib - t_je * t_ma * eri_ib;
+              const T_ijba = t_imbe * w_ibja - t_ie * t_mb * eri_ja;
+              const T_jiba = t_jmbe * w_jbia - t_je * t_mb * eri_ia;
+              s += T_ijab - T_jiab - T_ijba + T_jiba;
+            }
+          }
+          // + P(ij) Σ_e t_i^e ⟨ab||ej⟩  =  Σ_e t_i^e ⟨ab||ej⟩ − Σ_e t_j^e ⟨ab||ei⟩
+          for (let e = 0; e < NVIRT; e++) {
+            const E = e + NOCC;
+            s += T1[i * NVIRT + e]! * eri[((A * NSO + B) * NSO + E) * NSO + j]!;
+            s -= T1[j * NVIRT + e]! * eri[((A * NSO + B) * NSO + E) * NSO + i]!;
+          }
+          // − P(ab) Σ_m t_m^a ⟨mb||ij⟩  =  −Σ_m t_m^a ⟨mb||ij⟩ + Σ_m t_m^b ⟨ma||ij⟩
+          for (let m = 0; m < NOCC; m++) {
+            s -= T1[m * NVIRT + a]! * eri[((m * NSO + B) * NSO + i) * NSO + j]!;
+            s += T1[m * NVIRT + b]! * eri[((m * NSO + A) * NSO + i) * NSO + j]!;
+          }
+
+          r[((i * NOCC + j) * NVIRT + a) * NVIRT + b] = s;
+        }
+      }
+    }
+  }
+  return r;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Energy:
+//   E_corr = Σ_ia f_ia t_i^a + ¼ Σ_ijab ⟨ij||ab⟩ τ_ij^ab
+// f_ia = 0 in canonical RHF, so just the τ contraction. Equivalent:
+//   E_corr = ¼ Σ ⟨ij||ab⟩ t_ij^ab + ½ Σ ⟨ij||ab⟩ t_i^a t_j^b
+// ─────────────────────────────────────────────────────────────
+function computeECorr(T1: Float64Array, T2: Float64Array, eri: Float64Array,
+                      NOCC: number, NVIRT: number, NSO: number): number {
+  let e = 0;
+  for (let i = 0; i < NOCC; i++) {
+    for (let j = 0; j < NOCC; j++) {
+      for (let a = 0; a < NVIRT; a++) {
+        for (let b = 0; b < NVIRT; b++) {
+          const v = oovv(eri, NSO, NOCC, i, j, a, b);
+          const t2 = T2[((i * NOCC + j) * NVIRT + a) * NVIRT + b]!;
+          const t1prod = T1[i * NVIRT + a]! * T1[j * NVIRT + b]!
+                       - T1[i * NVIRT + b]! * T1[j * NVIRT + a]!;
+          e += 0.25 * v * (t2 + t1prod);
+        }
+      }
+    }
+  }
+  return e;
+}
