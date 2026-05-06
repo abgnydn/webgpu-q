@@ -121,8 +121,17 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 1 bundle.** Six chemistry-track quick wins
-shipped in one commit:
+**Latest milestone: Tier 2 stage 1 — geometry optimization.**
+`optimizeGeometry(atoms, opts)` minimizes E_HF over atomic positions
+with central-FD gradients + L-BFGS line search. Validated on H₂ /
+H₂O / BeH₂ STO-3G to sub-mÅ + sub-degree agreement with PySCF
+references (R_OH = 0.9894 Å vs 0.9893; ∠HOH = 100.02° vs 100.04;
+R_BeH = 1.291 Å). Convergence in 10-12 BFGS iters / 7-8 s wall on
+H₂O (STO-3G). API in `src/chemistry/geometry.ts`. FD gradients keep
+this generic over basis / level — analytical-gradient swap is
+deferred to a follow-up session for the speedup, same API.
+
+**Tier 1 bundle.** Six chemistry-track quick wins shipped earlier:
 - **DIIS** SCF accelerator — H₂O cc-pVDZ HF: 101 → 14 iter (7.2×
   speedup), bit-identical energy.
 - **Frozen-core** option on MP2 / CCSD / CCSD(T) (zeroes T1, T2 in core
@@ -153,7 +162,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **321/321** (was 309) + 1 opt-in
+**Test surface:** `npm run test` → **325/325** (was 321) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
@@ -167,12 +176,13 @@ E1–E5, viz extensions, public-repo polish, hardened-SVD fix, Tier B/C/D
 fusion): read `git log` — every phase shipped its own commit with full
 benchmarks in the message body. Don't replicate that history here.
 
-**Next up (per the roadmap above):** Tier 2 — DFT (LDA + B3LYP +
-Lebedev grids), HF analytical gradients + BFGS for geometry
-optimization, WebGPU port of the (T) kernel, EOM-CCSD for excited
-states, UHF + open-shell CCSD, density fitting (RI). ~10 sessions.
-After Tier 2 the project becomes a "real undergrad chemistry tool in a
-browser tab."
+**Next up (per the roadmap above):** Tier 2 continues with **DFT**
+(LDA + B3LYP + Lebedev grids — ~90% of all real chemistry uses DFT),
+then **WebGPU port of the (T) kernel** (10-100× speedup → cc-pVTZ
+CCSD(T) becomes routine), then **EOM-CCSD** for excited states.
+Optional follow-up to today's stage 1: swap FD gradients for
+analytical (3-50× faster geometry-opt; same API). After Tier 2 the
+project becomes a "real undergrad chemistry tool in a browser tab."
 
 ---
 
