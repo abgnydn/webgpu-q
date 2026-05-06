@@ -121,15 +121,22 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 1 — geometry optimization.**
-`optimizeGeometry(atoms, opts)` minimizes E_HF over atomic positions
-with central-FD gradients + L-BFGS line search. Validated on H₂ /
-H₂O / BeH₂ STO-3G to sub-mÅ + sub-degree agreement with PySCF
-references (R_OH = 0.9894 Å vs 0.9893; ∠HOH = 100.02° vs 100.04;
-R_BeH = 1.291 Å). Convergence in 10-12 BFGS iters / 7-8 s wall on
-H₂O (STO-3G). API in `src/chemistry/geometry.ts`. FD gradients keep
-this generic over basis / level — analytical-gradient swap is
-deferred to a follow-up session for the speedup, same API.
+**Latest milestone: Tier 2 stage 2 — DFT (LDA).** Closed-shell
+Restricted Kohn-Sham SCF with Slater exchange + VWN5 correlation,
+running on a Becke-partitioned molecular grid (Becke M3 radial via
+Gauss-Chebyshev 2nd-kind × Gauss-Legendre × uniform-φ angular).
+Default grid 50r × 12θ × 24φ per atom integrates ρ to 10⁻⁵–10⁻⁷ e
+on H₂ / H₂O / BeH₂. DFT/STO-3G energies match PySCF SVWN5 within
+~5 mHa across the standard set. ~5–8 SCF iters / 75 ms on H₂O.
+New modules: `src/chemistry/dft/{grid,density,functional,rks-scf}.ts`.
+
+**Tier 2 stage 1 — geometry optimization.** `optimizeGeometry(atoms,
+opts)` minimizes E_HF over atomic positions with central-FD
+gradients + L-BFGS line search. Validated on H₂ / H₂O / BeH₂
+STO-3G to sub-mÅ + sub-degree agreement with PySCF references
+(R_OH = 0.9894 Å vs 0.9893; ∠HOH = 100.02° vs 100.04; R_BeH =
+1.291 Å). FD gradients keep it basis-/level-agnostic; analytical
+swap is a transparent follow-up.
 
 **Tier 1 bundle.** Six chemistry-track quick wins shipped earlier:
 - **DIIS** SCF accelerator — H₂O cc-pVDZ HF: 101 → 14 iter (7.2×
@@ -162,7 +169,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **325/325** (was 321) + 1 opt-in
+**Test surface:** `npm run test` → **331/331** (was 325) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
@@ -176,12 +183,13 @@ E1–E5, viz extensions, public-repo polish, hardened-SVD fix, Tier B/C/D
 fusion): read `git log` — every phase shipped its own commit with full
 benchmarks in the message body. Don't replicate that history here.
 
-**Next up (per the roadmap above):** Tier 2 continues with **DFT**
-(LDA + B3LYP + Lebedev grids — ~90% of all real chemistry uses DFT),
-then **WebGPU port of the (T) kernel** (10-100× speedup → cc-pVTZ
-CCSD(T) becomes routine), then **EOM-CCSD** for excited states.
-Optional follow-up to today's stage 1: swap FD gradients for
-analytical (3-50× faster geometry-opt; same API). After Tier 2 the
+**Next up (per the roadmap above):** Tier 2 continues with **GGA
++ B3LYP** on top of LDA (B88 exchange, LYP correlation, 20% exact-
+exchange mix — ~90% of real chemistry uses B3LYP), then **WebGPU
+port of the (T) kernel** (10-100× speedup → cc-pVTZ CCSD(T) routine),
+then **EOM-CCSD** for excited states. Optional speedups: swap FD
+geometry gradients for analytical (3-50×), upgrade DFT angular
+quadrature to Lebedev (fewer points per accuracy). After Tier 2 the
 project becomes a "real undergrad chemistry tool in a browser tab."
 
 ---
