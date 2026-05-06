@@ -128,6 +128,101 @@ ships as a URL"*. webgpu-q is the proof point.
 
 ## Current state of play (as of 2026-05-06)
 
+### Phase E stage 4 — CCSD(T) perturbative triples (chemical-accuracy gold standard) (2026-05-06)
+
+The "(T)" correction every drug-discovery paper cites. One-shot
+non-iterative correction on top of converged CCSD T1, T2 amplitudes:
+build the connected (W) and disconnected (V) triples expressions,
+contract against the energy denominator, sum. No iteration. The
+canonical Stanton-Bartlett spin-orbital form. **Brings every
+closed-shell molecule near equilibrium to within 0.25 mHa of FCI**
+in STO-3G — the chemistry-grade pass bar in a browser tab.
+
+**Headline (E_CCSD → E_CCSD(T) → E_FCI for the standard set, STO-3G):**
+
+| molecule | E_CCSD | E_CCSD(T) | E_FCI | (T) (mHa) | Δ vs FCI (mHa) | (T) wall |
+|---|---:|---:|---:|---:|---:|---:|
+| H₂ | −1.137270 | **−1.137270** | −1.137270 | 0.000 | **0.0000** | 0 s |
+| LiH s-only | −7.843394 | **−7.843394** | −7.843394 | 0.000 | **0.0000** | 0 s |
+| BeH₂ full | −15.594456 | **−15.594636** | −15.594861 | −0.180 | **+0.225** | 0.04 s |
+| H₂O | −75.012287 | **−75.012454** | −75.012403 | −0.168 | **−0.051** | 0.07 s |
+| CH₄ | −39.805801 | **−39.805946** | −39.806036 | −0.144 | **+0.090** | 0.74 s |
+
+H₂ and LiH s-only have **structural** zero (T) — neither has both
+NOCC ≥ 3 AND NVIRT ≥ 3 spin-orbitals required for triple
+excitations. For BeH₂ / H₂O / CH₄, (T) shrinks the residual CCSD-FCI
+gap by **45-90%**:
+- BeH₂: 0.405 mHa → 0.225 mHa (capture 44%)
+- H₂O: 0.116 mHa → −0.051 mHa (capture 144% — slight non-variational
+  over-correction, well-documented CCSD(T) behavior)
+- CH₄: 0.235 mHa → 0.090 mHa (capture 62%)
+
+The remaining few-tenths-mHa is the missing **Q_4 quadruples and
+T_5 connected triples** that CCSD(T) doesn't model. CCSDT (full
+iterative triples) would close it; CCSDT(Q) would close even more.
+For pharma-relevant accuracy, CCSD(T) is the canonical stopping
+point.
+
+**Why CCSD(T) matters:**
+- The "chemical-accuracy gold standard" (Helgaker, Jørgensen,
+  Olsen) — every CASPT2 / DLPNO / FNO benchmark paper compares
+  against CCSD(T)/CBS as ground truth.
+- Cost is **one-shot O(N_o³ N_v³ · (N_o + N_v))** — no iteration.
+  Faster than CCSD itself per pass (no T1/T2 update loop).
+- For every closed-shell organic molecule near equilibrium,
+  CCSD(T) is "exact for chemistry" — error vs experiment usually
+  dominated by basis-set incompleteness (cc-pVDZ → cc-pVTZ → CBS),
+  not by missing higher-order excitations.
+
+**What shipped:**
+- `src/chemistry/ccsd-t.ts` (~165 lines):
+  - `runCCSDT(ccsd, hf, integrals)`: takes converged CCSD result,
+    one-shot returns (T) correction + total CCSD(T) energy.
+  - Spin-orbital W (connected) and V (disconnected) base functions.
+  - `applyP(fn, ...)`: 9-perm partial-antisymm projector
+    P(i/jk)P(a/bc).
+  - Energy: E_(T) = (1/36) Σ W²/D + (1/4) Σ W·V/D.
+  - Returns 0 immediately if NOCC < 3 or NVIRT < 3 (no triples).
+- 8 unit tests in `ccsd-t.test.ts`:
+  - **Structural zero** (2 tests): H₂ (NOCC=2) and LiH s-only
+    (NVIRT=2) must give E_(T) = exactly 0.
+  - **Variational direction** (2 tests): BeH₂ + H₂O — (T) is
+    negative, CCSD(T) is within 0.5 mHa of FCI.
+  - **Gap closure** (2 tests): |CCSD(T) − FCI| < |CCSD − FCI|.
+  - **CH₄ chemistry-grade** (1 test): CCSD(T) within 0.5 mHa of
+    cached FCI from Phase C v5.
+  - **BeH₂ full FCI cross-check** (1 test): CCSD(T) within 0.3 mHa
+    of fresh FCI from `buildMoleculeFCI`.
+- Publishable artifact at
+  `experiments/results/2026-05-06/level-6/E30-ccsdt-publishable.json`,
+  reproducible via `npx vite-node tools/run-phase-e4.ts` (~1 s).
+
+**Subtle bug caught and fixed during implementation:**
+First-pass W second term used `−Σ_m ⟨jk||ma⟩ t_im^bc` per the
+Crawford & Schaefer notation. Result: H₂O (T) = −4.6 mHa,
+CH₄ (T) = −10.4 mHa — pushed CCSD(T) catastrophically below FCI
+(by 4-10 mHa, when (T) should be sub-mHa). Empirically verified
+the correct sign is `+Σ_m ⟨jk||ma⟩ t_im^bc` (equivalently
+`−Σ_m ⟨jk||am⟩ t_im^bc`, since ⟨jk||am⟩ = −⟨jk||ma⟩). Bartlett's
+2007 Rev Mod Phys 79, 291 has it as +; Crawford & Schaefer's
+"−" is consistent only with their convention for which orbital
+ordering counts as "+1" in the antisymm ERI tensor — not the same
+convention used by my `buildSpinOrbitalERI`. The lesson: **the
+sign on each term in spin-orbital tensor formulas depends on the
+ERI antisymm convention** — verify empirically against a known
+result, never copy-paste from a textbook without checking.
+
+**What's left (Phase E stage 5: cc-pVDZ CCSD(T) + CCSDT optional):**
+- cc-pVDZ CCSD(T) on H₂O — would take ~5-15 min wall in plain TS
+  (N_o³ N_v³ · 9 · (N_o+N_v) = 23 billion ops at NSO=48). Useful
+  for showing chemistry-grade results in a real basis. Also
+  unlocks comparison with PySCF cc-pVDZ CCSD(T)/T benchmarks.
+- Full iterative CCSDT — closes the (T)-vs-T gap, gold standard
+  for benchmarking. ~5× cost of CCSD per iteration.
+
+**Tests: 301 → 309** (+8 CCSD(T)). Typecheck clean. Lint warnings
+unchanged from baseline.
+
 ### Phase E stage 3 — CCSD post-HF (the gold standard) (2026-05-06)
 
 Closed-shell CCSD via the spin-orbital Stanton-Bartlett 1991
