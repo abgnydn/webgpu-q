@@ -36,6 +36,21 @@ export interface BasisGradientsOnGrid {
   readonly nGrid: number;
 }
 
+/** Pre-computed basis Hessians: ∂²φ_μ/∂r_a∂r_b at r_p, six unique
+ *  components by symmetry. Used by the GGA piece of the analytical
+ *  DFT gradient (∂γ/∂R requires these second derivatives). */
+export interface BasisHessianOnGrid {
+  /** ∂²φ_μ/∂x² at r_p — phixx[p · n + μ]. */
+  readonly phixx: Float64Array;
+  readonly phiyy: Float64Array;
+  readonly phizz: Float64Array;
+  readonly phixy: Float64Array;
+  readonly phixz: Float64Array;
+  readonly phiyz: Float64Array;
+  readonly n: number;
+  readonly nGrid: number;
+}
+
 /**
  * Evaluate every basis function at every grid point. Cost:
  * O(nGrid · n · n_prim) — the dominant per-DFT-iter expense.
@@ -199,6 +214,150 @@ export function evalBasisGradOnGrid(
   }
 
   return { phix, phiy, phiz, n, nGrid };
+}
+
+/**
+ * Evaluate the basis Hessian ∂²φ_μ/∂r_a∂r_b at every grid point.
+ *
+ * For a Cartesian-Gaussian primitive at center A with angular
+ * tuple I = (i_x, i_y, i_z) and exponent α:
+ *   ∂²/∂r_a∂r_b [poly_I · e^{-αr²}] = ... (shifted-L formulas)
+ *
+ * Diagonal (a = b):
+ *   ∂²/∂r_a² = { i_a(i_a−1)·poly_{I-2_a}
+ *              − 2α(2·i_a + 1)·poly_I
+ *              + 4α²·poly_{I+2_a} } · e^{-αr²}
+ *
+ * Off-diagonal (a ≠ b):
+ *   ∂²/∂r_b∂r_a = { i_a·i_b·poly_{I-1_a-1_b}
+ *                 − 2α·i_a·poly_{I-1_a+1_b}
+ *                 − 2α·i_b·poly_{I+1_a-1_b}
+ *                 + 4α²·poly_{I+1_a+1_b} } · e^{-αr²}
+ *
+ * Cost: same O(nGrid · n · n_prim) shape as gradient evaluation,
+ * with a few extra polynomial powers per (μ, p) to assemble the
+ * 6 unique components.
+ */
+export function evalBasisHessianOnGrid(
+  shells: readonly CGShell[],
+  grid: MolecularGrid,
+): BasisHessianOnGrid {
+  const n = shells.length;
+  const nGrid = grid.x.length;
+  const phixx = new Float64Array(nGrid * n);
+  const phiyy = new Float64Array(nGrid * n);
+  const phizz = new Float64Array(nGrid * n);
+  const phixy = new Float64Array(nGrid * n);
+  const phixz = new Float64Array(nGrid * n);
+  const phiyz = new Float64Array(nGrid * n);
+
+  const cnorm: Float64Array[] = shells.map((s) => {
+    const out = new Float64Array(s.alpha.length);
+    for (let p = 0; p < s.alpha.length; p++) {
+      out[p] = (s.c[p] ?? 0) * normCG(s.alpha[p]!, s.angular);
+    }
+    return out;
+  });
+
+  // Helper: dx^k with clamping for k < 0 (poly_{I-2_a} when I_a < 2 etc).
+  const pw = (d: number, k: number): number => {
+    if (k < 0) return 0;
+    if (k === 0) return 1;
+    if (k === 1) return d;
+    return Math.pow(d, k);
+  };
+
+  for (let p = 0; p < nGrid; p++) {
+    const rx = grid.x[p]!, ry = grid.y[p]!, rz = grid.z[p]!;
+    for (let mu = 0; mu < n; mu++) {
+      const s = shells[mu]!;
+      const dx = rx - s.center[0];
+      const dy = ry - s.center[1];
+      const dz = rz - s.center[2];
+      const r2 = dx * dx + dy * dy + dz * dz;
+      const ix = s.angular[0], iy = s.angular[1], iz = s.angular[2];
+
+      // Powers of dx, dy, dz at offsets {-2, -1, 0, +1, +2} from I.
+      const xm2 = pw(dx, ix - 2);
+      const xm1 = pw(dx, ix - 1);
+      const x0  = pw(dx, ix);
+      const xp1 = pw(dx, ix + 1);
+      const xp2 = pw(dx, ix + 2);
+      const ym2 = pw(dy, iy - 2);
+      const ym1 = pw(dy, iy - 1);
+      const y0  = pw(dy, iy);
+      const yp1 = pw(dy, iy + 1);
+      const yp2 = pw(dy, iy + 2);
+      const zm2 = pw(dz, iz - 2);
+      const zm1 = pw(dz, iz - 1);
+      const z0  = pw(dz, iz);
+      const zp1 = pw(dz, iz + 1);
+      const zp2 = pw(dz, iz + 2);
+
+      // Per-axis "diagonal" polynomial pieces (×y0·z0 etc applied below):
+      //   xx-row needs xm2, x0, xp2 with y0·z0 multiplier.
+      const polyI    = x0  * y0  * z0;             // poly_I
+      const polyXm2  = xm2 * y0  * z0;             // poly_{I-2_x}
+      const polyXp2  = xp2 * y0  * z0;             // poly_{I+2_x}
+      const polyYm2  = x0  * ym2 * z0;
+      const polyYp2  = x0  * yp2 * z0;
+      const polyZm2  = x0  * y0  * zm2;
+      const polyZp2  = x0  * y0  * zp2;
+      // Off-diagonal pieces (xy, xz, yz):
+      const polyXmYm = xm1 * ym1 * z0;             // poly_{I-1_x-1_y}
+      const polyXmYp = xm1 * yp1 * z0;             // poly_{I-1_x+1_y}
+      const polyXpYm = xp1 * ym1 * z0;             // poly_{I+1_x-1_y}
+      const polyXpYp = xp1 * yp1 * z0;             // poly_{I+1_x+1_y}
+      const polyXmZm = xm1 * y0  * zm1;
+      const polyXmZp = xm1 * y0  * zp1;
+      const polyXpZm = xp1 * y0  * zm1;
+      const polyXpZp = xp1 * y0  * zp1;
+      const polyYmZm = x0  * ym1 * zm1;
+      const polyYmZp = x0  * ym1 * zp1;
+      const polyYpZm = x0  * yp1 * zm1;
+      const polyYpZp = x0  * yp1 * zp1;
+
+      let hxx = 0, hyy = 0, hzz = 0, hxy = 0, hxz = 0, hyz = 0;
+      const cn = cnorm[mu]!;
+      for (let pp = 0; pp < s.alpha.length; pp++) {
+        const a = s.alpha[pp]!;
+        const e = cn[pp]! * Math.exp(-a * r2);
+        // Diagonal:
+        //   I_a(I_a-1)·poly_{I-2_a} − 2α(2·I_a + 1)·poly_I + 4α²·poly_{I+2_a}
+        hxx += e * (ix * (ix - 1) * polyXm2
+                  - 2 * a * (2 * ix + 1) * polyI
+                  + 4 * a * a * polyXp2);
+        hyy += e * (iy * (iy - 1) * polyYm2
+                  - 2 * a * (2 * iy + 1) * polyI
+                  + 4 * a * a * polyYp2);
+        hzz += e * (iz * (iz - 1) * polyZm2
+                  - 2 * a * (2 * iz + 1) * polyI
+                  + 4 * a * a * polyZp2);
+        // Off-diagonal:
+        //   I_a·I_b·poly_{I-1_a-1_b}
+        //   − 2α·I_a·poly_{I-1_a+1_b}
+        //   − 2α·I_b·poly_{I+1_a-1_b}
+        //   + 4α²·poly_{I+1_a+1_b}
+        hxy += e * (ix * iy * polyXmYm
+                  - 2 * a * ix * polyXmYp
+                  - 2 * a * iy * polyXpYm
+                  + 4 * a * a * polyXpYp);
+        hxz += e * (ix * iz * polyXmZm
+                  - 2 * a * ix * polyXmZp
+                  - 2 * a * iz * polyXpZm
+                  + 4 * a * a * polyXpZp);
+        hyz += e * (iy * iz * polyYmZm
+                  - 2 * a * iy * polyYmZp
+                  - 2 * a * iz * polyYpZm
+                  + 4 * a * a * polyYpZp);
+      }
+      const off = p * n + mu;
+      phixx[off] = hxx; phiyy[off] = hyy; phizz[off] = hzz;
+      phixy[off] = hxy; phixz[off] = hxz; phiyz[off] = hyz;
+    }
+  }
+
+  return { phixx, phiyy, phizz, phixy, phixz, phiyz, n, nGrid };
 }
 
 /**

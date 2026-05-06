@@ -1,4 +1,4 @@
-// Tier 2 stage 6: analytical RKS-DFT gradient (LDA only).
+// Tier 2 stages 6 + 6b: analytical RKS-DFT gradient (LDA + GGA + hybrids).
 //
 // Pass bars (looser than HF's 1e-5 because of (a) the weights-fixed
 // approximation — we don't differentiate the Becke partition weights
@@ -6,16 +6,15 @@
 // the XC integral itself):
 //   • |analytic − FD| ≤ 1e-3 Ha/Bohr per component on H₂, H₂O, BeH₂
 //     STO-3G with the default grid (50r × 12θ × 24φ per atom).
-//   • Translational invariance Σ_atoms ∇E ≈ 0 to 1e-6.
-//   • For non-LDA functionals (BVWN5, BLYP, B3LYP5), the call must
-//     throw with a clear "needs GGA support" message — the GGA path
-//     is documented as a follow-up.
+//   • Translational invariance Σ_atoms ∇E ≈ 0 to 1e-3 (the
+//     residual is exactly the missing ∂(grid weight)/∂R term).
 import { describe, expect, test } from "vitest";
 import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
 import { runRKSDFT } from "../../src/chemistry/dft/rks-scf.js";
 import { dftGradient } from "../../src/chemistry/dft-gradient.js";
 import { buildEnergyWeightedDensity } from "../../src/chemistry/hf-gradient.js";
+import type { FunctionalKind } from "../../src/chemistry/dft/functional.js";
 
 const ANGSTROM_TO_BOHR = 1.8897261339;
 
@@ -55,28 +54,28 @@ const MOLECULES: Mol[] = [
   },
 ];
 
-function analyticalLDAGradient(atoms: readonly Atom[]): Float64Array {
+function analyticalDFTGradient(atoms: readonly Atom[], functional: FunctionalKind): Float64Array {
   const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(atoms);
   const integrals = computeMolecularIntegrals(shells, nuclei);
   const symbols = atoms.map((a) => a.symbol);
   const dft = runRKSDFT(integrals, nElectrons, symbols, {
-    functional: "lda-svwn", energyTol: 1e-12, residualTol: 1e-7, maxIter: 200,
+    functional, energyTol: 1e-12, residualTol: 1e-7, maxIter: 200,
   });
   const W = buildEnergyWeightedDensity(dft.C_MO, dft.orbitalEnergies, dft.nOccupied, integrals.n);
   return dftGradient({
     shells, nuclei, shellAtomIdx, nucleiSymbols: symbols,
-    P: dft.D, W, functional: "lda-svwn",
+    P: dft.D, W, functional,
   });
 }
 
-function fdLDAGradient(atoms: readonly Atom[], hBohr = 1e-3): Float64Array {
+function fdDFTGradient(atoms: readonly Atom[], functional: FunctionalKind, hBohr = 1e-3): Float64Array {
   const grad = new Float64Array(atoms.length * 3);
   const energyAt = (perturbed: readonly Atom[]): number => {
     const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(perturbed);
     const integrals = computeMolecularIntegrals(shells, nuclei);
     const symbols = perturbed.map((a) => a.symbol);
     const dft = runRKSDFT(integrals, nElectrons, symbols, {
-      functional: "lda-svwn", energyTol: 1e-12, residualTol: 1e-7, maxIter: 200,
+      functional, energyTol: 1e-12, residualTol: 1e-7, maxIter: 200,
     });
     return dft.energy;
   };
@@ -98,44 +97,47 @@ function fdLDAGradient(atoms: readonly Atom[], hBohr = 1e-3): Float64Array {
   return grad;
 }
 
-describe("RKS-DFT/LDA analytical gradient: agreement with central-FD", () => {
-  for (const m of MOLECULES) {
-    test(`${m.name}: per-component |analytic − FD| ≤ 1e-3 Ha/Bohr (LDA, weights-fixed)`, () => {
-      const an = analyticalLDAGradient(m.atoms);
-      const fd = fdLDAGradient(m.atoms);
-      let maxDiff = 0, maxIdx = -1;
-      for (let i = 0; i < an.length; i++) {
-        const d = Math.abs(an[i]! - fd[i]!);
-        if (d > maxDiff) { maxDiff = d; maxIdx = i; }
-      }
-      // 1 mHa/Bohr: dominated by the weights-fixed approximation
-      // (Becke-partition derivative we don't compute) plus the
-      // numerical-grid quadrature error itself. Tightening this is
-      // a planned follow-up.
-      expect(maxDiff, `worst component @ flat-idx ${maxIdx}: an=${an[maxIdx]?.toExponential(4)} fd=${fd[maxIdx]?.toExponential(4)}`).toBeLessThan(1e-3);
-    }, 180_000);
+const FUNCTIONALS: FunctionalKind[] = ["lda-svwn", "bvwn5", "blyp", "b3vwn5", "b3lyp5"];
+
+describe("RKS-DFT analytical gradient: agreement with central-FD", () => {
+  for (const f of FUNCTIONALS) {
+    for (const m of MOLECULES) {
+      test(`${m.name} / ${f}: per-component |analytic − FD| ≤ 1e-3 Ha/Bohr`, () => {
+        const an = analyticalDFTGradient(m.atoms, f);
+        const fd = fdDFTGradient(m.atoms, f);
+        let maxDiff = 0, maxIdx = -1;
+        for (let i = 0; i < an.length; i++) {
+          const d = Math.abs(an[i]! - fd[i]!);
+          if (d > maxDiff) { maxDiff = d; maxIdx = i; }
+        }
+        // 1 mHa/Bohr: dominated by the weights-fixed approximation
+        // (Becke-partition derivative we don't compute) plus the
+        // numerical-grid quadrature error itself. Tightening this is
+        // a planned follow-up (Becke-partition weight derivatives).
+        expect(maxDiff, `worst component @ flat-idx ${maxIdx}: an=${an[maxIdx]?.toExponential(4)} fd=${fd[maxIdx]?.toExponential(4)}`).toBeLessThan(1e-3);
+      }, 180_000);
+    }
   }
 });
 
-describe("RKS-DFT/LDA analytical gradient: translational invariance", () => {
-  for (const m of MOLECULES) {
-    test(`${m.name}: Σ_atoms ∇E ≈ 0 to 1e-3 per axis (weights-fixed)`, () => {
-      const g = analyticalLDAGradient(m.atoms);
-      let sx = 0, sy = 0, sz = 0;
-      for (let i = 0; i < m.atoms.length; i++) {
-        sx += g[i * 3 + 0]!;
-        sy += g[i * 3 + 1]!;
-        sz += g[i * 3 + 2]!;
-      }
-      // Looser than HF (1e-9) because the weights-fixed approximation
-      // breaks exact translational invariance — the Becke partition
-      // weights would also need to translate with the nuclei. For
-      // a fine grid this residual is sub-mHa/Bohr, well below the
-      // FD-vs-analytical pass bar of 1e-3 itself.
-      expect(Math.abs(sx)).toBeLessThan(1e-3);
-      expect(Math.abs(sy)).toBeLessThan(1e-3);
-      expect(Math.abs(sz)).toBeLessThan(1e-3);
-    }, 60_000);
+describe("RKS-DFT analytical gradient: translational invariance", () => {
+  for (const f of FUNCTIONALS) {
+    for (const m of MOLECULES) {
+      test(`${m.name} / ${f}: Σ_atoms ∇E ≈ 0 to 1e-3 per axis (weights-fixed)`, () => {
+        const g = analyticalDFTGradient(m.atoms, f);
+        let sx = 0, sy = 0, sz = 0;
+        for (let i = 0; i < m.atoms.length; i++) {
+          sx += g[i * 3 + 0]!;
+          sy += g[i * 3 + 1]!;
+          sz += g[i * 3 + 2]!;
+        }
+        // Looser than HF (1e-9) because the weights-fixed approximation
+        // breaks exact translational invariance.
+        expect(Math.abs(sx)).toBeLessThan(1e-3);
+        expect(Math.abs(sy)).toBeLessThan(1e-3);
+        expect(Math.abs(sz)).toBeLessThan(1e-3);
+      }, 60_000);
+    }
   }
 });
 
@@ -178,25 +180,3 @@ describe("optimizeGeometry on the LDA surface", () => {
   }, 240_000);
 });
 
-describe("RKS-DFT analytical gradient: GGA / hybrid not yet supported", () => {
-  // Tier 2 stage 6 ships LDA only. Confirm the API surface refuses
-  // GGA functionals with a clear error message instead of returning
-  // a wrong gradient.
-  for (const k of ["bvwn5", "blyp", "b3vwn5", "b3lyp5"] as const) {
-    test(`${k}: throws with TODO message`, () => {
-      const atoms: Atom[] = [
-        { symbol: "H", pos: [0, 0, 0] },
-        { symbol: "H", pos: [0, 0, 0.74] },
-      ];
-      const { shells, nuclei, shellAtomIdx } = moleculeToShellsNuclei(atoms);
-      const symbols = atoms.map((a) => a.symbol);
-      const n = shells.length;
-      const P = new Float64Array(n * n);
-      const W = new Float64Array(n * n);
-      expect(() => dftGradient({
-        shells, nuclei, shellAtomIdx, nucleiSymbols: symbols,
-        P, W, functional: k,
-      })).toThrow(/lda-svwn.*GGA.*basis Hessians/);
-    });
-  }
-});
