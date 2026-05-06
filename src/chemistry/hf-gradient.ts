@@ -53,6 +53,13 @@ export interface HFGradientInputs {
   /** Energy-weighted AO density matrix (n × n, row-major):
    *  W_μν = 2·Σ_{i ∈ occ} ε_i C_μi C_νi. */
   readonly W: Float64Array;
+  /** Fraction of HF exact exchange in the energy expression.
+   *  - 1.0 for pure HF (default)
+   *  - 0.0 for pure DFT (LDA, GGA)
+   *  - 0.20 for B3LYP-style hybrids
+   *  Scales the K-coupling −(1/4)·hfMix·P_μλ·P_νσ inside the
+   *  ERI 8-fold canonical loop. */
+  readonly kFactor?: number;
 }
 
 /**
@@ -94,6 +101,7 @@ export function buildEnergyWeightedDensity(
  */
 export function hfGradient(inp: HFGradientInputs): Float64Array {
   const { shells, nuclei, shellAtomIdx, P, W } = inp;
+  const kFactor = inp.kFactor ?? 1.0;
   const n = shells.length;
   const nAtoms = nuclei.length;
   const grad = new Float64Array(3 * nAtoms);
@@ -223,7 +231,7 @@ export function hfGradient(inp: HFGradientInputs): Float64Array {
             if (dup) continue;
             const a = pi[0], b = pi[1], c = pi[2], d = pi[3];
             coef += 0.5 * P[a * n + b]! * P[c * n + d]!
-                  - 0.25 * P[a * n + c]! * P[b * n + d]!;
+                  - 0.25 * kFactor * P[a * n + c]! * P[b * n + d]!;
           }
           if (coef === 0) continue;
           // Schwarz: skip if Q_μν·Q_λσ·|coef| is below the integral-

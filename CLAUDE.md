@@ -121,7 +121,49 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 5b — HF gradient speedup.**
+**Latest milestone: Tier 2 stage 6 — DFT analytical gradients (LDA).**
+The Pulay HF gradient is reused with `kFactor = hfMix` (= 0 for
+pure DFT, 0.20 for B3-style hybrids), and the XC contribution is
+added as
+  ∂E_xc/∂R_N = Σ_p w_p · v_ρ(ρ_p) · ∂ρ_p/∂R_N
+            = −2·Σ_p w_p · v_ρ(ρ_p) · Σ_{μ on N} (∇φ_μ_p) · (Pφ)_μ_p
+using the existing `evalBasisGradOnGrid` table.
+
+What got built:
+- **`hfGradient.kFactor`** parameter (1 = HF default, 0 = pure DFT,
+  0.20 = B3LYP-style). Rescales the K-coupling inside the 8-fold
+  canonical Γ sum without touching any other plumbing.
+- **`dftGradient`** in `src/chemistry/dft-gradient.ts`: composes
+  the HF-like part (with hfMix) + the LDA XC term.
+- **`optimizeGeometry({ method: "lda-svwn" })`**: routes to RKS-DFT
+  energy + analytical DFT gradient. Same `useAnalyticGrad: false`
+  fallback as the HF path.
+- 11 new tests: FD-vs-analytical to **1e-3 Ha/Bohr** on H₂ / H₂O /
+  BeH₂ STO-3G LDA, translational invariance to 1e-3 (looser than HF's
+  1e-9 because of the weights-fixed approximation), and a full LDA
+  geometry optimization on H₂O converging to the same energy as the
+  FD path within 5 nHa.
+
+H₂O LDA STO-3G geometry-opt:
+- Analytical: 7.6 s (9 iters, 21 evals).
+- FD:        55.4 s (9 iters, 219 evals).
+- **7.3× speedup**, same final energy E = −74.7431.
+
+**Honest negatives** documented for follow-up:
+- **Weights-fixed approximation**: ∂(grid weights)/∂R is not yet
+  computed. The Becke-partition derivative is needed for exact
+  translational invariance and gives a residual ~3e-4 Ha/Bohr on
+  Σ_atoms ∇E for H₂O. Sub-mHa/Bohr at the default 50r × 12θ × 24φ
+  grid; tightening is a planned follow-up.
+- **GGA / hybrid gradients deferred**: BVWN5, BLYP, B3VWN5, B3LYP5
+  need ∂γ/∂R = 2·∇ρ·∂(∇ρ)/∂R, which requires basis Hessians
+  ∂²φ_μ/∂r_a∂r_b. The plumbing for that exists in spirit (same
+  Cartesian-Gaussian primitive recursion as ∇φ); just not wired
+  yet. The `dftGradient` API throws a clear "needs GGA support"
+  error for those functionals — opt-in `useAnalyticGrad: false`
+  if you need geom-opt on a GGA / hybrid surface today.
+
+**Tier 2 stage 5b — HF gradient speedup.**
 The Pulay-1969 analytical gradient now actually beats FD. Three
 optimizations on top of the stage-5a correctness implementation:
 - **8-fold canonical ERI loop**: iterate (μ ≥ ν, λ ≥ σ, (μν) ≥
@@ -253,7 +295,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **370/370** (was 363) + 1 opt-in
+**Test surface:** `npm run test` → **381/381** (was 370) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
@@ -267,15 +309,17 @@ E1–E5, viz extensions, public-repo polish, hardened-SVD fix, Tier B/C/D
 fusion): read `git log` — every phase shipped its own commit with full
 benchmarks in the message body. Don't replicate that history here.
 
-**Next up (per the roadmap above):** **DFT analytical gradients**
-— same Pulay machinery as HF + the XC quadrature derivative
-(Becke 1988 form: ∂E_xc/∂R = Σ_p w_p (∂ε/∂ρ)·(∂ρ/∂R) +
-∂grid_weight/∂R · ε terms). Straightforward now that the HF
-gradient is fast. Then **WebGPU port of the (T) kernel** (10–100×
-→ cc-pVTZ CCSD(T) routine), then **EOM-CCSD** for excited states.
-Optional: Lebedev angular quadrature for DFT. After Tier 2 the
-project becomes a "real undergrad chemistry tool in a browser
-tab."
+**Next up (per the roadmap above):** the immediate follow-ups
+to Tier 2 stage 6 are (a) **basis Hessians + GGA gradient term**
+(unblocks BLYP / B3LYP geometry optimization on the analytical
+path), and (b) **Becke-partition weight derivatives** (eliminates
+the 3e-4 Ha/Bohr residual in translational invariance). Each is
+~½–1 session.
+
+After that: **WebGPU port of the (T) kernel** (10–100× → cc-pVTZ
+CCSD(T) routine), then **EOM-CCSD** for excited states. Optional:
+Lebedev angular quadrature for DFT. After Tier 2 the project
+becomes a "real undergrad chemistry tool in a browser tab."
 
 ---
 

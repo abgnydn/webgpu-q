@@ -1,23 +1,25 @@
 // ─────────────────────────────────────────────────────────────
-// geometry.ts — molecular geometry optimization on the HF
-// energy surface. Tier 2 stage 1: BFGS minimization of E_HF(R).
-// Tier 2 stage 5: switch to analytical gradients via Pulay 1969
-// + integral derivatives (`hf-gradient.ts`).
+// geometry.ts — molecular geometry optimization on the HF or
+// DFT energy surface. Tier 2 stages 1, 5, 6: BFGS minimization
+// of E(R) with analytical gradients via Pulay 1969 (HF — see
+// `hf-gradient.ts`) or RKS-DFT/LDA (see `dft-gradient.ts`).
 //
 // Two gradient paths:
 //   • `useAnalyticGrad: true` (DEFAULT) — analytical Pulay
-//     gradients. Each gradient costs ~10× one HF energy. So
-//     a step costs (1 energy + 1 gradient) ≈ 11×. The FD path
-//     would cost (1 energy + 6·N_atoms energies) ≈ 7–22× for
-//     N_atoms = 1–4 — analytical is faster from N_atoms ≥ 2.
+//     gradients. Each gradient costs ~5–10× one energy build.
 //   • `useAnalyticGrad: false` — central FD. Kept for cross-
 //     checks and as a fallback if the analytical path is
 //     ever suspected of bugs.
 //
-// Scale of FD step (FD path only): positions are in Å, HF energy
+// `method` selects HF or one of the DFT functionals. Default
+// is "hf"; the analytical-DFT path currently supports only
+// "lda-svwn" — GGA / hybrid functionals will throw a clear
+// error from `dftGradient` until the GGA ∂γ/∂R term lands.
+//
+// Scale of FD step (FD path only): positions are in Å, energy
 // in Hartrees with ~10 digits of relative precision (DIIS to
-// 1e-10 Ha). Optimal central-FD step h satisfies h² ≈ ε|E|/g, so
-// h ≈ √(1e-10 · 100 / 1) ≈ 1e-4 Å. Default 1e-3 Å is generous.
+// 1e-10 Ha). Optimal central-FD step h satisfies h² ≈ ε|E|/g,
+// so h ≈ √(1e-10 · 100 / 1) ≈ 1e-4 Å. Default 1e-3 Å is generous.
 // ─────────────────────────────────────────────────────────────
 
 import { computeMolecularIntegrals, type IntegralOpts } from "./cg-molecular.js";
@@ -25,30 +27,44 @@ import { moleculeToShellsNuclei, type Atom, type BasisName } from "./atoms.js";
 import { runRHFSCF, type HFOpts } from "./hf-scf.js";
 import { lbfgs, type LBFGSOptions, type LBFGSResult } from "./optimizer.js";
 import { hfGradient, buildEnergyWeightedDensity } from "./hf-gradient.js";
+import { runRKSDFT, type RKSOpts } from "./dft/rks-scf.js";
+import { dftGradient } from "./dft-gradient.js";
+import type { FunctionalKind } from "./dft/functional.js";
 
 const ANGSTROM_TO_BOHR = 1.8897261339;
+
+export type EnergyMethod = "hf" | FunctionalKind;
 
 export interface GeometryOptOpts {
   /** Basis set (default sto-3g). */
   readonly basis?: BasisName;
   /** Spherical-d transform on the integrals? Default false. */
   readonly spherical?: boolean;
-  /** HF SCF options forwarded to runRHFSCF. */
+  /** Energy method — "hf" (default) or any RKS-DFT functional kind.
+   *  The analytical-gradient path supports "hf" and "lda-svwn"; GGA
+   *  and hybrid functionals will throw from `dftGradient` until
+   *  the GGA ∂γ/∂R term lands. Set `useAnalyticGrad: false` to
+   *  optimize on a GGA / hybrid surface via FD gradients in the
+   *  meantime. */
+  readonly method?: EnergyMethod;
+  /** HF SCF options forwarded to runRHFSCF (used when method is "hf"). */
   readonly hf?: HFOpts;
+  /** RKS-DFT SCF options (used when method is a DFT functional). */
+  readonly dft?: RKSOpts;
   /** L-BFGS options. fdStep default overridden to 1e-3 Å. */
   readonly lbfgs?: LBFGSOptions;
-  /** Use analytical HF gradient (default true). False falls back to FD. */
+  /** Use analytical gradient (default true). False falls back to FD. */
   readonly useAnalyticGrad?: boolean;
 }
 
 export interface GeometryOptResult {
   /** Optimized atoms (positions in Å). */
   readonly atoms: readonly Atom[];
-  /** Final HF energy (Hartrees). */
+  /** Final energy (Hartrees) — HF or DFT depending on `method`. */
   readonly energy: number;
   /** L-BFGS termination + history. */
   readonly optimizer: LBFGSResult;
-  /** Number of HF energy evaluations performed (each FD grad = 6·N_atoms). */
+  /** Number of energy evaluations performed (each FD grad = 6·N_atoms). */
   readonly nEvaluations: number;
   /** Wall-clock seconds. */
   readonly seconds: number;
@@ -67,6 +83,7 @@ export function optimizeGeometry(
 ): GeometryOptResult {
   const tStart = performance.now();
   const basis = opts.basis ?? "sto-3g";
+  const method: EnergyMethod = opts.method ?? "hf";
   const integralOpts: IntegralOpts = { spherical: opts.spherical ?? false };
   const hfOpts: HFOpts = {
     useDIIS: true,
@@ -75,6 +92,13 @@ export function optimizeGeometry(
     maxIter: 200,
     ...opts.hf,
   };
+  const dftOpts: RKSOpts = {
+    functional: method === "hf" ? "lda-svwn" : method,
+    energyTol: 1e-10,
+    residualTol: 1e-7,
+    maxIter: 200,
+    ...opts.dft,
+  };
 
   let nEvals = 0;
   const energyAt = (x: Float64Array): number => {
@@ -82,26 +106,42 @@ export function optimizeGeometry(
     const moved = vectorToAtoms(x, atoms);
     const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(moved, basis);
     const integrals = computeMolecularIntegrals(shells, nuclei, integralOpts);
-    const hf = runRHFSCF(integrals, nElectrons, hfOpts);
-    return hf.energy;
+    if (method === "hf") {
+      return runRHFSCF(integrals, nElectrons, hfOpts).energy;
+    }
+    const symbols = moved.map((a) => a.symbol);
+    return runRKSDFT(integrals, nElectrons, symbols, dftOpts).energy;
   };
 
   const useAnalytic = opts.useAnalyticGrad ?? true;
-  // Analytical gradient: integrate hf-gradient.ts. Atoms are in Å,
-  // gradient comes back in Ha/Bohr; convert to Ha/Å for the optimizer
-  // (matches the FD path's units).
+  // Analytical gradient: integrate hf-gradient.ts (HF) or
+  // dft-gradient.ts (DFT). Atoms are in Å, gradient returns in
+  // Ha/Bohr; convert to Ha/Å for the optimizer.
   const gradientAt = useAnalytic ? (x: Float64Array): Float64Array => {
     nEvals++;
     const moved = vectorToAtoms(x, atoms);
     const { shells, nuclei, nElectrons, shellAtomIdx } =
       moleculeToShellsNuclei(moved, basis);
     const integrals = computeMolecularIntegrals(shells, nuclei, integralOpts);
-    const hf = runRHFSCF(integrals, nElectrons, hfOpts);
-    const W = buildEnergyWeightedDensity(
-      hf.C_MO, hf.orbitalEnergies, hf.nOccupied, integrals.n,
-    );
-    const gBohr = hfGradient({ shells, nuclei, shellAtomIdx, P: hf.D, W });
-    // Ha/Bohr → Ha/Å: dE/d(R_Å) = dE/d(R_Bohr) · (dR_Bohr/dR_Å) = dE/d(R_Bohr) · ANG_TO_BOHR.
+    let gBohr: Float64Array;
+    if (method === "hf") {
+      const hf = runRHFSCF(integrals, nElectrons, hfOpts);
+      const W = buildEnergyWeightedDensity(
+        hf.C_MO, hf.orbitalEnergies, hf.nOccupied, integrals.n,
+      );
+      gBohr = hfGradient({ shells, nuclei, shellAtomIdx, P: hf.D, W });
+    } else {
+      const symbols = moved.map((a) => a.symbol);
+      const dft = runRKSDFT(integrals, nElectrons, symbols, dftOpts);
+      const W = buildEnergyWeightedDensity(
+        dft.C_MO, dft.orbitalEnergies, dft.nOccupied, integrals.n,
+      );
+      gBohr = dftGradient({
+        shells, nuclei, shellAtomIdx, nucleiSymbols: symbols,
+        P: dft.D, W, functional: method,
+        grid: opts.dft?.grid,
+      });
+    }
     const gAng = new Float64Array(gBohr.length);
     for (let i = 0; i < gBohr.length; i++) gAng[i] = gBohr[i]! * ANGSTROM_TO_BOHR;
     return gAng;
