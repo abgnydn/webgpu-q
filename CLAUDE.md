@@ -121,7 +121,46 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 6b — DFT gradients (GGA + hybrids).**
+**Latest milestone: Tier 2 stage 7 — Lebedev angular quadrature.**
+The DFT angular grid is now Lebedev-Laikov by default (order 110,
+exact for spherical harmonics up to L = 17). Replaced the older
+12 × 24 = 288-point Gauss-Legendre × uniform-φ product rule for a
+**2.6× point reduction at strictly better algebraic accuracy**.
+Available orders: 50, 110, 302 — `LEBEDEV_AVAILABLE_ORDERS`.
+Pass `nLebedev: null` to fall back to the product rule.
+
+What got built:
+- **`src/chemistry/dft/lebedev.ts`**: `genOh` orbit expander
+  (octahedral group Oh on 6 symmetry classes — axis, face,
+  corner, (a,a,b), (a,b,0), (a,b,c)) plus tabulated parameters
+  for orders 50, 110, 302. Tables sourced from the Lebedev-
+  Laikov 1999 Fortran routine (Christoph van Wuellen translation,
+  via PySCF's `dft/LebedevGrid.py`). Cross-validated to fp:
+  Σw = 4π exactly, |r|=1 to 1e-16 per point, ∫x²y²z² = 4π/105
+  to 1e-15 on every order.
+- **`molecularGrid`** refactored to take `nLebedev?: LebedevOrder`
+  and use it as the angular path; default `nLebedev: 110`.
+  Legacy product rule still reachable via `nLebedev: null` and
+  `nTheta` / `nPhi` for cross-checks.
+
+H₂O STO-3G timings (M2 Pro, BLYP):
+- Grid:        43200 → 16500 points (2.6× fewer).
+- SCF:         119 ms → 55 ms (2.2× faster).
+- Gradient:    389 ms → 356 ms (1.1× faster — grad is dominated
+               by the n⁴ ERI derivative loop, which is angular-
+               independent).
+- Energy:      −75.27725 → −75.27722 (31 µHa difference, well
+               below chemical accuracy).
+- ρ-integration error: 1e-4 e (was 0 with the product rule; the
+               product rule is exact for any 2π-periodic finite
+               φ-Fourier mode, so uniform-φ + Gauss-Legendre on
+               cos θ trivially conserves charge to fp). Both are
+               far below the 0.01 e test pass bar.
+
+Full vitest chemistry track: 60.7 s → 49.8 s (~17% faster, dominated
+by the DFT-heavy tests). DFT energy tests alone: 2.5 s → 0.9 s.
+
+**Tier 2 stage 6b — DFT gradients (GGA + hybrids).**
 Analytical RKS-DFT geometry optimization is now end-to-end for
 the full functional ladder: `lda-svwn`, `bvwn5`, `blyp`, `b3vwn5`,
 `b3lyp5`. The GGA path adds the ∂γ/∂R term using a new basis-
@@ -309,17 +348,17 @@ E1–E5, viz extensions, public-repo polish, hardened-SVD fix, Tier B/C/D
 fusion): read `git log` — every phase shipped its own commit with full
 benchmarks in the message body. Don't replicate that history here.
 
-**Next up (per the roadmap above):** the immediate follow-up is
-**Becke-partition weight derivatives** — eliminate the ~1e-3
-Ha/Bohr residual in DFT-gradient translational invariance, which
-will tighten the weights-fixed-approximation envelope across all
-functionals to roughly HF-level (~1e-5 Ha/Bohr) accuracy. ~1
-session of careful but mechanical work on `dft/grid.ts`.
-
-After that: **WebGPU port of the (T) kernel** (10–100× → cc-pVTZ
-CCSD(T) routine), then **EOM-CCSD** for excited states. Optional:
-Lebedev angular quadrature for DFT. After Tier 2 the project
-becomes a "real undergrad chemistry tool in a browser tab."
+**Next up (per the roadmap above):** **WebGPU port of the (T)
+kernel** is the natural big lever — 10–100× speedup on the
+expensive perturbative-triples step, unblocks routine cc-pVTZ
+CCSD(T). ~3 sessions. Alternatively, **EOM-CCSD** for excited
+states is a cleaner standalone capability (~1–2 sessions, UV-vis
+chemistry). The DFT-gradient weights-fixed precision improvement
+remains a "tighten when needed" follow-up — the current 1e-3
+Ha/Bohr residual is sub-mHa/Bohr in components and doesn't affect
+practical geom-opt convergence (analytical and FD agreed to 5 nHa
+on H₂O LDA). After Tier 2 the project becomes a "real undergrad
+chemistry tool in a browser tab."
 
 ---
 

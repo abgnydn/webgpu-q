@@ -6,10 +6,14 @@
 //     x ∈ (0, 1), uniform spacing in x. Per-atom Becke radial
 //     scale ξ_A from atomic radii (kept as a small per-element
 //     table; defaults to 1.0 Bohr for atoms not listed).
-//   • Angular: Gauss-Legendre on cos θ × uniform on φ. n_θ × n_φ
-//     points per radial shell, exact for spherical harmonics up
-//     to (l ≤ n_θ, |m| ≤ n_φ/2). At 12×24 = 288 angular pts this
-//     covers s/p/d/f cleanly.
+//   • Angular (default): Lebedev-Laikov order-110 octahedral-
+//     symmetric quadrature — 110 points, exact for spherical
+//     harmonics up to L = 17. Replaced the older Gauss-Legendre
+//     × uniform-φ product (12 × 24 = 288 points, exact only to
+//     L = 11) for a 2.6× point reduction at strictly better
+//     accuracy. Available orders: 50, 110, 302 — see
+//     `lebedev.ts`. Falls back to the product rule when
+//     `nLebedev: null` is passed explicitly.
 //   • Becke 1988 partition with 3-iteration smooth step:
 //        s(μ) = ½ (1 − p₃(p₃(p₃(μ))))
 //        p₃(x) = (3x − x³)/2
@@ -24,6 +28,7 @@
 
 import type { Nucleus } from "../cg-molecular.js";
 import type { AtomSymbol } from "../atoms.js";
+import { lebedev, type LebedevOrder } from "./lebedev.js";
 
 export interface MolecularGrid {
   /** Cartesian coordinates of grid points (Bohr), length nPoints each. */
@@ -37,9 +42,18 @@ export interface MolecularGrid {
 export interface GridOpts {
   /** Radial points per atom. Default 50. */
   readonly nRadial?: number;
-  /** Polar (cos θ) Gauss-Legendre nodes per radial shell. Default 12. */
+  /**
+   * Lebedev order for angular quadrature. Default 110 (exact for
+   * L ≤ 17). Available: 50, 110, 302 (`LEBEDEV_AVAILABLE_ORDERS`).
+   * Pass `null` to use the legacy Gauss-Legendre × uniform-φ
+   * product rule (controlled by `nTheta` and `nPhi`).
+   */
+  readonly nLebedev?: LebedevOrder | null;
+  /** Polar (cos θ) Gauss-Legendre nodes per radial shell, used only
+   *  when `nLebedev: null`. Default 12. */
   readonly nTheta?: number;
-  /** Azimuthal uniform nodes per shell. Default 24. */
+  /** Azimuthal uniform nodes per shell, used only when
+   *  `nLebedev: null`. Default 24. */
   readonly nPhi?: number;
 }
 
@@ -54,6 +68,8 @@ export function molecularGrid(
   opts: GridOpts = {},
 ): MolecularGrid {
   const nRad = opts.nRadial ?? 50;
+  const useLebedev = opts.nLebedev !== null;       // explicit null disables
+  const lebedevOrder: LebedevOrder = (opts.nLebedev ?? 110);
   const nTh  = opts.nTheta  ?? 12;
   const nPh  = opts.nPhi    ?? 24;
   if (nuclei.length !== symbols.length) {
@@ -62,11 +78,38 @@ export function molecularGrid(
 
   // Pre-compute per-atom local grids in BOHR, anchored at the nucleus.
   const radial = nuclei.map((_, i) => muraKnowlesRadial(nRad, BECKE_XI[symbols[i]!] ?? 1.0));
-  const { x: cosTh, w: wTh } = gaussLegendreNodes(nTh);
-  const wPhi = (2 * Math.PI) / nPh;
 
-  // Total points = nuclei × nRad × nTh × nPh
-  const total = nuclei.length * nRad * nTh * nPh;
+  // Build the angular grid once — same Lebedev (or product) rule
+  // for every radial shell, every atom.
+  let angX: Float64Array, angY: Float64Array, angZ: Float64Array, angW: Float64Array;
+  if (useLebedev) {
+    const ang = lebedev(lebedevOrder);
+    angX = ang.x; angY = ang.y; angZ = ang.z; angW = ang.w;
+  } else {
+    const { x: cosTh, w: wTh } = gaussLegendreNodes(nTh);
+    const dPhi = (2 * Math.PI) / nPh;
+    const total = nTh * nPh;
+    angX = new Float64Array(total); angY = new Float64Array(total);
+    angZ = new Float64Array(total); angW = new Float64Array(total);
+    let k = 0;
+    for (let ti = 0; ti < nTh; ti++) {
+      const cT = cosTh[ti]!;
+      const sT = Math.sqrt(Math.max(0, 1 - cT * cT));
+      const wT = wTh[ti]!;
+      for (let pi = 0; pi < nPh; pi++) {
+        const phi = pi * dPhi;
+        angX[k] = sT * Math.cos(phi);
+        angY[k] = sT * Math.sin(phi);
+        angZ[k] = cT;
+        angW[k] = wT * dPhi;
+        k++;
+      }
+    }
+  }
+  const nAng = angX.length;
+
+  // Total points = nuclei × nRad × nAng.
+  const total = nuclei.length * nRad * nAng;
   const X = new Float64Array(total);
   const Y = new Float64Array(total);
   const Z = new Float64Array(total);
@@ -98,43 +141,37 @@ export function molecularGrid(
     for (let ri = 0; ri < nRad; ri++) {
       const r = rRad[ri]!;
       const wR = wRad[ri]!;          // already includes r² Jacobian
-      for (let ti = 0; ti < nTh; ti++) {
-        const cT = cosTh[ti]!;
-        const sT = Math.sqrt(Math.max(0, 1 - cT * cT));
-        const wT = wTh[ti]!;
-        for (let pi = 0; pi < nPh; pi++) {
-          const phi = pi * wPhi;
-          const cosP = Math.cos(phi);
-          const sinP = Math.sin(phi);
-          const px = Rx + r * sT * cosP;
-          const py = Ry + r * sT * sinP;
-          const pz = Rz + r * cT;
-          // Compute Becke weight for this atom at this point.
-          for (let b = 0; b < nA; b++) {
-            const dx = px - nuclei[b]!.pos[0];
-            const dy = py - nuclei[b]!.pos[1];
-            const dz = pz - nuclei[b]!.pos[2];
-            distToAtom[b] = Math.sqrt(dx * dx + dy * dy + dz * dz);
-          }
-          for (let A = 0; A < nA; A++) {
-            let prod = 1;
-            for (let B = 0; B < nA; B++) {
-              if (A === B) continue;
-              const mu = (distToAtom[A]! - distToAtom[B]!) / Rab[A * nA + B]!;
-              prod *= beckeStep(mu);
-            }
-            beckeP[A] = prod;
-          }
-          let pSum = 0;
-          for (let A = 0; A < nA; A++) pSum += beckeP[A]!;
-          const wB = pSum > 0 ? beckeP[aIdx]! / pSum : 0;
-
-          X[idx] = px;
-          Y[idx] = py;
-          Z[idx] = pz;
-          W[idx] = wR * wT * wPhi * wB;
-          idx++;
+      for (let aj = 0; aj < nAng; aj++) {
+        const ux = angX[aj]!, uy = angY[aj]!, uz = angZ[aj]!;
+        const wA = angW[aj]!;
+        const px = Rx + r * ux;
+        const py = Ry + r * uy;
+        const pz = Rz + r * uz;
+        // Compute Becke weight for this atom at this point.
+        for (let b = 0; b < nA; b++) {
+          const dx = px - nuclei[b]!.pos[0];
+          const dy = py - nuclei[b]!.pos[1];
+          const dz = pz - nuclei[b]!.pos[2];
+          distToAtom[b] = Math.sqrt(dx * dx + dy * dy + dz * dz);
         }
+        for (let A = 0; A < nA; A++) {
+          let prod = 1;
+          for (let B = 0; B < nA; B++) {
+            if (A === B) continue;
+            const mu = (distToAtom[A]! - distToAtom[B]!) / Rab[A * nA + B]!;
+            prod *= beckeStep(mu);
+          }
+          beckeP[A] = prod;
+        }
+        let pSum = 0;
+        for (let A = 0; A < nA; A++) pSum += beckeP[A]!;
+        const wB = pSum > 0 ? beckeP[aIdx]! / pSum : 0;
+
+        X[idx] = px;
+        Y[idx] = py;
+        Z[idx] = pz;
+        W[idx] = wR * wA * wB;
+        idx++;
       }
     }
   }
