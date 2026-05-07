@@ -121,7 +121,40 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 7 — Lebedev angular quadrature.**
+**Latest milestone: Tier 2 stage 8 — CIS / TDA excited states.**
+First excited-state capability on top of HF. Diagonalizes the
+CIS (Tamm-Dancoff) Hamiltonian on the singles excitation manifold:
+
+  A^singlet_{ia,jb} = (ε_a − ε_i)·δ_ij·δ_ab + 2·(ia|jb) − (ij|ab)
+  A^triplet_{ia,jb} = (ε_a − ε_i)·δ_ij·δ_ab            − (ij|ab)
+
+with chemist-notation (pq|rs) MO ERIs from `transformERIToMO`.
+
+What got built:
+- **`src/chemistry/cis.ts`**: `runCIS(integrals, hf, opts)`
+  builds the singlet + triplet A blocks separately and dense-
+  diagonalizes via `eigsymmetric`. Returns excitation energies
+  + amplitudes per spin sector. Optional `nRoots` and
+  `spin: "singlet" | "triplet" | "both"` filters.
+- 6 tests: triplet > 0 (ground-state stability) and singlet >
+  triplet (Hund's rule) for H₂ / H₂O STO-3G; H₂ first singlet
+  HOMO→LUMO at 0.947 Ha ≈ 25.7 eV (textbook reference); CIS
+  amplitudes are normalized to 1e-10; `S₀ − T₀ = 2·(ia|ia)`
+  internal consistency check.
+
+Limitations / scope notes shipped:
+- Dense eigsymm only — fine for n_occ·n_virt ≤ a few hundred.
+  Larger systems would want a Davidson iterative solver.
+- TDA / no full RPA — only A is diagonalized. Full TDDFT
+  diagonalizes the (A, B) 2×2 block; modest follow-up.
+- TDA-DFT (KS orbitals + hybrid mix) is a one-line extension
+  once the XC kernel is plumbed; deferred.
+- No symmetry adaptation — common literature values quoted with
+  point-group labels (e.g. H₂O ¹B₁) need symmetry projection
+  we don't ship; the raw C₁ HOMO→LUMO excitations we compute
+  match what other codes report when symmetry is disabled.
+
+**Tier 2 stage 7 — Lebedev angular quadrature.**
 The DFT angular grid is now Lebedev-Laikov by default (order 110,
 exact for spherical harmonics up to L = 17). Replaced the older
 12 × 24 = 288-point Gauss-Legendre × uniform-φ product rule for a
@@ -334,7 +367,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **401/401** (was 381) + 1 opt-in
+**Test surface:** `npm run test` → **407/407** (was 401) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
@@ -348,17 +381,17 @@ E1–E5, viz extensions, public-repo polish, hardened-SVD fix, Tier B/C/D
 fusion): read `git log` — every phase shipped its own commit with full
 benchmarks in the message body. Don't replicate that history here.
 
-**Next up (per the roadmap above):** **WebGPU port of the (T)
-kernel** is the natural big lever — 10–100× speedup on the
-expensive perturbative-triples step, unblocks routine cc-pVTZ
-CCSD(T). ~3 sessions. Alternatively, **EOM-CCSD** for excited
-states is a cleaner standalone capability (~1–2 sessions, UV-vis
-chemistry). The DFT-gradient weights-fixed precision improvement
-remains a "tighten when needed" follow-up — the current 1e-3
-Ha/Bohr residual is sub-mHa/Bohr in components and doesn't affect
-practical geom-opt convergence (analytical and FD agreed to 5 nHa
-on H₂O LDA). After Tier 2 the project becomes a "real undergrad
-chemistry tool in a browser tab."
+**Next up (per the roadmap above):** the natural follow-up to
+CIS is **TDA-DFT / TDDFT** — same machinery as CIS but with KS
+orbitals + the XC kernel f_xc, and (for full TDDFT) the (A, B)
+2×2 block instead of just A. Cleanly stages: TDA-DFT first
+(½ session, reuses CIS A matrix with hybrid hfMix scaling on the
+exchange piece + DFT XC kernel on the diagonal-perturbation
+piece), then full TDDFT (½ session more). After that, the
+bigger lever is still **WebGPU port of the (T) kernel** for
+cc-pVTZ CCSD(T) (~3 sessions) or **EOM-CCSD** for correlated
+excited states (~1–2 sessions). After Tier 2 the project
+becomes a "real undergrad chemistry tool in a browser tab."
 
 ---
 
