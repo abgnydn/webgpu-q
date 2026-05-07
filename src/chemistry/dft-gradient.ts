@@ -61,6 +61,10 @@ export interface DFTGradientInputs {
   readonly functional: FunctionalKind;
   /** Numerical-grid options — must match what was used in the SCF. */
   readonly grid?: GridOpts;
+  /** Cartesian → spherical-d transform from `MolecularIntegrals`. When
+   *  set, P and W arrive in the spherical-AO basis and the gradient
+   *  routine transforms them back to Cartesian internally. */
+  readonly sphericalT?: Float64Array | null;
 }
 
 /**
@@ -73,23 +77,23 @@ export interface DFTGradientInputs {
  * existing gradient evaluator.
  */
 export function dftGradient(inp: DFTGradientInputs): Float64Array {
-  const { shells, nuclei, shellAtomIdx, P, W, functional } = inp;
+  const { shells, nuclei, shellAtomIdx, P: P_in, W: W_in, functional } = inp;
   const hfMix = hfExchangeMixOf(functional);
   const isGGA = functional !== "lda-svwn";
-  const n = shells.length;
-  // Spherical-d-transformed integrals shrink the matrix dimension
-  // but leave `shells` as the original Cartesian list — that
-  // desyncs the AO→MO transform on the grid. P is sized for the
-  // post-transform basis (n_spherical × n_spherical); shells.length
-  // is n_cartesian. Refuse with a clear message rather than NaN.
-  if (P.length !== n * n) {
-    throw new Error(
-      `dftGradient: P size ${P.length} ≠ shells.length² (${n}² = ${n * n}) ` +
-      `— likely from \`spherical: true\` on computeMolecularIntegrals. ` +
-      `Use \`spherical: false\` (default) when you need analytical DFT gradients ` +
-      `(~4 mHa accuracy slack on cc-pVDZ; spherical-grid path is a follow-up).`,
-    );
-  }
+  // When integrals were built with `spherical: true`, P / W arrive in
+  // the spherical-AO basis (size n_sph × n_sph), but `shells` and
+  // `shellAtomIdx` are still in the Cartesian basis (n_cart). Transform
+  // both density matrices back to Cartesian: P_cart = T^T · P · T.
+  // Since the trace tr(P · O) = tr(P_cart · O_cart) is basis-invariant
+  // (proved by inserting Σ T[p,μ] T[q,ν] under the sum), gradient
+  // contractions Σ P · ∂h give the same number in either basis. After
+  // transform, the rest of dftGradient can stay in the Cartesian basis
+  // throughout — same Cartesian shells, shellAtomIdx, AO grid evals.
+  const nCart = shells.length;
+  const sphericalT: Float64Array | null = inp.sphericalT ?? null;
+  const P = sphericalT ? transformDensityToCartesian(P_in, sphericalT, nCart) : P_in;
+  const W = sphericalT ? transformDensityToCartesian(W_in, sphericalT, nCart) : W_in;
+  const n = nCart;
 
   // ── HF-like part: shared with the HF gradient, scaled K. ───
   const grad = hfGradient({
@@ -207,4 +211,46 @@ export function dftGradient(inp: DFTGradientInputs): Float64Array {
   }
 
   return grad;
+}
+
+/**
+ * Transform a spherical-AO density-style matrix back to the Cartesian
+ * basis: P_cart = T^T · P_sph · T. T is row-major n_sph × n_cart.
+ * For symmetric P_sph (which any closed-shell density / energy-
+ * weighted density is), the result P_cart is also symmetric.
+ *
+ * Used when SCF was run with `spherical: true` but the gradient
+ * machinery operates on Cartesian shells. The trace tr(P · O) is
+ * basis-invariant, so contractions Σ P_cart · ∂O_cart give the
+ * same number as the spherical equivalent.
+ */
+function transformDensityToCartesian(
+  Psph: Float64Array,
+  T: Float64Array,
+  nCart: number,
+): Float64Array {
+  const nSph = T.length / nCart;
+  // tmp = P_sph · T  (n_sph × n_cart)
+  const tmp = new Float64Array(nSph * nCart);
+  for (let p = 0; p < nSph; p++) {
+    for (let mu = 0; mu < nCart; mu++) {
+      let s = 0;
+      for (let q = 0; q < nSph; q++) {
+        s += Psph[p * nSph + q]! * T[q * nCart + mu]!;
+      }
+      tmp[p * nCart + mu] = s;
+    }
+  }
+  // P_cart = T^T · tmp  (n_cart × n_cart)
+  const out = new Float64Array(nCart * nCart);
+  for (let mu = 0; mu < nCart; mu++) {
+    for (let nu = 0; nu < nCart; nu++) {
+      let s = 0;
+      for (let p = 0; p < nSph; p++) {
+        s += T[p * nCart + mu]! * tmp[p * nCart + nu]!;
+      }
+      out[mu * nCart + nu] = s;
+    }
+  }
+  return out;
 }

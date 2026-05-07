@@ -112,9 +112,26 @@ export function runRKSDFT(
 
   // ── Build molecular grid + precompute basis values ─────────
   const grid: MolecularGrid = molecularGrid(integrals.nuclei, nucleiSymbols, opts.grid ?? {});
-  const basisVals: BasisValuesOnGrid = evalBasisOnGrid(integrals.shells, grid);
-  const basisGrad: BasisGradientsOnGrid | null =
-    isGGA ? evalBasisGradOnGrid(integrals.shells, grid) : null;
+  // Spherical-d transform on the grid: when integrals were built with
+  // `spherical: true`, basis evaluators return Cartesian-sized arrays
+  // that need T applied to match the post-transform density matrix.
+  const T = integrals.sphericalT;
+  const nCart = integrals.shells.length;
+  const basisCart = evalBasisOnGrid(integrals.shells, grid);
+  const basisVals: BasisValuesOnGrid = T
+    ? { phi: applyTransformOnGrid(basisCart.phi, T, nCart, n, grid.x.length), n, nGrid: grid.x.length }
+    : basisCart;
+  const basisGradCart = isGGA ? evalBasisGradOnGrid(integrals.shells, grid) : null;
+  const basisGrad: BasisGradientsOnGrid | null = isGGA && basisGradCart
+    ? T
+      ? {
+          phix: applyTransformOnGrid(basisGradCart.phix, T, nCart, n, grid.x.length),
+          phiy: applyTransformOnGrid(basisGradCart.phiy, T, nCart, n, grid.x.length),
+          phiz: applyTransformOnGrid(basisGradCart.phiz, T, nCart, n, grid.x.length),
+          n, nGrid: grid.x.length,
+        }
+      : basisGradCart
+    : null;
   const nGrid = grid.x.length;
 
   // ── Initial guess: diagonalize core h ──────────────────────
@@ -524,4 +541,30 @@ function solveDIISCoeffs(diisE: Float64Array[], n: number): Float64Array | null 
   const c = new Float64Array(m);
   for (let i = 0; i < m; i++) c[i] = b[i]! / A[i * dim + i]!;
   return c;
+}
+
+
+/**
+ * Apply the Cartesian → spherical-d transform T (row-major n_sph × n_cart)
+ * to a per-grid AO array. φ_sph[g, p] = Σ_μ T[p, μ]·φ_cart[g, μ].
+ */
+function applyTransformOnGrid(
+  phiCart: Float64Array,
+  T: Float64Array,
+  nCart: number,
+  nSph: number,
+  nGrid: number,
+): Float64Array {
+  const out = new Float64Array(nGrid * nSph);
+  for (let g = 0; g < nGrid; g++) {
+    const offC = g * nCart;
+    const offS = g * nSph;
+    for (let p = 0; p < nSph; p++) {
+      let s = 0;
+      const Trow = p * nCart;
+      for (let mu = 0; mu < nCart; mu++) s += T[Trow + mu]! * phiCart[offC + mu]!;
+      out[offS + p] = s;
+    }
+  }
+  return out;
 }

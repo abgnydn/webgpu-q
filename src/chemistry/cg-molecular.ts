@@ -29,7 +29,7 @@ export interface Nucleus {
 }
 
 export interface MolecularIntegrals {
-  readonly n: number;                            // number of spatial orbitals (= shells.length)
+  readonly n: number;                            // number of spatial orbitals (= shells.length unless spherical-d)
   readonly shells: readonly CGShell[];
   readonly nuclei: readonly Nucleus[];
   readonly S_AO: Float64Array;                   // n × n
@@ -39,6 +39,12 @@ export interface MolecularIntegrals {
   readonly h_OAO: Float64Array;                  // n × n
   readonly eri_OAO: Float64Array;                // n^4
   readonly Vnn: number;                          // nuclear-nuclear repulsion
+  /** Cartesian → spherical-d transform applied during the build, or
+   *  null when no transform was requested. T is row-major
+   *  `(n × shells.length)` such that `φ_sph[p] = Σ_μ T[p, μ]·φ_cart[μ]`.
+   *  Required by the TDA-DFT / DFT-gradient grid paths to keep the
+   *  basis values on the grid in sync with the MO coefficients. */
+  readonly sphericalT: Float64Array | null;
 }
 
 export interface IntegralOpts {
@@ -141,12 +147,14 @@ export function computeMolecularIntegrals(
   // spherical harmonics. Drops the redundant (xx+yy+zz)/√3 mode
   // that makes the Cartesian basis variationally larger.
   let nFinal = n;
+  let sphericalT: Float64Array | null = null;
   if (opts.spherical) {
     const T = buildSphericalDTransform(shells);
     nFinal = T.length / n;
     S_AO = transformS_2idx(S_AO, T, n, nFinal);
     h_AO = transformS_2idx(h_AO, T, n, nFinal);
     eri_AO = transformS_4idx(eri_AO, T, n, nFinal);
+    sphericalT = T;
     n = nFinal;
   }
 
@@ -185,7 +193,7 @@ export function computeMolecularIntegrals(
     }
   }
 
-  return { n, shells, nuclei, S_AO, h_AO, eri_AO, X, h_OAO, eri_OAO, Vnn };
+  return { n, shells, nuclei, S_AO, h_AO, eri_AO, X, h_OAO, eri_OAO, Vnn, sphericalT };
 }
 
 // ── Spherical-d-shell transform ─────────────────────────────────

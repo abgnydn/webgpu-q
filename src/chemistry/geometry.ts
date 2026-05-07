@@ -127,7 +127,7 @@ export function optimizeGeometry(
       const W = buildEnergyWeightedDensity(
         hf.C_MO, hf.orbitalEnergies, hf.nOccupied, integrals.n,
       );
-      gBohr = hfGradient({ shells, nuclei, shellAtomIdx, P: hf.D, W });
+      gBohr = hfGradient({ shells, nuclei, shellAtomIdx, P: hf.D, W, sphericalT: integrals.sphericalT });
     } else {
       const symbols = moved.map((a) => a.symbol);
       const dft = runRKSDFT(integrals, nElectrons, symbols, dftOpts);
@@ -138,6 +138,7 @@ export function optimizeGeometry(
         shells, nuclei, shellAtomIdx, nucleiSymbols: symbols,
         P: dft.D, W, functional: method,
         grid: opts.dft?.grid,
+        sphericalT: integrals.sphericalT,
       });
     }
     const gAng = new Float64Array(gBohr.length);

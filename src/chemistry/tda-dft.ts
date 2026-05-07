@@ -156,22 +156,16 @@ function buildTDABlocks(
     if (!opts.nucleiSymbols) {
       throw new Error("buildTDABlocks: DFT method requires opts.nucleiSymbols for grid rebuild.");
     }
-    // Spherical-d-transformed integrals shrink `n` but leave `shells`
-    // as the original Cartesian list — that desyncs the AO→MO transform
-    // on the grid. Refuse the call with a clear message rather than
-    // silently produce NaN. Pass `spherical: false` (the default) at
-    // SCF time when you want TDA-DFT.
-    if (integrals.shells.length !== integrals.n) {
-      throw new Error(
-        `runTDA / runTDDFT (DFT path): integrals.shells.length (${integrals.shells.length}) ≠ integrals.n (${integrals.n}) ` +
-        `— integrals were built with the Cartesian-d → spherical-d transform. The XC kernel grid path doesn't yet apply ` +
-        `that transform to the basis evaluator, which silently produces NaN amplitudes. ` +
-        `Build the integrals with \`spherical: false\` for TDA-DFT (~4 mHa accuracy slack on cc-pVDZ; tightening is a follow-up).`,
-      );
-    }
     const grid = molecularGrid(integrals.nuclei, opts.nucleiSymbols, opts.grid ?? {});
-    const basis = evalBasisOnGrid(integrals.shells, grid);
+    const basisCart = evalBasisOnGrid(integrals.shells, grid);
     const nGrid = grid.x.length;
+    // Spherical-d transform on the grid: φ_sph[g, p] = Σ_μ T[p, μ]·φ_cart[g, μ].
+    // T is row-major (n_sph × n_cart); when null, basis already matches `n`.
+    const T = integrals.sphericalT;
+    const nCart = integrals.shells.length;
+    const basis = T
+      ? { phi: applyTransformToGridValues(basisCart.phi, T, nCart, n, nGrid), n, nGrid }
+      : basisCart;
     const phi = basis.phi;
 
     // MO orbital values on grid: φ_p^MO(g) = Σ_μ C_μp · φ_μ^AO(g).
@@ -219,7 +213,15 @@ function buildTDABlocks(
       }
     } else if (isGGA) {
       // ── GGA / hybrid: 5-piece kernel. ───────────────────────
-      const basisGrad = evalBasisGradOnGrid(integrals.shells, grid);
+      const basisGradCart = evalBasisGradOnGrid(integrals.shells, grid);
+      const basisGrad = T
+        ? {
+            phix: applyTransformToGridValues(basisGradCart.phix, T, nCart, n, nGrid),
+            phiy: applyTransformToGridValues(basisGradCart.phiy, T, nCart, n, nGrid),
+            phiz: applyTransformToGridValues(basisGradCart.phiz, T, nCart, n, nGrid),
+            n, nGrid,
+          }
+        : basisGradCart;
       const dg = evalDensityAndGradient(hf.D, basis, basisGrad);
       const rho = dg.rho;
       const gamma = dg.gamma;
@@ -585,6 +587,33 @@ function matrixSqrtSymmetric(M: Float64Array, n: number): Float64Array {
       }
       out[i * n + j] = s;
       if (i !== j) out[j * n + i] = s;
+    }
+  }
+  return out;
+}
+
+/**
+ * Apply the Cartesian → spherical-harmonic transform T (row-major
+ * `n_sph × n_cart`) to a per-grid AO array. Used for φ, ∇φ, ∇²φ
+ * on the grid when the integrals were built with `spherical: true`.
+ *   φ_sph[g, p] = Σ_μ T[p, μ]·φ_cart[g, μ]
+ */
+function applyTransformToGridValues(
+  phiCart: Float64Array,
+  T: Float64Array,
+  nCart: number,
+  nSph: number,
+  nGrid: number,
+): Float64Array {
+  const out = new Float64Array(nGrid * nSph);
+  for (let g = 0; g < nGrid; g++) {
+    const offC = g * nCart;
+    const offS = g * nSph;
+    for (let p = 0; p < nSph; p++) {
+      let s = 0;
+      const Trow = p * nCart;
+      for (let mu = 0; mu < nCart; mu++) s += T[Trow + mu]! * phiCart[offC + mu]!;
+      out[offS + p] = s;
     }
   }
   return out;

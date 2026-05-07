@@ -60,6 +60,11 @@ export interface HFGradientInputs {
    *  Scales the K-coupling −(1/4)·hfMix·P_μλ·P_νσ inside the
    *  ERI 8-fold canonical loop. */
   readonly kFactor?: number;
+  /** Cartesian → spherical-d transform from `MolecularIntegrals`. When
+   *  set, P / W arrive in the spherical-AO basis; transform them back
+   *  to Cartesian (P_cart = T^T·P·T) so all integral derivatives,
+   *  shells, and shellAtomIdx stay in their native Cartesian basis. */
+  readonly sphericalT?: Float64Array | null;
 }
 
 /**
@@ -100,9 +105,19 @@ export function buildEnergyWeightedDensity(
  *     Q_μν · Q_λσ · |coupling| below SCHWARZ_TOL.
  */
 export function hfGradient(inp: HFGradientInputs): Float64Array {
-  const { shells, nuclei, shellAtomIdx, P, W } = inp;
+  const { shells, nuclei, shellAtomIdx, P: P_in, W: W_in } = inp;
   const kFactor = inp.kFactor ?? 1.0;
-  const n = shells.length;
+  const nCart = shells.length;
+  // Spherical-d round-trip: when integrals carried a spherical-d
+  // transform T, P / W arrive in spherical-AO basis. Transform back to
+  // Cartesian (P_cart = T^T · P · T) so derivative integrals + shellAtomIdx
+  // — all in Cartesian — contract correctly with the density matrices.
+  // The trace tr(P · ∂h) is basis-invariant (proved by inserting Σ T·T
+  // under the contraction), so the gradient is unchanged.
+  const sphericalT = inp.sphericalT ?? null;
+  const P = sphericalT ? hfGradient_transformDensityToCartesian(P_in, sphericalT, nCart) : P_in;
+  const W = sphericalT ? hfGradient_transformDensityToCartesian(W_in, sphericalT, nCart) : W_in;
+  const n = nCart;
   const nAtoms = nuclei.length;
   const grad = new Float64Array(3 * nAtoms);
 
@@ -281,3 +296,35 @@ export function hfGradient(inp: HFGradientInputs): Float64Array {
  */
 void S_cg; void T_cg; void V_cg; void ERI_cg;
 void ({} as MolecularIntegrals);
+
+/**
+ * Local copy of the spherical-d → Cartesian density transform.
+ * P_cart = T^T · P_sph · T where T is row-major (n_sph × n_cart).
+ * (Same math as `transformDensityToCartesian` in `dft-gradient.ts`;
+ * kept private to avoid an import cycle between the two gradient
+ * modules.)
+ */
+function hfGradient_transformDensityToCartesian(
+  Psph: Float64Array,
+  T: Float64Array,
+  nCart: number,
+): Float64Array {
+  const nSph = T.length / nCart;
+  const tmp = new Float64Array(nSph * nCart);
+  for (let p = 0; p < nSph; p++) {
+    for (let mu = 0; mu < nCart; mu++) {
+      let s = 0;
+      for (let q = 0; q < nSph; q++) s += Psph[p * nSph + q]! * T[q * nCart + mu]!;
+      tmp[p * nCart + mu] = s;
+    }
+  }
+  const out = new Float64Array(nCart * nCart);
+  for (let mu = 0; mu < nCart; mu++) {
+    for (let nu = 0; nu < nCart; nu++) {
+      let s = 0;
+      for (let p = 0; p < nSph; p++) s += T[p * nCart + mu]! * tmp[p * nCart + nu]!;
+      out[mu * nCart + nu] = s;
+    }
+  }
+  return out;
+}

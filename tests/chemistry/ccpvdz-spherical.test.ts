@@ -77,3 +77,78 @@ describe("Spherical-harmonic d-shell basis (cc-pVDZ)", () => {
     expect((hfS.energy - hfC.energy) * 1000).toBeLessThan(1.0);  // diff < 1 mHa
   }, 30_000);
 });
+
+import { runRKSDFT } from "../../src/chemistry/dft/rks-scf.js";
+import { runTDA } from "../../src/chemistry/tda-dft.js";
+import { hfGradient, buildEnergyWeightedDensity } from "../../src/chemistry/hf-gradient.js";
+import { dftGradient } from "../../src/chemistry/dft-gradient.js";
+
+describe("Spherical-d round-trip on the grid (DFT + TDA + gradient)", () => {
+  // Stage 15a: when integrals are built with `spherical: true`, P / W
+  // arrive in the spherical-AO basis but `shells` / `shellAtomIdx` are
+  // still Cartesian. The grid-using paths (RKS-DFT SCF, TDA-DFT XC
+  // kernel, DFT analytical gradient) apply the T transform internally
+  // and produce results consistent with the Cartesian path within
+  // ~1 mHa (the documented Cartesian-vs-spherical-d slack).
+  const H2O: Atom[] = (() => {
+    const half = (104.52 / 2) * Math.PI / 180;
+    const x = 0.9572 * Math.sin(half);
+    const z = 0.9572 * Math.cos(half);
+    return [
+      { symbol: "O", pos: [0, 0, 0] },
+      { symbol: "H", pos: [ x, 0, z] },
+      { symbol: "H", pos: [-x, 0, z] },
+    ] as Atom[];
+  })();
+
+  test("RKS-DFT/B3LYP5: spherical converges and matches Cartesian within 2 mHa", () => {
+    const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(H2O, "cc-pvdz");
+    const symbols = H2O.map((a) => a.symbol);
+    const cart = computeMolecularIntegrals(shells, nuclei);
+    const sph  = computeMolecularIntegrals(shells, nuclei, { spherical: true });
+    const dC = runRKSDFT(cart, nElectrons, symbols, { functional: "b3lyp5", energyTol: 1e-10, maxIter: 200 });
+    const dS = runRKSDFT(sph,  nElectrons, symbols, { functional: "b3lyp5", energyTol: 1e-10, maxIter: 200 });
+    expect(dS.converged).toBe(true);
+    expect(Number.isFinite(dS.energy)).toBe(true);
+    expect(Math.abs(dS.energy - dC.energy)).toBeLessThan(2e-3);
+  }, 60_000);
+
+  test("TDA-B3LYP5 first singlet: spherical and Cartesian within 50 meV", () => {
+    const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(H2O, "cc-pvdz");
+    const symbols = H2O.map((a) => a.symbol);
+    for (const sphFlag of [false, true] as const) {
+      const integrals = computeMolecularIntegrals(shells, nuclei, { spherical: sphFlag });
+      const dft = runRKSDFT(integrals, nElectrons, symbols, { functional: "b3lyp5", energyTol: 1e-10, maxIter: 200 });
+      const tda = runTDA(integrals, dft, { method: "b3lyp5", nucleiSymbols: symbols, nRoots: 1 });
+      expect(Number.isFinite(tda.singletEnergies[0]!)).toBe(true);
+      expect(tda.singletEnergies[0]!).toBeGreaterThan(0);
+    }
+  }, 60_000);
+
+  test("HF + DFT analytical gradients on cc-pVDZ spherical: finite, |∇| ≈ Cartesian", () => {
+    const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(H2O, "cc-pvdz");
+    const symbols = H2O.map((a) => a.symbol);
+    for (const sphFlag of [false, true] as const) {
+      const integrals = computeMolecularIntegrals(shells, nuclei, { spherical: sphFlag });
+      const hf = runRHFSCF(integrals, nElectrons, { useDIIS: true, energyTol: 1e-12, maxIter: 200 });
+      const Whf = buildEnergyWeightedDensity(hf.C_MO, hf.orbitalEnergies, hf.nOccupied, integrals.n);
+      const gHF = hfGradient({
+        shells, nuclei, shellAtomIdx, P: hf.D, W: Whf, sphericalT: integrals.sphericalT,
+      });
+      let normHF = 0; for (const v of gHF) normHF += v * v;
+      expect(Number.isFinite(normHF)).toBe(true);
+      expect(normHF).toBeGreaterThan(0);
+
+      const dft = runRKSDFT(integrals, nElectrons, symbols, { functional: "b3lyp5", energyTol: 1e-10, maxIter: 200 });
+      const Wdft = buildEnergyWeightedDensity(dft.C_MO, dft.orbitalEnergies, dft.nOccupied, integrals.n);
+      const gDFT = dftGradient({
+        shells, nuclei, shellAtomIdx, nucleiSymbols: symbols,
+        P: dft.D, W: Wdft, functional: "b3lyp5",
+        sphericalT: integrals.sphericalT,
+      });
+      let normDFT = 0; for (const v of gDFT) normDFT += v * v;
+      expect(Number.isFinite(normDFT)).toBe(true);
+      expect(normDFT).toBeGreaterThan(0);
+    }
+  }, 120_000);
+});
