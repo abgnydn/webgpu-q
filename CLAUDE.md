@@ -121,7 +121,38 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 10 — oscillator strengths.**
+**Latest milestone: Tier 2 stage 11 — ground-state dipole moments.**
+First ground-state property routine on top of the SCF density.
+Reuses the dipole AO machinery from stage 10:
+
+  μ = − Σ_{μν} P_μν · ⟨χ_μ | r̂ | χ_ν⟩  +  Σ_A Z_A · R_A
+
+Returns a [μ_x, μ_y, μ_z] 3-vector in atomic units (e·Bohr);
+multiply by `AU_TO_DEBYE` (= 2.5417) for Debye.
+
+What got built:
+- `src/chemistry/properties.ts`: `dipoleMoment(integrals, P)` and
+  `dipoleMagnitude(mu)` helpers. Reference-agnostic — pass any
+  closed-shell AO density (HF, DFT, post-HF relaxed).
+- 4 tests: H₂O HF/STO-3G ≈ 1.7 D, points along +z (right
+  direction in our coordinate system); H₂O DFT functionals all
+  in 1.5-2.0 D; H₂ and BeH₂ have zero dipole by symmetry to
+  within 1e-9 a.u.
+
+H₂O STO-3G ground-state dipole moments (Debye):
+- HF:      1.726
+- LDA:     1.729
+- BVWN5:   1.640
+- BLYP:    1.639
+- B3VWN5:  1.679
+- B3LYP5:  1.678
+- Experimental: **1.85** (vapor phase)
+
+All methods systematically underestimate by ~10 % — STO-3G is
+the bottleneck (tight basis truncates polarizability). Bigger
+basis (cc-pVDZ+) closes most of the gap.
+
+**Tier 2 stage 10 — oscillator strengths.**
 Closed-shell singlet TDA / TDDFT now returns `oscillatorStrengths`
 alongside excitation energies — dimensionless transition
 intensities, which together give a UV-vis-style spectrum.
@@ -531,7 +562,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **421/421** (was 417) + 1 opt-in
+**Test surface:** `npm run test` → **425/425** (was 421) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
@@ -546,15 +577,16 @@ fusion): read `git log` — every phase shipped its own commit with full
 benchmarks in the message body. Don't replicate that history here.
 
 **Next up (per the roadmap above):** the singlet excited-state
-+ UV-vis-spectrum story is now closed across the full HF + DFT
-ladder. Bigger levers from here: **WebGPU port of the (T)
-kernel** (~3 sessions, 10-100× → cc-pVTZ CCSD(T) routine) or
-**EOM-CCSD** for correlated excited states (~1-2 sessions).
-Smaller cleanups still on the shelf: triplet TDA / TDDFT for
-DFT functionals, dipole moments (ground-state — same dipole
-machinery, ~½ session), and analytical excited-state gradients
-(non-trivial). After Tier 2 the project becomes a "real
-undergrad chemistry tool in a browser tab."
++ UV-vis spectrum + ground-state dipole story is now closed
+across the full HF + DFT ladder. Bigger levers next: **WebGPU
+port of the (T) kernel** (~3 sessions, 10-100× → cc-pVTZ
+CCSD(T) routine) or **EOM-CCSD** for correlated excited states
+(~1-2 sessions). Smaller wins still on the shelf: Mulliken
+population analysis (~½ session, gives partial atomic charges
+on top of the SCF density), triplet TDA / TDDFT for DFT
+functionals, analytical excited-state gradients. After Tier 2
+the project becomes a "real undergrad chemistry tool in a
+browser tab."
 
 ---
 
