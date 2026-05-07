@@ -40,6 +40,9 @@ export interface HFLike {
   readonly orbitalEnergies: Float64Array;
   /** Number of doubly-occupied spatial MOs. */
   readonly nOccupied: number;
+  /** AO-basis density matrix. Required by TDA-DFT (XC kernel
+   *  evaluation needs ρ on the grid). CIS itself doesn't use it. */
+  readonly D: Float64Array;
 }
 
 export interface CISOpts {

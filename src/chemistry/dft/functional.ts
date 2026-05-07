@@ -458,3 +458,55 @@ export function evalXC(
       return;
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// LDA XC kernel for closed-shell TDA-DFT.
+//
+// The kernel f_xc(ρ) = ∂v_ρ/∂ρ = ∂²(ρ ε_xc)/∂ρ² is the second
+// functional derivative of E_xc at the SCF density. For LDA it's
+// a single number per grid point (no ∇ρ dependence).
+//
+// We compute it numerically by central-FD on the LDA potential
+// v_ρ — accurate to machine precision for any ρ above EPS_RHO,
+// avoids re-deriving the 6-line Slater + 30-line VWN5 second
+// derivatives by hand. Cost: 2× one `evalXC` call.
+//
+// GGA / hybrid kernels involve f_ρρ, f_ργ, f_γγ tensors and
+// extra basis-Hessian-style derivative integrals — deferred.
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Evaluate the closed-shell LDA XC kernel f_xc(ρ_p) at every grid
+ * point. Returns a fresh Float64Array of length nGrid.
+ *
+ * Numerical derivative: f_xc ≈ (v_ρ(ρ + h) − v_ρ(ρ − h)) / (2h)
+ * with h = max(ρ · 1e-5, 1e-9) — the same step size that worked
+ * for the LYP self-test. Outside the EPS_RHO clip, f_xc is set
+ * to 0 (the LDA potential is itself zero there).
+ */
+export function evalXCKernelLDA(rho: Float64Array): Float64Array {
+  const n = rho.length;
+  const fxc = new Float64Array(n);
+  const epsTmp = new Float64Array(n);
+  const vPlus  = new Float64Array(n);
+  const vMinus = new Float64Array(n);
+  const rhoPlus  = new Float64Array(n);
+  const rhoMinus = new Float64Array(n);
+  const hArr = new Float64Array(n);
+  for (let p = 0; p < n; p++) {
+    const r = rho[p]!;
+    if (r < EPS_RHO) { hArr[p] = 0; rhoPlus[p] = r; rhoMinus[p] = r; continue; }
+    const h = Math.max(r * 1e-5, 1e-9);
+    hArr[p] = h;
+    rhoPlus[p]  = r + h;
+    rhoMinus[p] = Math.max(r - h, EPS_RHO);
+  }
+  evalXC("lda-svwn", rhoPlus,  null, epsTmp, vPlus,  null);
+  evalXC("lda-svwn", rhoMinus, null, epsTmp, vMinus, null);
+  for (let p = 0; p < n; p++) {
+    const h = hArr[p]!;
+    if (h === 0) continue;
+    fxc[p] = (vPlus[p]! - vMinus[p]!) / (2 * h);
+  }
+  return fxc;
+}

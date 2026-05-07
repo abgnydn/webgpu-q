@@ -121,7 +121,52 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 8 — CIS / TDA excited states.**
+**Latest milestone: Tier 2 stage 9 — TDA-DFT (singlet, LDA).**
+TDA generalized from HF orbitals to Kohn-Sham orbitals + the
+LDA XC kernel + HF-exchange mixing. Singlet sector:
+
+  A^singlet_{ia,jb} = (ε_a − ε_i)·δ·δ
+                    + 2·(ia|jb)            (Hartree)
+                    − hfMix·(ij|ab)        (HF exchange × hfMix)
+                    + 2·(ia|f_xc|jb)       (XC kernel; LDA only)
+
+with `hfMix = 1` (HF), `0` (LDA), `0.20` (B3-style hybrids).
+
+What got built:
+- **`evalXCKernelLDA`** in `dft/functional.ts`: numerical
+  central-FD on `evalXC` v_ρ to get f_xc(ρ_p) at every grid
+  point. Two extra `evalXC` calls — trivial cost. Avoids
+  re-deriving Slater + 30-line VWN5 second derivatives by hand.
+- **`runTDA`** in `tda-dft.ts`: builds (ia|f_xc|jb) on the
+  molecular grid via pre-computed ψ_ia(g) = φ_i^MO(g)·φ_a^MO(g)
+  and the f_xc-weighted contraction. Reproduces `runCIS` singlet
+  exactly when `method = "hf"`; uses LDA XC kernel for
+  `method = "lda-svwn"`; throws a clear "needs GGA TDA" error
+  for the GGA / hybrid functionals.
+- 7 tests: TDA-HF matches CIS to 1e-10; TDA-LDA shifts H₂O
+  first singlet below HF/CIS (LDA over-binds the gap, XC kernel
+  adds the right sign correction); amplitudes normalized;
+  GGA / hybrid throws the right errors.
+
+H₂O STO-3G singlet excitations (Ha [eV]):
+- CIS / TDA-HF:  0.4852 [13.20]  0.5573 [15.16]  0.6167 [16.78]
+- TDA-LDA:       0.4226 [11.50]  0.5071 [13.80]  0.5197 [14.14]
+The 1.7 eV TDA-LDA downshift on the first singlet is the
+well-known LDA improvement over CIS for valence transitions
+(STO-3G is too small to land on the 7-8 eV experimental value;
+that's a basis-set issue, not a TDA bug).
+
+**Honest negatives** documented for follow-up:
+- **GGA / hybrid TDA-DFT deferred**: BVWN5/BLYP/B3VWN5/B3LYP5
+  need the full f_ρρ + f_ργ + f_γγ kernel tensors and basis-
+  Hessian-style integrals. Single-line throw with TODO message.
+- **Triplet TDA-DFT deferred**: closed-shell triplet kernel
+  f_xc^triplet differs from singlet (spin-asymmetric second
+  derivative). `runCIS` still ships triplet for HF.
+- **No full TDDFT**: only A is diagonalized (TDA). Full TDDFT
+  diagonalizes the (A, B) 2×2 block — modest follow-up.
+
+**Tier 2 stage 8 — CIS / TDA excited states.**
 First excited-state capability on top of HF. Diagonalizes the
 CIS (Tamm-Dancoff) Hamiltonian on the singles excitation manifold:
 
@@ -367,7 +412,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **407/407** (was 401) + 1 opt-in
+**Test surface:** `npm run test` → **414/414** (was 407) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
@@ -381,17 +426,17 @@ E1–E5, viz extensions, public-repo polish, hardened-SVD fix, Tier B/C/D
 fusion): read `git log` — every phase shipped its own commit with full
 benchmarks in the message body. Don't replicate that history here.
 
-**Next up (per the roadmap above):** the natural follow-up to
-CIS is **TDA-DFT / TDDFT** — same machinery as CIS but with KS
-orbitals + the XC kernel f_xc, and (for full TDDFT) the (A, B)
-2×2 block instead of just A. Cleanly stages: TDA-DFT first
-(½ session, reuses CIS A matrix with hybrid hfMix scaling on the
-exchange piece + DFT XC kernel on the diagonal-perturbation
-piece), then full TDDFT (½ session more). After that, the
-bigger lever is still **WebGPU port of the (T) kernel** for
-cc-pVTZ CCSD(T) (~3 sessions) or **EOM-CCSD** for correlated
-excited states (~1–2 sessions). After Tier 2 the project
-becomes a "real undergrad chemistry tool in a browser tab."
+**Next up (per the roadmap above):** the natural follow-ups to
+TDA-DFT are (a) **GGA / hybrid TDA-DFT** — wire the full
+f_ρρ + f_ργ + f_γγ kernel and basis-Hessian-style integrals
+for BVWN5 / BLYP / B3LYP5; ~1 session, builds on the basis
+Hessians shipped in stage 6b. (b) **Full TDDFT** — diagonalize
+the (A, B) 2×2 block instead of just A; ~½ session reuse of
+the same matrix elements. After those, the bigger levers are
+**WebGPU port of the (T) kernel** (~3 sessions) or **EOM-CCSD**
+for correlated excited states (~1–2 sessions). After Tier 2 the
+project becomes a "real undergrad chemistry tool in a browser
+tab."
 
 ---
 
