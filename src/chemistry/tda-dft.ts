@@ -51,6 +51,7 @@
 import type { MolecularIntegrals } from "./cg-molecular.js";
 import type { AtomSymbol } from "./atoms.js";
 import { transformERIToMO } from "./mp2.js";
+import { dipole_cg } from "./integrals-cg.js";
 import { eigsymmetric } from "../manybody/dense-eig.js";
 import { molecularGrid, type GridOpts } from "./dft/grid.js";
 import {
@@ -86,6 +87,11 @@ export interface TDAResult {
   /** Singlet amplitudes c_{ia} per root, row-major
    *  amps[r·(nOcc·nVirt) + i·nVirt + a]. */
   readonly singletAmplitudes: Float64Array;
+  /** Dimensionless oscillator strengths f_n per root. Sum over
+   *  all roots is bounded by the number of valence electrons
+   *  (Thomas-Reiche-Kuhn sum rule, partial within the n_occ ·
+   *  n_virt singles manifold). */
+  readonly oscillatorStrengths: Float64Array;
   /** HF-exchange mixing fraction used (0 for pure DFT, 1 for HF). */
   readonly hfMix: number;
   /** Whether the LDA XC kernel was used. */
@@ -346,9 +352,11 @@ export function runTDA(
       amps[r * dim + k] = eig.vectors[r * dim + k]!;
     }
   }
+  const oscillatorStrengths = computeOscillatorStrengths(integrals, hf, energies, amps, null);
   return {
     nOccupied: nOcc, nVirtual: nVirt,
     singletEnergies: energies, singletAmplitudes: amps,
+    oscillatorStrengths,
     hfMix, usedXCKernel,
   };
 }
@@ -361,6 +369,8 @@ export interface TDDFTResult {
   /** Per-root Z = (A−B)^(1/2)·X amplitudes (row-major). For pure
    *  DFT (hfMix = 0), (A−B) is diagonal so Z = sqrt(ε)·X exactly. */
   readonly singletAmplitudes: Float64Array;
+  /** Dimensionless oscillator strengths f_n per root. */
+  readonly oscillatorStrengths: Float64Array;
   readonly hfMix: number;
   readonly usedXCKernel: boolean;
 }
@@ -429,11 +439,110 @@ export function runTDDFT(
     }
     for (let k = 0; k < dim; k++) amps[r * dim + k] = eig.vectors[r * dim + k]!;
   }
+  const oscillatorStrengths = computeOscillatorStrengths(integrals, hf, energies, amps, S);
   return {
     nOccupied: nOcc, nVirtual: nVirt,
     singletEnergies: energies, singletAmplitudes: amps,
+    oscillatorStrengths,
     hfMix, usedXCKernel,
   };
+}
+
+// ── Oscillator strengths ───────────────────────────────────────
+//
+// For closed-shell singlet excitations:
+//   T_axis_n = √2 · Σ_ia c_ia · ⟨φ_i^MO | r_axis | φ_a^MO⟩
+//   f_n = (2/3) · ω_n · Σ_axis |T_axis_n|²
+//       = (4/3) · ω_n · Σ_axis (Σ_ia c_ia · μ_ia^MO_axis)²    (TDA)
+//       = (4/3) ·       Σ_axis (Σ_ia (S·Z')_ia · μ_ia^MO_axis)²  (TDDFT)
+//
+// (For TDDFT the explicit ω cancels with the Casida normalization
+// of (X+Y) = (1/√ω)·S·Z'. In the TDA limit (S=√A, Z'=X), this
+// reduces to the TDA formula.)
+
+/**
+ * Build oscillator strengths from raw eigenvectors.
+ * - For TDA: pass `S = null`; `amplitudes` are X.
+ * - For TDDFT: pass S = (A − B)^(1/2); `amplitudes` are Z'.
+ */
+function computeOscillatorStrengths(
+  integrals: MolecularIntegrals,
+  hf: HFLike,
+  energies: Float64Array,
+  amplitudes: Float64Array,
+  S: Float64Array | null,
+): Float64Array {
+  const n = integrals.n;
+  const nOcc = hf.nOccupied;
+  const nVirt = n - nOcc;
+  const dim = nOcc * nVirt;
+  const nRoots = energies.length;
+
+  // ── Build dipole AO matrices (3 × n × n). ──────────────────
+  // ⟨χ_μ | r_axis | χ_ν⟩ — symmetric, so build upper triangle.
+  const dipAO: [Float64Array, Float64Array, Float64Array] = [
+    new Float64Array(n * n), new Float64Array(n * n), new Float64Array(n * n),
+  ];
+  for (let mu = 0; mu < n; mu++) {
+    for (let nu = mu; nu < n; nu++) {
+      for (let axis = 0 as 0 | 1 | 2; axis < 3; axis++) {
+        const v = dipole_cg(integrals.shells[mu]!, integrals.shells[nu]!, axis);
+        dipAO[axis]![mu * n + nu] = v;
+        dipAO[axis]![nu * n + mu] = v;
+      }
+    }
+  }
+
+  // ── MO transform of the (occ × virt) block per axis. ───────
+  // dipMO[axis][i·nVirt + a] = ⟨φ_i^MO | r_axis | φ_a^MO⟩.
+  const dipMO: [Float64Array, Float64Array, Float64Array] = [
+    new Float64Array(dim), new Float64Array(dim), new Float64Array(dim),
+  ];
+  for (let axis = 0; axis < 3; axis++) {
+    for (let i = 0; i < nOcc; i++) {
+      for (let a = 0; a < nVirt; a++) {
+        const aMO = nOcc + a;
+        let s = 0;
+        for (let mu = 0; mu < n; mu++) {
+          const Cmu_i = hf.C_MO[mu * n + i]!;
+          if (Cmu_i === 0) continue;
+          for (let nu = 0; nu < n; nu++) {
+            s += Cmu_i * hf.C_MO[nu * n + aMO]! * dipAO[axis]![mu * n + nu]!;
+          }
+        }
+        dipMO[axis]![i * nVirt + a] = s;
+      }
+    }
+  }
+
+  // ── Per-root: build effective amplitude (X for TDA, S·Z' for TDDFT). ──
+  const f = new Float64Array(nRoots);
+  const eff = new Float64Array(dim);
+  for (let r = 0; r < nRoots; r++) {
+    if (S) {
+      // eff = S · Z' (matrix-vector with the symmetric S).
+      for (let ia = 0; ia < dim; ia++) {
+        let s = 0;
+        for (let jb = 0; jb < dim; jb++) {
+          s += S[ia * dim + jb]! * amplitudes[r * dim + jb]!;
+        }
+        eff[ia] = s;
+      }
+    } else {
+      // TDA: eff = X amplitudes directly.
+      for (let ia = 0; ia < dim; ia++) eff[ia] = amplitudes[r * dim + ia]!;
+    }
+
+    let sumSq = 0;
+    for (let axis = 0; axis < 3; axis++) {
+      let T = 0;
+      for (let ia = 0; ia < dim; ia++) T += eff[ia]! * dipMO[axis]![ia]!;
+      sumSq += T * T;
+    }
+    // (4/3) · ω · |T|² for TDA; the ω cancels for TDDFT (Casida norm).
+    f[r] = S ? (4 / 3) * sumSq : (4 / 3) * energies[r]! * sumSq;
+  }
+  return f;
 }
 
 // ── Linear-algebra helpers ─────────────────────────────────────

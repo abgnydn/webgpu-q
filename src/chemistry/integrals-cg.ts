@@ -494,6 +494,38 @@ export function S_cg(A: CGShell, B: CGShell): number {
   return s;
 }
 
+/**
+ * Dipole-moment matrix element ⟨A | r_axis | B⟩, in atomic units
+ * (Bohr). Required by the oscillator-strength contraction in
+ * `runTDA` / `runTDDFT`.
+ *
+ * Derivation: r_axis = (r_axis − A_axis) + A_axis. The first
+ * piece multiplies A's polynomial by (r − A)_axis, which is the
+ * +1 shift on A's angular tuple — same shifted-L trick used by
+ * the gradient integrals. The second piece is a constant shift
+ * times the overlap.
+ *
+ *   ⟨A | r_axis | B⟩
+ *     = Σ_{p,q} c_p c_q · N(α_p, I_A) · N(β_q, I_B) ·
+ *       S_prim(α_p, A, I_A + 1_axis, β_q, B, I_B)
+ *     + A_axis · ⟨A | B⟩
+ */
+export function dipole_cg(A: CGShell, B: CGShell, axis: 0 | 1 | 2): number {
+  let shifted = 0;
+  const Iplus: [number, number, number] = [A.angular[0], A.angular[1], A.angular[2]];
+  Iplus[axis] += 1;
+  for (let i = 0; i < A.alpha.length; i++) {
+    const ai = A.alpha[i]!;
+    const ci = A.c[i]! * normCG(ai, A.angular);
+    for (let j = 0; j < B.alpha.length; j++) {
+      const bj = B.alpha[j]!;
+      const cj = B.c[j]! * normCG(bj, B.angular);
+      shifted += ci * cj * primOverlap(ai, A.center, Iplus, bj, B.center, B.angular);
+    }
+  }
+  return shifted + A.center[axis]! * S_cg(A, B);
+}
+
 /** Kinetic ⟨A | −∇²/2 | B⟩ between two contracted CG shells. */
 export function T_cg(A: CGShell, B: CGShell): number {
   let s = 0;

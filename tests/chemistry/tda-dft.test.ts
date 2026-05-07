@@ -142,6 +142,91 @@ describe("Full TDDFT (Casida): excitations real and lower than TDA", () => {
   }, 60_000);
 });
 
+describe("Oscillator strengths", () => {
+  // Oscillator strengths f_n are dimensionless transition
+  // intensities; sum over states is bounded by N_electrons via
+  // the Thomas-Reiche-Kuhn sum rule (within the singles manifold,
+  // STO-3G truncates this).
+  test("H₂ STO-3G TDA-HF: HOMO→LUMO oscillator strength matches the LCAO estimate", () => {
+    // For two 1s functions at separation R with overlap S, the
+    // bonding-antibonding ⟨σ_g | z | σ_u⟩ ≈ −R/(2·√(1−S²)). At
+    // R = 0.7414 Å (1.401 Bohr) with STO-3G overlap ~0.66 this
+    // gives |T_z| ≈ 0.93 → f = (4/3)·ω·|T_z|² ≈ 1.10 with
+    // ω = 0.946 Ha. The TRK sum rule allows Σf ≤ N_e = 2, so a
+    // value near 1.1 is consistent.
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+    ];
+    const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(atoms);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons, { useDIIS: true, energyTol: 1e-12, maxIter: 200 });
+    const tda = runTDA(integrals, hf, { method: "hf" });
+    expect(tda.oscillatorStrengths.length).toBe(tda.singletEnergies.length);
+    expect(tda.oscillatorStrengths[0]!).toBeGreaterThan(0.9);
+    expect(tda.oscillatorStrengths[0]!).toBeLessThan(1.3);
+  });
+
+  test("H₂O STO-3G TDA-HF: oscillator strengths all ≥ 0, sum bounded", () => {
+    const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(H2O_ATOMS);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons, { useDIIS: true, energyTol: 1e-12, maxIter: 200 });
+    const tda = runTDA(integrals, hf, { method: "hf" });
+    let sum = 0;
+    for (const f of tda.oscillatorStrengths) {
+      expect(f).toBeGreaterThanOrEqual(0);
+      sum += f;
+    }
+    // Partial TRK sum rule — bounded by N_electrons (10 for H₂O),
+    // realistically much less because we only span the singles
+    // manifold within STO-3G's small virtual space.
+    expect(sum).toBeLessThan(10);
+  });
+
+  test("TDA limit of TDDFT: oscillator strengths agree", () => {
+    // For TDA reduces to runCIS; the TDDFT oscillator-strength
+    // formula evaluated with B = 0 (HF-only would still have B ≠ 0
+    // from the (ib|aj) exchange). Use a point where B is small or
+    // verify that the totals are within ~10%.
+    const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(H2O_ATOMS);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons, { useDIIS: true, energyTol: 1e-12, maxIter: 200 });
+    const tda = runTDA(integrals, hf, { method: "hf" });
+    const rpa = runTDDFT(integrals, hf, { method: "hf" });
+    // Bounds on per-root agreement: TDDFT and TDA should agree to
+    // within a few % per state on H₂O STO-3G (B-correction is small).
+    let totalTDA = 0, totalRPA = 0;
+    for (let r = 0; r < tda.oscillatorStrengths.length; r++) {
+      totalTDA += tda.oscillatorStrengths[r]!;
+      totalRPA += rpa.oscillatorStrengths[r]!;
+    }
+    expect(totalRPA).toBeGreaterThan(0);
+    expect(totalTDA).toBeGreaterThan(0);
+    // Allow ~30% difference total (the exact match holds only in
+    // the strict TDA→RPA limit; H₂O has nontrivial B-block).
+    expect(Math.abs(totalRPA - totalTDA) / totalTDA).toBeLessThan(0.3);
+  });
+
+  test("DFT TDA: oscillator strengths positive across the functional ladder", () => {
+    const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(H2O_ATOMS);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const symbols = H2O_ATOMS.map((a) => a.symbol);
+    for (const k of ["lda-svwn", "blyp", "b3lyp5"] as const) {
+      const dft = runRKSDFT(integrals, nElectrons, symbols, {
+        functional: k, energyTol: 1e-12, maxIter: 200,
+      });
+      const tda = runTDA(integrals, dft, { method: k, nucleiSymbols: symbols });
+      let total = 0;
+      for (const f of tda.oscillatorStrengths) {
+        expect(f).toBeGreaterThanOrEqual(0);
+        total += f;
+      }
+      expect(total).toBeGreaterThan(0);
+      expect(total).toBeLessThan(10);
+    }
+  }, 60_000);
+});
+
 describe("GGA / hybrid TDA + TDDFT", () => {
   // Tier 2 stage 9c: BVWN5 / BLYP / B3VWN5 / B3LYP5 TDA + TDDFT
   // singlet sectors. Every functional should produce real,

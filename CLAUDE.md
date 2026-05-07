@@ -121,7 +121,45 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 9c — GGA / hybrid TDA + TDDFT.**
+**Latest milestone: Tier 2 stage 10 — oscillator strengths.**
+Closed-shell singlet TDA / TDDFT now returns `oscillatorStrengths`
+alongside excitation energies — dimensionless transition
+intensities, which together give a UV-vis-style spectrum.
+
+  T_axis_n = √2 · Σ_ia c_ia · ⟨φ_i^MO | r_axis | φ_a^MO⟩
+  f_n^TDA  = (4/3) · ω_n · Σ_axis |T_axis_n|²
+  f_n^TDDFT= (4/3) ·       Σ_axis |Σ_ia (S·Z')_ia · μ_ia|²
+                                (S = (A−B)^(1/2); ω cancels via
+                                 Casida normalization of X+Y)
+
+Built:
+- `dipole_cg(A, B, axis)` in `integrals-cg.ts`: ⟨A|r_axis|B⟩
+  via primOverlap with shifted angular momentum + A_axis·S
+  trick. Reuses existing primitive overlap path.
+- `computeOscillatorStrengths` private helper in `tda-dft.ts`:
+  builds dipole AO matrices, transforms the (occ × virt) MO
+  block per axis, contracts with the appropriate amplitude
+  (X for TDA, S·Z' for TDDFT). Both runners return
+  `oscillatorStrengths: Float64Array` per root.
+- 4 new tests: H₂ HOMO→LUMO f matches the LCAO bond-axis
+  estimate (~1.10); H₂O sums positive + bounded by TRK; TDA
+  vs TDDFT agree within 30 % total intensity; DFT functional
+  ladder all produces non-negative finite f.
+
+H₂O STO-3G singlet excitations + oscillator strengths (TDA):
+- TDA-HF:    13.20(0.004) 15.16(0.000) 16.78(0.077) 19.20(0.060) 22.08(1.167)  Σf=1.31
+- TDA-LDA:   11.50(0.003) 13.80(0.000) 14.14(0.074) 17.76(0.067) 22.03(1.103)  Σf=1.25
+- TDA-BLYP:  11.31(0.002) 13.67(0.000) 14.09(0.076) 17.67(0.063) 21.68(1.127)  Σf=1.27
+- TDA-B3LYP5:11.72(0.003) 13.99(0.000) 14.65(0.075) 17.98(0.063) 21.81(1.136)  Σf=1.28
+
+State 2 carries f ≈ 0 by point-group symmetry (it's the
+forbidden transition the bare C₁ basis still couples to in our
+non-symmetry-adapted code; the integral evaluates to ≈ 0
+numerically, which is the right physics). State 5 carries the
+dominant intensity. ΣF ≈ 1.27 across functionals — well within
+the TRK bound of 10.
+
+**Tier 2 stage 9c — GGA / hybrid TDA + TDDFT.**
 Closes the singlet TDDFT loop across the full functional ladder
 (HF, LDA, BVWN5, BLYP, B3VWN5, B3LYP5). The GGA / hybrid kernel
 adds 4 pieces on top of the LDA `f_RR · ψ ψ` integrand:
@@ -493,7 +531,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **417/417** (was 416) + 1 opt-in
+**Test surface:** `npm run test` → **421/421** (was 417) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
@@ -507,15 +545,16 @@ E1–E5, viz extensions, public-repo polish, hardened-SVD fix, Tier B/C/D
 fusion): read `git log` — every phase shipped its own commit with full
 benchmarks in the message body. Don't replicate that history here.
 
-**Next up (per the roadmap above):** the singlet TDDFT story is
-now closed across all 5 functionals + HF, so the bigger levers
-are **WebGPU port of the (T) kernel** (~3 sessions, 10-100×
-→ cc-pVTZ CCSD(T) routine) or **EOM-CCSD** for correlated
-excited states (~1-2 sessions). Smaller cleanups still on the
-shelf: triplet TDA / TDDFT for DFT functionals, full-RPA
-amplitudes (X, Y rather than just Z), oscillator strengths
-(needs dipole integrals, ~½ session). After Tier 2 the project
-becomes a "real undergrad chemistry tool in a browser tab."
+**Next up (per the roadmap above):** the singlet excited-state
++ UV-vis-spectrum story is now closed across the full HF + DFT
+ladder. Bigger levers from here: **WebGPU port of the (T)
+kernel** (~3 sessions, 10-100× → cc-pVTZ CCSD(T) routine) or
+**EOM-CCSD** for correlated excited states (~1-2 sessions).
+Smaller cleanups still on the shelf: triplet TDA / TDDFT for
+DFT functionals, dipole moments (ground-state — same dipole
+machinery, ~½ session), and analytical excited-state gradients
+(non-trivial). After Tier 2 the project becomes a "real
+undergrad chemistry tool in a browser tab."
 
 ---
 
