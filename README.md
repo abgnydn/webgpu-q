@@ -6,12 +6,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Live demo](https://img.shields.io/badge/live-webgpu--q.vercel.app-6ea8ff)](https://webgpu-q.vercel.app)
 [![ITensor-validated](https://img.shields.io/badge/ITensor-cross--checked-b0ffd0)](./tools/itensor-reference.jl)
-[![Tests](https://img.shields.io/badge/tests-160%20%E2%9C%93-82c98b)](./tests)
+[![Tests](https://img.shields.io/badge/tests-433%20%E2%9C%93-82c98b)](./tests)
 
-A WebGPU quantum many-body playground — statevector, matrix product states,
-kernel fusion, quantum chemistry, and real-time phase-transition / quench
-dynamics — running on a research-grade harness with reproducible JSON
-artifacts and external validation against ITensor and PySCF.
+A WebGPU quantum-many-body + computational-chemistry playground —
+statevector, matrix product states, kernel fusion, full Hartree-Fock /
+DFT / MP2 / FCI / CCSD / CCSD(T) / CIS / TDA-DFT / TDDFT, geometry
+optimization, and real-time many-body dynamics — running on a research-
+grade harness with reproducible JSON artifacts and external validation
+against ITensor and PySCF.
 
 **Live:** [webgpu-q.vercel.app](https://webgpu-q.vercel.app) — no install, no
 Linux, no Python. Open a tab.
@@ -52,11 +54,25 @@ Linux, no Python. Open a tab.
 | 3 | Kernel fusion | ✅ shipped | **4.18× speedup** (Tier C cascade fusion, 8×8 dense kernel); Tier D 16×16 plateaus at 3.14× — honest negative |
 | 4 | WebRTC swarm | 🚧 protocol-only | Two browsers sharing an MPS bond contraction; deferred |
 | 5 | Hardware cross-verify | 🚧 protocol-only | IBM Quantum shot-level agreement; blocked on token |
-| 6 | Chemistry — VQE | ✅ shipped | H₂ STO-3G FCI matches PySCF to **7 decimals**; full dissociation curve hits chemical accuracy 50/50 trials |
+| 6 | Chemistry track | ✅ shipped (Tier 1 + Tier 2 stages 1–13) | Full HF/DFT/MP2/FCI/CCSD/CCSD(T) with analytical gradients, geometry opt, TDDFT excited states + UV-vis spectra, properties — see below |
 
 Plus a many-body extension (Heisenberg / TFIM / XXZ ground states + real-time
 evolution + monitored trajectories with measurement-induced phase transition)
 and the GPU-resident MPS port (Phase 1A → 6 v1).
+
+### Chemistry track at a glance
+
+| Capability | Status | Headline |
+| ---------- | ------ | -------- |
+| HF SCF + DIIS | ✅ | matches PySCF to **0.05 mHa** on STO-3G; **35 µHa** with spherical-d on cc-pVDZ |
+| MP2 / FCI / CCSD / CCSD(T) | ✅ | cc-pVDZ CCSD(T) on H₂O in **106 s in a browser tab** |
+| RKS-DFT (5 functionals) | ✅ | LDA-SVWN, BVWN5, BLYP, B3VWN5, B3LYP5 — PySCF-cross-checked, libxc-canonical LYP closed-shell collapse |
+| Geometry optimization | ✅ | Analytical Pulay gradients (HF + LDA + GGA + hybrid), L-BFGS, **7×** faster than FD |
+| Lebedev quadrature | ✅ | 110-point default — 2.6× fewer angular points than the legacy 12×24 product rule |
+| TDA + TDDFT excited states | ✅ | Casida (A, B), full HF + 5-functional ladder, libxc-canonical XC kernel |
+| Oscillator strengths | ✅ | (4/3)·ω·|μ|² with dipole AO integrals — UV-vis spectra |
+| Properties | ✅ | Dipole moment, Mulliken charges, Wiberg-Mayer bond orders |
+| Basis sets | ✅ | STO-3G, cc-pVDZ (Cartesian + spherical-d), aug-cc-pVDZ for H + O |
 
 ---
 
@@ -97,7 +113,7 @@ npm install
 npm run dev          # http://localhost:5175 — landing
                      # /viz.html   /experiments/   /demo.html
 
-npm run test         # vitest (160 tests, ~3 s)
+npm run test         # vitest (433 tests + 1 opt-in, ~50 s)
 npm run typecheck    # strict, noUncheckedIndexedAccess
 npm run lint         # eslint flat config
 
@@ -154,13 +170,32 @@ src/
     observables.ts
     dmrg.ts                     # Direct-diag → MPS conversion
   chemistry/
-    integrals.ts                # STO-3G primitives, Boys F₀, ERIs
-    h2-builder.ts               # H₂ Hamiltonian from integrals
-    hn-builder.ts               # H_n linear chain (Löwdin OAO)
-    h2.ts                       # Cross-check via OpenFermion-published Pauli table
+    integrals.ts                # STO-3G s-only legacy path
+    integrals-cg.ts             # Cartesian-Gaussian primitives s/p/d/f/g/h
+                                # + dipole + gradient derivative integrals
+    cg-molecular.ts             # Generic AO integral pipeline (any molecule)
+    atoms.ts                    # Element data + STO-3G / cc-pVDZ basis tables
+    hf-scf.ts                   # Closed-shell RHF + DIIS
+    hf-gradient.ts              # Analytical HF gradient (Pulay 1969)
+    mp2.ts mp3.ts               # Post-HF MP2 / MP3 correlation
+    ccsd.ts ccsd-t.ts           # Spin-orbital CCSD + perturbative (T)
+    fci.ts                      # Sparse-CSR FCI Hamiltonian
+    geometry.ts                 # L-BFGS geom-opt (HF + DFT, analytic + FD)
+    optimizer.ts                # L-BFGS + Nelder-Mead implementations
+    cis.ts                      # Configuration Interaction Singles
+    tda-dft.ts                  # TDA + full TDDFT (HF + 5 DFT functionals)
+    properties.ts               # Dipole, Mulliken, bond orders
+    dft-gradient.ts             # Analytical RKS-DFT gradient (LDA + GGA + hybrid)
+    dft/
+      grid.ts                       # Becke-partitioned molecular grid + Lebedev
+      lebedev.ts                    # Lebedev-Laikov tables (orders 50/110/302)
+      density.ts                    # ρ, ∇ρ, ∇²φ on grid
+      functional.ts                 # Slater + VWN5 + B88 + LYP + hybrid mixing
+                                    # + LDA / GGA XC kernel f_xc
+      rks-scf.ts                    # Closed-shell Kohn-Sham SCF
 
-tests/                       # Vitest, 160 tests
-experiments/                 # Research dashboard, E1–E16 protocols
+tests/                       # Vitest, 433 tests
+experiments/                 # Research dashboard, E1–E16+ protocols
 e2e/                         # Playwright specs
 public/                      # Static assets (favicon, og-image)
 RESEARCH.md                  # Master protocol document
@@ -170,16 +205,28 @@ RESEARCH.md                  # Master protocol document
 
 ## Validation
 
-The repo cross-checks against three external references:
+The repo cross-checks against four external references:
 
 1. **ITensor DMRG** (Julia) — `tools/itensor-reference.jl` regenerates
    `tests/manybody/itensor-reference.json` with energies for 19
    configurations across Heisenberg / TFIM / XXZ. Our exact-diag matches to
    1e-7 on N ≤ 8; imag-time MPS matches to ≤ 5 mHa on N=8.
 2. **PySCF** — H₂ STO-3G FCI at R = 0.7414 Å gives −1.13727008 Ha; our
-   integral-built dense Hamiltonian agrees to **7 decimals**.
-3. **Bethe ansatz / Pfeuty** — analytical limits for Heisenberg /
+   integral-built dense Hamiltonian agrees to **7 decimals**. HF / DFT /
+   MP2 / CCSD / CCSD(T) cross-checked across H₂ / H₂O / BeH₂ / CH₄ on
+   STO-3G + cc-pVDZ to ≤ 0.5 mHa; spherical-d closes the gap to **35 µHa**
+   on cc-pVDZ.
+3. **libxc** — closed-shell LYP collapse and the GGA / hybrid TDDFT
+   XC kernel cross-referenced against `gga_c_lyp.mpl`. Numerical FD on
+   v_ρ / v_γ for the second-derivative kernel; matches the maple-tabulated
+   path to 1e-8.
+4. **Bethe ansatz / Pfeuty** — analytical limits for Heisenberg /
    TFIM serve as sanity checks on the trend with N.
+
+Plus a defensive moat of **18 FD-vs-analytical self-tests** on every
+integral derivative — overlap, kinetic, nuclear, ERI gradients
+(`tests/chemistry/hf-gradient.test.ts`), basis Hessians, LDA/GGA XC
+kernel (`tests/chemistry/lyp.test.ts`, `dft-gradient.test.ts`).
 
 ---
 
