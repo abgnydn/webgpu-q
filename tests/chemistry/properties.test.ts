@@ -14,7 +14,7 @@ import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
 import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
 import { runRKSDFT } from "../../src/chemistry/dft/rks-scf.js";
-import { dipoleMoment, dipoleMagnitude, AU_TO_DEBYE } from "../../src/chemistry/properties.js";
+import { dipoleMoment, dipoleMagnitude, mullikenCharges, AU_TO_DEBYE } from "../../src/chemistry/properties.js";
 
 const H2O_ATOMS: Atom[] = (() => {
   const half = (104.52 / 2) * Math.PI / 180;
@@ -94,4 +94,79 @@ describe("Closed-shell ground-state dipole moments", () => {
     const mu = dipoleMoment(integrals, hf.D);
     expect(dipoleMagnitude(mu)).toBeLessThan(1e-9);
   });
+});
+
+describe("Mulliken population analysis", () => {
+  test("H₂O HF/STO-3G: O negative, both H positive, Σq = 0", () => {
+    const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(H2O_ATOMS);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons, {
+      useDIIS: true, energyTol: 1e-12, maxIter: 200,
+    });
+    const q = mullikenCharges(integrals, hf.D, shellAtomIdx);
+    expect(q.length).toBe(3);
+    // Atom ordering: [O, H, H].
+    expect(q[0]!).toBeLessThan(0);                       // O negative
+    expect(q[1]!).toBeGreaterThan(0);                    // H positive
+    expect(q[2]!).toBeGreaterThan(0);
+    // Symmetric H atoms → equal charges.
+    expect(Math.abs(q[1]! - q[2]!)).toBeLessThan(1e-10);
+    // Conservation: charges sum to net molecular charge (0).
+    let sum = 0; for (const v of q) sum += v;
+    expect(Math.abs(sum)).toBeLessThan(1e-10);
+    // Magnitude sanity — STO-3G HF gives O ≈ −0.4 to −0.5 e.
+    expect(q[0]!).toBeGreaterThan(-0.6);
+    expect(q[0]!).toBeLessThan(-0.2);
+  });
+
+  test("H₂: charges zero by symmetry", () => {
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+    ];
+    const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(atoms);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons, { useDIIS: true, energyTol: 1e-12, maxIter: 200 });
+    const q = mullikenCharges(integrals, hf.D, shellAtomIdx);
+    // Both H atoms should carry zero net charge by inversion symmetry.
+    expect(Math.abs(q[0]!)).toBeLessThan(1e-10);
+    expect(Math.abs(q[1]!)).toBeLessThan(1e-10);
+  });
+
+  test("BeH₂ linear: Be carries the positive charge, Hs equally negative", () => {
+    const atoms: Atom[] = [
+      { symbol: "Be", pos: [0, 0, 0] },
+      { symbol: "H",  pos: [0, 0, 1.34] },
+      { symbol: "H",  pos: [0, 0, -1.34] },
+    ];
+    const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(atoms);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons, { useDIIS: true, energyTol: 1e-12, maxIter: 200 });
+    const q = mullikenCharges(integrals, hf.D, shellAtomIdx);
+    // Be is more electropositive than H — positive Mulliken charge.
+    expect(q[0]!).toBeGreaterThan(0);
+    expect(q[1]!).toBeLessThan(0);
+    expect(q[2]!).toBeLessThan(0);
+    expect(Math.abs(q[1]! - q[2]!)).toBeLessThan(1e-10);
+    let sum = 0; for (const v of q) sum += v;
+    expect(Math.abs(sum)).toBeLessThan(1e-10);
+  });
+
+  test("Conservation under DFT functional swap (H₂O)", () => {
+    const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(H2O_ATOMS);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const symbols = H2O_ATOMS.map((a) => a.symbol);
+    for (const k of ["lda-svwn", "blyp", "b3lyp5"] as const) {
+      const dft = runRKSDFT(integrals, nElectrons, symbols, {
+        functional: k, energyTol: 1e-12, maxIter: 200,
+      });
+      const q = mullikenCharges(integrals, dft.D, shellAtomIdx);
+      let sum = 0; for (const v of q) sum += v;
+      expect(Math.abs(sum)).toBeLessThan(1e-10);
+      // Same qualitative pattern as HF.
+      expect(q[0]!).toBeLessThan(0);
+      expect(q[1]!).toBeGreaterThan(0);
+      expect(q[2]!).toBeGreaterThan(0);
+    }
+  }, 60_000);
 });

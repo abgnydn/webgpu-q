@@ -70,3 +70,68 @@ export function dipoleMoment(
 export function dipoleMagnitude(mu: readonly [number, number, number]): number {
   return Math.sqrt(mu[0] * mu[0] + mu[1] * mu[1] + mu[2] * mu[2]);
 }
+
+// ─────────────────────────────────────────────────────────────
+// Mulliken population analysis (Mulliken 1955).
+//
+// Partition the total electron count into per-atom populations
+// using the AO basis set's "natural" assignment (shells anchored
+// to atoms):
+//
+//   gross population on A:  n_A = Σ_{μ on A} (P · S)_μμ
+//   Mulliken charge on A:   q_A = Z_A − n_A
+//
+// where P is the AO density matrix and S is the AO overlap.
+// Σ_A q_A = total molecular charge (= 0 for neutrals) by trace
+// invariance: Σ_μ (P·S)_μμ = tr(P·S) = N_electrons.
+//
+// Mulliken's well-known limitations:
+//   • Basis-dependent: charges shift when you change basis sets,
+//     sometimes drastically (especially with diffuse functions).
+//   • For 50/50-shared overlap regions, the equal split is
+//     somewhat arbitrary.
+//   • Other schemes (NPA, CHELPG, RESP, Bader) address these but
+//     need substantial new infrastructure. Mulliken is the
+//     historically-canonical first cut and matches what every
+//     introductory textbook reports.
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Mulliken atomic charges (atomic units of e). Returns a
+ * Float64Array of length nAtoms. Sum of charges equals the total
+ * molecular charge (0 for neutrals).
+ *
+ * @param shellAtomIdx Atom index that owns each shell — same array
+ *   returned by `moleculeToShellsNuclei`. Required to attribute
+ *   AO populations to atoms.
+ */
+export function mullikenCharges(
+  integrals: MolecularIntegrals,
+  P: Float64Array,
+  shellAtomIdx: readonly number[],
+): Float64Array {
+  const n = integrals.n;
+  const S = integrals.S_AO;
+  const nuclei = integrals.nuclei;
+  const nAtoms = nuclei.length;
+  if (shellAtomIdx.length !== n) {
+    throw new Error(
+      `mullikenCharges: shellAtomIdx length ${shellAtomIdx.length} ≠ n ${n}`,
+    );
+  }
+
+  // (P·S)_μμ = Σ_ν P_μν · S_νμ = Σ_ν P_μν · S_μν  (S symmetric).
+  const charges = new Float64Array(nAtoms);
+  for (let mu = 0; mu < n; mu++) {
+    let pop = 0;
+    for (let nu = 0; nu < n; nu++) {
+      pop += P[mu * n + nu]! * S[nu * n + mu]!;
+    }
+    charges[shellAtomIdx[mu]!]! += pop;
+  }
+  // Convert population → charge: q_A = Z_A − n_A.
+  for (let A = 0; A < nAtoms; A++) {
+    charges[A] = nuclei[A]!.Z - charges[A]!;
+  }
+  return charges;
+}

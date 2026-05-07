@@ -121,7 +121,42 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 11 — ground-state dipole moments.**
+**Latest milestone: Tier 2 stage 12 — Mulliken population analysis.**
+Per-atom partial charges from the AO density:
+
+  n_A = Σ_{μ on A} (P · S)_μμ      (gross atomic population)
+  q_A = Z_A − n_A                  (Mulliken charge)
+
+Σ_A q_A = total molecular charge (= 0 for neutrals) by trace
+invariance.
+
+Built:
+- `mullikenCharges(integrals, P, shellAtomIdx)` in
+  `properties.ts`. Reference-agnostic — works on any closed-shell
+  AO density (HF, DFT, post-HF relaxed). 4 new tests cover H₂O
+  qualitative ordering (O negative, Hs equally positive), H₂ +
+  BeH₂ symmetry checks, conservation under DFT functional swap.
+
+H₂O STO-3G Mulliken charges (e):
+- HF:      O = −0.3664   H = +0.1832
+- LDA:     O = −0.3840   H = +0.1920
+- BVWN5:   O = −0.3631   H = +0.1816
+- BLYP:    O = −0.3605   H = +0.1802
+- B3VWN5:  O = −0.3705   H = +0.1852
+- B3LYP5:  O = −0.3683   H = +0.1841
+
+LDA most-polar (pulls electrons toward O); GGA less polar; HF
+in between — the well-known DFT-vs-HF trend, with hybrids
+sitting between pure DFT and HF as expected.
+
+Honest limitations shipped with the routine:
+- Mulliken is basis-dependent. Charges shift when you change
+  basis sets, sometimes drastically with diffuse functions.
+- The 50/50 overlap split is somewhat arbitrary at large
+  shared-overlap regions. NPA / CHELPG / Bader are better but
+  need substantial new infrastructure.
+
+**Tier 2 stage 11 — ground-state dipole moments.**
 First ground-state property routine on top of the SCF density.
 Reuses the dipole AO machinery from stage 10:
 
@@ -562,7 +597,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **425/425** (was 421) + 1 opt-in
+**Test surface:** `npm run test` → **429/429** (was 425) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
@@ -576,17 +611,22 @@ E1–E5, viz extensions, public-repo polish, hardened-SVD fix, Tier B/C/D
 fusion): read `git log` — every phase shipped its own commit with full
 benchmarks in the message body. Don't replicate that history here.
 
-**Next up (per the roadmap above):** the singlet excited-state
-+ UV-vis spectrum + ground-state dipole story is now closed
-across the full HF + DFT ladder. Bigger levers next: **WebGPU
-port of the (T) kernel** (~3 sessions, 10-100× → cc-pVTZ
-CCSD(T) routine) or **EOM-CCSD** for correlated excited states
-(~1-2 sessions). Smaller wins still on the shelf: Mulliken
-population analysis (~½ session, gives partial atomic charges
-on top of the SCF density), triplet TDA / TDDFT for DFT
-functionals, analytical excited-state gradients. After Tier 2
-the project becomes a "real undergrad chemistry tool in a
-browser tab."
+**Next up (per the roadmap above):** the closed-shell ground-
+state property suite (energy, geometry, dipole, charges) +
+singlet excited-state suite (TDA / TDDFT energies + oscillator
+strengths) is now closed across the full HF + DFT ladder. The
+project is genuinely a "real undergrad chemistry tool in a
+browser tab" already.
+
+Bigger levers from here: **WebGPU port of the (T) kernel**
+(~3 sessions, 10-100× → cc-pVTZ CCSD(T) routine) or
+**EOM-CCSD** for correlated excited states (~1-2 sessions).
+
+Smaller wins still: bond-orders / Wiberg indices on top of
+Mulliken (~½ session), triplet TDA / TDDFT for DFT
+functionals, frequency analysis (Hessian + harmonic vibrations,
+needs analytical second derivatives — 2-3 sessions of integral
+work).
 
 ---
 
