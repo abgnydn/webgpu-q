@@ -121,7 +121,51 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 14 — gap-closing pass + E17.**
+**Latest milestone: Tier 2 stage 15a — spherical-d on the grid (real fix).**
+The previous "guard with throw" was documentation papering over a
+real bug. Stage 15a is the actual fix: when integrals are built
+with `spherical: true`, all grid-using paths (RKS-DFT SCF, TDA-DFT
+XC kernel, HF + DFT analytical gradients) now apply the
+Cartesian → spherical-d transform T to keep basis values, gradients,
+Hessians, and density matrices in sync. Throws dropped, replaced
+with the actual transform.
+
+What got built:
+- `MolecularIntegrals.sphericalT` exposes T (n_sph × n_cart, row-major).
+- `rks-scf.ts` applies T to phi / phix / phiy / phiz on the grid.
+- `hfGradient` and `dftGradient` accept an optional `sphericalT`
+  input; when set, transform P_cart = T^T·P·T (and same for W) at
+  entry. tr(P·∂h) is basis-invariant so the gradient is unchanged
+  by the transform.
+- Round-trip tests added in ccpvdz-spherical.test.ts.
+
+H₂O cc-pVDZ B3LYP5 spherical vs Cartesian:
+- SCF E:    −76.383115 vs −76.384313  (Δ = 1.2 mHa, the documented
+                                       Cartesian-vs-spherical-d slack)
+- TDA[0]:   7.627 eV vs 7.601 eV
+- |∇_HF|:   2.24e-2 vs 2.20e-2  (match to 1 %)
+- |∇_DFT|:  2.21e-2 vs 2.29e-2  (match to 4 %)
+
+**Honest negatives still open** (each its own session, not a
+one-push item — adjusted from the over-eager Stage 14 list):
+- **15b — Triplet TDA / TDDFT for DFT**: needs a spin-polarized
+  evalXC (separate ρ_↑, ρ_↓ inputs producing f_↑↑, f_↑↓
+  separately), then triplet kernel f_xc^triplet = (f_↑↑ − f_↑↓).
+  ~1 session of careful spin-resolved Slater + VWN5 work.
+- **15c — Becke-partition weight derivatives**: ∂ω_K(r_p; R)/∂R_N
+  at fixed r_p plus the grid-translation contribution from points
+  originated on atom N. Closes the ~1e-3 Ha/Bohr translational-
+  invariance residual in DFT gradients. ~1-2 sessions of careful
+  algebra + integral work.
+- **15d — Davidson eigensolver**: iterative Krylov method for
+  CIS / TDDFT scaling beyond a few hundred dimensions.
+  ~1 session of standard linear-algebra port.
+- **15e — Continuum representation for E17 σ_ion**: Stieltjes
+  imaging or B-spline / DVR continuum orbitals. Needed to bring
+  σ_ion within ±15 % of Itikawa-Mason 2005. ~2-3 sessions
+  of substantive new infrastructure.
+
+**Tier 2 stage 14 — gap-closing pass + E17.**
 Cleaned up the loose ends from stages 4–13 in one focused
 session: shipped the deferred E17 cross-section experiment as
 the documented honest-negative the architecture allowed; closed
@@ -675,7 +719,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **435/435** (was 433) + 1 opt-in
+**Test surface:** `npm run test` → **438/438** (was 435) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
