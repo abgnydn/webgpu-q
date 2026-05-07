@@ -121,7 +121,41 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 9 — TDA-DFT (singlet, LDA).**
+**Latest milestone: Tier 2 stage 9b — full TDDFT (Casida).**
+Added the B coupling block on top of stage 9's A and solved the
+RPA / TDDFT problem
+   (A − B) · (A + B) Z = ω² Z
+via the symmetric reformulation M = (A−B)^(1/2) · (A+B) · (A−B)^(1/2)
+followed by `eigsymmetric` on M. Square root is element-wise
+when (A − B) is diagonal (pure DFT, hfMix = 0); otherwise via
+eigendecomposition. Same `method = "hf" | "lda-svwn"` surface
+as runTDA — `runTDDFT` is the new entry point.
+
+Built:
+- `runTDDFT` in tda-dft.ts. Shares matrix-build with `runTDA`
+  via the new private `buildTDABlocks` helper. The B block
+  reuses the same Coulomb 2·(ia|jb) and LDA XC kernel
+  (ia|f_xc|jb) as A; the only difference is exchange
+  permutation: A uses (ij|ab), B uses (ib|aj).
+- `matrixSqrtSymmetric`: real-symmetric square root via
+  eigendecomposition. Refuses negative eigenvalues with a
+  message hinting at closed-shell instability.
+
+H₂O STO-3G singlet excitations (Ha [eV]):
+- TDA-HF:    0.4852 [13.20]  0.5573 [15.16]  0.6167 [16.78]
+- TDHF/RPA:  0.4836 [13.16]  0.5567 [15.15]  0.6126 [16.67]
+- TDA-LDA:   0.4226 [11.50]  0.5071 [13.80]  0.5197 [14.14]
+- TDDFT-LDA: 0.4198 [11.42]  0.5066 [13.79]  0.5141 [13.99]
+
+Full RPA / TDDFT eigenvalues are uniformly ≤ TDA at the same
+level — the textbook B-block-correction sign. Shifts are small
+(≤ 100 mHa per state) because at STO-3G the orbital-energy gap
+dominates; bigger basis sets show larger differences.
+
+Tests (9 → +2): TDHF strictly ≤ TDA-HF and TDDFT-LDA strictly
+≤ TDA-LDA per state, all real and positive (no instabilities).
+
+**Tier 2 stage 9 — TDA-DFT (singlet, LDA).**
 TDA generalized from HF orbitals to Kohn-Sham orbitals + the
 LDA XC kernel + HF-exchange mixing. Singlet sector:
 
@@ -412,7 +446,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **414/414** (was 407) + 1 opt-in
+**Test surface:** `npm run test` → **416/416** (was 414) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
@@ -426,17 +460,15 @@ E1–E5, viz extensions, public-repo polish, hardened-SVD fix, Tier B/C/D
 fusion): read `git log` — every phase shipped its own commit with full
 benchmarks in the message body. Don't replicate that history here.
 
-**Next up (per the roadmap above):** the natural follow-ups to
-TDA-DFT are (a) **GGA / hybrid TDA-DFT** — wire the full
-f_ρρ + f_ργ + f_γγ kernel and basis-Hessian-style integrals
-for BVWN5 / BLYP / B3LYP5; ~1 session, builds on the basis
-Hessians shipped in stage 6b. (b) **Full TDDFT** — diagonalize
-the (A, B) 2×2 block instead of just A; ~½ session reuse of
-the same matrix elements. After those, the bigger levers are
-**WebGPU port of the (T) kernel** (~3 sessions) or **EOM-CCSD**
-for correlated excited states (~1–2 sessions). After Tier 2 the
-project becomes a "real undergrad chemistry tool in a browser
-tab."
+**Next up (per the roadmap above):** the immediate cleanup is
+**GGA / hybrid TDA-DFT + TDDFT** — wire the full f_ρρ + f_ργ
++ f_γγ kernel and basis-Hessian-style integrals for BVWN5 /
+BLYP / B3LYP5; ~1 session, builds on the basis Hessians shipped
+in stage 6b. After that, the bigger levers are **WebGPU port
+of the (T) kernel** (~3 sessions, 10–100× → cc-pVTZ CCSD(T)
+routine) or **EOM-CCSD** for correlated excited states
+(~1–2 sessions). After Tier 2 the project becomes a "real
+undergrad chemistry tool in a browser tab."
 
 ---
 

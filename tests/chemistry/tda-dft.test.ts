@@ -17,7 +17,7 @@ import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js"
 import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
 import { runRKSDFT } from "../../src/chemistry/dft/rks-scf.js";
 import { runCIS } from "../../src/chemistry/cis.js";
-import { runTDA } from "../../src/chemistry/tda-dft.js";
+import { runTDA, runTDDFT } from "../../src/chemistry/tda-dft.js";
 
 const H2O_ATOMS: Atom[] = (() => {
   const half = (104.52 / 2) * Math.PI / 180;
@@ -96,6 +96,48 @@ describe("TDA-DFT amplitudes: normalization", () => {
         nrm += c * c;
       }
       expect(Math.abs(nrm - 1)).toBeLessThan(1e-10);
+    }
+  }, 60_000);
+});
+
+describe("Full TDDFT (Casida): excitations real and lower than TDA", () => {
+  // Full RPA / TDDFT includes B-block coupling — for closed-shell
+  // ground states, full TDDFT eigenvalues are STRICTLY ≤ the TDA
+  // eigenvalues at the same level (well-known TDA→full RPA shift).
+  // Same-system check: the Bauernschmitt-Ahlrichs 1996 ordering.
+
+  test("H₂O STO-3G TDHF: eigenvalues real, positive, ≤ TDA-HF", () => {
+    const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(H2O_ATOMS);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons, {
+      useDIIS: true, energyTol: 1e-12, maxIter: 200,
+    });
+    const tda = runTDA(integrals, hf, { method: "hf", nRoots: 5 });
+    const rpa = runTDDFT(integrals, hf, { method: "hf", nRoots: 5 });
+    expect(rpa.singletEnergies.length).toBe(5);
+    // All eigenvalues should be real and positive (no instability).
+    for (let r = 0; r < 5; r++) {
+      expect(rpa.singletEnergies[r]!).toBeGreaterThan(0);
+    }
+    // Full RPA ≤ TDA (per excited state, for stable closed-shell).
+    // Tolerance 1e-9 allows fp noise above the strict ≤.
+    for (let r = 0; r < 5; r++) {
+      expect(rpa.singletEnergies[r]! - tda.singletEnergies[r]!).toBeLessThan(1e-9);
+    }
+  });
+
+  test("H₂O STO-3G TDDFT-LDA: eigenvalues real, positive, ≤ TDA-LDA", () => {
+    const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(H2O_ATOMS);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const symbols = H2O_ATOMS.map((a) => a.symbol);
+    const dft = runRKSDFT(integrals, nElectrons, symbols, {
+      functional: "lda-svwn", energyTol: 1e-12, maxIter: 200,
+    });
+    const tda = runTDA(integrals, dft, { method: "lda-svwn", nucleiSymbols: symbols, nRoots: 5 });
+    const rpa = runTDDFT(integrals, dft, { method: "lda-svwn", nucleiSymbols: symbols, nRoots: 5 });
+    for (let r = 0; r < 5; r++) {
+      expect(rpa.singletEnergies[r]!).toBeGreaterThan(0);
+      expect(rpa.singletEnergies[r]! - tda.singletEnergies[r]!).toBeLessThan(1e-9);
     }
   }, 60_000);
 });
