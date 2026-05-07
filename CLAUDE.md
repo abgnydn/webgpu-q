@@ -121,7 +121,36 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 12 — Mulliken population analysis.**
+**Latest milestone: Tier 2 stage 13 — Wiberg-Mayer bond orders.**
+Per-pair shared-electron counts from the AO density:
+
+  B_AB = Σ_{μ ∈ A, ν ∈ B} (P · S)_μν · (P · S)_νμ
+
+Built:
+- `bondOrders(integrals, P, shellAtomIdx)` in `properties.ts`
+  returning the full nAtoms × nAtoms matrix. Reference-agnostic.
+
+H₂O / BeH₂ HF/STO-3G bond-order matrices:
+- H₂:    B_HH = 1.0000   (perfect single bond)
+- H₂O:   B_OH = 0.9540 (each)   B_HH = 0.0125 (geminal)
+         Mayer valence: V_O = 1.91, V_H = 0.97
+- BeH₂:  B_BeH = 0.9976 (each)   B_HH = 0.0004
+         Mayer valence: V_Be = 2.00, V_H = 1.00
+
+All match the textbook ordering for these molecules. The 0.95
+on O-H reflects the small polarization "loss" relative to a
+pure covalent bond (charge sits more on O).
+
+Tests (4 new): single-bond H₂, dual-bond H₂O with small geminal
+H-H, BeH₂ valences ≈ {Be: 2, H: 1}, agreement across HF / DFT
+functionals to within 0.1.
+
+Honest limitations (same as Mulliken):
+- Basis-set dependent. Numbers shift with basis.
+- The diagonal of the matrix is not the Mayer valence — that's
+  the off-diagonal sum. Document in the module header.
+
+**Tier 2 stage 12 — Mulliken population analysis.**
 Per-atom partial charges from the AO density:
 
   n_A = Σ_{μ on A} (P · S)_μμ      (gross atomic population)
@@ -597,7 +626,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **429/429** (was 425) + 1 opt-in
+**Test surface:** `npm run test` → **433/433** (was 429) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
@@ -622,10 +651,10 @@ Bigger levers from here: **WebGPU port of the (T) kernel**
 (~3 sessions, 10-100× → cc-pVTZ CCSD(T) routine) or
 **EOM-CCSD** for correlated excited states (~1-2 sessions).
 
-Smaller wins still: bond-orders / Wiberg indices on top of
-Mulliken (~½ session), triplet TDA / TDDFT for DFT
-functionals, frequency analysis (Hessian + harmonic vibrations,
-needs analytical second derivatives — 2-3 sessions of integral
+Smaller wins still: triplet TDA / TDDFT for DFT functionals
+(~½ session), Mayer-valence summary helper (~10 minutes),
+frequency analysis (Hessian + harmonic vibrations, needs
+analytical second derivatives — 2-3 sessions of integral
 work).
 
 ---

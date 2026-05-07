@@ -14,7 +14,7 @@ import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
 import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
 import { runRKSDFT } from "../../src/chemistry/dft/rks-scf.js";
-import { dipoleMoment, dipoleMagnitude, mullikenCharges, AU_TO_DEBYE } from "../../src/chemistry/properties.js";
+import { dipoleMoment, dipoleMagnitude, mullikenCharges, bondOrders, AU_TO_DEBYE } from "../../src/chemistry/properties.js";
 
 const H2O_ATOMS: Atom[] = (() => {
   const half = (104.52 / 2) * Math.PI / 180;
@@ -167,6 +167,85 @@ describe("Mulliken population analysis", () => {
       expect(q[0]!).toBeLessThan(0);
       expect(q[1]!).toBeGreaterThan(0);
       expect(q[2]!).toBeGreaterThan(0);
+    }
+  }, 60_000);
+});
+
+describe("Wiberg-Mayer bond orders", () => {
+  test("H₂: B_HH ≈ 1 (single bond)", () => {
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+    ];
+    const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(atoms);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons, { useDIIS: true, energyTol: 1e-12, maxIter: 200 });
+    const B = bondOrders(integrals, hf.D, shellAtomIdx);
+    // B_HH should be 1 to high precision (one shared pair).
+    expect(Math.abs(B[0 * 2 + 1]! - 1.0)).toBeLessThan(0.05);
+    // Symmetry.
+    expect(Math.abs(B[0 * 2 + 1]! - B[1 * 2 + 0]!)).toBeLessThan(1e-12);
+  });
+
+  test("H₂O: B_OH ≈ 1 each, B_HH small (no direct bond)", () => {
+    const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(H2O_ATOMS);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons, {
+      useDIIS: true, energyTol: 1e-12, maxIter: 200,
+    });
+    const B = bondOrders(integrals, hf.D, shellAtomIdx);
+    // Atom indices: 0 = O, 1 = H, 2 = H.
+    const B_OH1 = B[0 * 3 + 1]!;
+    const B_OH2 = B[0 * 3 + 2]!;
+    const B_HH  = B[1 * 3 + 2]!;
+    // Each O-H bond should be ~1.
+    expect(Math.abs(B_OH1 - 1.0)).toBeLessThan(0.1);
+    expect(Math.abs(B_OH2 - 1.0)).toBeLessThan(0.1);
+    // Symmetric H atoms.
+    expect(Math.abs(B_OH1 - B_OH2)).toBeLessThan(1e-10);
+    // H-H is geminal (through-bond), small but non-zero.
+    expect(Math.abs(B_HH)).toBeLessThan(0.1);
+  });
+
+  test("BeH₂ linear: B_BeH ≈ 1, B_HH small, total Be valence ≈ 2", () => {
+    const atoms: Atom[] = [
+      { symbol: "Be", pos: [0, 0, 0] },
+      { symbol: "H",  pos: [0, 0, 1.34] },
+      { symbol: "H",  pos: [0, 0, -1.34] },
+    ];
+    const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(atoms);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons, { useDIIS: true, energyTol: 1e-12, maxIter: 200 });
+    const B = bondOrders(integrals, hf.D, shellAtomIdx);
+    const B_BeH1 = B[0 * 3 + 1]!;
+    const B_BeH2 = B[0 * 3 + 2]!;
+    const B_HH   = B[1 * 3 + 2]!;
+    expect(Math.abs(B_BeH1 - 1.0)).toBeLessThan(0.15);
+    expect(Math.abs(B_BeH2 - 1.0)).toBeLessThan(0.15);
+    expect(Math.abs(B_BeH1 - B_BeH2)).toBeLessThan(1e-10);
+    // H-H across a 2.68 Bohr gap with Be in between — small.
+    expect(Math.abs(B_HH)).toBeLessThan(0.1);
+    // Mayer valence on Be ≈ sum of Be-X bond orders — about 2.
+    let valBe = 0;
+    for (let X = 0; X < 3; X++) if (X !== 0) valBe += B[0 * 3 + X]!;
+    expect(Math.abs(valBe - 2.0)).toBeLessThan(0.3);
+  });
+
+  test("Bond orders are reference-agnostic: similar across DFT functionals", () => {
+    const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(H2O_ATOMS);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const symbols = H2O_ATOMS.map((a) => a.symbol);
+    const hf = runRHFSCF(integrals, nElectrons, {
+      useDIIS: true, energyTol: 1e-12, maxIter: 200,
+    });
+    const B_HF = bondOrders(integrals, hf.D, shellAtomIdx);
+    for (const k of ["lda-svwn", "blyp"] as const) {
+      const dft = runRKSDFT(integrals, nElectrons, symbols, {
+        functional: k, energyTol: 1e-12, maxIter: 200,
+      });
+      const B_DFT = bondOrders(integrals, dft.D, shellAtomIdx);
+      // O-H bond order should agree across HF / DFT to a few %.
+      expect(Math.abs(B_HF[0 * 3 + 1]! - B_DFT[0 * 3 + 1]!)).toBeLessThan(0.1);
     }
   }, 60_000);
 });

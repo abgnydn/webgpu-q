@@ -135,3 +135,69 @@ export function mullikenCharges(
   }
   return charges;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Wiberg-Mayer bond orders (Mayer 1983, "Charge, bond order,
+// and valence in the AB initio SCF theory", Chem. Phys. Lett.
+// 97, 270).
+//
+// For closed-shell SCF densities P (with the convention P =
+// 2·Σ_{i ∈ occ} C_i C_i^T), the bond order between atoms A
+// and B is:
+//
+//   B_AB = Σ_{μ ∈ A, ν ∈ B} (P·S)_μν · (P·S)_νμ
+//
+// Interpretation:
+//   • B_AB ≈ 1 for a single bond (two shared electrons).
+//   • B_AB ≈ 2 for a double bond, ≈ 3 for a triple.
+//   • The diagonal B_AA represents the "valence" of atom A
+//     (sum over partners: total bond count it participates in).
+//
+// Limitations: same basis-set sensitivity as Mulliken charges —
+// shifts when basis changes, especially with diffuse functions.
+// At STO-3G the values are qualitative ordering indicators
+// rather than precise bond-strength measurements.
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Mayer bond-order matrix (nAtoms × nAtoms, row-major). The
+ * matrix is symmetric: B_AB = B_BA. Diagonal entries are the
+ * Mayer atomic valences. Returns a Float64Array of length
+ * nAtoms·nAtoms.
+ */
+export function bondOrders(
+  integrals: MolecularIntegrals,
+  P: Float64Array,
+  shellAtomIdx: readonly number[],
+): Float64Array {
+  const n = integrals.n;
+  const S = integrals.S_AO;
+  const nuclei = integrals.nuclei;
+  const nAtoms = nuclei.length;
+  if (shellAtomIdx.length !== n) {
+    throw new Error(
+      `bondOrders: shellAtomIdx length ${shellAtomIdx.length} ≠ n ${n}`,
+    );
+  }
+
+  // PS = P · S, plain n³ multiply.
+  const PS = new Float64Array(n * n);
+  for (let i = 0; i < n; i++) {
+    for (let k = 0; k < n; k++) {
+      const Pik = P[i * n + k]!;
+      if (Pik === 0) continue;
+      for (let j = 0; j < n; j++) PS[i * n + j]! += Pik * S[k * n + j]!;
+    }
+  }
+
+  // B_AB = Σ_{μ on A, ν on B} (PS)_μν · (PS)_νμ.
+  const B = new Float64Array(nAtoms * nAtoms);
+  for (let mu = 0; mu < n; mu++) {
+    const A = shellAtomIdx[mu]!;
+    for (let nu = 0; nu < n; nu++) {
+      const Aprime = shellAtomIdx[nu]!;
+      B[A * nAtoms + Aprime]! += PS[mu * n + nu]! * PS[nu * n + mu]!;
+    }
+  }
+  return B;
+}
