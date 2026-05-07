@@ -5,14 +5,15 @@
 //   • runLevel6(opts)        — programmatic runner for E16 (VQE on H₂).
 //   • wireRunLevel6Button()  — browser glue.
 //
-// E17 (cross-sections vs Geant4-DNA tables) is intentionally
-// deferred: it needs the G4EMLOW 8.8 tarball + the per-energy
-// reference tables that live in the sibling webgpu-dna repo.
-// When that data lands, add an E17 file and pull it into the
-// `tasks` array below.
+// E17 (cross-sections vs Itikawa-Mason 2005 / Geant4-DNA reference)
+// shipped 2026-05-07 as an honest negative — Bethe-Born from a
+// finite TDA-DFT spectrum can't represent the genuine ionization
+// continuum, so σ_ion undershoots reference values. σ_exc lands
+// closer. See E17-cross-sections.ts for the full diagnosis.
 // ─────────────────────────────────────────────────────────────
 
 import { runE16 } from "./E16-h2-vqe.js";
+import { runE17 } from "./E17-cross-sections.js";
 import { runE20 } from "./E20-lih-vqe.js";
 import { runE21 } from "./E21-beh2-vqe.js";
 import { downloadArtifact, emitArtifact } from "../lib/runner.js";
@@ -39,7 +40,11 @@ export async function runLevel6(): Promise<{
   const e21 = await runE21();
   emitArtifact(e21);
 
-  const all = [e16, e20, e21];
+  console.log("Running E17 (e⁻ + H₂O cross sections) …");
+  const e17 = await runE17();
+  emitArtifact(e17);
+
+  const all = [e16, e20, e21, e17];
   const status: "pass" | "fail" | "noisy" =
     all.some((a) => a.status === "fail") ? "fail" :
     all.some((a) => a.status === "noisy") ? "noisy" : "pass";
@@ -89,6 +94,7 @@ export function wireRunLevel6Button(): void {
       ["E16", "VQE H₂ STO-3G — 10 random inits at R=0.7414 Å",            async () => runE16()],
       ["E20", "VQE LiH STO-3G s-only — 5 inits, 5 R values (Phase C v1)", async () => runE20()],
       ["E21", "VQE BeH₂ STO-3G s-only — 5 inits, 5 R values (Phase C v2)", async () => runE21()],
+      ["E17", "Bethe-Born σ(T) for e⁻+H₂O vs Itikawa-Mason 2005",         async () => runE17()],
     ];
 
     const artifacts: Array<{ status: string; [k: string]: unknown }> = [];

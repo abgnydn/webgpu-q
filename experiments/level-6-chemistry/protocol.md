@@ -39,14 +39,24 @@ https://github.com/abgnydn/webgpu-dna (sibling repo in this workspace).
 ### E17 — Cross-section comparison (Geant4 ↔ webgpu-q-derived)
 - **Hypothesis:** For electron-on-water ionization and excitation at
   E ∈ {100 eV, 300 eV, 1 keV, 3 keV, 10 keV}, cross sections derived
-  from webgpu-q-accelerated CI calculations agree with the tabulated
-  Geant4-DNA values (G4EMLOW 8.8, Emfietzoglou + Born) within ±15%.
-- **Method:** Five energies × two channels. Compare to
-  `sigma_ionisation_e_emfietzoglou` and `sigma_excitation_e_born`
-  tables.
-- **Pass bar:** |σ_ours − σ_g4| / σ_g4 ≤ 0.15 in each cell.
-- **Cross-link:** Validation script lives in
-  `webgpu-dna/validation/compare.py` (already used for CSDA + G-values).
+  from a Bethe-Born sum over the TDA-B3LYP5 oscillator-strength
+  spectrum agree with Itikawa-Mason 2005 reference values (the
+  upstream source for Geant4-DNA's G4EMLOW 8.8 tables) within ±15%.
+- **Method:** Five energies × two channels (σ_ion, σ_exc). Run
+  RKS-DFT/B3LYP5 + TDA on H₂O at the experimental geometry, then
+  σ_inel(T) = (4π/T)·Σ_n(f_n/ω_n)·ln(αT/ω_n) with α = 4. Partition
+  by I_p(H₂O) = 12.62 eV.
+- **Pass bar:** |σ_ours − σ_ref| / σ_ref ≤ 0.15 in each cell.
+- **Status (shipped 2026-05-07):** **FAIL — honest negative.**
+  TRK sum rule satisfied at cc-pVDZ (Σf ≈ 10.77 vs N_e = 10) but the
+  discrete TDA spectrum piles oscillator strength near I_p, and
+  Bethe-Born's (f/ω)·ln(αT/ω) weight amplifies low-ω contributions,
+  so σ_ion OVERSHOOTS by 2-6× (STO-3G to cc-pVDZ). σ_exc undershoots
+  in STO-3G (1 state below I_p) and overshoots in cc-pVDZ (4 states).
+  Resolution requires genuine continuum representation — Stieltjes
+  imaging, SAC-CI in a continuum basis, B-spline / DVR continuum
+  orbitals, or direct optical-photoionization cross sections.
+  Substantial new infrastructure; deferred.
 
 ## Artifacts
 `experiments/results/<YYYY-MM-DD>/level-6/E{16,17}-*.json`
