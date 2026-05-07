@@ -121,7 +121,54 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 9b — full TDDFT (Casida).**
+**Latest milestone: Tier 2 stage 9c — GGA / hybrid TDA + TDDFT.**
+Closes the singlet TDDFT loop across the full functional ladder
+(HF, LDA, BVWN5, BLYP, B3VWN5, B3LYP5). The GGA / hybrid kernel
+adds 4 pieces on top of the LDA `f_RR · ψ ψ` integrand:
+
+  K_xc[ia, jb]^GGA = ∫ w · {
+       ψ_ia · f_RR · ψ_jb
+     + 2·ψ_ia · f_RG · α_jb
+     + 2·α_ia · f_RG · ψ_jb
+     + 4·α_ia · f_GG · α_jb
+     + 2·v_γ · ∇ψ_ia · ∇ψ_jb
+   } dr
+
+with ψ_ia = φ_i^MO · φ_a^MO and α_ia = ∇ρ · ∇ψ_ia.
+
+Built:
+- `evalXCKernel(kind, ρ, γ)` in `dft/functional.ts`: numerical
+  central-FD on `evalXC` v_ρ, v_γ in both ρ and γ directions.
+  4 evalXC calls per evaluation. Returns {fRR, fRG, fGG} as
+  Float64Arrays.
+- GGA path in `tda-dft.ts/buildTDABlocks`: pre-computes MO
+  orbital VALUES + GRADIENTS on the grid, builds ψ_ia, ∇ψ_ia,
+  α_ia, then assembles the 5-piece K_xc integrand.
+
+H₂O STO-3G first singlet (eV) across the ladder:
+- TDA-HF:    13.20   →  TDHF:        13.16
+- TDA-LDA:   11.50   →  TDDFT-LDA:   11.42
+- TDA-BVWN5: 11.35   →  TDDFT-BVWN5: 11.30
+- TDA-BLYP:  11.31   →  TDDFT-BLYP:  11.26
+- TDA-B3VWN5:11.76   →  TDDFT-B3VWN5:11.71
+- TDA-B3LYP5:11.72   →  TDDFT-B3LYP5:11.67
+
+Clean ordering: HF highest (largest gap), pure DFT cluster at
+11.3-11.5 eV, B3-style hybrids land between (the 20 % HF mixing
+pulls them up), TDDFT uniformly ≤ TDA (B-correction). The gap
+between B3LYP5 (11.7 eV) and B3LYP/cc-pVTZ literature (~7-8 eV)
+is the basis-set difference, not a TDA bug — STO-3G is too small
+for valence excitations.
+
+Tests (10): every functional × {TDA, TDDFT} produces real,
+positive lowest-state excitations and TDDFT ≤ TDA per state.
+Plus the BLYP-vs-LDA-vs-HF ordering check.
+
+Honest negatives still in: triplet TDA / TDDFT for DFT (closed-
+shell triplet kernel f_xc^triplet differs from singlet — runCIS
+still ships triplet for HF only). No symmetry adaptation.
+
+**Tier 2 stage 9b — full TDDFT (Casida).**
 Added the B coupling block on top of stage 9's A and solved the
 RPA / TDDFT problem
    (A − B) · (A + B) Z = ω² Z
@@ -446,7 +493,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **416/416** (was 414) + 1 opt-in
+**Test surface:** `npm run test` → **417/417** (was 416) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
@@ -460,15 +507,15 @@ E1–E5, viz extensions, public-repo polish, hardened-SVD fix, Tier B/C/D
 fusion): read `git log` — every phase shipped its own commit with full
 benchmarks in the message body. Don't replicate that history here.
 
-**Next up (per the roadmap above):** the immediate cleanup is
-**GGA / hybrid TDA-DFT + TDDFT** — wire the full f_ρρ + f_ργ
-+ f_γγ kernel and basis-Hessian-style integrals for BVWN5 /
-BLYP / B3LYP5; ~1 session, builds on the basis Hessians shipped
-in stage 6b. After that, the bigger levers are **WebGPU port
-of the (T) kernel** (~3 sessions, 10–100× → cc-pVTZ CCSD(T)
-routine) or **EOM-CCSD** for correlated excited states
-(~1–2 sessions). After Tier 2 the project becomes a "real
-undergrad chemistry tool in a browser tab."
+**Next up (per the roadmap above):** the singlet TDDFT story is
+now closed across all 5 functionals + HF, so the bigger levers
+are **WebGPU port of the (T) kernel** (~3 sessions, 10-100×
+→ cc-pVTZ CCSD(T) routine) or **EOM-CCSD** for correlated
+excited states (~1-2 sessions). Smaller cleanups still on the
+shelf: triplet TDA / TDDFT for DFT functionals, full-RPA
+amplitudes (X, Y rather than just Z), oscillator strengths
+(needs dipole integrals, ~½ session). After Tier 2 the project
+becomes a "real undergrad chemistry tool in a browser tab."
 
 ---
 

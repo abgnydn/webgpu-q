@@ -510,3 +510,115 @@ export function evalXCKernelLDA(rho: Float64Array): Float64Array {
   }
   return fxc;
 }
+
+/** Closed-shell GGA / hybrid XC kernel — second derivatives of (ρ·ε_xc)
+ *  with respect to (ρ, γ). All four arrays are length nGrid. fRG
+ *  is the mixed second derivative; by Maxwell f_ργ = f_γρ. */
+export interface XCKernelGGA {
+  /** ∂²(ρε_xc)/∂ρ² = ∂v_ρ/∂ρ. */
+  readonly fRR: Float64Array;
+  /** ∂²(ρε_xc)/∂ρ∂γ = ∂v_ρ/∂γ = ∂v_γ/∂ρ. */
+  readonly fRG: Float64Array;
+  /** ∂²(ρε_xc)/∂γ² = ∂v_γ/∂γ. */
+  readonly fGG: Float64Array;
+}
+
+/**
+ * Evaluate the closed-shell GGA / hybrid XC kernel
+ * (f_ρρ, f_ργ, f_γγ) at every grid point via central FD on the
+ * existing `evalXC` first-derivative path. Two FD calls in the
+ * ρ direction + two in the γ direction = 4 `evalXC` calls total.
+ *
+ * The hybrid HF-exchange piece is NOT included here — that lives
+ * in the (ij|ab) ERI integral term in the TDA / TDDFT A and B
+ * matrices. This routine returns just the local DFT XC kernel
+ * piece (the (1−hfMix) implicit factor is already inside the
+ * functional's stored ε_xc; e.g. b3lyp5 carries the 0.80·Slater
+ * + 0.72·ΔB88 factors in its evalXC).
+ *
+ * For the LDA functional specifically, fRG and fGG are not
+ * meaningful (the kernel doesn't depend on γ). They're filled
+ * with zeros — preserving the unified return shape.
+ */
+export function evalXCKernel(
+  kind: FunctionalKind,
+  rho: Float64Array,
+  gamma: Float64Array | null,
+): XCKernelGGA {
+  const n = rho.length;
+  const fRR = new Float64Array(n);
+  const fRG = new Float64Array(n);
+  const fGG = new Float64Array(n);
+  const isLDA = kind === "lda-svwn";
+  if (!isLDA && !gamma) {
+    throw new Error(`evalXCKernel: functional '${kind}' needs gamma; got null.`);
+  }
+
+  // Scratch buffers reused across the four FD evaluations.
+  const epsTmp = new Float64Array(n);
+  const vRplus  = new Float64Array(n);
+  const vRminus = new Float64Array(n);
+  const vGplus  = isLDA ? null : new Float64Array(n);
+  const vGminus = isLDA ? null : new Float64Array(n);
+  const rhoPert = new Float64Array(n);
+  const gamPert = isLDA ? null : new Float64Array(n);
+  const hRho = new Float64Array(n);
+  const hGam = isLDA ? null : new Float64Array(n);
+
+  // ── ρ-derivative pair: hold γ fixed, perturb ρ. ────────────
+  for (let p = 0; p < n; p++) {
+    const r = rho[p]!;
+    if (r < EPS_RHO) { hRho[p] = 0; rhoPert[p] = r; continue; }
+    const h = Math.max(r * 1e-5, 1e-9);
+    hRho[p] = h;
+    rhoPert[p] = r + h;
+  }
+  // Re-use gamma directly (it's not perturbed here).
+  evalXC(kind, rhoPert, gamma, epsTmp, vRplus, vGplus);
+  for (let p = 0; p < n; p++) {
+    const r = rho[p]!;
+    if (r < EPS_RHO) continue;
+    const h = hRho[p]!;
+    rhoPert[p] = Math.max(r - h, EPS_RHO);
+  }
+  evalXC(kind, rhoPert, gamma, epsTmp, vRminus, vGminus);
+  for (let p = 0; p < n; p++) {
+    const h = hRho[p]!;
+    if (h === 0) continue;
+    fRR[p] = (vRplus[p]! - vRminus[p]!) / (2 * h);
+    if (vGplus && vGminus) {
+      // f_ργ = ∂v_γ/∂ρ (Maxwell-equivalent to ∂v_ρ/∂γ).
+      fRG[p] = (vGplus[p]! - vGminus[p]!) / (2 * h);
+    }
+  }
+
+  // ── γ-derivative pair: hold ρ fixed, perturb γ. ───────────
+  if (!isLDA && gamPert && hGam && gamma && vGplus && vGminus) {
+    for (let p = 0; p < n; p++) {
+      const r = rho[p]!;
+      if (r < EPS_RHO) { hGam[p] = 0; gamPert[p] = gamma[p]!; continue; }
+      const g = gamma[p]!;
+      const h = Math.max(g * 1e-5, 1e-9);
+      hGam[p] = h;
+      gamPert[p] = g + h;
+    }
+    evalXC(kind, rho, gamPert, epsTmp, vRplus, vGplus);
+    for (let p = 0; p < n; p++) {
+      const h = hGam[p]!;
+      if (h === 0) continue;
+      gamPert[p] = Math.max(gamma[p]! - h, 0);
+    }
+    evalXC(kind, rho, gamPert, epsTmp, vRminus, vGminus);
+    for (let p = 0; p < n; p++) {
+      const h = hGam[p]!;
+      if (h === 0) continue;
+      fGG[p] = (vGplus[p]! - vGminus[p]!) / (2 * h);
+      // Note on fRG: we already populated it from the ρ-direction
+      // FD on v_γ above. We could also overwrite here using v_ρ
+      // FD on γ — Maxwell says they agree. Keep the ρ-direction
+      // value (cheaper / consistent with f_RR's grid).
+    }
+  }
+
+  return { fRR, fRG, fGG };
+}

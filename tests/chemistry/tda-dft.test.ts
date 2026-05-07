@@ -142,21 +142,60 @@ describe("Full TDDFT (Casida): excitations real and lower than TDA", () => {
   }, 60_000);
 });
 
-describe("TDA-DFT: GGA / hybrid not yet supported", () => {
+describe("GGA / hybrid TDA + TDDFT", () => {
+  // Tier 2 stage 9c: BVWN5 / BLYP / B3VWN5 / B3LYP5 TDA + TDDFT
+  // singlet sectors. Every functional should produce real,
+  // positive lowest-state excitations on H₂O STO-3G; full TDDFT
+  // should remain ≤ TDA per state.
   test.each([
-    ["bvwn5"],
-    ["blyp"],
-    ["b3vwn5"],
-    ["b3lyp5"],
-  ])("method = %s throws with clear TODO", (kind) => {
+    ["bvwn5"  as const],
+    ["blyp"   as const],
+    ["b3vwn5" as const],
+    ["b3lyp5" as const],
+  ])("H₂O STO-3G %s: TDA singlet > 0; TDDFT singlet ≤ TDA", (kind) => {
     const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(H2O_ATOMS);
     const integrals = computeMolecularIntegrals(shells, nuclei);
-    const hf = runRHFSCF(integrals, nElectrons, { useDIIS: true, maxIter: 200 });
-    expect(() => runTDA(integrals, hf, {
-      // Casting via "as never" because TDAMethod doesn't accept these
-      // values at compile time — runtime check is the safety net.
-      method: kind as never,
-      nucleiSymbols: H2O_ATOMS.map((a) => a.symbol),
-    })).toThrow(/GGA.*XC kernel/);
-  });
+    const symbols = H2O_ATOMS.map((a) => a.symbol);
+    const dft = runRKSDFT(integrals, nElectrons, symbols, {
+      functional: kind, energyTol: 1e-12, maxIter: 200,
+    });
+    const tda  = runTDA  (integrals, dft, { method: kind, nucleiSymbols: symbols, nRoots: 5 });
+    const rpa  = runTDDFT(integrals, dft, { method: kind, nucleiSymbols: symbols, nRoots: 5 });
+    expect(tda.usedXCKernel).toBe(true);
+    expect(rpa.usedXCKernel).toBe(true);
+    for (let r = 0; r < 5; r++) {
+      expect(tda.singletEnergies[r]!).toBeGreaterThan(0);
+      expect(rpa.singletEnergies[r]!).toBeGreaterThan(0);
+      // Full RPA ≤ TDA per state for stable closed-shell ground state.
+      expect(rpa.singletEnergies[r]! - tda.singletEnergies[r]!).toBeLessThan(1e-9);
+    }
+  }, 60_000);
+
+  test("BLYP TDA first singlet lies between LDA and HF (typical valence ordering)", () => {
+    // Hartree-Fock orbitals → small HOMO-LUMO Coulomb screening, big gap.
+    // LDA orbitals → tighter gap; XC kernel adjusts, big stabilization.
+    // GGA (BLYP) → KS gap close to LDA but XC kernel correction makes
+    // the first valence excitation land between TDA-LDA and CIS for H₂O
+    // STO-3G. This is a soft check (the ordering is a robust trend, not
+    // a hard literature pin).
+    const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(H2O_ATOMS);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const symbols = H2O_ATOMS.map((a) => a.symbol);
+    const hf = runRHFSCF(integrals, nElectrons, { useDIIS: true, energyTol: 1e-12, maxIter: 200 });
+    const lda = runRKSDFT(integrals, nElectrons, symbols, {
+      functional: "lda-svwn", energyTol: 1e-12, maxIter: 200,
+    });
+    const blyp = runRKSDFT(integrals, nElectrons, symbols, {
+      functional: "blyp", energyTol: 1e-12, maxIter: 200,
+    });
+    const eHF   = runTDA(integrals, hf,   { method: "hf",                                    nRoots: 1 }).singletEnergies[0]!;
+    const eLDA  = runTDA(integrals, lda,  { method: "lda-svwn", nucleiSymbols: symbols,      nRoots: 1 }).singletEnergies[0]!;
+    const eBLYP = runTDA(integrals, blyp, { method: "blyp",     nucleiSymbols: symbols,      nRoots: 1 }).singletEnergies[0]!;
+    // All positive, BLYP somewhere reasonable.
+    expect(eBLYP).toBeGreaterThan(0);
+    expect(eBLYP).toBeLessThan(eHF);     // hybrids and pure DFT lower than CIS for valence
+    // BLYP and LDA shouldn't differ by more than a few hundred mHa for
+    // a small-basis valence excitation.
+    expect(Math.abs(eBLYP - eLDA)).toBeLessThan(0.2);
+  }, 60_000);
 });

@@ -53,8 +53,14 @@ import type { AtomSymbol } from "./atoms.js";
 import { transformERIToMO } from "./mp2.js";
 import { eigsymmetric } from "../manybody/dense-eig.js";
 import { molecularGrid, type GridOpts } from "./dft/grid.js";
-import { evalBasisOnGrid, evalDensityOnGrid } from "./dft/density.js";
-import { evalXCKernelLDA, type FunctionalKind, hfExchangeMixOf } from "./dft/functional.js";
+import {
+  evalBasisOnGrid, evalBasisGradOnGrid,
+  evalDensityOnGrid, evalDensityAndGradient,
+} from "./dft/density.js";
+import {
+  evalXC, evalXCKernel, evalXCKernelLDA,
+  type FunctionalKind, hfExchangeMixOf,
+} from "./dft/functional.js";
 import type { HFLike } from "./cis.js";
 
 /** SCF method to use as the TDA reference. "hf" → CIS; otherwise a DFT functional. */
@@ -118,13 +124,7 @@ function buildTDABlocks(
 
   const isHF = method === "hf";
   const isLDA = method === "lda-svwn";
-  if (!isHF && !isLDA) {
-    throw new Error(
-      `buildTDABlocks: method '${method}' requires the GGA / hybrid XC kernel ` +
-      `(f_ρρ + f_ργ + f_γγ + basis Hessians). Only 'hf' and 'lda-svwn' ` +
-      `are supported in this commit — see tda-dft.ts header.`,
-    );
-  }
+  const isGGA = !isHF && !isLDA;     // bvwn5 / blyp / b3vwn5 / b3lyp5
   const hfMix = isHF ? 1.0 : hfExchangeMixOf(method as FunctionalKind);
   const usedXCKernel = !isHF;
 
@@ -134,6 +134,17 @@ function buildTDABlocks(
     eri_MO[((p * n + q) * n + r) * n + s]!;
 
   // ── XC kernel piece (DFT only): build (ia|f_xc|jb). ────────
+  // For LDA: K_xc[ia, jb] = ∫ w · ψ_ia · f_RR · ψ_jb dr.
+  // For GGA / hybrid the kernel acquires four additional pieces
+  // (Maxwell-symmetrized over (ia, jb) via the integrand structure):
+  //   K_xc[ia, jb] = ∫ w · {
+  //       ψ_ia · f_RR · ψ_jb
+  //     + 2·ψ_ia · f_RG · α_jb
+  //     + 2·α_ia · f_RG · ψ_jb
+  //     + 4·α_ia · f_GG · α_jb
+  //     + 2·v_γ · ∇ψ_ia·∇ψ_jb
+  //   } dr
+  // with ψ_ia(r) = φ_i^MO(r)·φ_a^MO(r) and α_ia(r) = ∇ρ·∇ψ_ia.
   let K_xc: Float64Array | null = null;
   if (usedXCKernel) {
     if (!opts.nucleiSymbols) {
@@ -141,10 +152,10 @@ function buildTDABlocks(
     }
     const grid = molecularGrid(integrals.nuclei, opts.nucleiSymbols, opts.grid ?? {});
     const basis = evalBasisOnGrid(integrals.shells, grid);
-    const rho = evalDensityOnGrid(hf.D, basis);
-    const fxc = evalXCKernelLDA(rho);
     const nGrid = grid.x.length;
     const phi = basis.phi;
+
+    // MO orbital values on grid: φ_p^MO(g) = Σ_μ C_μp · φ_μ^AO(g).
     const phiMO = new Float64Array(nGrid * n);
     for (let g = 0; g < nGrid; g++) {
       const off = g * n;
@@ -154,6 +165,8 @@ function buildTDABlocks(
         phiMO[off + p] = s;
       }
     }
+
+    // ψ_ia(g) = φ_i^MO(g) · φ_a^MO(g).
     const psi = new Float64Array(dim * nGrid);
     for (let i = 0; i < nOcc; i++) {
       for (let a = 0; a < nVirt; a++) {
@@ -164,20 +177,114 @@ function buildTDABlocks(
         }
       }
     }
-    const psiW = new Float64Array(dim * nGrid);
-    for (let ia = 0; ia < dim; ia++) {
-      for (let g = 0; g < nGrid; g++) {
-        psiW[ia * nGrid + g] = psi[ia * nGrid + g]! * grid.w[g]! * fxc[g]!;
-      }
-    }
-    K_xc = new Float64Array(dim * dim);
-    for (let ia = 0; ia < dim; ia++) {
-      for (let jb = 0; jb < dim; jb++) {
-        let s = 0;
+
+    if (isLDA) {
+      // ── LDA: single-piece kernel. ───────────────────────────
+      const rho = evalDensityOnGrid(hf.D, basis);
+      const fxc = evalXCKernelLDA(rho);
+      const psiW = new Float64Array(dim * nGrid);
+      for (let ia = 0; ia < dim; ia++) {
         for (let g = 0; g < nGrid; g++) {
-          s += psiW[ia * nGrid + g]! * psi[jb * nGrid + g]!;
+          psiW[ia * nGrid + g] = psi[ia * nGrid + g]! * grid.w[g]! * fxc[g]!;
         }
-        K_xc[ia * dim + jb] = s;
+      }
+      K_xc = new Float64Array(dim * dim);
+      for (let ia = 0; ia < dim; ia++) {
+        for (let jb = 0; jb < dim; jb++) {
+          let s = 0;
+          for (let g = 0; g < nGrid; g++) {
+            s += psiW[ia * nGrid + g]! * psi[jb * nGrid + g]!;
+          }
+          K_xc[ia * dim + jb] = s;
+        }
+      }
+    } else if (isGGA) {
+      // ── GGA / hybrid: 5-piece kernel. ───────────────────────
+      const basisGrad = evalBasisGradOnGrid(integrals.shells, grid);
+      const dg = evalDensityAndGradient(hf.D, basis, basisGrad);
+      const rho = dg.rho;
+      const gamma = dg.gamma;
+      const gradX = dg.gradX, gradY = dg.gradY, gradZ = dg.gradZ;
+
+      // v_xc first derivatives (we need v_γ for the last kernel term).
+      const epsTmp = new Float64Array(nGrid);
+      const vRho   = new Float64Array(nGrid);
+      const vGamma = new Float64Array(nGrid);
+      evalXC(method as FunctionalKind, rho, gamma, epsTmp, vRho, vGamma);
+
+      // v_xc second derivatives.
+      const ker = evalXCKernel(method as FunctionalKind, rho, gamma);
+
+      // MO orbital gradients on the grid: ∇φ_p^MO(g) = Σ_μ C_μp · ∇φ_μ^AO(g).
+      const phix = basisGrad.phix, phiy = basisGrad.phiy, phiz = basisGrad.phiz;
+      const phiMOx = new Float64Array(nGrid * n);
+      const phiMOy = new Float64Array(nGrid * n);
+      const phiMOz = new Float64Array(nGrid * n);
+      for (let g = 0; g < nGrid; g++) {
+        const off = g * n;
+        for (let p = 0; p < n; p++) {
+          let sx = 0, sy = 0, sz = 0;
+          for (let mu = 0; mu < n; mu++) {
+            const c = hf.C_MO[mu * n + p]!;
+            sx += phix[off + mu]! * c;
+            sy += phiy[off + mu]! * c;
+            sz += phiz[off + mu]! * c;
+          }
+          phiMOx[off + p] = sx;
+          phiMOy[off + p] = sy;
+          phiMOz[off + p] = sz;
+        }
+      }
+
+      // ∇ψ_ia(g) = ∇φ_i^MO · φ_a^MO + φ_i^MO · ∇φ_a^MO  (3 components).
+      // α_ia(g) = ∇ρ(g) · ∇ψ_ia(g).
+      const dPsiX = new Float64Array(dim * nGrid);
+      const dPsiY = new Float64Array(dim * nGrid);
+      const dPsiZ = new Float64Array(dim * nGrid);
+      const alpha = new Float64Array(dim * nGrid);
+      for (let i = 0; i < nOcc; i++) {
+        for (let a = 0; a < nVirt; a++) {
+          const aMO = nOcc + a;
+          const ia = i * nVirt + a;
+          for (let g = 0; g < nGrid; g++) {
+            const off = g * n;
+            const phi_i = phiMO[off + i]!, phi_a = phiMO[off + aMO]!;
+            const dx = phiMOx[off + i]! * phi_a + phi_i * phiMOx[off + aMO]!;
+            const dy = phiMOy[off + i]! * phi_a + phi_i * phiMOy[off + aMO]!;
+            const dz = phiMOz[off + i]! * phi_a + phi_i * phiMOz[off + aMO]!;
+            dPsiX[ia * nGrid + g] = dx;
+            dPsiY[ia * nGrid + g] = dy;
+            dPsiZ[ia * nGrid + g] = dz;
+            alpha[ia * nGrid + g] = gradX[g]! * dx + gradY[g]! * dy + gradZ[g]! * dz;
+          }
+        }
+      }
+
+      // Build K_xc[ia, jb] by accumulating the 5 contributions.
+      // Pre-multiply per-grid-point factors once, then dot.
+      K_xc = new Float64Array(dim * dim);
+      for (let ia = 0; ia < dim; ia++) {
+        for (let jb = 0; jb < dim; jb++) {
+          let s = 0;
+          for (let g = 0; g < nGrid; g++) {
+            const w = grid.w[g]!;
+            const psi_ia = psi[ia * nGrid + g]!;
+            const psi_jb = psi[jb * nGrid + g]!;
+            const a_ia  = alpha[ia * nGrid + g]!;
+            const a_jb  = alpha[jb * nGrid + g]!;
+            const dotDpsi =
+                dPsiX[ia * nGrid + g]! * dPsiX[jb * nGrid + g]!
+              + dPsiY[ia * nGrid + g]! * dPsiY[jb * nGrid + g]!
+              + dPsiZ[ia * nGrid + g]! * dPsiZ[jb * nGrid + g]!;
+            s += w * (
+                ker.fRR[g]! * psi_ia * psi_jb
+              + 2 * ker.fRG[g]! * (psi_ia * a_jb + a_ia * psi_jb)
+              + 4 * ker.fGG[g]! * a_ia * a_jb
+              + 2 * vGamma[g]! * dotDpsi
+            );
+          }
+          K_xc[ia * dim + jb] = s;
+        }
       }
     }
   }
