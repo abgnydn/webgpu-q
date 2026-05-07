@@ -156,6 +156,19 @@ function buildTDABlocks(
     if (!opts.nucleiSymbols) {
       throw new Error("buildTDABlocks: DFT method requires opts.nucleiSymbols for grid rebuild.");
     }
+    // Spherical-d-transformed integrals shrink `n` but leave `shells`
+    // as the original Cartesian list — that desyncs the AO→MO transform
+    // on the grid. Refuse the call with a clear message rather than
+    // silently produce NaN. Pass `spherical: false` (the default) at
+    // SCF time when you want TDA-DFT.
+    if (integrals.shells.length !== integrals.n) {
+      throw new Error(
+        `runTDA / runTDDFT (DFT path): integrals.shells.length (${integrals.shells.length}) ≠ integrals.n (${integrals.n}) ` +
+        `— integrals were built with the Cartesian-d → spherical-d transform. The XC kernel grid path doesn't yet apply ` +
+        `that transform to the basis evaluator, which silently produces NaN amplitudes. ` +
+        `Build the integrals with \`spherical: false\` for TDA-DFT (~4 mHa accuracy slack on cc-pVDZ; tightening is a follow-up).`,
+      );
+    }
     const grid = molecularGrid(integrals.nuclei, opts.nucleiSymbols, opts.grid ?? {});
     const basis = evalBasisOnGrid(integrals.shells, grid);
     const nGrid = grid.x.length;

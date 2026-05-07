@@ -160,6 +160,30 @@ export function mullikenCharges(
 // ─────────────────────────────────────────────────────────────
 
 /**
+ * Mayer atomic valence: V_A = Σ_{B ≠ A} B_AB — the per-atom total
+ * of off-diagonal bond orders. For closed-shell ground states this
+ * approximately equals the integer count of single-bond
+ * equivalents the atom participates in. Convenience wrapper
+ * around `bondOrders` that hides the sometimes-confusing diagonal
+ * (which is NOT the valence — it's a self-overlap term).
+ */
+export function mayerValences(
+  integrals: MolecularIntegrals,
+  P: Float64Array,
+  shellAtomIdx: readonly number[],
+): Float64Array {
+  const B = bondOrders(integrals, P, shellAtomIdx);
+  const nAtoms = integrals.nuclei.length;
+  const v = new Float64Array(nAtoms);
+  for (let A = 0; A < nAtoms; A++) {
+    let s = 0;
+    for (let X = 0; X < nAtoms; X++) if (X !== A) s += B[A * nAtoms + X]!;
+    v[A] = s;
+  }
+  return v;
+}
+
+/**
  * Mayer bond-order matrix (nAtoms × nAtoms, row-major). The
  * matrix is symmetric: B_AB = B_BA. Diagonal entries are the
  * Mayer atomic valences. Returns a Float64Array of length

@@ -121,7 +121,56 @@ the chemistry track is its highest-leverage demonstration.
 
 ## Current state (2026-05-06)
 
-**Latest milestone: Tier 2 stage 13 — Wiberg-Mayer bond orders.**
+**Latest milestone: Tier 2 stage 14 — gap-closing pass + E17.**
+Cleaned up the loose ends from stages 4–13 in one focused
+session: shipped the deferred E17 cross-section experiment as
+the documented honest-negative the architecture allowed; closed
+four cleanup gaps; left the deeper "needs new infrastructure"
+items honestly named in this section.
+
+What got closed in stage 14:
+- **GGA gradients are wired through `optimizeGeometry`** for the
+  full ladder. BLYP / B3LYP5 / B3VWN5 / BVWN5 geom-opts run
+  analytical (BLYP H₂O: 4.5× fewer evals than FD, identical E
+  to 0.5 µHa). The previous "LDA only" docstring was lying —
+  the code path was already correct since stage 6b.
+- **Mayer atomic valences** as a clean helper (`mayerValences`)
+  on top of the bond-order matrix — the off-diagonal sum, which
+  is the actually-meaningful quantity (the diagonal of the bond-
+  order matrix is a self-overlap, not a valence).
+- **Spherical-d + TDA-DFT / DFT-gradient bug** caught and
+  guarded: the spherical-d transform shrinks `integrals.n` but
+  leaves `integrals.shells` as Cartesian, desyncing the AO→MO
+  transform on the grid and producing silent NaN amplitudes.
+  Both `runTDA` / `runTDDFT` and `dftGradient` now refuse with
+  a clear "use spherical: false" message rather than NaN.
+  Discovered while running E17 cc-pVDZ; the proper fix (apply
+  the T transform to grid quantities) is documented as a
+  follow-up.
+- **E17 cross sections** shipped as honest negative (see Tier 2
+  stage 14 entry below).
+
+What's documented as still-open (the ACTUAL honest negatives):
+- **Triplet TDA / TDDFT for DFT functionals.** Closed-shell
+  triplet kernel f_xc^triplet = (f_↑↑ − f_↑↓) needs a spin-
+  resolved evalXC (with separate ρ_↑, ρ_↓ inputs); currently
+  evalXC is closed-shell only. Singlet TDA / TDDFT works for the
+  full functional ladder; runCIS still ships triplet for HF.
+- **Becke-partition weight derivatives** in DFT gradients —
+  ~1e-3 Ha/Bohr translational-invariance residual (sub-mHa/Bohr
+  per component, doesn't affect practical geom-opt).
+- **Spherical-d in TDA-DFT / DFT-gradient on the grid** — refuses
+  with a clear error today; the proper path is to apply the
+  Cartesian → spherical transform to phi / phix / phixx on the
+  grid alongside the AO matrices.
+- **Davidson eigensolver** for large-basis CIS / TDDFT — current
+  dense eigsymm is fine for n_occ · n_virt ≤ a few hundred.
+- **Continuum representation** for E17 σ_ion convergence —
+  Stieltjes imaging, SAC-CI continuum, B-spline / DVR continuum
+  orbitals, or direct optical-photoionization. Substantial
+  follow-up.
+
+**Tier 2 stage 13 — Wiberg-Mayer bond orders.**
 Per-pair shared-electron counts from the AO density:
 
   B_AB = Σ_{μ ∈ A, ν ∈ B} (P · S)_μν · (P · S)_νμ
@@ -626,7 +675,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **433/433** (was 429) + 1 opt-in
+**Test surface:** `npm run test` → **435/435** (was 433) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.

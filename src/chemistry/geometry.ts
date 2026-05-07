@@ -1,8 +1,9 @@
 // ─────────────────────────────────────────────────────────────
 // geometry.ts — molecular geometry optimization on the HF or
-// DFT energy surface. Tier 2 stages 1, 5, 6: BFGS minimization
-// of E(R) with analytical gradients via Pulay 1969 (HF — see
-// `hf-gradient.ts`) or RKS-DFT/LDA (see `dft-gradient.ts`).
+// DFT energy surface. Tier 2 stages 1, 5, 6, 6b: BFGS
+// minimization of E(R) with analytical gradients via Pulay 1969
+// (HF — see `hf-gradient.ts`) or RKS-DFT (LDA + GGA + hybrid —
+// see `dft-gradient.ts`).
 //
 // Two gradient paths:
 //   • `useAnalyticGrad: true` (DEFAULT) — analytical Pulay
@@ -11,10 +12,10 @@
 //     checks and as a fallback if the analytical path is
 //     ever suspected of bugs.
 //
-// `method` selects HF or one of the DFT functionals. Default
-// is "hf"; the analytical-DFT path currently supports only
-// "lda-svwn" — GGA / hybrid functionals will throw a clear
-// error from `dftGradient` until the GGA ∂γ/∂R term lands.
+// `method` selects HF or any RKS-DFT functional kind. The
+// analytical-gradient path supports the FULL ladder: HF, LDA,
+// BVWN5, BLYP, B3VWN5, B3LYP5 — the DFT path uses the basis-
+// Hessian-aware ∂γ/∂R term landed in stage 6b.
 //
 // Scale of FD step (FD path only): positions are in Å, energy
 // in Hartrees with ~10 digits of relative precision (DIIS to
@@ -41,11 +42,8 @@ export interface GeometryOptOpts {
   /** Spherical-d transform on the integrals? Default false. */
   readonly spherical?: boolean;
   /** Energy method — "hf" (default) or any RKS-DFT functional kind.
-   *  The analytical-gradient path supports "hf" and "lda-svwn"; GGA
-   *  and hybrid functionals will throw from `dftGradient` until
-   *  the GGA ∂γ/∂R term lands. Set `useAnalyticGrad: false` to
-   *  optimize on a GGA / hybrid surface via FD gradients in the
-   *  meantime. */
+   *  Analytical gradients are wired for the full HF + 5-functional
+   *  ladder (HF, LDA, BVWN5, BLYP, B3VWN5, B3LYP5). */
   readonly method?: EnergyMethod;
   /** HF SCF options forwarded to runRHFSCF (used when method is "hf"). */
   readonly hf?: HFOpts;

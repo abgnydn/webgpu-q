@@ -77,6 +77,19 @@ export function dftGradient(inp: DFTGradientInputs): Float64Array {
   const hfMix = hfExchangeMixOf(functional);
   const isGGA = functional !== "lda-svwn";
   const n = shells.length;
+  // Spherical-d-transformed integrals shrink the matrix dimension
+  // but leave `shells` as the original Cartesian list — that
+  // desyncs the AO→MO transform on the grid. P is sized for the
+  // post-transform basis (n_spherical × n_spherical); shells.length
+  // is n_cartesian. Refuse with a clear message rather than NaN.
+  if (P.length !== n * n) {
+    throw new Error(
+      `dftGradient: P size ${P.length} ≠ shells.length² (${n}² = ${n * n}) ` +
+      `— likely from \`spherical: true\` on computeMolecularIntegrals. ` +
+      `Use \`spherical: false\` (default) when you need analytical DFT gradients ` +
+      `(~4 mHa accuracy slack on cc-pVDZ; spherical-grid path is a follow-up).`,
+    );
+  }
 
   // ── HF-like part: shared with the HF gradient, scaled K. ───
   const grad = hfGradient({

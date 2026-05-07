@@ -14,7 +14,7 @@ import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
 import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
 import { runRKSDFT } from "../../src/chemistry/dft/rks-scf.js";
-import { dipoleMoment, dipoleMagnitude, mullikenCharges, bondOrders, AU_TO_DEBYE } from "../../src/chemistry/properties.js";
+import { dipoleMoment, dipoleMagnitude, mullikenCharges, bondOrders, mayerValences, AU_TO_DEBYE } from "../../src/chemistry/properties.js";
 
 const H2O_ATOMS: Atom[] = (() => {
   const half = (104.52 / 2) * Math.PI / 180;
@@ -248,4 +248,39 @@ describe("Wiberg-Mayer bond orders", () => {
       expect(Math.abs(B_HF[0 * 3 + 1]! - B_DFT[0 * 3 + 1]!)).toBeLessThan(0.1);
     }
   }, 60_000);
+});
+
+describe("Mayer atomic valences", () => {
+  test("H₂O HF/STO-3G: V_O ≈ 2 (two bonds), V_H ≈ 1 (one bond)", () => {
+    const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(H2O_ATOMS);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons, {
+      useDIIS: true, energyTol: 1e-12, maxIter: 200,
+    });
+    const v = mayerValences(integrals, hf.D, shellAtomIdx);
+    expect(v.length).toBe(3);
+    // V_O ≈ 1.91 (two single-bond equivalents, slightly reduced by polarity).
+    expect(v[0]!).toBeGreaterThan(1.7);
+    expect(v[0]!).toBeLessThan(2.1);
+    // V_H ≈ 0.97 each (one single bond).
+    expect(v[1]!).toBeGreaterThan(0.85);
+    expect(v[1]!).toBeLessThan(1.05);
+    expect(v[2]!).toBeGreaterThan(0.85);
+    expect(v[2]!).toBeLessThan(1.05);
+  });
+
+  test("BeH₂ linear: V_Be ≈ 2, V_H ≈ 1", () => {
+    const atoms: Atom[] = [
+      { symbol: "Be", pos: [0, 0, 0] },
+      { symbol: "H",  pos: [0, 0, 1.34] },
+      { symbol: "H",  pos: [0, 0, -1.34] },
+    ];
+    const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(atoms);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons, { useDIIS: true, energyTol: 1e-12, maxIter: 200 });
+    const v = mayerValences(integrals, hf.D, shellAtomIdx);
+    expect(Math.abs(v[0]! - 2.0)).toBeLessThan(0.2);
+    expect(Math.abs(v[1]! - 1.0)).toBeLessThan(0.1);
+    expect(Math.abs(v[2]! - 1.0)).toBeLessThan(0.1);
+  });
 });
