@@ -62,40 +62,59 @@ import {
   evalXC, evalXCKernel, evalXCKernelLDA,
   type FunctionalKind, hfExchangeMixOf,
 } from "./dft/functional.js";
+import {
+  evalXCKernelLDA_triplet, evalXCKernelGGA_triplet,
+  hasSpinPolarizedForm,
+} from "./dft/functional-spin.js";
 import type { HFLike } from "./cis.js";
 
 /** SCF method to use as the TDA reference. "hf" → CIS; otherwise a DFT functional. */
 export type TDAMethod = "hf" | FunctionalKind;
 
+/** Spin sector for closed-shell excitations. */
+export type TDASpin = "singlet" | "triplet";
+
 export interface TDAOpts {
   /** SCF method (default "hf"). */
   readonly method?: TDAMethod;
+  /** Spin sector — singlet (default) or triplet.
+   *  Triplet drops the Hartree (Coulomb) coupling and uses the
+   *  triplet XC kernel f_↑↑ − f_↑↓ in place of the singlet
+   *  f_↑↑ + f_↑↓. For DFT, only `lda-svwn` triplets are supported
+   *  in this stage — GGA / hybrid triplet kernels need
+   *  spin-polarized GGA second derivatives (deferred). */
+  readonly spin?: TDASpin;
   /** Per-atom symbols, in the same order as `integrals.nuclei`. Required
    *  for DFT methods (used to rebuild the molecular grid for the XC kernel). */
   readonly nucleiSymbols?: readonly AtomSymbol[];
   /** Numerical-grid options (must match the SCF). */
   readonly grid?: GridOpts;
-  /** Number of lowest singlet roots to keep. Default: all. */
+  /** Number of lowest roots (in the chosen spin sector) to keep. Default: all. */
   readonly nRoots?: number;
 }
 
 export interface TDAResult {
   readonly nOccupied: number;
   readonly nVirtual: number;
-  /** Singlet excitation energies (Hartree, ascending). */
+  /** Excitation energies in the requested spin sector
+   *  (Hartree, ascending). The legacy field name is preserved
+   *  so existing callers continue to work for the singlet path;
+   *  for `spin = "triplet"` it carries the triplet energies. */
   readonly singletEnergies: Float64Array;
-  /** Singlet amplitudes c_{ia} per root, row-major
+  /** Amplitudes c_{ia} per root, row-major
    *  amps[r·(nOcc·nVirt) + i·nVirt + a]. */
   readonly singletAmplitudes: Float64Array;
-  /** Dimensionless oscillator strengths f_n per root. Sum over
-   *  all roots is bounded by the number of valence electrons
-   *  (Thomas-Reiche-Kuhn sum rule, partial within the n_occ ·
-   *  n_virt singles manifold). */
+  /** Dimensionless oscillator strengths f_n per root. Triplet
+   *  excitations have spin-forbidden f_n = 0 in the dipole
+   *  approximation (closed-shell ground state), so this array
+   *  is identically zero for triplet. */
   readonly oscillatorStrengths: Float64Array;
   /** HF-exchange mixing fraction used (0 for pure DFT, 1 for HF). */
   readonly hfMix: number;
   /** Whether the LDA XC kernel was used. */
   readonly usedXCKernel: boolean;
+  /** Echo of the spin sector that produced these energies. */
+  readonly spin: TDASpin;
 }
 
 interface TDABuildResult {
@@ -104,6 +123,7 @@ interface TDABuildResult {
   readonly dim: number;
   readonly hfMix: number;
   readonly usedXCKernel: boolean;
+  readonly spin: TDASpin;
   /** A matrix (dim × dim, row-major). */
   readonly A: Float64Array;
   /** B matrix (dim × dim, row-major) — full TDDFT only. Null for TDA-only paths. */
@@ -122,6 +142,7 @@ function buildTDABlocks(
   buildB: boolean,
 ): TDABuildResult {
   const method: TDAMethod = opts.method ?? "hf";
+  const spin: TDASpin = opts.spin ?? "singlet";
   const n = integrals.n;
   const nOcc = hf.nOccupied;
   const nVirt = n - nOcc;
@@ -133,6 +154,22 @@ function buildTDABlocks(
   const isGGA = !isHF && !isLDA;     // bvwn5 / blyp / b3vwn5 / b3lyp5
   const hfMix = isHF ? 1.0 : hfExchangeMixOf(method as FunctionalKind);
   const usedXCKernel = !isHF;
+  const isTriplet = spin === "triplet";
+
+  // Honest scope: triplet TDA/TDDFT requires the spin-polarized XC
+  // kernel ½(f_↑↑ − f_↑↓). We have it for LDA, BVWN5, B3VWN5; LYP-
+  // bearing functionals (BLYP, B3LYP5) need the spin-polarized LYP
+  // form (Miehlich 1989 integrated-by-parts) which is its own
+  // session — those throw clearly rather than silently producing a
+  // garbage kernel.
+  if (isTriplet && isGGA && !hasSpinPolarizedForm(method)) {
+    throw new Error(
+      `runTDA/runTDDFT: triplet excitations not yet supported for ${method} ` +
+      `(needs spin-polarized LYP kernel — Miehlich 1989). ` +
+      `Triplet works for HF, LDA, BVWN5, B3VWN5; ` +
+      `use spin: "singlet" or one of those methods.`,
+    );
+  }
 
   // ── MO-basis ERI + chemist-notation accessor. ──────────────
   const eri_MO = transformERIToMO(integrals.eri_AO, hf.C_MO, n);
@@ -193,8 +230,12 @@ function buildTDABlocks(
 
     if (isLDA) {
       // ── LDA: single-piece kernel. ───────────────────────────
+      // Singlet uses ½(f_↑↑ + f_↑↓) (= closed-shell ∂v/∂ρ); triplet
+      // uses ½(f_↑↑ − f_↑↓) from the LSDA build. The same `2 · K_xc`
+      // factor is applied below in either case → integrand picks up
+      // exactly (f_↑↑ ± f_↑↓), the textbook Casida convention.
       const rho = evalDensityOnGrid(hf.D, basis);
-      const fxc = evalXCKernelLDA(rho);
+      const fxc = isTriplet ? evalXCKernelLDA_triplet(rho) : evalXCKernelLDA(rho);
       const psiW = new Float64Array(dim * nGrid);
       for (let ia = 0; ia < dim; ia++) {
         for (let g = 0; g < nGrid; g++) {
@@ -228,13 +269,24 @@ function buildTDABlocks(
       const gradX = dg.gradX, gradY = dg.gradY, gradZ = dg.gradZ;
 
       // v_xc first derivatives (we need v_γ for the last kernel term).
+      // For triplet, vGamma carries the triplet (2·v_γ↑↑ − v_γ↑↓)/4
+      // combination from the spin-polarized evaluator. The closed-shell
+      // singlet path uses the standard ∂(ρε_xc)/∂γ from `evalXC`.
       const epsTmp = new Float64Array(nGrid);
       const vRho   = new Float64Array(nGrid);
       const vGamma = new Float64Array(nGrid);
-      evalXC(method as FunctionalKind, rho, gamma, epsTmp, vRho, vGamma);
-
-      // v_xc second derivatives.
-      const ker = evalXCKernel(method as FunctionalKind, rho, gamma);
+      let ker: { fRR: Float64Array; fRG: Float64Array; fGG: Float64Array };
+      if (isTriplet) {
+        const tk = evalXCKernelGGA_triplet(
+          method as "bvwn5" | "b3vwn5" | "blyp" | "b3lyp5", rho, gamma,
+        );
+        ker = tk;                       // structurally identical { fRR, fRG, fGG }.
+        vGamma.set(tk.vG);              // triplet v_γ combination.
+        // vRho not consumed by the integrand below; leave at 0.
+      } else {
+        evalXC(method as FunctionalKind, rho, gamma, epsTmp, vRho, vGamma);
+        ker = evalXCKernel(method as FunctionalKind, rho, gamma);
+      }
 
       // MO orbital gradients on the grid: ∇φ_p^MO(g) = Σ_μ C_μp · ∇φ_μ^AO(g).
       const phix = basisGrad.phix, phiy = basisGrad.phiy, phiz = basisGrad.phiz;
@@ -311,6 +363,13 @@ function buildTDABlocks(
   }
 
   // ── Assemble A (and optionally B). ─────────────────────────
+  // Singlet (sCoul = 2):
+  //   A_ia,jb = (ε_a − ε_i)δ + 2(ia|jb) − hfMix·(ij|ab) + 2·K_xc
+  //   B_ia,jb =                2(ia|jb) − hfMix·(ib|aj) + 2·K_xc
+  // Triplet (sCoul = 0): drop Hartree, swap kernel for f_↑↑ − f_↑↓:
+  //   A_ia,jb = (ε_a − ε_i)δ            − hfMix·(ij|ab) + 2·K_xc^T
+  //   B_ia,jb =                          − hfMix·(ib|aj) + 2·K_xc^T
+  const sCoul = isTriplet ? 0 : 2;
   const A = new Float64Array(dim * dim);
   const B = buildB ? new Float64Array(dim * dim) : null;
   const eps = hf.orbitalEnergies;
@@ -324,8 +383,8 @@ function buildTDABlocks(
           const bj = nOcc + b;
           const col = j * nVirt + b;
           const diag = (i === j && a === b) ? eDiag : 0;
-          const coul = 2 * eri(i, ai, j, bj);                 // 2(ia|jb) — same in A and B
-          const exchA = hfMix !== 0 ? hfMix * eri(i, j, ai, bj) : 0;   // (ij|ab)
+          const coul = sCoul !== 0 ? sCoul * eri(i, ai, j, bj) : 0;     // 2(ia|jb) singlet, 0 triplet
+          const exchA = hfMix !== 0 ? hfMix * eri(i, j, ai, bj) : 0;     // (ij|ab)
           const kxc   = K_xc ? 2 * K_xc[row * dim + col]! : 0;
           A[row * dim + col] = diag + coul - exchA + kxc;
           if (B) {
@@ -338,7 +397,7 @@ function buildTDABlocks(
     }
   }
 
-  return { nOcc, nVirt, dim, hfMix, usedXCKernel, A, B };
+  return { nOcc, nVirt, dim, hfMix, usedXCKernel, spin, A, B };
 }
 
 /**
@@ -355,7 +414,7 @@ export function runTDA(
   opts: TDAOpts = {},
 ): TDAResult {
   const built = buildTDABlocks(integrals, hf, opts, false);
-  const { nOcc, nVirt, dim, hfMix, usedXCKernel, A } = built;
+  const { nOcc, nVirt, dim, hfMix, usedXCKernel, spin, A } = built;
   const nRoots = Math.min(opts.nRoots ?? dim, dim);
 
   const eig = eigsymmetric(A, dim);
@@ -367,27 +426,37 @@ export function runTDA(
       amps[r * dim + k] = eig.vectors[r * dim + k]!;
     }
   }
-  const oscillatorStrengths = computeOscillatorStrengths(integrals, hf, energies, amps, null);
+  // Triplet excitations from a closed-shell ground state are
+  // dipole-forbidden (ΔS = 1). Skip the dipole build and emit zeros.
+  const oscillatorStrengths = spin === "triplet"
+    ? new Float64Array(nRoots)
+    : computeOscillatorStrengths(integrals, hf, energies, amps, null);
   return {
     nOccupied: nOcc, nVirtual: nVirt,
     singletEnergies: energies, singletAmplitudes: amps,
     oscillatorStrengths,
-    hfMix, usedXCKernel,
+    hfMix, usedXCKernel, spin,
   };
 }
 
 export interface TDDFTResult {
   readonly nOccupied: number;
   readonly nVirtual: number;
-  /** Singlet excitation energies (Hartree, ascending). */
+  /** Excitation energies in the requested spin sector
+   *  (Hartree, ascending). Field name preserved for back-compat
+   *  with the singlet path; carries triplet energies when
+   *  `spin = "triplet"`. */
   readonly singletEnergies: Float64Array;
   /** Per-root Z = (A−B)^(1/2)·X amplitudes (row-major). For pure
    *  DFT (hfMix = 0), (A−B) is diagonal so Z = sqrt(ε)·X exactly. */
   readonly singletAmplitudes: Float64Array;
-  /** Dimensionless oscillator strengths f_n per root. */
+  /** Dimensionless oscillator strengths f_n per root. Zero for
+   *  triplet (spin-forbidden in the dipole approximation from a
+   *  closed-shell ground state). */
   readonly oscillatorStrengths: Float64Array;
   readonly hfMix: number;
   readonly usedXCKernel: boolean;
+  readonly spin: TDASpin;
 }
 
 /**
@@ -408,7 +477,7 @@ export function runTDDFT(
   opts: TDAOpts = {},
 ): TDDFTResult {
   const built = buildTDABlocks(integrals, hf, opts, true);
-  const { nOcc, nVirt, dim, hfMix, usedXCKernel, A, B } = built;
+  const { nOcc, nVirt, dim, hfMix, usedXCKernel, spin, A, B } = built;
   if (!B) throw new Error("runTDDFT: internal — B matrix missing");
   const nRoots = Math.min(opts.nRoots ?? dim, dim);
 
@@ -454,12 +523,14 @@ export function runTDDFT(
     }
     for (let k = 0; k < dim; k++) amps[r * dim + k] = eig.vectors[r * dim + k]!;
   }
-  const oscillatorStrengths = computeOscillatorStrengths(integrals, hf, energies, amps, S);
+  const oscillatorStrengths = spin === "triplet"
+    ? new Float64Array(nRoots)
+    : computeOscillatorStrengths(integrals, hf, energies, amps, S);
   return {
     nOccupied: nOcc, nVirtual: nVirt,
     singletEnergies: energies, singletAmplitudes: amps,
     oscillatorStrengths,
-    hfMix, usedXCKernel,
+    hfMix, usedXCKernel, spin,
   };
 }
 
