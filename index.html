@@ -434,6 +434,7 @@
       </div>
       <div class="links">
         <a href="/viz.html">hyperscope</a>
+        <a href="/molecule.html">molecule</a>
         <a href="/experiments/">experiments</a>
         <a href="/demo.html">gate demo</a>
         <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub ↗</a>
@@ -521,6 +522,49 @@
               <span>HF / DFT / FCI</span>
               <span>STO-3G + cc-pVDZ</span>
               <span>TFIM phase transition</span>
+            </div>
+          </div>
+        </a>
+
+        <a href="/molecule.html" class="demo-card">
+          <div class="preview" style="background: linear-gradient(135deg, #14202a 0%, #1f3140 100%);">
+            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
+              <g fill="none" stroke="#b0ffd0" stroke-width="2.2">
+                <line x1="40" y1="130" x2="290" y2="130" />
+              </g>
+              <g fill="#b0ffd0">
+                <rect x="60"  y="92"  width="3" height="38"/>
+                <rect x="105" y="80"  width="3" height="50"/>
+                <rect x="155" y="56"  width="3" height="74"/>
+                <rect x="195" y="100" width="3" height="30"/>
+                <rect x="235" y="70"  width="3" height="60"/>
+                <circle cx="61.5"  cy="92"  r="3"/>
+                <circle cx="106.5" cy="80"  r="3"/>
+                <circle cx="156.5" cy="56"  r="3"/>
+                <circle cx="196.5" cy="100" r="3"/>
+                <circle cx="236.5" cy="70"  r="3"/>
+              </g>
+              <g fill="#6ea8ff" opacity="0.85">
+                <circle cx="80"  cy="40" r="6"/>
+                <circle cx="120" cy="40" r="6"/>
+                <circle cx="100" cy="40" r="9"/>
+                <line x1="80" y1="40" x2="120" y2="40" stroke="#6ea8ff" stroke-width="1.4"/>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <h3>Molecular SI report <span class="arrow">→</span></h3>
+            <p>
+              Pick a molecule, click run, get the complete chemistry-paper SI
+              bundle in your tab: optimized geometry, IR + Raman spectra,
+              UV-vis (singlet + triplet), dipole + α + β tensors, Mulliken
+              charges, thermochemistry at 298 K, ionization potentials.
+              Every property an experimental SI table reports.
+            </p>
+            <div class="meta">
+              <span>HF · 5 DFT functionals · UHF</span>
+              <span>STO-3G</span>
+              <span>~30 s end-to-end</span>
             </div>
           </div>
         </a>
