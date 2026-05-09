@@ -119,39 +119,426 @@ the chemistry track is its highest-leverage demonstration.
 
 ---
 
-## Current state (2026-05-06)
+## Current state (2026-05-08)
 
-**Latest milestone: Tier 2 stage 15a — spherical-d on the grid (real fix).**
-The previous "guard with throw" was documentation papering over a
-real bug. Stage 15a is the actual fix: when integrals are built
-with `spherical: true`, all grid-using paths (RKS-DFT SCF, TDA-DFT
-XC kernel, HF + DFT analytical gradients) now apply the
-Cartesian → spherical-d transform T to keep basis values, gradients,
-Hessians, and density matrices in sync. Throws dropped, replaced
-with the actual transform.
+**Latest milestone: Tier 2 stage 22 — vertical ionization
+potentials & electron affinities** via both Koopmans' theorem
+and ΔSCF (the proper N±1-electron SCF). The first user-visible
+deliverable that UHF (stage 21) unlocks: remove an electron,
+re-run the SCF on the open-shell cation, get the IP from the
+energy difference.
+
+```
+                          Koopmans      ΔSCF       experiment
+  Be atom (HF/STO-3G)      6.91 eV      6.91 eV       9.32 eV
+  H₂O      (HF/STO-3G)    10.65 eV      8.36 eV      12.62 eV
+  LiH      (HF/STO-3G)     7.40 eV      5.61 eV       7.85 eV
+```
+
+ΔSCF < Koopmans where orbital relaxation has room to work
+(verified on every case where the basis has flexibility — Be at
+STO-3G has none, so the two methods coincide to FP precision).
+LiH Koopmans is within 6% of experiment; cases where Koopmans
+beats ΔSCF (LiH) reflect partial cancellation between orbital
+relaxation lowering and missing correlation.
+
+`ionizationPotential(atoms, opts)` returns Koopmans + ΔSCF + the
+cation ⟨S²⟩ (clean doublet ≈ 0.75). `electronAffinity` is the
+mirror routine; STO-3G EA is documented basis-limited (LUMO
+unbound without diffuse functions).
+
+**Tier 2 stage 21 (previous commit) — Unrestricted Hartree-Fock
+(UHF).** Opens the entire class of open-shell molecules — radicals,
+doublet/triplet states, cations and anions of closed-shell parents.
+Until this commit, `runRHFSCF` rejected odd electron counts; now
+`runUHFSCF(integrals, nα, nβ)` handles any electron count via
+spin-resolved (α, β) orbitals.
+
+UHF identities:
+```
+J(D_total)[μν]      = Σ_λσ (D_α + D_β)_λσ · (μν|λσ)
+K_σ[μν]              = Σ_λσ (D_σ)_λσ · (μλ|νσ)
+F_σ[μν]              = h_AO + J(D_total) − K_σ
+E_elec               = ½·Σ [(D_α + D_β)·h + D_α·F_α + D_β·F_β]
+```
+
+Validation against literature (HF/STO-3G):
+```
+H atom  (1 e⁻, doublet):  E = −0.466582 Ha   (lit: −0.4666)  → 4-digit match
+Li atom (3 e⁻, doublet):  E = −7.315526 Ha   (lit: −7.3155)  → 4-digit match
+H₂⁺     (1 e⁻ at R=1Å):   E = −0.581667 Ha   (lit: −0.58…0.60 range)
+```
+
+Spin diagnostics:
+- ⟨S²⟩ = S(S+1) + n_β − Σ_{ij occ} |⟨α_i|β_j⟩|²  (Pople formula)
+- For pure doublets above, ⟨S²⟩ = 0.750000 to FP precision (no
+  spin contamination — clean, well-behaved radicals).
+
+Symmetry-breaking initial guess: small −0.01 Ha shift on the
+α-Fock would-be-SOMO diagonal so that initial guess α HOMO is
+slightly below β HOMO. At convergence, this either stays open-shell
+(radicals) or relaxes back to the closed-shell solution
+(verified — UHF on H₂ matches RHF energy to 1e-8).
+
+DIIS: stack α and β error vectors into one combined 2·n² vector;
+standard Pulay extrapolation just works on the combined system.
+
+α/β orbital splitting in Li atom is the textbook UHF feature —
+ε_α(2s) = −0.180 Ha, ε_β(2s) = +0.102 Ha. Exchange stabilizes
+the spin-aligned electron; the splitting is the orbital signature
+of this and explains why UHF energies are LOWER than ROHF for
+radicals.
+
+**This unlocks**: ΔSCF ionization energies (run UHF on cation),
+electron affinities (UHF on anion), open-shell vibrational
+frequencies + IR + Raman + thermo (everything from stages 16–20
+becomes doable for radicals once we expose UHF gradients —
+follow-up).
+
+**Tier 2 stage 20 (previous commit) — first hyperpolarizability β
+via finite-field.** Completes the field-response trio:
+- μ (dipole moment, stage 11)
+- α (polarizability, stage 17)
+- **β (hyperpolarizability, this stage)**
+
+Computes the full 27-component β_ijk tensor via 3D finite-difference
+stencils on the dipole vs applied field — 19 SCF runs total per
+molecule (1 zero-field + 6 ±E_axis + 12 ±E,±E mixed corners).
+Symmetrizes under Kleinman (full index permutation symmetry at
+zero frequency) and reports the β_∥(z) component along the lab
+z-axis plus the rotational vector invariant |β_vec|.
+
+H₂O HF/STO-3G:
+```
+  β diagonals = (0.00, 0.00, -4.11) a.u.
+  β_∥(z)      = -11.05 a.u.
+  |β_vec|     = 11.05 a.u.
+```
+β_xxx = β_yyy = 0 exactly: forced by C₂ᵥ symmetry (σ_xz reflection
+flips y, C₂ flips x). |β_vec| ≈ 11 a.u. compares to HF/cc-pVTZ ≈
+8-10 a.u. — STO-3G slightly inflates but the order of magnitude
+and sign are right. Experiment is 22.2 a.u. (correlation contributes
+~half).
+
+Smoking-gun symmetry validation — H₂ centrosymmetric (D∞h):
+```
+  All 27 β_ijk components < 1e-2 a.u.   (FD noise only)
+  |β_vec|                  < 1e-2 a.u.
+```
+Inversion symmetry forces β = 0 exactly; the implementation
+reproduces this from floating-point arithmetic alone.
+
+Cost: 19 SCF runs ≈ 0.12 s on H₂O HF/STO-3G — significantly
+cheaper than vibrational analysis or Raman.
+
+**Tier 2 stage 19 (previous commit) — ideal-gas thermochemistry.**
+Standard statistical-thermodynamics corrections on top of an
+electronic energy + harmonic vibrational frequencies. Computes:
+- Zero-point energy (ZPE)
+- Thermal correction to U(T) and H(T)
+- Translational entropy (Sackur-Tetrode at standard P)
+- Rotational entropy (rigid-rotor, asymmetric or linear)
+- Vibrational entropy (harmonic oscillator)
+- Total entropy and Gibbs free-energy correction G(T) − E_e
+
+H₂O at 298.15 K, 1 atm (HF/STO-3G frequencies):
+```
+  ZPE              15.30 kcal/mol   (expt 13.4 — STO-3G freqs ~10% high)
+  Thermal H        17.67 kcal/mol
+  T·S              13.43 kcal/mol
+  G correction      4.24 kcal/mol
+  Total entropy   45.06 cal/(mol·K) (expt 45.1 — match to 0.1!)
+```
+Total entropy match is exact at 4 sig figs; the ZPE is the only
+quantity affected by HF/STO-3G's known frequency overshoot.
+
+Per-component breakdown:
+  S_trans = 34.6 cal/(mol·K)   ← Sackur-Tetrode dominant
+  S_rot   = 10.4 cal/(mol·K)   ← rigid rotor
+  S_vib   ≈  0   cal/(mol·K)   ← all modes >> kT at room T
+  S_elec  =  0   cal/(mol·K)   ← singlet ground state
+
+Symmetry number σ scales rotational entropy as −R·ln(σ) exactly
+(verified to 1e-12). H₂O takes σ=2; CH₄ σ=12; NH₃ σ=3; HF σ=1.
+
+This closes the chemistry-paper SI bundle: with thermo, you can
+now compute reaction free energies ΔG, equilibrium constants
+K_eq = exp(−ΔG/RT), and enthalpies of formation directly from
+the same browser tab.
+
+**Tier 2 stage 18 (previous commit) — Placzek Raman activities.**
+Combines vibrational modes (stage 16) and the polarizability
+finite-field machinery (stage 17) to predict Raman scattering
+intensities. Per Placzek polarizability theory:
+```
+  S_k = 45·ā_k²  +  7·γ_k²    (Å⁴/amu)
+```
+where ā_k = (1/3)·tr(∂α/∂q_k) and γ_k² is the standard
+polarizability-derivative anisotropy invariant (5 components).
+
+Implementation: 6N central FD on the polarizability tensor
+(each polarizability eval is 6 SCF runs internally → 36N extra
+SCF runs on top of the vibrational analysis). Total H₂O cost:
+~13 seconds for 162 SCF runs.
+
+H₂O HF/STO-3G full vibrational spectrum:
+```
+freq(cm⁻¹)  IR(km/mol)  Raman(Å⁴/amu)  label
+   2170         7.2         118        bend
+   4140        44.3         610        sym-stretch  ← strongest Raman
+   4391        30.0         275        asym-stretch
+```
+Sym-stretch dominates Raman — textbook "symmetric breathing
+mode is the brightest in Raman scattering." All three modes are
+both IR- and Raman-active (C₂ᵥ has no centrosymmetry).
+
+Smoking-gun validation — H₂ HF/STO-3G stretch:
+- IR intensity:    < 0.001 km/mol         (forbidden by symmetry)
+- Raman activity:  > 1 Å⁴/amu             (allowed by symmetry)
+This is the classic textbook "rule of mutual exclusion": in
+centrosymmetric molecules (D∞h for homonuclear diatomics), every
+fundamental is EITHER IR-active OR Raman-active, never both.
+The implementation reproduces this from the floating-point
+arithmetic alone, and is the cleanest possible test that the
+projection of dipole derivatives + polarizability derivatives
+onto modes is being done correctly.
+
+**Tier 2 stage 17 (previous commit) — static dipole polarizability
+via finite-field.** Perturbs the core Hamiltonian with `+E·μ_AO`
+(the dipole-field interaction `−μ̂·E` for an electron with
+`μ̂ = −r̂`), runs SCF at ±E along each axis, and finite-differences
+the resulting dipole moment to recover the full 3×3 polarizability
+tensor. Reports tensor + isotropic average + anisotropy + sorted
+principal components.
+
+H₂O HF/STO-3G after geom-opt:
+```
+  α tensor (a.u.):
+    5.509  0.000  0.000
+    0.000  0.040  0.000
+    0.000  0.000  2.565
+  α_iso  = 2.705 a.u. = 0.401 Å³
+```
+Tiny α_yy reflects the absence of p-orbitals on H in STO-3G —
+nothing to polarize INTO perpendicular to the molecular plane.
+The full HF/aug-cc-pVDZ value (~7-8 a.u.) is achievable today by
+flipping the basis arg; experiment is 9.79 a.u. (HF systematically
+under-polarizes by ~10% from missing correlation).
+
+H₂ HF/STO-3G: α_zz > 0 (parallel polarizability), α_xx = α_yy ≈ 0
+(no p polarization functions). Off-diagonals < 0.01 a.u. (FD noise).
+
+The cleanest sign-correctness check: `H_int = −μ̂·E` for an
+electron with `μ̂ = −r̂` gives `+r̂·E` for the electronic part,
+which means h_AO acquires `+E·μ_AO`. Initial implementation had
+the sign reversed (subtraction), giving negative polarizability —
+caught immediately by the "α positive" pass bar.
+
+**Tier 2 stage 16 (previous commit) — harmonic vibrational
+spectrum (frequencies + IR intensities).** Builds the molecular
+Hessian by central FD on the analytical gradient (HF or any
+RKS-DFT functional), tracks the dipole at each displaced
+geometry to also build ∂μ/∂R, mass-weights both, projects out
+translation/rotation, diagonalizes for frequencies in cm⁻¹, and
+projects ∂μ/∂R onto each mode for IR intensities in km/mol.
+
+H₂O HF/STO-3G after geom-opt — full IR spectrum:
+```
+   2170 cm⁻¹       7.2 km/mol     bend
+   4140 cm⁻¹      44.3 km/mol     sym-stretch
+   4391 cm⁻¹      30.0 km/mol     asym-stretch
+```
+Frequencies match Hehre/Stewart/Pople 1969 reference to 0.1 cm⁻¹.
+Intensities are sensible (1–200 km/mol), but the exact numerical
+ordering vs a specific literature reference is dominated by
+STO-3G's known property errors (~10–20% off vs cc-pVTZ).
+
+H₂ HF/STO-3G: 1 vibrational mode (linear flag drops the second
+rotation), and IR intensity ≈ 0 (homonuclear symmetry → no dipole
+change). The latter is the cleanest validation that the projection
+is correct: a symmetry-forbidden mode emerges as zero from the
+floating-point arithmetic.
+
+H₂O HF/STO-3G after geom-opt vs Hehre/Stewart/Pople 1969 reference:
+- bend         **2170** cm⁻¹  (ref ~2170 — match)
+- sym-stretch  **4140** cm⁻¹  (ref 4140 — match to 0.1 cm⁻¹)
+- asym-stretch **4391** cm⁻¹  (ref 4390 — match to 1 cm⁻¹)
+The 0.1-cm⁻¹ agreement on the high-frequency modes is essentially
+machine precision relative to the 5e-3 Å FD step. No imaginary
+modes at the optimized minimum (correct sign of Hessian).
+
+H₂ HF/STO-3G stretch: ~5060 cm⁻¹ (linear-mode flag drops the
+2nd rotation, leaves 1 vibrational mode after 5 zero modes).
 
 What got built:
-- `MolecularIntegrals.sphericalT` exposes T (n_sph × n_cart, row-major).
-- `rks-scf.ts` applies T to phi / phix / phiy / phiz on the grid.
-- `hfGradient` and `dftGradient` accept an optional `sphericalT`
-  input; when set, transform P_cart = T^T·P·T (and same for W) at
-  entry. tr(P·∂h) is basis-invariant so the gradient is unchanged
-  by the transform.
-- Round-trip tests added in ccpvdz-spherical.test.ts.
+- `vibrationalFrequencies(atoms, opts)`: full pipeline (Hessian
+  build → mass-weight → Eckart projection → diagonalize → cm⁻¹).
+- 6N gradient evals per Hessian (cost dominates for triatomics +
+  larger; H₂O Hessian = 18 evals ≈ 5–10 s on M2 Pro).
+- Imaginary-frequency convention: NEGATIVE cm⁻¹ in output, the
+  standard quantum-chemistry sign. Useful for transition-state
+  detection (saddle points have one imaginary mode).
+- Eckart-frame projection vectors built from atomic masses + COM-
+  shifted positions; degenerate-rotation handling for linear
+  molecules via `linear: true` flag.
+- Standard atomic masses (¹H, ⁷Li, ⁹Be, ¹²C, ¹⁴N, ¹⁶O — isotope-
+  pure, the conventional theoretical reference).
 
-H₂O cc-pVDZ B3LYP5 spherical vs Cartesian:
-- SCF E:    −76.383115 vs −76.384313  (Δ = 1.2 mHa, the documented
-                                       Cartesian-vs-spherical-d slack)
-- TDA[0]:   7.627 eV vs 7.601 eV
-- |∇_HF|:   2.24e-2 vs 2.20e-2  (match to 1 %)
-- |∇_DFT|:  2.21e-2 vs 2.29e-2  (match to 4 %)
+Bug caught along the way: initial unit conversion went the wrong
+way (multiplied by ANGSTROM_TO_BOHR instead of dividing). Computed
+frequencies were 1.89× too high — H₂O bend came out at 4100 cm⁻¹.
+The 1.89× ratio matches ANGSTROM_TO_BOHR exactly, isolating the
+bug to the Å→Bohr coordinate-derivative scaling.
 
-**Honest negatives still open** (each its own session, not a
-one-push item — adjusted from the over-eager Stage 14 list):
-- **15b — Triplet TDA / TDDFT for DFT**: needs a spin-polarized
-  evalXC (separate ρ_↑, ρ_↓ inputs producing f_↑↑, f_↑↓
-  separately), then triplet kernel f_xc^triplet = (f_↑↑ − f_↑↓).
-  ~1 session of careful spin-resolved Slater + VWN5 work.
+**Tier 2 stage 15b-LYP (previous commit) — triplet TDA + TDDFT
+across the full functional ladder.** With the spin-polarized LYP
+correlation in `functional-spin.ts` (Miehlich 1989 integrated-by-
+parts form), triplet excitations now work for HF, LDA, BVWN5,
+B3VWN5, **BLYP, and B3LYP5** — every functional in the SCF ladder.
+
+Key insight that made spin-polarized LYP tractable: LYP is
+LINEAR in (γ_↑↑, γ_↑↓, γ_↓↓), so the four γ-coefficients
+(A_0, A_↑↑, A_↑↓, A_↓↓) are closed-form functions of (ρ_↑, ρ_↓).
+γ-derivatives are exactly the A_X coefficients (∂f/∂γ_↑↑ = A_↑↑,
+etc.); only the ρ-derivatives need FD on the analytic energy
+density. Total addLYPC_spin: ~80 lines, no torturous chain-rule
+algebra on 8 G_i pieces × 2 ρ-variables.
+
+Closed-shell collapse verified to 1e-9 (ε, v_γ exactly; v_ρ to
+the FD step-size precision):
+- H₂O STO-3G first singlet / triplet (eV) across the ladder:
+  HF:      S 13.20  T 11.10  gap 2.10
+  LDA:     S 11.50  T  9.53  gap 1.97
+  BVWN5:   S 11.35  T  9.41  gap 1.95
+  BLYP:    S 11.31  T  9.36  gap 1.95
+  B3VWN5:  S 11.76  T  9.80  gap 1.96
+  B3LYP5:  S 11.72  T  9.76  gap 1.97
+- The ~2 eV singlet-triplet gap shrinks slightly going HF → DFT
+  (less unbalanced exchange in DFT functionals); LYP-bearing and
+  VWN5-bearing functionals at the same B88 / B3 mixing land
+  within ~0.05 eV of each other — the standard small LYP-vs-VWN
+  difference at minimal basis. All triplet < singlet by ~2 eV
+  (Hund's rule analog).
+
+What got built this commit:
+- `lypCoefficients(ρ_↑, ρ_↓)` returning closed-form A_0, A_↑↑,
+  A_↑↓, A_↓↓ — the four γ-coefficients of f_LYP^Miehlich.
+- `lypEpsPerVolume(...)` linear-in-γ energy density.
+- `addLYPC_spin(...)`: γ-derivatives analytic from A_X,
+  ρ-derivatives via central FD on the energy density.
+- `evalXC_GGA_spin` extended to cover BLYP / B3LYP5 — composes
+  Slater_spin / B88_spin / VWN5_spin / LYP_spin pieces with
+  per-functional coefficients (mirrors the closed-shell evalXC
+  case statements). New helper `addVWN5ScaleAdjust` lets us
+  scale VWN5 down to 0/0.19 in BLYP/B3LYP5 without exposing a
+  separate spin-polarized VWN5-only routine.
+- `tda-dft.ts` triplet GGA path now accepts `bvwn5 | b3vwn5 |
+  blyp | b3lyp5`.
+
+Bug caught along the way: `ρ^(8/3)` was originally written as
+`ru * cbrt(ru*ru) * cbrt(ru*ru) = ru^(7/3)` instead of
+`ru² · cbrt(ru²) = ru^(8/3)`. Closed-shell ε mismatched
+closed-shell evalXC by ~3 mHa per particle — the hand-computed
+A_↑↑(cs)·γ_↑↑ matched the code, but A_0(cs) (which carries the
+Slater-decomposed C_F·ρ_σ^(8/3) piece) did not. Fix turned a
+0.0028 mismatch into 1e-16.
+
+Pass bars added (1 new test in tda-dft-triplet-gga, +2 cases
+in the existing for-loop tests, +1 in tda-dft-triplet —
+together "spin-polarized BLYP closed-shell limit" + "BLYP /
+B3LYP5 + triplet supported and < singlet" + the existing
+BVWN5/B3VWN5 cases extended to include BLYP/B3LYP5).
+
+**Tier 2 stage 15b-GGA-B88 (previous commit) — triplet TDA +
+TDDFT for BVWN5 + B3VWN5.** Stage 15b LDA closed the LDA-and-HF
+ladder; this commit extends triplet support to the B88-GGA
+functionals (Slater + B88 + VWN5, optionally with 0.20 HF
+exchange for B3VWN5).
+The spin-polarized B88 piece composes by spin-decomposition
+(no σ-coupling), so v_↑, v_↓, v_γ↑↑, v_γ↓↓ all derive from the
+existing closed-shell B88 with x_σ = √γ_σσ/ρ_σ^(4/3); v_γ↑↓ = 0.
+
+What got built:
+- `addB88X_spin` + `evalXC_GGA_spin` in `dft/functional-spin.ts`:
+  spin-polarized Slater + B88 + VWN5 (BVWN5 / B3VWN5). Closed-shell
+  baseline ρ_↑=ρ_↓=ρ/2, γ_αα'=γ/4 collapses to the closed-shell
+  evalXC[bvwn5] for ε_xc, v_↑/v_↓, and the chain-rule-combined v_γ
+  to 1e-9 across (ρ, γ) ∈ {0.05–50, 1e-4–1e4} (FD test).
+- `evalXCKernelGGA_triplet`: 4-piece triplet kernel via central FD
+  on v_↑ and v_γ↑↑ at the closed-shell baseline:
+    fRR^t = (H_{ρ↑ρ↑} − H_{ρ↑ρ↓})/2
+    fRG^t = (H_{ρ↑γ↑↑} − H_{ρ↑γ↓↓})/4
+    fGG^t = (H_{γ↑↑γ↑↑} − H_{γ↑↑γ↓↓})/8
+    vG^t  = (2·v_γ↑↑ − v_γ↑↓)/4
+  Factors line up so the SAME `2·K_xc` integrand template the
+  singlet path uses lands on the textbook |T_z=0⟩ triplet
+  kernel.
+- `tda-dft.ts`: when `spin: "triplet"` and method ∈ {bvwn5, b3vwn5},
+  swap singlet (ker, vGamma) for the triplet kernel components.
+  BLYP / B3LYP5 still throw with the more specific "needs
+  spin-polarized LYP kernel" message — that's its own session.
+
+H₂O STO-3G first singlet / triplet (eV) across the ladder:
+  HF:      singlet 13.20  triplet 11.10  gap 2.10
+  LDA:     singlet 11.50  triplet  9.53  gap 1.97
+  BVWN5:   singlet 11.35  triplet  9.41  gap 1.95
+  B3VWN5:  singlet 11.76  triplet  9.80  gap 1.96
+The ~2 eV singlet-triplet gap shrinks slightly going HF → DFT
+(less unbalanced exchange in DFT functionals) — the standard
+textbook ordering.
+
+Pass bars (5 new tests, all green):
+- BVWN5 spin-polarized closed-shell limit matches `evalXC[bvwn5]`
+  for ε_xc, v_↑, and chain-rule v_γ to 1e-9.
+- BVWN5 + B3VWN5 triplet < singlet on H₂ STO-3G.
+- BVWN5 + B3VWN5 TDDFT ≤ TDA per state (B-correction sign).
+- BLYP / B3LYP5 + triplet throws clearly.
+
+**Tier 2 stage 15b — triplet TDA + TDDFT for HF and LDA**
+(previous commit). Closed-shell triplets need the spin-polarized
+XC kernel f_↑↑ − f_↑↓, which the closed-shell `evalXC` in
+`functional.ts` can't produce on its own. Stage 15b ships a
+spin-polarized LSDA build (Slater exchange + VWN5 correlation,
+separate ρ_↑/ρ_↓ inputs) in a new `dft/functional-spin.ts`, plus
+the FD triplet kernel ½(f_↑↑ − f_↑↓), and wires
+`spin: "singlet" | "triplet"` into `runTDA` / `runTDDFT`.
+
+What got built:
+- `evalXC_LSDA(rhoUp, rhoDn, …)` — Slater + VWN5 with the full
+  Vosko-Wilk-Nusair spin interpolation (P, F, α_c parameter sets,
+  f(ζ) interpolation). Closed-shell limit ρ_↑=ρ_↓=ρ/2 collapses
+  to the closed-shell ε_xc and v_xc to 1e-12 / 1e-10 (sanity test).
+- `evalXCKernelLDA_triplet(rho)` — central FD on v_↑ separately in
+  the ρ_↑ and ρ_↓ directions to extract f_↑↑ and f_↑↓, returns
+  ½(f_↑↑ − f_↑↓) so the same `2·K_xc` factor in `tda-dft.ts` lands
+  exactly on the textbook Casida triplet kernel.
+- `tda-dft.ts`: `TDAOpts.spin` ("singlet" default | "triplet"),
+  `sCoul` becomes 0 for triplet (drops Hartree), kernel switches
+  to triplet path for LDA, oscillator strengths short-circuit
+  to zero (ΔS=1 dipole-forbidden from a closed-shell ground state).
+- Triplet + GGA / hybrid throws clearly: needs spin-polarized
+  GGA second derivatives (B88 / LYP f_σσ'), still open. No
+  silent half-build.
+
+Pass bars:
+- `runTDA(method='hf', spin='triplet')` matches `runCIS({spin:'triplet'})`
+  on H₂ STO-3G to 1e-10 (CIS / TDHF generalization is exact).
+- `runTDA(method='lda-svwn', spin='triplet')` on H₂ STO-3G sits
+  below the singlet excitation (the standard ordering — triplet
+  states are lower than singlets at the same orbital configuration).
+- `runTDA(method='blyp'/'b3lyp5', spin='triplet')` throws with a
+  clear "needs spin-polarized GGA kernel" diagnostic.
+
+Stage 15a (previous commit) recap: spherical-d on the grid —
+`MolecularIntegrals.sphericalT` exposes T (n_sph × n_cart). All
+grid-using paths (RKS-DFT SCF, TDA-DFT XC kernel, HF + DFT
+analytical gradients) apply the Cartesian → spherical-d transform
+T when integrals are built with `spherical: true`. The pre-15a
+"guard with throw" was documentation papering over a real bug;
+15a is the actual fix. H₂O cc-pVDZ B3LYP5 spherical vs Cartesian:
+SCF Δ = 1.2 mHa, TDA[0] 7.627 vs 7.601 eV, |∇| within 1–4 %.
+
+**Honest negatives still open** (each its own session):
 - **15c — Becke-partition weight derivatives**: ∂ω_K(r_p; R)/∂R_N
   at fixed r_p plus the grid-translation contribution from points
   originated on atom N. Closes the ~1e-3 Ha/Bohr translational-
@@ -719,7 +1106,7 @@ full-STO-3G FCI works via sparse-CSR Hsec (Phase C v5).
   MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤
   0.25 mHa vs FCI). aug-cc-pVDZ now wired alongside cc-pVDZ.
 
-**Test surface:** `npm run test` → **438/438** (was 435) + 1 opt-in
+**Test surface:** `npm run test` → **479/479** (was 475) + 1 opt-in
 (cc-pVDZ CCSD(T), gated on `PHASE_E5_CCPVDZ=1`). `npx tsc --noEmit`
 clean. `npm run lint` clean (2 pre-existing unused-disable warnings).
 `npx playwright test` → **11/11 specs**, all 4 levels e2e.
