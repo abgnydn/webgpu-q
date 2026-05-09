@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#6ea8ff" />
 
     <title>webgpu-q — quantum simulation in a browser tab</title>
-    <meta name="description" content="WebGPU quantum + chemistry tool in a browser tab: HF, DFT, MP2, CCSD(T), TDDFT, geometry optimization, UV-vis spectra, statevector + MPS. Browser-native, PySCF + ITensor validated." />
+    <meta name="description" content="WebGPU quantum + chemistry tool in a browser tab: HF + UHF, DFT, MP2, CCSD(T), TDDFT (singlet + triplet), geometry optimization, full IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, ionization potentials, thermochemistry, statevector + MPS. Browser-native, PySCF + experiment validated." />
     <meta name="author" content="Ahmet Baris Gunaydin" />
     <meta name="keywords" content="WebGPU, quantum simulator, MPS, DMRG, kernel fusion, VQE, quantum chemistry, TFIM, phase transition, ITensor, condensed matter, browser, WGSL, TypeScript" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -17,7 +17,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="webgpu-q" />
     <meta property="og:title" content="webgpu-q · quantum simulation in a browser tab" />
-    <meta property="og:description" content="WebGPU quantum + chemistry tool: HF, DFT, MP2, CCSD(T), TDDFT, geometry opt, UV-vis spectra. PySCF + ITensor validated. Browser-native, no install." />
+    <meta property="og:description" content="WebGPU quantum + chemistry tool: HF + UHF, DFT, MP2, CCSD(T), TDDFT (singlet + triplet), full IR + Raman + UV-vis spectra, polarizability, ionization potentials, thermochemistry. PySCF + experiment validated. Browser-native, no install." />
     <meta property="og:url" content="https://webgpu-q.vercel.app/" />
     <meta property="og:image" content="https://webgpu-q.vercel.app/og-image.png" />
     <meta property="og:image:type" content="image/png" />
@@ -52,7 +52,7 @@
           "applicationCategory": "ScienceApplication",
           "applicationSubCategory": "Quantum Many-Body Simulation",
           "operatingSystem": "Any OS with a WebGPU-capable browser",
-          "description": "A WebGPU quantum + computational-chemistry tool: HF, DFT, MP2, CCSD(T), CIS / TDA / TDDFT, geometry optimization, UV-vis spectra, statevector + MPS, kernel fusion. PySCF + ITensor validated.",
+          "description": "A WebGPU quantum + computational-chemistry tool: HF + UHF, DFT (5 functionals), MP2, CCSD(T), CIS / TDA / TDDFT (singlet + triplet), geometry optimization, IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, ionization potentials, thermochemistry, statevector + MPS, kernel fusion. PySCF + ITensor + experiment validated.",
           "url": "https://webgpu-q.vercel.app/",
           "author": {
             "@type": "Person",
@@ -441,18 +441,20 @@
     </nav>
 
     <section class="hero">
-      <span class="badge">browser-native · webGPU · 433 tests green · vercel-deployed</span>
+      <span class="badge">browser-native · webGPU · 479 tests green · vercel-deployed</span>
       <h1>
         Quantum chemistry,<br/>
         <em>in a browser tab.</em>
       </h1>
       <p class="lead">
-        Hartree-Fock, DFT (LDA / BLYP / B3LYP5 + 2 more), MP2, CCSD(T) on cc-pVDZ
-        in 106 seconds, geometry optimization with analytical gradients, TDA / TDDFT
-        excited states with UV-vis oscillator strengths, dipole moments, partial
-        charges, bond orders — plus a quantum-many-body playground (statevector,
-        MPS, kernel fusion, phase transitions). All WebGPU, all TypeScript, all
-        cross-validated against PySCF, libxc, and ITensor.
+        Hartree-Fock + UHF (radicals), DFT (5 functionals), MP2, CCSD(T)
+        on cc-pVDZ in 106 seconds, geometry optimization with analytical
+        gradients, full IR + Raman + UV-vis spectra (singlet + triplet),
+        polarizability + hyperpolarizability, ionization potentials,
+        ideal-gas thermochemistry — plus a quantum-many-body playground
+        (statevector, MPS, kernel fusion, phase transitions). All WebGPU,
+        all TypeScript, all cross-validated against PySCF, libxc, ITensor,
+        and gas-phase experimental references.
       </p>
       <div class="ctas">
         <a class="btn primary" href="/viz.html">
@@ -466,7 +468,7 @@
 
     <div class="stats">
       <div class="stat">
-        <div class="num">433</div>
+        <div class="num">479</div>
         <div class="lab">unit tests passing</div>
       </div>
       <div class="stat">
@@ -633,30 +635,36 @@
           <div class="num">4</div>
           <div class="body">
             <strong>Quantum chemistry — full stack</strong>
-            <p>HF, RKS-DFT (5 functionals — LDA / BVWN5 / BLYP / B3VWN5 / B3LYP5),
-              MP2, FCI, CCSD, CCSD(T). cc-pVDZ CCSD(T) on H₂O in <strong>106 s in
-              a browser tab</strong>; HF matches PySCF to <strong>35 µHa</strong>
-              with spherical-d on cc-pVDZ.</p>
+            <p>HF + <strong>UHF (radicals)</strong>, RKS-DFT (5 functionals —
+              LDA / BVWN5 / BLYP / B3VWN5 / B3LYP5), MP2, FCI, CCSD, CCSD(T).
+              cc-pVDZ CCSD(T) on H₂O in <strong>106 s in a browser tab</strong>;
+              HF matches PySCF to <strong>35 µHa</strong> with spherical-d on
+              cc-pVDZ.</p>
           </div>
         </div>
         <div class="lvl">
           <div class="num">5</div>
           <div class="body">
-            <strong>Geometry + properties</strong>
+            <strong>Geometry + IR + Raman + thermo</strong>
             <p>Analytical Pulay gradients on every level (HF + LDA + GGA +
-              hybrids), L-BFGS geometry optimization (<strong>7×</strong> faster
-              than FD), Lebedev quadrature, dipole moments, Mulliken charges,
-              Wiberg-Mayer bond orders.</p>
+              hybrids), L-BFGS geometry optimization (<strong>7×</strong>
+              faster than FD), <strong>harmonic vibrational frequencies +
+              IR intensities + Raman activities</strong>, ZPE + ideal-gas
+              thermochemistry at any (T, P). H₂O frequencies match
+              Pople 1969 to 0.1 cm⁻¹; entropy 45.06 vs experiment
+              45.10 cal/(mol·K).</p>
           </div>
         </div>
         <div class="lvl">
           <div class="num">6</div>
           <div class="body">
-            <strong>Excited states &amp; UV-vis</strong>
-            <p>CIS / TDA / full-Casida TDDFT singlet across HF + 5 DFT
-              functionals. Oscillator strengths via dipole AO integrals — full
-              UV-vis spectrum out of the box. libxc-canonical XC kernel
-              (FD-validated to 1e-8).</p>
+            <strong>Spectra + properties</strong>
+            <p><strong>CIS / TDA / TDDFT singlet + triplet</strong> across
+              HF + 5 DFT functionals (Miehlich spin-LYP). Oscillator strengths
+              for UV-vis. Static polarizability α + first hyperpolarizability β
+              tensors via finite-field. ΔSCF ionization potentials. Mulliken
+              charges, Wiberg-Mayer bond orders, dipole moments. Every property
+              an experimental SI table reports.</p>
           </div>
         </div>
       </div>
@@ -892,7 +900,7 @@ scene.<span class="k">updateGrid</span>(grid);  <span class="c">// → WebGPU sp
         <span class="pill">TypeScript · zero deps for math</span>
         <span class="pill">WGSL · JIT-emitted for fusion</span>
         <span class="pill">Vite · ESM-only</span>
-        <span class="pill">Vitest · 433 tests</span>
+        <span class="pill">Vitest · 479 tests</span>
         <span class="pill">Playwright e2e on Chromium-Metal-3</span>
         <span class="pill">ITensor (Julia) reference data</span>
       </div>

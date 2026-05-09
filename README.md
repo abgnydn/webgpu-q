@@ -6,14 +6,16 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Live demo](https://img.shields.io/badge/live-webgpu--q.vercel.app-6ea8ff)](https://webgpu-q.vercel.app)
 [![ITensor-validated](https://img.shields.io/badge/ITensor-cross--checked-b0ffd0)](./tools/itensor-reference.jl)
-[![Tests](https://img.shields.io/badge/tests-433%20%E2%9C%93-82c98b)](./tests)
+[![Tests](https://img.shields.io/badge/tests-479%20%E2%9C%93-82c98b)](./tests)
 
 A WebGPU quantum-many-body + computational-chemistry playground —
 statevector, matrix product states, kernel fusion, full Hartree-Fock /
-DFT / MP2 / FCI / CCSD / CCSD(T) / CIS / TDA-DFT / TDDFT, geometry
-optimization, and real-time many-body dynamics — running on a research-
-grade harness with reproducible JSON artifacts and external validation
-against ITensor and PySCF.
+UHF / DFT / MP2 / FCI / CCSD / CCSD(T) / CIS / TDA / TDDFT (singlet +
+triplet), geometry optimization, harmonic vibrations + IR + Raman
+spectra, polarizability + hyperpolarizability, ionization potentials,
+ideal-gas thermochemistry, and real-time many-body dynamics — running
+on a research-grade harness with reproducible JSON artifacts and
+external validation against ITensor and PySCF.
 
 **Live:** [webgpu-q.vercel.app](https://webgpu-q.vercel.app) — no install, no
 Linux, no Python. Open a tab.
@@ -54,7 +56,7 @@ Linux, no Python. Open a tab.
 | 3 | Kernel fusion | ✅ shipped | **4.18× speedup** (Tier C cascade fusion, 8×8 dense kernel); Tier D 16×16 plateaus at 3.14× — honest negative |
 | 4 | WebRTC swarm | 🚧 protocol-only | Two browsers sharing an MPS bond contraction; deferred |
 | 5 | Hardware cross-verify | 🚧 protocol-only | IBM Quantum shot-level agreement; blocked on token |
-| 6 | Chemistry track | ✅ shipped (Tier 1 + Tier 2 stages 1–13) | Full HF/DFT/MP2/FCI/CCSD/CCSD(T) with analytical gradients, geometry opt, TDDFT excited states + UV-vis spectra, properties — see below |
+| 6 | Chemistry track | ✅ shipped (Tier 1 + Tier 2 stages 1–22) | Full HF/UHF/DFT/MP2/FCI/CCSD/CCSD(T) with analytical gradients, geometry opt, full IR + Raman + UV-vis spectra (singlet + triplet), polarizability/hyperpolarizability, thermochemistry, ΔSCF IPs — see below |
 
 Plus a many-body extension (Heisenberg / TFIM / XXZ ground states + real-time
 evolution + monitored trajectories with measurement-induced phase transition)
@@ -69,9 +71,14 @@ and the GPU-resident MPS port (Phase 1A → 6 v1).
 | RKS-DFT (5 functionals) | ✅ | LDA-SVWN, BVWN5, BLYP, B3VWN5, B3LYP5 — PySCF-cross-checked, libxc-canonical LYP closed-shell collapse |
 | Geometry optimization | ✅ | Analytical Pulay gradients (HF + LDA + GGA + hybrid), L-BFGS, **7×** faster than FD |
 | Lebedev quadrature | ✅ | 110-point default — 2.6× fewer angular points than the legacy 12×24 product rule |
-| TDA + TDDFT excited states | ✅ | Casida (A, B), full HF + 5-functional ladder, libxc-canonical XC kernel |
+| TDA + TDDFT excited states | ✅ | Casida (A, B), **singlet + triplet** across the full HF + 5-functional ladder; spin-polarized LSDA / B88 / LYP for triplet kernels (Miehlich 1989) |
 | Oscillator strengths | ✅ | (4/3)·ω·|μ|² with dipole AO integrals — UV-vis spectra |
-| Properties | ✅ | Dipole moment, Mulliken charges, Wiberg-Mayer bond orders |
+| Vibrational spectroscopy | ✅ | Harmonic frequencies + IR intensities + Raman activities (Placzek). H₂O HF/STO-3G freqs match Pople 1969 to 0.1 cm⁻¹; H₂ rule-of-mutual-exclusion verified from FP arithmetic alone |
+| Field response | ✅ | Static dipole polarizability α (full 3×3 tensor) and first hyperpolarizability β (full 27-component tensor with Kleinman symmetrization) via finite-field |
+| Thermochemistry | ✅ | ZPE, U(T), H(T), S(T), G(T) at any (T, P). H₂O entropy 45.06 vs experiment 45.10 cal/(mol·K) |
+| **Open-shell SCF** | ✅ | UHF (radicals, doublets, triplets); ⟨S²⟩ diagnostic; H atom + Li atom match literature to 4 sig figs |
+| **Ionization potentials** | ✅ | Vertical IP via Koopmans + ΔSCF; LiH HF/STO-3G Koopmans within 6% of experiment |
+| Properties | ✅ | Dipole, Mulliken charges, Wiberg-Mayer bond orders, spin density |
 | Basis sets | ✅ | STO-3G, cc-pVDZ (Cartesian + spherical-d), aug-cc-pVDZ for H + O |
 
 ---
@@ -113,7 +120,7 @@ npm install
 npm run dev          # http://localhost:5175 — landing
                      # /viz.html   /experiments/   /demo.html
 
-npm run test         # vitest (433 tests + 1 opt-in, ~50 s)
+npm run test         # vitest (479 tests + 1 opt-in, ~50 s)
 npm run typecheck    # strict, noUncheckedIndexedAccess
 npm run lint         # eslint flat config
 
@@ -194,7 +201,7 @@ src/
                                     # + LDA / GGA XC kernel f_xc
       rks-scf.ts                    # Closed-shell Kohn-Sham SCF
 
-tests/                       # Vitest, 433 tests
+tests/                       # Vitest, 479 tests
 experiments/                 # Research dashboard, E1–E16+ protocols
 e2e/                         # Playwright specs
 public/                      # Static assets (favicon, og-image)

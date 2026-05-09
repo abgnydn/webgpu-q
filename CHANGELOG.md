@@ -5,6 +5,111 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.3.0] — 2026-05-09
+
+The chemistry track went from "ground-state methods + UV-vis" to a
+complete experimental-chemistry SI bundle: triplet excited states across
+the full functional ladder, full IR + Raman vibrational spectroscopy,
+field-response trio (μ → α → β), ideal-gas thermochemistry,
+**open-shell UHF**, and ΔSCF ionization potentials. Every property an
+experimental chemistry paper would tabulate is now computable in a
+browser tab.
+
+### Added — Tier 2: triplet excited states across the full ladder
+
+- **Tier 2 stage 15a — spherical-d on the grid (real fix).** The
+  pre-15a "guard with throw" was documentation papering over a real
+  bug. Stage 15a applies the Cartesian → spherical-d transform T to
+  basis values, gradients, Hessians, and density matrices on the
+  numerical grid so RKS-DFT SCF, TDA-DFT XC kernel, and HF + DFT
+  analytical gradients all stay consistent when integrals are built
+  with `spherical: true`. H₂O cc-pVDZ B3LYP5: SCF Δ = 1.2 mHa,
+  TDA[0] 7.627 vs 7.601 eV, |∇| within 1–4 %.
+- **Tier 2 stage 15b — triplet TDA + TDDFT across the full functional
+  ladder.** Spin-polarized LSDA (Slater + VWN5 with the full VWN
+  spin-interpolation function), spin-polarized B88 (clean spin
+  decomposition), and spin-polarized LYP (Miehlich 1989 integrated-
+  by-parts form, exploiting LYP's linearity in γ_↑↑/γ_↑↓/γ_↓↓ to
+  give closed-form γ-coefficients). Triplet kernel evaluators land
+  exactly on the textbook |T_z=0⟩ Casida convention. H₂O STO-3G first
+  singlet/triplet (eV) — textbook ordering across all 6 methods:
+  HF S 13.20/T 11.10; LDA S 11.50/T 9.53; BVWN5 S 11.35/T 9.41;
+  BLYP S 11.31/T 9.36; B3VWN5 S 11.76/T 9.80; B3LYP5 S 11.72/T 9.76.
+
+### Added — Tier 2: complete vibrational spectroscopy
+
+- **Tier 2 stage 16 — harmonic vibrational frequencies + IR intensities.**
+  6N central-FD Hessian on the existing analytical gradient with mass-
+  weighting + Eckart projection; dipole-derivative tracking during the
+  same FD loop gives IR intensities in km/mol. H₂O HF/STO-3G: bend
+  2170, sym 4140, asym 4391 cm⁻¹ — matches Pople 1969 reference to
+  0.1 cm⁻¹. H₂ symmetric stretch IR-inactive < 1e-3 km/mol — homo-
+  nuclear symmetry forces ∂μ/∂q = 0, reproduced from FP arithmetic.
+- **Tier 2 stage 18 — Placzek Raman activities.** 6N FD on the
+  polarizability tensor at displaced geometries (162 SCF runs total
+  on H₂O), projection onto modes, S_k = 45·ā_k² + 7·γ_k² in Å⁴/amu.
+  H₂ stretch is BOTH IR-inactive AND Raman-ACTIVE — the textbook
+  rule of mutual exclusion in centrosymmetric molecules, reproduced
+  from FP arithmetic alone.
+
+### Added — Tier 2: field-response properties
+
+- **Tier 2 stage 17 — static dipole polarizability via finite-field.**
+  Perturbs h_AO with +E·μ_AO, runs SCF at ±E along each axis, FDs the
+  dipole. Returns the full 3×3 tensor + isotropic + anisotropy +
+  principal components. H₂O α_iso = 2.7 a.u. at STO-3G (small basis
+  underestimates; aug-cc-pVDZ reaches ~7-8 a.u., experiment 9.79 a.u.).
+- **Tier 2 stage 20 — first hyperpolarizability β via finite-field.**
+  19-SCF stencil for the full 27-component β_ijk tensor, Kleinman
+  symmetrization, rotational vector invariant. H₂O |β_vec| ≈ 11 a.u.
+  H₂ centrosymmetric ⇒ all 27 β_ijk < 1e-2 (inversion enforces β = 0
+  exactly).
+
+### Added — Tier 2: thermochemistry
+
+- **Tier 2 stage 19 — ideal-gas thermochemistry.** ZPE + thermal U/H
+  + Sackur-Tetrode translation + rigid-rotor rotation (linear /
+  asymmetric) + harmonic-oscillator vibration partition functions →
+  S(T) and G(T) at any (T, P). Symmetry number σ scales rotational
+  entropy as −R·ln(σ) exactly. H₂O 298.15 K, 1 atm: total entropy
+  45.06 cal/(mol·K) vs experiment 45.10 — match to 0.1.
+
+### Added — Tier 2: open-shell SCF
+
+- **Tier 2 stage 21 — Unrestricted Hartree-Fock (UHF).** Spin-resolved
+  α/β orbitals, F_σ = h + J(D_α + D_β) − K(D_σ). Symmetry-breaking
+  initial guess for radicals; closed-shell systems collapse back to
+  RHF (verified UHF=RHF on H₂ to 1e-8). DIIS on stacked α+β error
+  vector. ⟨S²⟩ via Pople formula. H atom: −0.466582 Ha (lit −0.4666);
+  Li atom: −7.315526 Ha (lit −7.3155); H₂⁺: −0.581667 Ha. ⟨S²⟩ =
+  0.750000 to FP precision for clean doublets.
+- **Tier 2 stage 22 — vertical IP / EA via Koopmans + ΔSCF.** First
+  user-visible deliverable powered by UHF: remove an electron, run
+  UHF on the cation, get IP from energy difference. LiH Koopmans
+  7.40 eV vs experiment 7.85 eV — within 6 %. ΔSCF ≤ Koopmans where
+  basis flexibility allows orbital relaxation.
+
+### Validated against
+
+- **PySCF** for HF / DFT / MP2 / CCSD / CCSD(T) energies on H₂ / H₂O /
+  BeH₂ / CH₄ / STO-3G + cc-pVDZ to ≤ 0.5 mHa (35 µHa with spherical-d).
+- **Pople 1969 STO-3G HF reference** for H₂O harmonic frequencies
+  (bend / sym-stretch / asym-stretch within 0.1 cm⁻¹).
+- **Experiment (gas phase)** for H₂O thermochemistry — total entropy
+  45.06 vs 45.10 cal/(mol·K).
+- **libxc** for LYP closed-shell collapse (`gga_c_lyp.mpl`).
+- **Symmetry-forced exact results** as the cleanest correctness checks:
+  homonuclear-diatomic IR-inactive stretch, centrosymmetric β = 0,
+  rule of mutual exclusion in H₂.
+
+### Test surface
+
+- 479 unit tests (was 433), ~50 s on M2 Pro.
+- 11 e2e Playwright specs (unchanged).
+- typecheck strict, lint pre-existing only.
+
+[0.3.0]: https://github.com/abgnydn/webgpu-q/releases/tag/v0.3.0
+
 ## [0.2.0] — 2026-05-07
 
 The chemistry track went from "VQE on H₂" to a full-spectrum
