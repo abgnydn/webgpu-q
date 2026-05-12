@@ -23,15 +23,15 @@
   <g font-family="ui-monospace, monospace" font-size="12" letter-spacing="0.05em">
     <rect x="40" y="108" width="170" height="32" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-opacity="0.3"/>
     <text x="55" y="123" font-size="10" fill="#22d3ee" font-weight="700" letter-spacing="0.15em">SHIPPED</text>
-    <text x="55" y="135" font-size="11" fill="#e2e8f0" font-weight="700">26 capabilities</text>
+    <text x="55" y="135" font-size="11" fill="#e2e8f0" font-weight="700">21 capabilities</text>
 
     <rect x="220" y="108" width="170" height="32" rx="6" fill="#0f172a" stroke="#fbbf24" stroke-opacity="0.3"/>
     <text x="235" y="123" font-size="10" fill="#fbbf24" font-weight="700" letter-spacing="0.15em">TIER 3 ROADMAP</text>
-    <text x="235" y="135" font-size="11" fill="#e2e8f0" font-weight="700">12 capabilities</text>
+    <text x="235" y="135" font-size="11" fill="#e2e8f0" font-weight="700">15 capabilities</text>
 
     <rect x="400" y="108" width="170" height="32" rx="6" fill="#0f172a" stroke="#f97316" stroke-opacity="0.3"/>
     <text x="415" y="123" font-size="10" fill="#f97316" font-weight="700" letter-spacing="0.15em">TIER 4 ROADMAP</text>
-    <text x="415" y="135" font-size="11" fill="#e2e8f0" font-weight="700">14 capabilities</text>
+    <text x="415" y="135" font-size="11" fill="#e2e8f0" font-weight="700">15 capabilities</text>
 
     <rect x="580" y="108" width="170" height="32" rx="6" fill="#0f172a" stroke="#64748b" stroke-opacity="0.3"/>
     <text x="595" y="123" font-size="10" fill="#64748b" font-weight="700" letter-spacing="0.15em">OUT OF SCOPE</text>
@@ -232,7 +232,7 @@
       <circle cx="510" cy="17" r="6" fill="none" stroke="#fbbf24" stroke-width="1.5"/>
       <circle cx="630" cy="17" r="7" fill="#94a3b8"/>
       <circle cx="750" cy="17" r="7" fill="#94a3b8"/>
-      <circle cx="870" cy="17" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+      <circle cx="870" cy="17" r="7" fill="#94a3b8"/>
       <text x="945" y="22" font-size="12" fill="#fbbf24" font-weight="600">Tier 3 · reuse non-sym eigsolver</text>
     </g>
     <g transform="translate(0 878)">
@@ -524,7 +524,7 @@
       <text x="40" y="22" font-weight="600">Periodic SCF · k-points · plane waves</text>
       <circle cx="510" cy="17" r="6" fill="none" stroke="#f97316" stroke-width="1.5"/>
       <circle cx="630" cy="17" r="7" fill="#94a3b8"/>
-      <circle cx="750" cy="17" r="6" fill="#94a3b8" fill-opacity="0.6" stroke="#94a3b8"/>
+      <circle cx="750" cy="17" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
       <circle cx="870" cy="17" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
       <text x="945" y="22" font-size="12" fill="#f97316" font-weight="600">Tier 4 · solid-state extension</text>
     </g>
