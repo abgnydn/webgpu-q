@@ -1,6 +1,6 @@
 {
   "name": "webgpu-q",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "WebGPU quantum many-body + chemistry simulator — statevector, MPS, kernel fusion, HF/UHF/UCCSD/DFT/MP2/CCSD/CCSD(T) (39× GPU), EE/IP/EA-EOM-CCSD (FCI-validated), density fitting. Runs in a browser tab.",
   "type": "module",
   "scripts": {

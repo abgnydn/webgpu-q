@@ -5,6 +5,54 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.4.1] — 2026-05-12
+
+Documentation-only patch: full visual redesign of the README. Eight
+hand-built SVG assets replace every Mermaid diagram and HTML table on
+the project landing page. No code, no behavior, no test changes — same
+401 tests green, same 39.3× CCSD(T) GPU speedup, same `10⁻⁵ Ha` H₂
+EOM-CCSD ↔ FCI residual, same machine-precision DF-HF.
+
+### Added — `public/`
+
+- `readme-hero.svg` — radial-gradient background with particle field,
+  orbital ellipses, gradient wordmark, 4 inline headline numbers.
+- `readme-numbers.svg` — 4×2 number-card grid with colored side
+  stripes (401 tests, 39.3×, 10⁻⁵ Ha, 7×10⁻¹⁴, 1.35×10⁻¹¹, 4.18×,
+  F ≥ 0.999999, N = 128).
+- `readme-perf.svg` — proportional bar chart for the headline
+  benchmark (198.6 s CPU vs 5.05 s GPU at literally 1/39.3 the width)
+  with a "39.3× faster on GPU" callout and an honest "STO-3G
+  sub-second" footer strip.
+- `readme-capabilities.svg` — 7 module cards (ground state,
+  correlation, excited states, properties, geometry, density fitting,
+  many-body sim) in a 4+3 layout, each color-coded.
+- `readme-matrix.svg` — capability comparison vs PySCF / ORCA / Psi4
+  with tinted webgpu-q column and filled-circle / text-cell mix.
+- `readme-validation.svg` — 13-row matrix (layer · cross-check
+  source · residual · status pill) with alternating row tints.
+- `readme-ladder.svg` — 6-level research progression along a single
+  horizontal track, shipped foundation in teal, flagship in green,
+  deferred in grey.
+- `readme-architecture.svg` — 8 gradient-banded layers from URL down
+  to GPU silicon, each annotated with its purpose.
+
+### Changed
+
+- `README.md` — magazine-style rewrite. Sections now lead with their
+  SVG and trim down accompanying prose. Key-numbers single-source-of-
+  truth table at the bottom remains the canonical place to edit
+  headline numbers; rebuild the relevant SVG when a top-line number
+  changes.
+- `README.md` — Mermaid node labels quoted (`["..."]`) so labels
+  containing parentheses, e.g. `CCSD(T)`, parse cleanly on GitHub.
+
+### Honest scope
+
+- Doc-only patch. No `src/`, `tests/`, `e2e/`, or `experiments/lib/`
+  changes. Test count, speedup numbers, residuals, and method
+  coverage are unchanged from v0.4.0.
+
 ## [0.4.0] — 2026-05-12
 
 The chemistry track closed out Tier 2 of the roadmap: every method
