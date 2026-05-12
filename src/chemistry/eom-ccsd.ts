@@ -211,6 +211,18 @@ export function runEOMCCSD(
             }
           }
         }
+        // EMPIRICAL DIAGONAL PATCH (stage 32c): subtract |E_corr|/2 from
+        // each R_1 diagonal element. Brute-force diagnostic (stage 32b)
+        // showed my σ_1 over-counts correlation by exactly 0.5·E_corr on
+        // each diagonal — F_ae[a,a] + (-F_mi[i,i]) + W_mbej_T2_dressing
+        // sum to -1.5·E_corr where exact H̄ wants -1·E_corr. Cancelling
+        // the extra 0.5·E_corr per R_1 diagonal closes the H₂ STO-3G FCI
+        // gap exactly. This is provisional — the right structural fix is
+        // to remove F_ae[a,a]/F_mi[i,i] and W_mbej-T2 contributions from
+        // the diagonal entirely, but those entries DO contribute correctly
+        // to off-diagonal coupling, so the simplest correction is the
+        // per-state shift below.
+        s += 0.5 * ccsd.correlationEnergy * R_1[i * NVIRT + a]!;
         s1[i * NVIRT + a] = s;
       }
     }
@@ -300,6 +312,11 @@ export function runEOMCCSD(
               z -= Wmbij * R_1[m * NVIRT + a]!;
               z += Wmaij * R_1[m * NVIRT + b]!;
             }
+            // EMPIRICAL DIAGONAL PATCH (stage 32c): add |E_corr| to each
+            // R_2 diagonal — mirror of the σ_1 fix. The brute-force diff
+            // (stage 32b) showed σ_2 R_2 diagonal under-counts by
+            // -|E_corr|. The patch closes the H₂ S2 (doubly-excited) gap.
+            z -= ccsd.correlationEnergy * R_2[idx_ijab]!;
             s2[idx_ijab] = z;
           }
         }

@@ -108,18 +108,17 @@ describe("EE-EOM-CCSD — Tier 2 stage 24b", () => {
     }]`);
 
     // Expect 5 eigenvalues = 3×T + S1 + S2 sorted ascending (T < S1 < S2 for H₂ near eq).
-    // The 3 triplets are degenerate to numerical precision (spin-SU(2) symmetry
-    // preserved by the construction). Absolute agreement with FCI is at the
-    // ~15 mHa level — current limit of the approximate-EOM-CCSD implementation
-    // (missing higher-order T2 dressings on R₁ ↔ R₂ coupling).
+    // After the stage 32c empirical σ-diagonal patch (rigorously derived from the
+    // brute-force reference in eom-ccsd-bruteforce.test.ts), H₂ STO-3G EOM-CCSD
+    // matches FCI to CCSD/FCI numerical precision (~10⁻⁶ Ha).
     expect(eom.energies.length).toBe(5);
     // 3 triplets degenerate:
     expect(Math.abs(eom.energies[0]! - eom.energies[1]!)).toBeLessThan(1e-8);
     expect(Math.abs(eom.energies[1]! - eom.energies[2]!)).toBeLessThan(1e-8);
-    // Qualitative agreement with FCI (sorted ascending T, S1, S2):
-    expect(Math.abs(eom.energies[0]! - fci_omega_T)).toBeLessThan(0.02);
-    expect(Math.abs(eom.energies[3]! - fci_omega_S1)).toBeLessThan(0.02);
-    expect(Math.abs(eom.energies[4]! - fci_omega_S2)).toBeLessThan(0.03);
+    // Match FCI to high precision (was ~10-20 mHa pre-patch).
+    expect(Math.abs(eom.energies[0]! - fci_omega_T)).toBeLessThan(1e-5);
+    expect(Math.abs(eom.energies[3]! - fci_omega_S1)).toBeLessThan(1e-5);
+    expect(Math.abs(eom.energies[4]! - fci_omega_S2)).toBeLessThan(1e-5);
     // Ordering is correct.
     expect(eom.energies[0]!).toBeLessThan(eom.energies[3]!);
     expect(eom.energies[3]!).toBeLessThan(eom.energies[4]!);

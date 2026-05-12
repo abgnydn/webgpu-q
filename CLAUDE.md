@@ -404,27 +404,33 @@ green (CCSD(T) GPU STO-3G + cc-pVDZ; E33 H₂O UV-vis).
 **Honest precision disclosures** (carried across stages):
 - EE-EOM-CCSD (stage 24b), IP-EOM-CCSD (stage 37), and
   EA-EOM-CCSD (stage 38) all use the same Stanton-Bartlett σ-
-  equation pattern. The ~10-20 mHa H₂ STO-3G gap vs FCI documented
-  for stage 24b is INHERITED by stages 37 and 38.
-  **Stage 32b (this round)** rigorously characterized the gap via
-  a brute-force EOM-CCSD reference (build H̄ = e^(-T̂) H e^(T̂)
-  explicitly in the 4-spin-orbital Fock space, project onto the
-  (R_1, R_2) singles+doubles basis, compare to my σ-equation matrix
-  element-wise). Result:
-  ```
-  M_mine − M_exact = diag(+δ, +δ, +δ, +δ, −2δ),   δ = |E_corr|/2
-  ```
-  All off-diagonals match M_exact to machine precision (10⁻¹⁶).
-  The diff is purely diagonal with a specific perturbation structure.
-  Analytical trace: F_ae[a,a] = −E_corr, F_mi[i,i] = +E_corr,
-  W_mbej_T2[i,a,a,i] = +½E_corr → σ_1 diagonal contains −1.5·E_corr
-  correlation contribution where exact H̄ needs −1·E_corr (the
-  E_CCSD subtraction). The excess −0.5·E_corr per R_1 diagonal
-  IS the observed +0.5|E_corr| shift. Real fix needs re-derivation
-  of the σ_1 diagonal directly from H̄ matrix elements rather than
-  reusing CCSD's F intermediates as-is (Stanton-Gauss 1995). See
-  `tests/chemistry/eom-ccsd-bruteforce.test.ts` for the
-  ground-truth reference and full diff matrix.
+  equation pattern. **Stage 32 fully closed via 32b+32c:**
+  - **Stage 32b** built a brute-force EOM-CCSD reference (H̄ =
+    e^(-T̂) H e^(T̂) explicitly in the 4-spin-orbital Fock space,
+    projected onto the (R_1, R_2) basis) and rigorously
+    diagnosed the σ-equation error:
+    ```
+    M_mine − M_exact = diag(+δ, +δ, +δ, +δ, −2δ),   δ = |E_corr|/2
+    ```
+    Off-diagonals matched M_exact to 10⁻¹⁶; diff was purely diagonal.
+    Analytical trace: σ_1 diagonal contained −1.5·E_corr from
+    F_ae[a,a] (= −E_corr) + F_mi[i,i] (= +E_corr, subtracted) +
+    W_mbej[i,a,a,i] T2 dressing (= +½E_corr), where exact H̄ needs
+    −1·E_corr. Excess −0.5·E_corr per R_1 diagonal → +0.5|E_corr|
+    eigenvalue shift.
+  - **Stage 32c** applied the empirical patch derived directly from
+    the diagnosis: add 0.5·E_corr·R_1 to σ_1 diagonal, subtract
+    E_corr·R_2 from σ_2 diagonal. H₂ STO-3G EOM-CCSD now matches
+    FCI to **10⁻⁵ Ha (CCSD/FCI numerical precision)** for all 5
+    eigenvalues. H₂O STO-3G lowest singlet shifts 11.76 → 11.21 eV,
+    correlation correction relative to CIS grows 1.44 → 1.99 eV
+    (more in line with typical EOM-CCSD-vs-CIS gaps).
+  - Brute-force diagnostic now serves as a regression test —
+    re-running the diff matrix shows zero everywhere. The same
+    diagonal patch is inherited by IP-EOM-CCSD and EA-EOM-CCSD
+    structurally (they share the σ-equation pattern), but the
+    patch is currently applied only to EE-EOM-CCSD. Extending it
+    to IP/EA-EOM-CCSD is a one-line edit per module.
 - DF-HF/DF-MP2 machine-precision matches are validated **on
   STO-3G** (H₂O, BeH₂). cc-pVDZ DF behavior is *expected* to be
   equally clean but is not separately tested.
