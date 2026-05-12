@@ -102,7 +102,7 @@ No install. No backend. No CUDA. Open a URL and get HF · UHF · DFT · MP2 · C
 
 <h3 align="center">🆚 &nbsp; Completeness scorecard</h3>
 
-<p align="center"><sub>Every method PySCF / ORCA / Psi4 ship, our status against it, and the roadmap tier for every gap.<br/>No "we don't do that" — every missing capability has a planned slot.</sub></p>
+<p align="center"><sub>Every method PySCF 2.13 / ORCA 6.1 / Psi4 1.10 ship, our status against it, and the roadmap tier for every gap.<br/>No "we don't do that" — every missing capability has a planned slot.</sub></p>
 
 <div align="center">
 
