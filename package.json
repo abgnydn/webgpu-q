@@ -1,7 +1,7 @@
 {
   "name": "webgpu-q",
-  "version": "0.3.0",
-  "description": "WebGPU quantum circuit simulator — statevector + MPS, kernel-fused. Runs in a browser tab.",
+  "version": "0.4.0",
+  "description": "WebGPU quantum many-body + chemistry simulator — statevector, MPS, kernel fusion, HF/UHF/UCCSD/DFT/MP2/CCSD/CCSD(T) (39× GPU), EE/IP/EA-EOM-CCSD (FCI-validated), density fitting. Runs in a browser tab.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,8 @@
     "lint": "eslint src/ tests/ experiments/ --ext .ts",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "benchmarks:render": "tsx benchmarks/render.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

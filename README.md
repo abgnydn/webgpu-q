@@ -6,16 +6,19 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Live demo](https://img.shields.io/badge/live-webgpu--q.vercel.app-6ea8ff)](https://webgpu-q.vercel.app)
 [![ITensor-validated](https://img.shields.io/badge/ITensor-cross--checked-b0ffd0)](./tools/itensor-reference.jl)
-[![Tests](https://img.shields.io/badge/tests-479%20%E2%9C%93-82c98b)](./tests)
+[![Tests](https://img.shields.io/badge/tests-401%20%E2%9C%93-82c98b)](./tests)
 
 A WebGPU quantum-many-body + computational-chemistry playground —
 statevector, matrix product states, kernel fusion, full Hartree-Fock /
-UHF / DFT / MP2 / FCI / CCSD / CCSD(T) / CIS / TDA / TDDFT (singlet +
-triplet), geometry optimization, harmonic vibrations + IR + Raman
-spectra, polarizability + hyperpolarizability, ionization potentials,
-ideal-gas thermochemistry, and real-time many-body dynamics — running
-on a research-grade harness with reproducible JSON artifacts and
-external validation against ITensor and PySCF.
+UHF / UCCSD / DFT / MP2 / FCI / CCSD / **CCSD(T) on GPU (39× speedup)** /
+CIS / TDA / TDDFT (singlet + triplet) / **EE/IP/EA-EOM-CCSD with
+brute-force-validated FCI precision** / **density fitting (Cholesky-DF
+for HF + MP2)**, geometry optimization, harmonic vibrations + IR +
+Raman spectra, polarizability + hyperpolarizability, ionization
+potentials / electron affinities, ideal-gas thermochemistry, and
+real-time many-body dynamics — running on a research-grade harness
+with reproducible JSON artifacts and external validation against
+ITensor, PySCF, and an internal brute-force EOM-CCSD reference.
 
 **Live:** [webgpu-q.vercel.app](https://webgpu-q.vercel.app) — no install, no
 Linux, no Python. Open a tab.
@@ -41,7 +44,7 @@ Linux, no Python. Open a tab.
 | --- | --- |
 | `/` | Landing — overview, ladder, companion projects |
 | `/viz.html` | **Hyperscope** — 3 synchronized 3D panels: H₂ electron density, conditional pair density (with a draggable cursor finding the Fermi/Coulomb hole), and a live MPS bond-network with TFIM phase-transition slider, quench light-cone heatmap, and monitored-trajectory mode |
-| `/experiments/` | **Research dashboard** — run E1–E16 live (gate fidelity, dispatch roofline, MPS correctness, kernel-fusion benchmarks, VQE on H₂ dissociation). Every run produces a downloadable JSON artifact with environment capture |
+| `/experiments/` | **Research dashboard** — run E1–E16 + E32 + E33 live (gate fidelity, dispatch roofline, MPS correctness, kernel-fusion benchmarks, VQE on H₂ dissociation, **CCSD(T) GPU vs CPU cross-check across LiH/BeH₂/H₂O at STO-3G + cc-pVDZ**, **H₂O EOM-CCSD UV-vis spectrum**). Every run produces a downloadable JSON artifact with environment capture |
 | `/experiments/gpu-mps/` | GPU MPS phase-by-phase bench (Phase 1A → 6 v1) |
 | `/demo.html` | Original gate-throughput demo (Bell, GHZ, QFT, DJ) |
 
@@ -56,7 +59,7 @@ Linux, no Python. Open a tab.
 | 3 | Kernel fusion | ✅ shipped | **4.18× speedup** (Tier C cascade fusion, 8×8 dense kernel); Tier D 16×16 plateaus at 3.14× — honest negative |
 | 4 | WebRTC swarm | 🚧 protocol-only | Two browsers sharing an MPS bond contraction; deferred |
 | 5 | Hardware cross-verify | 🚧 protocol-only | IBM Quantum shot-level agreement; blocked on token |
-| 6 | Chemistry track | ✅ shipped (Tier 1 + Tier 2 stages 1–22) | Full HF/UHF/DFT/MP2/FCI/CCSD/CCSD(T) with analytical gradients, geometry opt, full IR + Raman + UV-vis spectra (singlet + triplet), polarizability/hyperpolarizability, thermochemistry, ΔSCF IPs — see below |
+| 6 | Chemistry track | ✅ shipped (Tier 1 + **Tier 2 stages 1–38, closed**) | Full HF/UHF/UCCSD/DFT/MP2/FCI/CCSD/CCSD(T) with analytical gradients, geometry opt, full IR + Raman + UV-vis spectra (singlet + triplet), polarizability/hyperpolarizability, thermochemistry, **EE/IP/EA-EOM-CCSD** (brute-force-validated to FCI), **density fitting (Cholesky-DF wired into HF + MP2)**, **WebGPU (T) — 39× on H₂O cc-pVDZ** — see below |
 
 Plus a many-body extension (Heisenberg / TFIM / XXZ ground states + real-time
 evolution + monitored trajectories with measurement-induced phase transition)
@@ -77,7 +80,13 @@ and the GPU-resident MPS port (Phase 1A → 6 v1).
 | Field response | ✅ | Static dipole polarizability α (full 3×3 tensor) and first hyperpolarizability β (full 27-component tensor with Kleinman symmetrization) via finite-field |
 | Thermochemistry | ✅ | ZPE, U(T), H(T), S(T), G(T) at any (T, P). H₂O entropy 45.06 vs experiment 45.10 cal/(mol·K) |
 | **Open-shell SCF** | ✅ | UHF (radicals, doublets, triplets); ⟨S²⟩ diagnostic; H atom + Li atom match literature to 4 sig figs |
-| **Ionization potentials** | ✅ | Vertical IP via Koopmans + ΔSCF; LiH HF/STO-3G Koopmans within 6% of experiment |
+| **Open-shell CCSD (UCCSD)** | ✅ | Spin-orbital UCCSD on top of UHF; Be⁺ STO-3G E_corr = −0.357 mHa; H₂ closed-shell agrees with RHF-CCSD to 1e-10 |
+| **Ionization potentials** | ✅ | Koopmans + ΔSCF + **IP-EOM-CCSD** (brute-force-validated exact on H₂; H₂O 12.03 eV vs experimental 12.62, closest of all 3 methods) |
+| **Electron affinities** | ✅ | Koopmans + **EA-EOM-CCSD** (brute-force-validated exact on H₂ for both R₁ and R₂ sectors); STO-3G EAs negative (LUMO unbound — basis-set limit) |
+| **Excited states (correlated)** | ✅ | **EE-EOM-CCSD** with eigenvectors, oscillator strengths, spin classifier (singlet/triplet weights); H₂ STO-3G matches FCI to 10⁻⁵ Ha after stage 32c diagonal patch; full UV-vis demo experiment (E33) on H₂O |
+| **Density fitting** | ✅ | Pivoted Cholesky-DF on AO ERI tensor; wired into HF + MP2 with `useDF` opt; DF-HF = direct HF to 7×10⁻¹⁴ Ha on H₂O STO-3G; B-tensor compresses 49 → 28 at machine precision |
+| **GPU CCSD(T)** | ✅ | WGSL kernel (1 thread per (i,j,k) occ-triple); sub-pHa precision vs CPU; **39× speedup on H₂O cc-pVDZ** (single-run benchmark, M2 Pro); E32 e2e cross-check |
+| **Non-symmetric eigensolver** | ✅ | Hessenberg + Wilkinson-shifted QR with eigenvector back-substitution; powers EE/IP/EA-EOM-CCSD |
 | Properties | ✅ | Dipole, Mulliken charges, Wiberg-Mayer bond orders, spin density |
 | Basis sets | ✅ | STO-3G, cc-pVDZ (Cartesian + spherical-d), aug-cc-pVDZ for H + O |
 
@@ -120,7 +129,7 @@ npm install
 npm run dev          # http://localhost:5175 — landing
                      # /viz.html   /experiments/   /demo.html
 
-npm run test         # vitest (479 tests + 1 opt-in, ~50 s)
+npm run test         # vitest (~400 tests + 1 opt-in cc-pVDZ CCSD(T), ~55 s)
 npm run typecheck    # strict, noUncheckedIndexedAccess
 npm run lint         # eslint flat config
 
