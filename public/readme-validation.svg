@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 660" width="1200" height="660" role="img" aria-label="Validation matrix: 13 layers cross-checked against PySCF, libxc, ITensor, brute-force, experiment">
+  <defs>
+    <linearGradient id="bgVal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1224"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <pattern id="dotsVal" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.55" fill="#ffffff" opacity="0.04"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="660" fill="url(#bgVal)"/>
+  <rect width="1200" height="660" fill="url(#dotsVal)"/>
+
+  <text x="40" y="38" font-family="ui-monospace, monospace" font-size="11" letter-spacing="0.25em" fill="#64748b" font-weight="600">VALIDATION MATRIX</text>
+  <text x="40" y="68" font-family="ui-monospace, monospace" font-size="24" font-weight="700" fill="#e2e8f0">Every layer cross-checked, every residual disclosed</text>
+
+  <g font-family="ui-monospace, monospace" font-size="11" letter-spacing="0.15em" fill="#64748b" font-weight="600">
+    <text x="40" y="108">LAYER</text>
+    <text x="370" y="108">CROSS-CHECKED AGAINST</text>
+    <text x="720" y="108">RESIDUAL</text>
+    <text x="1100" y="108" text-anchor="middle">STATUS</text>
+  </g>
+  <line x1="40" y1="118" x2="1160" y2="118" stroke="#1e293b" stroke-width="1"/>
+
+  <g font-family="-apple-system, system-ui, sans-serif">
+
+    <g transform="translate(0 130)">
+      <rect width="1200" height="38" fill="#0f172a" fill-opacity="0.5"/>
+      <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">HF · sphd · frozen-core · DIIS</text>
+      <text x="370" y="24" font-size="13" fill="#94a3b8">PySCF</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">≤ 50 µHa</text>
+      <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
+    </g>
+
+    <g transform="translate(0 168)">
+      <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">MP2 · FCI</text>
+      <text x="370" y="24" font-size="13" fill="#94a3b8">PySCF · analytic H₂</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">≤ 0.76 mHa <tspan fill="#64748b" font-size="11">(CH₄)</tspan></text>
+      <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
+    </g>
+
+    <g transform="translate(0 206)">
+      <rect width="1200" height="38" fill="#0f172a" fill-opacity="0.5"/>
+      <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">CCSD</text>
+      <text x="370" y="24" font-size="13" fill="#94a3b8">analytic H₂ · ECCSD = FCI</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">≥ 99% capture</text>
+      <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
+    </g>
+
+    <g transform="translate(0 244)">
+      <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">CCSD(T) <tspan fill="#64748b" font-size="11">CPU + GPU</tspan></text>
+      <text x="370" y="24" font-size="13" fill="#94a3b8">FCI · CPU ↔ GPU</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">≤ 0.25 mHa · 2.4×10⁻¹⁰ Ha</text>
+      <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
+    </g>
+
+    <g transform="translate(0 282)">
+      <rect width="1200" height="38" fill="#0f172a" fill-opacity="0.5"/>
+      <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">EE-EOM-CCSD</text>
+      <text x="370" y="24" font-size="13" fill="#94a3b8">brute-force H̄ in 4-SO Fock space</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">10⁻⁵ Ha <tspan fill="#64748b" font-size="11">(post-32c patch)</tspan></text>
+      <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
+    </g>
+
+    <g transform="translate(0 320)">
+      <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">IP-EOM-CCSD</text>
+      <text x="370" y="24" font-size="13" fill="#94a3b8">brute-force projection</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#fbbf24">R₁ exact · R₂ open <tspan fill="#64748b" font-size="11">(~2 Ha)</tspan></text>
+      <circle cx="1100" cy="19" r="8" fill="#fbbf24"/>
+    </g>
+
+    <g transform="translate(0 358)">
+      <rect width="1200" height="38" fill="#0f172a" fill-opacity="0.5"/>
+      <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">EA-EOM-CCSD</text>
+      <text x="370" y="24" font-size="13" fill="#94a3b8">brute-force projection</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">R₁ + R₂ exact <tspan fill="#64748b" font-size="11">(32e patch)</tspan></text>
+      <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
+    </g>
+
+    <g transform="translate(0 396)">
+      <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">DFT · LDA · BVWN5 · BLYP · B3LYP5</text>
+      <text x="370" y="24" font-size="13" fill="#94a3b8">libxc · literature</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">functional-level agreement</text>
+      <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
+    </g>
+
+    <g transform="translate(0 434)">
+      <rect width="1200" height="38" fill="#0f172a" fill-opacity="0.5"/>
+      <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">DF-HF · DF-MP2</text>
+      <text x="370" y="24" font-size="13" fill="#94a3b8">direct ERI path</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">7×10⁻¹⁴ Ha · 0 Ha <tspan fill="#64748b" font-size="11">(machine)</tspan></text>
+      <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
+    </g>
+
+    <g transform="translate(0 472)">
+      <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">UHF · UCCSD</text>
+      <text x="370" y="24" font-size="13" fill="#94a3b8">closed-shell RHF limit · Be⁺</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">1×10⁻¹⁰ Ha consistency</text>
+      <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
+    </g>
+
+    <g transform="translate(0 510)">
+      <rect width="1200" height="38" fill="#0f172a" fill-opacity="0.5"/>
+      <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">Vibrational · IR · Raman · thermo</text>
+      <text x="370" y="24" font-size="13" fill="#94a3b8">experiment</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">H₂O S = 45.06 <tspan fill="#64748b" font-size="11">vs expt 45.1</tspan></text>
+      <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
+    </g>
+
+    <g transform="translate(0 548)">
+      <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">Statevector GPU</text>
+      <text x="370" y="24" font-size="13" fill="#94a3b8">CPU f64 reference</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">F ≥ 0.999999 <tspan fill="#64748b" font-size="11">(E1 – E4)</tspan></text>
+      <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
+    </g>
+
+    <g transform="translate(0 586)">
+      <rect width="1200" height="38" fill="#0f172a" fill-opacity="0.5"/>
+      <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">MPS · DMRG</text>
+      <text x="370" y="24" font-size="13" fill="#94a3b8">ITensor · Bethe / Pfeuty</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">f64 agreement N=8 · 1/N scaling</text>
+      <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
+    </g>
+  </g>
+
+  <g transform="translate(40 640)" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="#64748b">
+    <circle cx="0" cy="-3" r="5" fill="#22d3ee"/>
+    <text x="12" y="0">exact / within target</text>
+    <circle cx="180" cy="-3" r="5" fill="#fbbf24"/>
+    <text x="192" y="0">known-residual · documented</text>
+  </g>
+</svg>

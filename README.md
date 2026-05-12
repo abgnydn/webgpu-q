@@ -78,32 +78,7 @@ No install. No backend. No CUDA. Open a URL and get HF · UHF · DFT · MP2 · C
 
 <div align="center">
 
-```mermaid
-%%{init: {'theme':'dark', 'themeVariables': {'primaryColor':'#1e1b4b','primaryTextColor':'#e2e8f0','primaryBorderColor':'#7c3aed','lineColor':'#64748b','fontFamily':'ui-monospace, monospace'}}}%%
-graph LR
-    A["<b>Ground state</b><br/>HF · UHF · DIIS<br/>DFT LDA/GGA/hybrid<br/>MP2 · DF-MP2"]
-    B["<b>Correlation</b><br/>CCSD closed+open<br/>CCSD(T) CPU+GPU<br/>FCI · CASCI"]
-    C["<b>Excited states</b><br/>CIS · TDA · TDDFT<br/>EE-EOM-CCSD<br/>IP/EA-EOM-CCSD"]
-    D["<b>Properties</b><br/>dipole · α · β<br/>IR · Raman · thermo<br/>Mulliken · Wiberg"]
-    E["<b>Geometry</b><br/>analytical ∇<br/>BFGS opt<br/>vib analysis"]
-    F["<b>Density fitting</b><br/>Cholesky CD-DF<br/>DF-HF · DF-MP2<br/>7e-14 Ha gap"]
-    G["<b>Many-body sim</b><br/>statevector<br/>MPS · TEBD · DMRG<br/>kernel fusion"]
-
-    A --> B --> C
-    A --> D
-    A --> E
-    A -.-> F
-    F -.-> B
-    G -.-> A
-
-    style A fill:#1e1b4b,stroke:#22d3ee
-    style B fill:#1e1b4b,stroke:#34d399
-    style C fill:#1e1b4b,stroke:#c084fc
-    style D fill:#1e1b4b,stroke:#fbbf24
-    style E fill:#1e1b4b,stroke:#f472b6
-    style F fill:#1e1b4b,stroke:#06b6d4
-    style G fill:#1e1b4b,stroke:#a78bfa
-```
+<img src="./public/readme-capabilities.svg" alt="Capability map: 7 modules — ground state, correlation, excited states, properties, geometry, density fitting, many-body simulation" width="100%"/>
 
 </div>
 
@@ -139,22 +114,11 @@ graph LR
 
 <h3 align="center">🔬 &nbsp; Validation matrix</h3>
 
-<table align="center">
-<tr><th align="left">layer</th><th align="left">cross-checked against</th><th align="left">residual</th></tr>
-<tr><td>HF (sphd, frozen-core, DIIS)</td><td>PySCF</td><td>≤ 50 µHa</td></tr>
-<tr><td>MP2 / FCI</td><td>PySCF · analytic H₂</td><td>≤ 0.76 mHa (CH₄)</td></tr>
-<tr><td>CCSD</td><td>analytic H₂ ECCSD = FCI</td><td>≥ 99% correlation capture</td></tr>
-<tr><td>CCSD(T)</td><td>FCI · CPU↔GPU</td><td>≤ 0.25 mHa (vs FCI), 2.4×10⁻¹⁰ Ha (GPU↔CPU)</td></tr>
-<tr><td>EE-EOM-CCSD</td><td>brute-force H̄ = e⁻ᵀ̂HeᵀT̂ in 4-SO Fock space</td><td>10⁻⁵ Ha (H₂, post-32c patch)</td></tr>
-<tr><td>IP-EOM-CCSD</td><td>brute-force projection</td><td>R₁ exact; R₂ satellites ~2 Ha (documented)</td></tr>
-<tr><td>EA-EOM-CCSD</td><td>brute-force projection</td><td>R₁ exact; R₂ patched to exact (32e)</td></tr>
-<tr><td>DFT (LDA, BVWN5, BLYP, B3LYP5)</td><td>libxc / literature</td><td>functional-level agreement</td></tr>
-<tr><td>DF-HF / DF-MP2</td><td>direct ERI path</td><td>7×10⁻¹⁴ Ha · 0 Ha (machine)</td></tr>
-<tr><td>UHF / UCCSD</td><td>closed-shell RHF limit · Be⁺</td><td>1×10⁻¹⁰ Ha consistency</td></tr>
-<tr><td>vibrational / thermo</td><td>experiment</td><td>H₂O S = 45.06 vs expt 45.1 cal/mol·K</td></tr>
-<tr><td>statevector GPU</td><td>CPU f64 reference</td><td>F ≥ 0.999999 across E1–E4</td></tr>
-<tr><td>MPS / DMRG</td><td>ITensor · Bethe / Pfeuty</td><td>f64 agreement at N=8; 1/N scaling</td></tr>
-</table>
+<div align="center">
+
+<img src="./public/readme-validation.svg" alt="Validation matrix: every layer cross-checked against PySCF, libxc, ITensor, brute-force projection, or experiment, with residuals disclosed" width="100%"/>
+
+</div>
 
 <br/>
 
@@ -164,33 +128,9 @@ graph LR
 
 <div align="center">
 
-```mermaid
-%%{init: {'theme':'dark', 'themeVariables': {'primaryColor':'#1e293b','primaryTextColor':'#e2e8f0','lineColor':'#475569','fontFamily':'ui-monospace, monospace'}}}%%
-graph TD
-    L1["Level 1 · Statevector<br/>E1–E4 · GPU gates · F ≥ 0.999999"]
-    L2["Level 2 · MPS / DMRG<br/>E5–E7, E18–E19 · TFIM/Heisenberg N=128"]
-    L3["Level 3 · Kernel fusion<br/>E8–E13 · 4.18× Tier C"]
-    L4["Level 4 · WebRTC swarm<br/>(deferred · distributed 1D chain)"]
-    L5["Level 5 · Hardware cross-verify<br/>(deferred · IBM Heron / Nighthawk)"]
-    L6["Level 6 · Quantum chemistry<br/>E16, E20–E33 · HF → CCSD(T) → EOM-CCSD"]
-
-    L1 --> L2 --> L3
-    L3 -.-> L4 -.-> L5
-    L1 --> L6
-    L6 --> L6X[Tier 1 bundle ✓<br/>Tier 2 stages 1–38 ✓<br/>Tier 3+ open]
-
-    style L1 fill:#0f3a5c,stroke:#22d3ee,color:#e2e8f0
-    style L2 fill:#0f3a5c,stroke:#22d3ee,color:#e2e8f0
-    style L3 fill:#0f3a5c,stroke:#22d3ee,color:#e2e8f0
-    style L4 fill:#1e293b,stroke:#64748b,color:#94a3b8
-    style L5 fill:#1e293b,stroke:#64748b,color:#94a3b8
-    style L6 fill:#1e3a2f,stroke:#34d399,color:#e2e8f0
-    style L6X fill:#1e3a2f,stroke:#34d399,color:#e2e8f0
-```
+<img src="./public/readme-ladder.svg" alt="6-level research ladder: statevector, MPS/DMRG, kernel fusion (shipped foundation), WebRTC swarm, hardware verify (deferred), quantum chemistry (flagship)" width="100%"/>
 
 </div>
-
-<sub>Green = shipped + validated. Blue = shipped (foundation). Grey = deferred (well-scoped, not started).</sub>
 
 <br/>
 
@@ -227,41 +167,19 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 
 ---
 
-<h3 align="center">🧱 &nbsp; Architecture</h3>
+<h3 align="center">🧱 &nbsp; Architecture · URL → silicon</h3>
+
+<div align="center">
+
+<img src="./public/readme-architecture.svg" alt="8-layer architecture stack from URL through dashboard, research harness, chemistry modules, numerical core, WGSL shaders, WebGPU API, down to GPU silicon" width="100%"/>
+
+</div>
+
+<br/>
 
 <table align="center">
 <tr>
-<td valign="top" width="55%">
-
-```
-src/
-  shaders/
-    single-qubit.wgsl   ← 1-q gate · N/2 threads
-    two-qubit.wgsl      ← controlled-U · N/4 threads
-    ccsd-t.wgsl         ← (T) kernel · 1 thread per (i,j,k)
-
-  quantum.ts            ← QuantumCircuit (GPU) + initGPU
-  cpu-reference.ts      ← CpuCircuit (f64 ground truth)
-  circuits.ts           ← bell / ghz / qft / random
-  linalg.ts             ← Jacobi complex SVD, matmul
-  mps.ts                ← MPS class · canonical form · TEBD
-  bench.ts              ← throughput sweep
-
-  manybody/
-    dense-eig-general.ts ← Hessenberg + Wilkinson QR
-                            + back-sub eigenvectors
-
-  chemistry/
-    hf-scf.ts · uhf-scf.ts · mp2.ts · ccsd.ts
-    ccsd-t.ts · ccsd-t-gpu.ts · uccsd.ts
-    eom-ccsd.ts · ip-eom-ccsd.ts · ea-eom-ccsd.ts
-    dft.ts · cis-tda.ts · tddft.ts
-    df.ts · gradients.ts · vibrational.ts · thermo.ts
-    properties.ts · molecule.ts
-```
-
-</td>
-<td valign="top" width="45%">
+<td valign="top" width="50%">
 
 **Research harness** · `experiments/lib/`
 
@@ -271,18 +189,16 @@ src/
 - `fidelity.ts` — `F = |⟨ψ_ref|ψ_test⟩|²`, not max\|Δp\|
 - `stats.ts` — median, p10/p90/p99, IQR
 
+</td>
+<td valign="top" width="50%">
+
 **Discipline (non-negotiable)**
 
-- 5 warmup + 20 trials
-- Pass bar: `F ≥ 1 − 10⁻⁵` (f32 GPU)
+- 5 warmup + 20 trials per measurement
+- Pass bar: `F ≥ 1 − 10⁻⁵` (f32 GPU paths)
 - `std/median > 0.1` → `status: "noisy"`
 - Honest negatives **committed** as JSON with diagnosis
-
-**Quality**
-
-- 401 vitest + 3 e2e Playwright
-- TS strict + `noUncheckedIndexedAccess`
-- ESLint flat config
+- 401 vitest + 3 e2e Playwright · TS strict + `noUncheckedIndexedAccess`
 
 </td>
 </tr>

@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" width="1200" height="500" role="img" aria-label="Capability map: ground state, correlation, excited states, properties, geometry, density fitting, many-body simulation">
+  <defs>
+    <linearGradient id="bgCap" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1224"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <pattern id="dotsCap" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.55" fill="#ffffff" opacity="0.04"/>
+    </pattern>
+    <filter id="cardShCap" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="500" fill="url(#bgCap)"/>
+  <rect width="1200" height="500" fill="url(#dotsCap)"/>
+
+  <g font-family="ui-monospace, monospace">
+
+    <g transform="translate(20 30)">
+      <rect width="285" height="200" rx="10" fill="#0f172a" stroke="#22d3ee" stroke-opacity="0.4" filter="url(#cardShCap)"/>
+      <rect x="0" y="0" width="285" height="6" rx="3" fill="#22d3ee"/>
+      <text x="20" y="42" font-size="11" letter-spacing="0.2em" fill="#22d3ee" font-weight="700">GROUND STATE</text>
+      <text x="20" y="78" font-size="20" font-weight="700" fill="#e2e8f0">HF · DFT · MP2</text>
+      <g font-size="13" fill="#94a3b8">
+        <text x="20" y="118">↳ RHF · UHF · DIIS · sphd</text>
+        <text x="20" y="142">↳ LDA · BVWN5 · BLYP</text>
+        <text x="20" y="166">↳ B3VWN5 · B3LYP5</text>
+        <text x="20" y="190">↳ MP2 · DF-MP2 · Cholesky</text>
+      </g>
+    </g>
+
+    <g transform="translate(315 30)">
+      <rect width="285" height="200" rx="10" fill="#0f172a" stroke="#34d399" stroke-opacity="0.4" filter="url(#cardShCap)"/>
+      <rect x="0" y="0" width="285" height="6" rx="3" fill="#34d399"/>
+      <text x="20" y="42" font-size="11" letter-spacing="0.2em" fill="#34d399" font-weight="700">CORRELATION</text>
+      <text x="20" y="78" font-size="20" font-weight="700" fill="#e2e8f0">CCSD · CCSD(T)</text>
+      <g font-size="13" fill="#94a3b8">
+        <text x="20" y="118">↳ Closed-shell CCSD</text>
+        <text x="20" y="142">↳ Open-shell UCCSD</text>
+        <text x="20" y="166">↳ (T) on CPU + <tspan fill="#34d399" font-weight="700">GPU 39×</tspan></text>
+        <text x="20" y="190">↳ FCI · CASCI · capture &gt; 99%</text>
+      </g>
+    </g>
+
+    <g transform="translate(610 30)">
+      <rect width="285" height="200" rx="10" fill="#0f172a" stroke="#c084fc" stroke-opacity="0.4" filter="url(#cardShCap)"/>
+      <rect x="0" y="0" width="285" height="6" rx="3" fill="#c084fc"/>
+      <text x="20" y="42" font-size="11" letter-spacing="0.2em" fill="#c084fc" font-weight="700">EXCITED STATES</text>
+      <text x="20" y="78" font-size="20" font-weight="700" fill="#e2e8f0">EOM-CCSD · TDDFT</text>
+      <g font-size="13" fill="#94a3b8">
+        <text x="20" y="118">↳ EE-EOM-CCSD <tspan fill="#c084fc" font-weight="700">10⁻⁵ Ha vs FCI</tspan></text>
+        <text x="20" y="142">↳ IP / EA-EOM-CCSD</text>
+        <text x="20" y="166">↳ CIS · TDA · TDDFT (Casida)</text>
+        <text x="20" y="190">↳ oscillator strengths · singlet/triplet</text>
+      </g>
+    </g>
+
+    <g transform="translate(905 30)">
+      <rect width="275" height="200" rx="10" fill="#0f172a" stroke="#fbbf24" stroke-opacity="0.4" filter="url(#cardShCap)"/>
+      <rect x="0" y="0" width="275" height="6" rx="3" fill="#fbbf24"/>
+      <text x="20" y="42" font-size="11" letter-spacing="0.2em" fill="#fbbf24" font-weight="700">PROPERTIES</text>
+      <text x="20" y="78" font-size="20" font-weight="700" fill="#e2e8f0">dipole · α · β</text>
+      <g font-size="13" fill="#94a3b8">
+        <text x="20" y="118">↳ Vib · IR · Raman</text>
+        <text x="20" y="142">↳ Thermo (S-T + RR + HO)</text>
+        <text x="20" y="166">↳ Mulliken · Wiberg · Mayer</text>
+        <text x="20" y="190">↳ Koopmans · ΔSCF · EOM IPs</text>
+      </g>
+    </g>
+
+    <g transform="translate(20 250)">
+      <rect width="375" height="220" rx="10" fill="#0f172a" stroke="#f472b6" stroke-opacity="0.4" filter="url(#cardShCap)"/>
+      <rect x="0" y="0" width="375" height="6" rx="3" fill="#f472b6"/>
+      <text x="20" y="42" font-size="11" letter-spacing="0.2em" fill="#f472b6" font-weight="700">GEOMETRY</text>
+      <text x="20" y="78" font-size="20" font-weight="700" fill="#e2e8f0">Analytical ∇ · BFGS</text>
+      <g font-size="13" fill="#94a3b8">
+        <text x="20" y="118">↳ HF analytical gradients (Pulay 1969)</text>
+        <text x="20" y="142">↳ DFT analytical gradients</text>
+        <text x="20" y="166">↳ L-BFGS optimization</text>
+        <text x="20" y="190">↳ Hessian by finite diff → normal modes</text>
+        <text x="20" y="210" fill="#64748b" font-style="italic">H₂O entropy 45.06 vs expt 45.1 cal/mol·K</text>
+      </g>
+    </g>
+
+    <g transform="translate(405 250)">
+      <rect width="375" height="220" rx="10" fill="#0f172a" stroke="#06b6d4" stroke-opacity="0.4" filter="url(#cardShCap)"/>
+      <rect x="0" y="0" width="375" height="6" rx="3" fill="#06b6d4"/>
+      <text x="20" y="42" font-size="11" letter-spacing="0.2em" fill="#06b6d4" font-weight="700">DENSITY FITTING</text>
+      <text x="20" y="78" font-size="20" font-weight="700" fill="#e2e8f0">Cholesky CD-DF</text>
+      <g font-size="13" fill="#94a3b8">
+        <text x="20" y="118">↳ Pivoted incomplete Cholesky of ERI tensor</text>
+        <text x="20" y="142">↳ Rank-3 B-tensor, threshold-controlled</text>
+        <text x="20" y="166">↳ DF-HF · DF-MP2 wired</text>
+        <text x="20" y="190">↳ <tspan fill="#06b6d4" font-weight="700">7×10⁻¹⁴ Ha</tspan> vs direct HF (machine precision)</text>
+        <text x="20" y="210" fill="#64748b" font-style="italic">aux-basis (μν|P) variant deferred</text>
+      </g>
+    </g>
+
+    <g transform="translate(790 250)">
+      <rect width="390" height="220" rx="10" fill="#0f172a" stroke="#a78bfa" stroke-opacity="0.4" filter="url(#cardShCap)"/>
+      <rect x="0" y="0" width="390" height="6" rx="3" fill="#a78bfa"/>
+      <text x="20" y="42" font-size="11" letter-spacing="0.2em" fill="#a78bfa" font-weight="700">MANY-BODY SIM</text>
+      <text x="20" y="78" font-size="20" font-weight="700" fill="#e2e8f0">statevector · MPS · DMRG</text>
+      <g font-size="13" fill="#94a3b8">
+        <text x="20" y="118">↳ GPU statevector · <tspan fill="#a78bfa" font-weight="700">F ≥ 0.999999</tspan></text>
+        <text x="20" y="142">↳ MPS · canonical TEBD · Jacobi SVD</text>
+        <text x="20" y="166">↳ DMRG + Lanczos + MPO</text>
+        <text x="20" y="190">↳ Kernel fusion · <tspan fill="#a78bfa" font-weight="700">4.18×</tspan> headline</text>
+        <text x="20" y="210" fill="#64748b" font-style="italic">TFIM / Heisenberg N=128 in browser</text>
+      </g>
+    </g>
+  </g>
+</svg>
