@@ -73,13 +73,42 @@ def ch2o_geom():
 
 
 MOLECULES = [
+    {"name": "LiH",  "atom": "Li 0 0 0; H 0 0 1.595"},
+    {"name": "BeH₂", "atom": "Be 0 0 0; H 0 0 -1.34; H 0 0 1.34"},
     {"name": "H₂O",  "atom": h2o_geom()},
     {"name": "NH₃",  "atom": nh3_geom()},
     {"name": "CH₄",  "atom": ch4_geom()},
-    {"name": "BeH₂", "atom": "Be 0 0 0; H 0 0 -1.34; H 0 0 1.34"},
     {"name": "CH₂O", "atom": ch2o_geom()},
     {"name": "HCN",  "atom": "H 0 0 0; C 0 0 1.064; N 0 0 2.220"},
 ]
+
+# Honest scope: webgpu-q's STO-3G Li is "s-only" — just 1s + 2s, missing
+# the 2p L-shell that standard STO-3G includes. See LIMITATIONS.md. For
+# LiH cells to be truly apples-to-apples, we use the matching s-only Li
+# basis (same primitives as src/chemistry/integrals.ts).
+LI_S_ONLY_STO3G_PYSCF = """
+Li    S
+     16.1195750             0.15432897
+      2.9362007              0.53532814
+      0.7946505              0.44463454
+Li    S
+      0.6362897              -0.09996723
+      0.1478601              0.39951283
+      0.0480887              0.70011547
+"""
+
+
+def basis_for(molecule):
+    """Map molecule → PySCF basis spec. Use the matched s-only Li basis
+    when Li is present so LiH EOM comparison is apples-to-apples."""
+    symbols = set()
+    for tok in molecule["atom"].replace(";", " ").split():
+        if tok and tok[0].isalpha() and tok not in ("-", "+"):
+            symbols.add(tok)
+    if "Li" in symbols:
+        return {sym: gto.basis.parse(LI_S_ONLY_STO3G_PYSCF) if sym == "Li" else "sto-3g"
+                for sym in symbols if sym in {"H", "Li", "Be", "C", "N", "O"}}
+    return "sto-3g"
 
 
 def run_one(molecule):
@@ -98,7 +127,7 @@ def run_one(molecule):
         "success": False,
     }
     try:
-        mol = gto.M(atom=molecule["atom"], basis="sto-3g",
+        mol = gto.M(atom=molecule["atom"], basis=basis_for(molecule),
                     unit="Angstrom", symmetry=False, verbose=0)
         mf = scf.RHF(mol)
         mf.conv_tol = SCF_TOL

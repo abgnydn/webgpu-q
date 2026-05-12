@@ -110,6 +110,16 @@ const BEH2_GEOM: Atom[] = [
   { symbol: "H",  pos: [0, 0,  1.34] },
 ];
 
+// LiH — Li s-only STO-3G (our codebase limit; see LIMITATIONS.md).
+// 4 electrons total · NSO = 6 · NOCC_so = 4 · NVIRT_so = 2.
+// R_1 dim = 8, antisym R_2 dim = 6, total EOM dim = 14 — tiny eigsolve.
+// Sits between H₂ (2e⁻, brute-force-exact) and the 6/10-electron set as
+// the simplest multi-electron data point. Honest scaling probe.
+const LIH_GEOM: Atom[] = [
+  { symbol: "Li", pos: [0, 0, 0] },
+  { symbol: "H",  pos: [0, 0, 1.595] },
+];
+
 const MOLECULES: {
   name: string;
   atoms: Atom[];
@@ -119,10 +129,13 @@ const MOLECULES: {
   // would push the EOM-CCSD matrix past dim ~ 2000, where our dense
   // Hessenberg + Wilkinson QR takes 15-30 min per molecule. PySCF
   // reference script keeps those rows for when we wire Davidson.
+  // LiH is ordered first as the smallest multi-electron probe (4e⁻,
+  // EOM dim = 14), bracketing H₂'s 2e⁻ brute-force-exact result.
+  { name: "LiH",  atoms: LIH_GEOM,  nElectrons: 4  },
+  { name: "BeH₂", atoms: BEH2_GEOM, nElectrons: 6  },
   { name: "H₂O",  atoms: H2O_GEOM,  nElectrons: 10 },
   { name: "NH₃",  atoms: NH3_GEOM,  nElectrons: 10 },
   { name: "CH₄",  atoms: CH4_GEOM,  nElectrons: 10 },
-  { name: "BeH₂", atoms: BEH2_GEOM, nElectrons: 6  },
 ];
 
 // Eslint silencer — geometries are exported for future enabling.

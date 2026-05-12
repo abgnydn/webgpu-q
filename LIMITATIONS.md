@@ -127,17 +127,23 @@ will silently truncate large dispatches.
   hardware and ±10% run-to-run.
 - **EOM-CCSD ≡ FCI at 10⁻⁵ Ha** is **algorithmic precision on H₂
   STO-3G only**, where T̂² = 0 makes EOM-CCSD = FCI by construction
-  (2-electron limit). E35 cross-validation against PySCF EOM-CCSD on
-  H₂O / NH₃ / CH₄ / BeH₂ STO-3G surfaced a **~1 eV gap** in
-  excitation energies vs PySCF (max \|Δω\| = 3.92 eV across 20 cells).
-  HF and CCSD energies agree to 10⁻⁷ Ha — the disagreement is
-  isolated to the EOM-CCSD σ-equation step. **The stage 32c diagonal
-  patch is H₂-specific** — for 2-electron systems where higher-order
-  terms vanish, the +0.5·E_corr·R_1 / −E_corr·R_2 shift coincides
-  with the correct correction; for multi-electron systems it
-  overcorrects in the wrong direction. Tier 3 follow-up:
-  re-derive σ-equation intermediates from Stanton-Bartlett, test
-  brute-force on a 4-electron Fock space, possibly revert 32c.
+  (2-electron limit). E35 cross-validation against PySCF EOM-CCSD
+  on LiH / BeH₂ / H₂O / NH₃ / CH₄ STO-3G is more nuanced than the
+  first cut suggested. The gap is **not uniform across spin sectors**:
+  - **Triplet excitations agree well**: LiH lowest triplet matches
+    PySCF to **7 meV**, BeH₂ degenerate triplet matches to 1.3 meV.
+    H₂O / NH₃ / CH₄ triplets show ~0.5–1.0 eV gap (worsening with
+    system size).
+  - **Singlet excitations show a consistent ~2–3 eV gap** across
+    LiH, BeH₂, H₂O, NH₃, CH₄.
+  - **HF + CCSD energies agree to 10⁻⁷ Ha** throughout.
+  This pattern (triplets mostly correct, singlets systematically off)
+  points at **spin-coupling intermediates in the singlet R_2 sector**,
+  not a global σ-matrix bug. Tier 3 follow-up: brute-force on LiH
+  STO-3G (dim 14) to isolate which intermediate is wrong; likely
+  candidates are W̄_mnij ↔ W̄_abef double-direction couplings or the
+  R_2 antisym packing factor in σ_1. Possibly revert 32c if it
+  turns out to be the culprit on multi-electron singlets.
   See `experiments/results/2026-05-12/level-6/E35-comparison.md`.
 - **IP-EOM-CCSD R₂ satellites** have a known **~2 Ha (~60 eV)
   over-count** on H₂ STO-3G. Documented in `ip-eom-ccsd.ts`. Affects

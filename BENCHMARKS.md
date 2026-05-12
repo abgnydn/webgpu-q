@@ -22,7 +22,7 @@ Updated 2026-05.
 | TFIM N = 128 (browser) | many-body L2 | 1 | ✅ shipped (E18) | matches Pfeuty |
 | Heisenberg N = 128 | many-body L2 | 1 | ✅ shipped (E19) | matches Bethe |
 | **GMTKN55** (thermochem + kinetics + noncov) | DFT benchmark | 1505 | 🛣️ Tier 3 queued | the universal DFT bar |
-| **Thiel-style EOM-CCSD cross-validation** (STO-3G subset) | EOM-CCSD vs PySCF | 4 small organics × 5 roots | ✅ shipped (E35) · **surfaced ~1 eV gap** on multi-electron systems | HF + CCSD match to 10⁻⁷ Ha; EOM excitation energies disagree by up to 3.9 eV — Tier 3 σ-equation re-derivation needed |
+| **Thiel-style EOM-CCSD cross-validation** (STO-3G subset) | EOM-CCSD vs PySCF | 5 small organics × 5 roots | ✅ shipped (E35) · **surfaced singlet-sector gap** | HF + CCSD match to 10⁻⁷ Ha. Triplets mostly correct (LiH 7 meV, BeH₂ 1.3 meV); singlets show ~2–3 eV gap. Bug localized to singlet spin-coupling intermediates — Tier 3 brute-force on LiH to isolate. |
 | **Full Thiel / QUEST** (cc-pVTZ benchmark) | EOM / TDDFT | 28 / 472 | 🛣️ Tier 3 queued | blocked on cc-pVDZ → cc-pVTZ basis for C, N, F |
 | **W4-11 / W4-17** (atomization) | high-accuracy thermo | 140 / 200 | 🛣️ Tier 3 queued | sub-kcal/mol thermochem |
 | **S66 / S66x8** (noncovalent) | noncovalent | 66 / 528 | 🛣️ Tier 3 queued | dispersion + H-bond |
