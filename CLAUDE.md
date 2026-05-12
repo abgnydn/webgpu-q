@@ -439,11 +439,31 @@ green (CCSD(T) GPU STO-3G + cc-pVDZ; E33 H₂O UV-vis).
       e.g. Auger ionization): off by ~2 Ha (60 eV) per state
       from a structural σ_2 P(ij)·W_mbej over-count. Different
       bug, different scale; needs separate σ_2 re-derivation.
-    EA-EOM-CCSD likely has the same R_1/R_2 split (EA is exact;
-    "shake-up" satellites have analogous σ_2 bugs), but not yet
-    cross-checked. The IP-EOM H₂ test now locks in the
-    brute-force-validated lowest IP value (0.59856058 Ha) as a
-    regression check; users consuming low IPs are unaffected.
+    The IP-EOM H₂ test now locks in the brute-force-validated
+    lowest IP value (0.59856058 Ha) as a regression check; users
+    consuming low IPs are unaffected.
+  - **EA-EOM-CCSD brute-force diagnostic (stage 32e)**: same
+    cross-check on H₂ STO-3G for EA-EOM (`tests/chemistry/ea-eom-ccsd-bruteforce.test.ts`).
+    Found a cleaner picture than IP-EOM:
+    * R_1 sector (1-particle): matches brute-force EXACTLY.
+    * R_2 sector (1h2p "shake-up" satellites): clean
+      +|E_corr|/2 over-count per state — analogous in structure
+      to EE-EOM's σ_1 issue (but on the σ_2 side this time).
+    The σ_2 patch added to ea-eom-ccsd.ts (mirror of EE stage 32c
+    on σ_2 instead of σ_1) closes the gap. H₂O best EA shifts
+    slightly (−16.37 → −16.35 eV via R_1/R_2 mixing). Brute-force
+    diff post-patch confirms eigenvalues match exactly.
+
+  Summary by manifold (after stages 32b–e):
+  | sector | EE-EOM-CCSD | IP-EOM-CCSD | EA-EOM-CCSD |
+  |--------|-------------|-------------|-------------|
+  | R_1    | +δ shift, **patched** (32c) | exact ✓ | exact ✓ |
+  | R_2    | −2δ shift, **patched** (32c) | +2.3 Ha bug, deferred | +δ shift, **patched** (32e) |
+  Where δ = \|E_corr\|/2. The IP-EOM R_2 σ_2 P(ij)·W_mbej
+  structural over-count (~60 eV on H₂) is the only remaining
+  known issue in the EOM-CCSD stack and is documented in
+  `ip-eom-ccsd.ts`; affects R_2-dominated "Auger satellite"
+  states only, not the physical lowest IPs.
 - DF-HF/DF-MP2 machine-precision matches are validated **on
   STO-3G** (H₂O, BeH₂). cc-pVDZ DF behavior is *expected* to be
   equally clean but is not separately tested.
