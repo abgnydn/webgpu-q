@@ -138,13 +138,13 @@ No install. No backend. No CUDA. Open a URL and get HF · UHF · DFT · MP2 · C
 ```mermaid
 %%{init: {'theme':'dark', 'themeVariables': {'primaryColor':'#1e1b4b','primaryTextColor':'#e2e8f0','primaryBorderColor':'#7c3aed','lineColor':'#64748b','fontFamily':'ui-monospace, monospace'}}}%%
 graph LR
-    A[<b>Ground state</b><br/>HF · UHF · DIIS<br/>DFT LDA/GGA/hybrid<br/>MP2 · DF-MP2]
-    B[<b>Correlation</b><br/>CCSD closed+open<br/>CCSD(T) CPU+GPU<br/>FCI · CASCI]
-    C[<b>Excited states</b><br/>CIS · TDA · TDDFT<br/>EE-EOM-CCSD<br/>IP/EA-EOM-CCSD]
-    D[<b>Properties</b><br/>dipole · α · β<br/>IR · Raman · thermo<br/>Mulliken · Wiberg]
-    E[<b>Geometry</b><br/>analytical ∇<br/>BFGS opt<br/>vib analysis]
-    F[<b>Density fitting</b><br/>Cholesky CD-DF<br/>DF-HF · DF-MP2<br/>7e-14 Ha gap]
-    G[<b>Many-body sim</b><br/>statevector<br/>MPS · TEBD · DMRG<br/>kernel fusion]
+    A["<b>Ground state</b><br/>HF · UHF · DIIS<br/>DFT LDA/GGA/hybrid<br/>MP2 · DF-MP2"]
+    B["<b>Correlation</b><br/>CCSD closed+open<br/>CCSD(T) CPU+GPU<br/>FCI · CASCI"]
+    C["<b>Excited states</b><br/>CIS · TDA · TDDFT<br/>EE-EOM-CCSD<br/>IP/EA-EOM-CCSD"]
+    D["<b>Properties</b><br/>dipole · α · β<br/>IR · Raman · thermo<br/>Mulliken · Wiberg"]
+    E["<b>Geometry</b><br/>analytical ∇<br/>BFGS opt<br/>vib analysis"]
+    F["<b>Density fitting</b><br/>Cholesky CD-DF<br/>DF-HF · DF-MP2<br/>7e-14 Ha gap"]
+    G["<b>Many-body sim</b><br/>statevector<br/>MPS · TEBD · DMRG<br/>kernel fusion"]
 
     A --> B --> C
     A --> D
