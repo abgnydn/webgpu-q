@@ -414,7 +414,8 @@ Contributor Covenant 2.1. Report concerns to [abgunaydin94@gmail.com](mailto:abg
 | `LOSS_MP2_H2O_CCPVDZ` | **136× slower** | E34 vs PySCF 2.13.0 · BLAS gap |
 | `E34_ENERGY_MAX_DELTA` | **1.0×10⁻⁴ Ha** | max &#124;ΔE&#124; vs PySCF over 19 cells · below chemical accuracy |
 | `E34_ENERGY_MEAN_DELTA` | **8.1×10⁻⁶ Ha** | mean &#124;ΔE&#124; vs PySCF over 19 cells |
-| `EOM_CCSD_PRECISION` | **10⁻⁵ Ha** | H₂ STO-3G · post-32c patch |
+| `EOM_CCSD_PRECISION` | **10⁻⁵ Ha** | H₂ STO-3G · post-32c patch · 2-electron only |
+| `EOM_CCSD_MULTI_ELECTRON_GAP` | **up to 3.92 eV** | E35 vs PySCF on H₂O/NH₃/CH₄/BeH₂ · σ-equation re-derivation needed |
 | `IP_EOM_H2O` | **12.03 eV** | expt 12.62 |
 | `EA_EOM_H2O` | **−16.37 eV** | STO-3G (unbound) |
 | `DF_HF_PRECISION` | **7×10⁻¹⁴ Ha** | H₂O STO-3G |

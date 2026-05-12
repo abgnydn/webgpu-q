@@ -110,7 +110,7 @@ will silently truncate large dispatches.
 | ccData / QC-Schema compatibility | Output not consumable by external tooling | Tier 3 |
 | FAIR / Zenodo DOIs per release | Citations point at GitHub tag, not DOI | Tier 3 — set up CI workflow |
 | Aux-basis density fitting | We have CD-DF but not JKFIT / RIFIT integral path | Tier 3 — needs 3-index ERI routine |
-| Davidson / Krylov eigensolver | OK for n_occ·n_virt ≤ ~500; dense above | Tier 3 |
+| Davidson / Krylov eigensolver | OK for n_occ·n_virt ≤ ~500; dense above. Measured 2026-05: EOM-CCSD on CH₂O / HCN at STO-3G (dim 3488 / 2660) takes 15-30 min per molecule on M2 Pro because the Hessenberg + Wilkinson QR is dense. Davidson would make these ~minutes. | Tier 3 · high impact |
 | Multi-node parallel | One tab, one GPU | Tier 4 — substrate is Phase D WebRTC |
 | Periodic boundary conditions | No solids, no surfaces | Tier 4 |
 | Spin-orbit coupling / X2C / DKH | No heavy elements | Tier 4 |
@@ -125,11 +125,20 @@ will silently truncate large dispatches.
   through the warmup+20-trials harness. The correctness (|Δ| = 2.4×10⁻¹⁰
   Ha) is reproducible; the specific 39.3× number is ±20% on different
   hardware and ±10% run-to-run.
-- **EOM-CCSD ≡ FCI at 10⁻⁵ Ha** is **algorithmic precision** on H₂
-  STO-3G (the only system small enough to brute-force a reference).
-  EOM-CCSD literature accuracy vs FCI on real singlet excitations is
-  **0.1–0.2 eV (~3.7–7.4 mHa)**, dominated by missing R₃ / R₄
-  excitations in the operator. That's a method limitation, not ours.
+- **EOM-CCSD ≡ FCI at 10⁻⁵ Ha** is **algorithmic precision on H₂
+  STO-3G only**, where T̂² = 0 makes EOM-CCSD = FCI by construction
+  (2-electron limit). E35 cross-validation against PySCF EOM-CCSD on
+  H₂O / NH₃ / CH₄ / BeH₂ STO-3G surfaced a **~1 eV gap** in
+  excitation energies vs PySCF (max \|Δω\| = 3.92 eV across 20 cells).
+  HF and CCSD energies agree to 10⁻⁷ Ha — the disagreement is
+  isolated to the EOM-CCSD σ-equation step. **The stage 32c diagonal
+  patch is H₂-specific** — for 2-electron systems where higher-order
+  terms vanish, the +0.5·E_corr·R_1 / −E_corr·R_2 shift coincides
+  with the correct correction; for multi-electron systems it
+  overcorrects in the wrong direction. Tier 3 follow-up:
+  re-derive σ-equation intermediates from Stanton-Bartlett, test
+  brute-force on a 4-electron Fock space, possibly revert 32c.
+  See `experiments/results/2026-05-12/level-6/E35-comparison.md`.
 - **IP-EOM-CCSD R₂ satellites** have a known **~2 Ha (~60 eV)
   over-count** on H₂ STO-3G. Documented in `ip-eom-ccsd.ts`. Affects
   R₂-dominated Auger / shake-up states only; physical lowest IPs are
