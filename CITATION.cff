@@ -1,0 +1,49 @@
+cff-version: 1.2.0
+message: "If you use webgpu-q in academic work, please cite as below."
+type: software
+title: "webgpu-q: Browser-native quantum chemistry and many-body simulation via WebGPU"
+authors:
+  - family-names: Günaydın
+    given-names: Ahmet Barış
+    email: abgunaydin94@gmail.com
+    affiliation: Independent researcher
+repository-code: "https://github.com/abgnydn/webgpu-q"
+url: "https://webgpu-q.vercel.app"
+license: MIT
+version: 0.4.0
+date-released: 2026-05-12
+keywords:
+  - WebGPU
+  - quantum chemistry
+  - coupled cluster
+  - CCSD(T)
+  - EOM-CCSD
+  - density functional theory
+  - density fitting
+  - matrix product states
+  - DMRG
+  - kernel fusion
+  - in-browser computation
+  - reproducible research
+abstract: >-
+  webgpu-q is a research-grade quantum chemistry and many-body physics
+  engine that runs entirely in a web browser via the WebGPU compute
+  API. Methods include RHF/UHF/DFT/MP2/CCSD/UCCSD/CCSD(T), Cholesky
+  density fitting (DF-HF, DF-MP2), and EE/IP/EA-EOM-CCSD for excited
+  states / ionization / electron attachment. CCSD(T) on H2O cc-pVDZ
+  is accelerated 39.3× via a WGSL compute kernel. The Stanton-Bartlett
+  σ-equation implementation of EOM-CCSD is validated against
+  brute-force projection of H̄ = e^(-T̂) H e^(T̂) in the full Fock
+  space on H2 STO-3G to 10⁻⁵ Ha. Many-body sector covers GPU
+  statevector simulation (F ≥ 0.999999 vs CPU), MPS / DMRG with
+  Lanczos and MPO (N = 128 TFIM/Heisenberg in browser), and kernel
+  fusion (4.18× headline).
+preferred-citation:
+  type: software
+  title: "webgpu-q v0.4.0"
+  authors:
+    - family-names: Günaydın
+      given-names: Ahmet Barış
+  year: 2026
+  version: 0.4.0
+  url: "https://github.com/abgnydn/webgpu-q"

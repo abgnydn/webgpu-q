@@ -306,6 +306,65 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 
 ---
 
+<h3 align="center">🔬 &nbsp; For researchers</h3>
+
+<table align="center">
+<tr>
+<td valign="top" width="33%">
+
+**📖 How to cite**
+
+See [`CITATION.cff`](./CITATION.cff). For papers:
+
+> Günaydın, A.B. (2026). _webgpu-q v0.4.0_. https://github.com/abgnydn/webgpu-q
+
+A Zenodo DOI will be minted on the next versioned release.
+
+</td>
+<td valign="top" width="33%">
+
+**⚠️ [Limitations](./LIMITATIONS.md)**
+
+Honest, single-page list of what we **cannot** do, what is **untested**, and what is **known broken** — system size ceilings, browser/vendor matrix, SCF failure modes, missing output formats, precision disclosures.
+
+</td>
+<td valign="top" width="33%">
+
+**📊 [Benchmarks queue](./BENCHMARKS.md)**
+
+Standardized sets we've run vs. queued: GMTKN55, Thiel/QUEST, W4-11, S66, HEAT-345, SIE4x4, wall-clock vs PySCF / gpu4pyscf, cross-vendor parity.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+**🛠️ [Contributing](./CONTRIBUTING.md)**
+
+Quick start, validation discipline (5 warmup + 20 trials, fidelity pass bar, honest negatives committed), PR checklist, what's most valuable.
+
+</td>
+<td valign="top">
+
+**📐 [Modern standards audit](./CLAUDE.md#modern-reference-standards-audited-2026-05)**
+
+Every claim mapped to current literature — GMTKN55 functional rankings, EOM-CCSD literature accuracy bars, chemical accuracy bar (1 kcal/mol = 1.594 mHa), AFQMC beyond-CCSD(T), WebGPU subgroups status.
+
+</td>
+<td valign="top">
+
+**🤝 [Code of conduct](./CODE_OF_CONDUCT.md)**
+
+Contributor Covenant 2.1. Report concerns to [abgunaydin94@gmail.com](mailto:abgunaydin94@gmail.com).
+
+</td>
+</tr>
+</table>
+
+<br/>
+
+---
+
 <h3 align="center">🌐 &nbsp; Companion projects</h3>
 
 <table align="center">
