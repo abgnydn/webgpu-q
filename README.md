@@ -100,11 +100,13 @@ No install. No backend. No CUDA. Open a URL and get HF · UHF · DFT · MP2 · C
 
 ---
 
-<h3 align="center">🆚 &nbsp; How it stacks up</h3>
+<h3 align="center">🆚 &nbsp; Completeness scorecard</h3>
+
+<p align="center"><sub>Every method PySCF / ORCA / Psi4 ship, our status against it, and the roadmap tier for every gap.<br/>No "we don't do that" — every missing capability has a planned slot.</sub></p>
 
 <div align="center">
 
-<img src="./public/readme-matrix.svg" alt="Capability matrix: webgpu-q vs PySCF, ORCA, Psi4" width="100%"/>
+<img src="./public/readme-matrix.svg" alt="Completeness scorecard: 50+ methods across 12 sections (mean field, correlation, multireference, excited states, properties, geometry, basis, solvent, acceleration, relativistic, periodic, platform) with shipped/Tier 3/Tier 4/out-of-scope status per row" width="100%"/>
 
 </div>
 

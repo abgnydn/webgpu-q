@@ -29,66 +29,66 @@
   <g font-family="ui-monospace, monospace">
 
     <g transform="translate(40 100)">
-      <rect width="900" height="58" rx="6" fill="url(#L1)" filter="url(#layerShadow)"/>
+      <rect width="1120" height="58" rx="6" fill="url(#L1)" filter="url(#layerShadow)"/>
       <text x="24" y="24" font-size="10" letter-spacing="0.2em" fill="#fae8ff" font-weight="700">LAYER 1 · USER ENTRY</text>
       <text x="24" y="48" font-size="18" font-weight="700" fill="#ffffff">https://webgpu-q.vercel.app</text>
-      <text x="950" y="32" font-size="13" fill="#94a3b8" font-style="italic">→ bookmark, share, embed</text>
-      <text x="950" y="50" font-size="12" fill="#64748b">no install · no backend · no CUDA</text>
+      <text x="1096" y="32" font-size="13" font-style="italic" fill="#fae8ff" text-anchor="end" opacity="0.95">bookmark · share · embed</text>
+      <text x="1096" y="50" font-size="11" fill="#fae8ff" text-anchor="end" opacity="0.75">no install · no backend · no CUDA</text>
     </g>
 
     <g transform="translate(40 168)">
-      <rect width="900" height="58" rx="6" fill="url(#L2)" filter="url(#layerShadow)"/>
+      <rect width="1120" height="58" rx="6" fill="url(#L2)" filter="url(#layerShadow)"/>
       <text x="24" y="24" font-size="10" letter-spacing="0.2em" fill="#ede9fe" font-weight="700">LAYER 2 · FRONTEND</text>
       <text x="24" y="48" font-size="16" font-weight="700" fill="#ffffff">/index · /molecule.html · /experiments/ · /viz.html</text>
-      <text x="950" y="32" font-size="13" fill="#94a3b8" font-style="italic">→ Vite + TS · zero framework</text>
-      <text x="950" y="50" font-size="12" fill="#64748b">landing · SI report · research dash · 4D viz</text>
+      <text x="1096" y="32" font-size="13" font-style="italic" fill="#ede9fe" text-anchor="end" opacity="0.95">Vite + TypeScript · zero framework</text>
+      <text x="1096" y="50" font-size="11" fill="#ede9fe" text-anchor="end" opacity="0.75">landing · SI report · research dash · 4D viz</text>
     </g>
 
     <g transform="translate(40 236)">
-      <rect width="900" height="58" rx="6" fill="url(#L3)" filter="url(#layerShadow)"/>
+      <rect width="1120" height="58" rx="6" fill="url(#L3)" filter="url(#layerShadow)"/>
       <text x="24" y="24" font-size="10" letter-spacing="0.2em" fill="#e0e7ff" font-weight="700">LAYER 3 · RESEARCH HARNESS</text>
       <text x="24" y="48" font-size="16" font-weight="700" fill="#ffffff">experiments/lib/ · runner · seeds · env · fidelity · stats</text>
-      <text x="950" y="32" font-size="13" fill="#94a3b8" font-style="italic">→ E1 – E33 · JSON artifacts</text>
-      <text x="950" y="50" font-size="12" fill="#64748b">5 warmup · 20 trials · |⟨ψ|ψ'⟩|² pass bar</text>
+      <text x="1096" y="32" font-size="13" font-style="italic" fill="#e0e7ff" text-anchor="end" opacity="0.95">E1 – E33 · JSON artifacts</text>
+      <text x="1096" y="50" font-size="11" fill="#e0e7ff" text-anchor="end" opacity="0.75">5 warmup · 20 trials · |⟨ψ|ψ'⟩|² pass bar</text>
     </g>
 
     <g transform="translate(40 304)">
-      <rect width="900" height="58" rx="6" fill="url(#L4)" filter="url(#layerShadow)"/>
+      <rect width="1120" height="58" rx="6" fill="url(#L4)" filter="url(#layerShadow)"/>
       <text x="24" y="24" font-size="10" letter-spacing="0.2em" fill="#cffafe" font-weight="700">LAYER 4 · CHEMISTRY + MANY-BODY</text>
-      <text x="24" y="48" font-size="14" font-weight="700" fill="#ffffff">hf-scf · uhf-scf · ccsd · ccsd-t · eom-ccsd · uccsd · dft · cis · tddft · df · gradients · mps · dmrg</text>
-      <text x="950" y="32" font-size="13" fill="#94a3b8" font-style="italic">→ src/chemistry · src/manybody</text>
-      <text x="950" y="50" font-size="12" fill="#64748b">TS strict · noUncheckedIndexedAccess</text>
+      <text x="24" y="48" font-size="13" font-weight="700" fill="#ffffff">hf · uhf · ccsd · ccsd-t · eom-ccsd · uccsd · dft · cis · tddft · df · gradients · mps · dmrg</text>
+      <text x="1096" y="32" font-size="13" font-style="italic" fill="#cffafe" text-anchor="end" opacity="0.95">src/chemistry · src/manybody</text>
+      <text x="1096" y="50" font-size="11" fill="#cffafe" text-anchor="end" opacity="0.75">TS strict · noUncheckedIndexedAccess</text>
     </g>
 
     <g transform="translate(40 372)">
-      <rect width="900" height="58" rx="6" fill="url(#L5)" filter="url(#layerShadow)"/>
+      <rect width="1120" height="58" rx="6" fill="url(#L5)" filter="url(#layerShadow)"/>
       <text x="24" y="24" font-size="10" letter-spacing="0.2em" fill="#d1fae5" font-weight="700">LAYER 5 · NUMERICAL CORE</text>
-      <text x="24" y="48" font-size="16" font-weight="700" fill="#ffffff">linalg · Jacobi complex SVD · Hessenberg + Wilkinson QR · back-sub eigenvectors</text>
-      <text x="950" y="32" font-size="13" fill="#94a3b8" font-style="italic">→ src/linalg · src/manybody</text>
-      <text x="950" y="50" font-size="12" fill="#64748b">non-symmetric eigsolver powers EOM-CCSD</text>
+      <text x="24" y="48" font-size="15" font-weight="700" fill="#ffffff">linalg · Jacobi complex SVD · Hessenberg + Wilkinson QR · back-sub eigenvectors</text>
+      <text x="1096" y="32" font-size="13" font-style="italic" fill="#d1fae5" text-anchor="end" opacity="0.95">src/linalg · src/manybody</text>
+      <text x="1096" y="50" font-size="11" fill="#d1fae5" text-anchor="end" opacity="0.75">non-symmetric eigsolver powers EOM</text>
     </g>
 
     <g transform="translate(40 440)">
-      <rect width="900" height="58" rx="6" fill="url(#L6)" filter="url(#layerShadow)"/>
+      <rect width="1120" height="58" rx="6" fill="url(#L6)" filter="url(#layerShadow)"/>
       <text x="24" y="24" font-size="10" letter-spacing="0.2em" fill="#fef3c7" font-weight="700">LAYER 6 · WGSL SHADERS</text>
       <text x="24" y="48" font-size="16" font-weight="700" fill="#1f1300">single-qubit.wgsl · two-qubit.wgsl · ccsd-t.wgsl</text>
-      <text x="950" y="32" font-size="13" fill="#94a3b8" font-style="italic">→ 1 thread per (i,j,k) triple</text>
-      <text x="950" y="50" font-size="12" fill="#64748b">f32 storage · f64 CPU reduce</text>
+      <text x="1096" y="32" font-size="13" font-style="italic" fill="#451a03" text-anchor="end" opacity="0.85">1 thread per (i, j, k) triple</text>
+      <text x="1096" y="50" font-size="11" fill="#451a03" text-anchor="end" opacity="0.65">f32 storage · f64 CPU reduce</text>
     </g>
 
     <g transform="translate(40 508)">
-      <rect width="900" height="58" rx="6" fill="url(#L7)" filter="url(#layerShadow)"/>
+      <rect width="1120" height="58" rx="6" fill="url(#L7)" filter="url(#layerShadow)"/>
       <text x="24" y="24" font-size="10" letter-spacing="0.2em" fill="#ffedd5" font-weight="700">LAYER 7 · WEBGPU API</text>
-      <text x="24" y="48" font-size="16" font-weight="700" fill="#ffffff">requestAdapter · createBuffer · compute pipeline · bind groups · queue.submit + sync</text>
-      <text x="950" y="32" font-size="13" fill="#94a3b8" font-style="italic">→ requiredLimits explicitly raised</text>
-      <text x="950" y="50" font-size="12" fill="#64748b">maxBufferSize · maxStorageBufferBindingSize</text>
+      <text x="24" y="48" font-size="15" font-weight="700" fill="#ffffff">requestAdapter · createBuffer · compute pipeline · bind groups · queue.submit + sync</text>
+      <text x="1096" y="32" font-size="13" font-style="italic" fill="#ffedd5" text-anchor="end" opacity="0.95">requiredLimits raised explicitly</text>
+      <text x="1096" y="50" font-size="11" fill="#ffedd5" text-anchor="end" opacity="0.75">maxBufferSize · maxStorageBufferBinding</text>
     </g>
 
     <g transform="translate(40 576)">
-      <rect width="900" height="36" rx="6" fill="url(#L8)" filter="url(#layerShadow)"/>
+      <rect width="1120" height="36" rx="6" fill="url(#L8)" filter="url(#layerShadow)"/>
       <text x="24" y="16" font-size="9" letter-spacing="0.2em" fill="#fee2e2" font-weight="700">LAYER 8 · SILICON</text>
       <text x="24" y="30" font-size="13" font-weight="700" fill="#ffffff">Apple M-series · NVIDIA · AMD · Intel · whatever the browser brings</text>
-      <text x="950" y="24" font-size="11" fill="#64748b" font-style="italic">→ tested on M2 Pro</text>
+      <text x="1096" y="24" font-size="11" font-style="italic" fill="#fee2e2" text-anchor="end" opacity="0.85">tested on M2 Pro</text>
     </g>
   </g>
 </svg>
