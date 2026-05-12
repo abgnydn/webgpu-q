@@ -41,6 +41,19 @@ reviewer or chemist would discover anyway.
 - **Single-tab heap ceiling** of ~4 GB on Chrome desktop. JavaScript-side
   arrays for ERIs at large basis hit this before WebGPU does.
 
+### Basis-set atom coverage
+
+| basis | atoms wired |
+|---|---|
+| STO-3G | H, Li, Be, C, N, O |
+| 6-31G* | H, C, N, O (spot-checked) |
+| **cc-pVDZ** | **H, O only** (Phase E v2 limit; everything else throws) |
+| **aug-cc-pVDZ** | **H, O only** |
+
+Tier 3 follow-up: port the EMSL Basis Set Exchange tables for Li, Be,
+C, N, F into cc-pVDZ / aug-cc-pVDZ so LiH / BeH₂ / CH₄ / formaldehyde
+become first-class cc-pVDZ targets.
+
 ---
 
 ## 2. Browser / GPU vendor matrix

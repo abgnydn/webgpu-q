@@ -30,7 +30,7 @@ Updated 2026-05.
 | **Schreiber** (vertical excitations) | TDDFT / EOM benchmark | 28 | 🛣️ Tier 3 queued | smaller than Thiel, faster |
 | MP2-F12 / CCSD(T)-F12 vs CBS | basis-set convergence | various | 🛣️ Tier 3 queued | needs F12 implementation |
 | Cross-vendor parity | GPU vendor matrix | n/a | 🛣️ Tier 3 queued | NVIDIA / AMD / Intel / Apple |
-| **Wall-clock vs PySCF / gpu4pyscf** | head-to-head timing | 5–10 mol | 🛣️ Tier 3 queued | the "is it actually fast" question |
+| **Wall-clock vs PySCF / gpu4pyscf** | head-to-head timing | 4 mol × 2 basis | 🟡 infrastructure shipped (E34) · awaiting PySCF run | the "is it actually fast" question |
 
 ✅ shipped · 🛣️ Tier 3 · ⏳ Tier 4
 
@@ -78,18 +78,38 @@ input through identical code on:
 Report HF, CCSD, CCSD(T) numbers + wall-clock. Pass = all match to
 1×10⁻⁹ Ha; performance is informational.
 
-### Wall-clock vs PySCF / gpu4pyscf
-Most reviewer-asked question we don't currently answer. Take 5
-reference molecules, run identical inputs (same basis, same SCF
-threshold, same convergence criteria) through:
-- PySCF 2.13 (CPU)
-- PySCF 2.13 + gpu4pyscf (CUDA)
-- webgpu-q (WebGPU)
+### Wall-clock vs PySCF / gpu4pyscf  · 🟡 INFRASTRUCTURE SHIPPED (E34)
 
-Report wall-clock seconds for HF, MP2, CCSD, CCSD(T), DFT-B3LYP.
-**Honest expectation:** PySCF is faster on CPU due to BLAS, gpu4pyscf
+Reviewer's #1 question. **Infrastructure is now in place**:
+
+- `experiments/level-6-chemistry/E34-wallclock-vs-pyscf.ts` runs the
+  webgpu-q side (4 molecules × 2 basis × 5 methods) and emits a JSON
+  artifact via the standard research-grade harness (named seed, env
+  capture, full SCF / CCSD / (T) pipeline, identical thresholds).
+- `scripts/run-pyscf-reference.py` runs the PySCF side with **matching
+  JSON schema** so the two can be merged offline.
+- `e2e/wallclock-vs-pyscf.spec.ts` runs E34 in headless WebGPU
+  Chromium on every CI pass.
+
+**To complete the comparison** (once PySCF env is available):
+
+```bash
+# webgpu-q side (runs in CI automatically):
+npm run test:e2e -- wallclock-vs-pyscf
+
+# PySCF side (run locally / on a server with Python):
+pip install pyscf==2.13.0
+python3 scripts/run-pyscf-reference.py --out experiments/results/<date>/level-6/E34-pyscf.json
+
+# Optionally: gpu4pyscf side for GPU vs WebGPU
+pip install gpu4pyscf-cuda12x
+# (modify run-pyscf-reference.py to use df.RHF(mol).to_gpu(), etc.)
+```
+
+Honest expectation: PySCF is faster on CPU due to BLAS, gpu4pyscf
 is faster on big systems due to cuBLAS; we win on small systems
-because we have zero startup / JIT cost, and on "no-install" UX.
+because we have zero startup / JIT cost, and on "no-install" UX
+plus the cc-pVDZ CCSD(T) WGSL kernel.
 
 ---
 

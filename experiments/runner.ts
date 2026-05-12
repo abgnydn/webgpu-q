@@ -13,6 +13,7 @@ import { runLevel3, wireRunLevel3Button } from "./level-3-fusion/run-all.js";
 import { runLevel6, wireRunLevel6Button } from "./level-6-chemistry/run-all.js";
 import { runE32 } from "./level-6-chemistry/E32-ccsdt-gpu.js";
 import { runE33 } from "./level-6-chemistry/E33-h2o-uvvis.js";
+import { runE34 } from "./level-6-chemistry/E34-wallclock-vs-pyscf.js";
 
 wireRunAllButton();
 wireRunLevel2Button();
@@ -28,6 +29,7 @@ declare global {
       runLevel6: typeof runLevel6;
       runE32: typeof runE32;
       runE33: typeof runE33;
+      runE34: typeof runE34;
       ready: true;
     };
   }
@@ -40,5 +42,6 @@ window.__webgpuq = {
   runLevel6,
   runE32,
   runE33,
+  runE34,
   ready: true,
 };

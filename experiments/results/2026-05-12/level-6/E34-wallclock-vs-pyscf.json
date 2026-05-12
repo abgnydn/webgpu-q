@@ -1,0 +1,366 @@
+{
+  "meta": {
+    "protocol": "E34-wallclock-vs-pyscf",
+    "hypothesis": "Generates webgpu-q side of an apples-to-apples wall-clock and energy comparison vs PySCF on 4 small molecules × 2 basis sets × {HF, MP2, CCSD, CCSD(T) CPU, CCSD(T) GPU}. PySCF reference produced separately via scripts/run-pyscf-reference.py with matching schema.",
+    "passBar": "Every method on every (molecule, basis) cell either converges OR is explicitly skipped. Performance numbers are informational, not pass/fail.",
+    "seed": "E34_WALLCLOCK",
+    "warmup": 0,
+    "trials": 1
+  },
+  "env": {
+    "gitSha": "7d1ff136f3e8",
+    "timestamp": "2026-05-12T12:07:51.675Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "platform": "Win32",
+    "adapter": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "limits": {
+      "maxBufferSize": 4294967292,
+      "maxStorageBufferBindingSize": 4294967292,
+      "maxComputeWorkgroupsPerDimension": 65535,
+      "maxComputeInvocationsPerWorkgroup": 256,
+      "maxComputeWorkgroupStorageSize": 32768
+    },
+    "hardwareConcurrency": 12,
+    "devicePixelRatio": 1
+  },
+  "rows": [
+    {
+      "molecule": "H₂",
+      "basis": "sto-3g",
+      "method": "HF",
+      "seconds": 0.0003000000044703484,
+      "energy_Ha": -1.1166842875436689,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "sto-3g",
+      "method": "MP2",
+      "seconds": 0.00009999999403953553,
+      "energy_Ha": -1.1298550618158887,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "sto-3g",
+      "method": "CCSD",
+      "seconds": 0.003200000002980232,
+      "energy_Ha": -1.1372700935779303,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0,
+      "energy_Ha": -1.1372700935779303,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0.00009999999403953553,
+      "energy_Ha": -1.1372700935779303,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "cc-pvdz",
+      "method": "HF",
+      "seconds": 0.0025,
+      "energy_Ha": -1.128720067027403,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "cc-pvdz",
+      "method": "MP2",
+      "seconds": 0.007100000001490116,
+      "energy_Ha": -1.155103278981568,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "cc-pvdz",
+      "method": "CCSD",
+      "seconds": 0.08960000000149011,
+      "energy_Ha": -1.1634177014361644,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0,
+      "energy_Ha": -1.1634177014361644,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0,
+      "energy_Ha": -1.1634177014361644,
+      "success": true
+    },
+    {
+      "molecule": "LiH",
+      "basis": "sto-3g",
+      "method": "HF",
+      "seconds": 0.00019999999552965163,
+      "energy_Ha": -7.80424255601042,
+      "success": true
+    },
+    {
+      "molecule": "LiH",
+      "basis": "sto-3g",
+      "method": "MP2",
+      "seconds": 0,
+      "energy_Ha": -7.826157667304016,
+      "success": true
+    },
+    {
+      "molecule": "LiH",
+      "basis": "sto-3g",
+      "method": "CCSD",
+      "seconds": 0.0007999999970197678,
+      "energy_Ha": -7.843394187625011,
+      "success": true
+    },
+    {
+      "molecule": "LiH",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0,
+      "energy_Ha": -7.843394187625011,
+      "success": true
+    },
+    {
+      "molecule": "LiH",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0,
+      "energy_Ha": -7.843394187625011,
+      "success": true
+    },
+    {
+      "molecule": "LiH",
+      "basis": "cc-pvdz",
+      "method": "HF",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "skipped — cc-pVDZ basis only wired for H and O (see LIMITATIONS.md)"
+    },
+    {
+      "molecule": "LiH",
+      "basis": "cc-pvdz",
+      "method": "MP2",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "skipped — cc-pVDZ basis only wired for H and O (see LIMITATIONS.md)"
+    },
+    {
+      "molecule": "LiH",
+      "basis": "cc-pvdz",
+      "method": "CCSD",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "skipped — cc-pVDZ basis only wired for H and O (see LIMITATIONS.md)"
+    },
+    {
+      "molecule": "LiH",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "skipped — cc-pVDZ basis only wired for H and O (see LIMITATIONS.md)"
+    },
+    {
+      "molecule": "LiH",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "skipped — cc-pVDZ basis only wired for H and O (see LIMITATIONS.md)"
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "sto-3g",
+      "method": "HF",
+      "seconds": 0.0003999999985098839,
+      "energy_Ha": -15.55940528046258,
+      "success": true
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "sto-3g",
+      "method": "MP2",
+      "seconds": 0.00010000000149011611,
+      "energy_Ha": -15.582893277557996,
+      "success": true
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "sto-3g",
+      "method": "CCSD",
+      "seconds": 0.07429999999701976,
+      "energy_Ha": -15.594456146669165,
+      "success": true
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0.041700000002980235,
+      "energy_Ha": -15.594636065230771,
+      "success": true
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0.032700000002980234,
+      "energy_Ha": -15.594636065234866,
+      "success": true
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "cc-pvdz",
+      "method": "HF",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "skipped — cc-pVDZ basis only wired for H and O (see LIMITATIONS.md)"
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "cc-pvdz",
+      "method": "MP2",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "skipped — cc-pVDZ basis only wired for H and O (see LIMITATIONS.md)"
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "cc-pvdz",
+      "method": "CCSD",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "skipped — cc-pVDZ basis only wired for H and O (see LIMITATIONS.md)"
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "skipped — cc-pVDZ basis only wired for H and O (see LIMITATIONS.md)"
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "skipped — cc-pVDZ basis only wired for H and O (see LIMITATIONS.md)"
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "sto-3g",
+      "method": "HF",
+      "seconds": 0.001600000001490116,
+      "energy_Ha": -74.96292755121948,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "sto-3g",
+      "method": "MP2",
+      "seconds": 0.0022999999970197676,
+      "energy_Ha": -74.99842019787654,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "sto-3g",
+      "method": "CCSD",
+      "seconds": 0.07410000000149011,
+      "energy_Ha": -75.01228662440352,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0.07669999999552965,
+      "energy_Ha": -75.01245414240363,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0.007100000001490116,
+      "energy_Ha": -75.01245414240246,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "cc-pvdz",
+      "method": "HF",
+      "seconds": 0.025100000001490118,
+      "energy_Ha": -76.0268004940429,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "cc-pvdz",
+      "method": "MP2",
+      "seconds": 0.0955,
+      "energy_Ha": -76.23076007209134,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "cc-pvdz",
+      "method": "CCSD",
+      "seconds": 41.6415,
+      "energy_Ha": -76.24008378350112,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "skipped — CPU (T) at cc-pVDZ is minutes; GPU only"
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-GPU",
+      "seconds": 4.2275,
+      "energy_Ha": -76.24399175887478,
+      "success": true
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "Generated 40 timing/energy rows. To complete the comparison, run scripts/run-pyscf-reference.py with PySCF 2.13 and merge the resulting JSON with this artifact (matching schema)."
+}
