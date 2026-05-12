@@ -86,15 +86,17 @@ No install. No backend. No CUDA. Open a URL and get HF · UHF · DFT · MP2 · C
 
 ---
 
-<h3 align="center">⚡ &nbsp; How fast</h3>
+<h3 align="center">⚡ &nbsp; How fast — honestly, both directions</h3>
+
+<p align="center"><sub>The headline 39.3× on CCSD(T) is real. So is the fact that PySCF/NumPy is 480× faster than us on CCSD at cc-pVDZ. Both numbers come from <a href="./experiments/results/2026-05-12/level-6/E34-comparison.md">the same comparison run</a>, against PySCF 2.13.0 on identical inputs.</sub></p>
 
 <div align="center">
 
-<img src="./public/readme-perf.svg" alt="CCSD(T) headline benchmark: 198.6s CPU → 5.05s GPU on H₂O cc-pVDZ, 39.3× speedup" width="100%"/>
+<img src="./public/readme-perf.svg" alt="Performance comparison vs PySCF — 198.6s CPU to 5.05s GPU on H₂O cc-pVDZ CCSD(T) (39.3× speedup), plus an honest two-column where-we-win / where-we-lose summary from E34" width="100%"/>
 
 </div>
 
-<sub align="center"><sub>↑ Single-run measurement (not warmup+trials harness). Algorithm correctness rock-solid across runs; the 39.3× number ±20% on different hardware.</sub></sub>
+<sub align="center"><sub>↑ Single-run measurements (not warmup+trials harness). Energy agreement ≤ 10⁻⁴ Ha on all 19 comparable cells (well below chemical accuracy of 1.594 mHa). Where we win: no Python startup, HF up to medium systems, GPU CCSD(T) at cc-pVDZ. Where we lose: CPU MP2 / CCSD at production basis where NumPy / BLAS dominates. Full data: <a href="./experiments/results/2026-05-12/level-6/E34-comparison.md">E34-comparison.md</a>.</sub></sub>
 
 <br/>
 
@@ -401,11 +403,17 @@ Contributor Covenant 2.1. Report concerns to [abgunaydin94@gmail.com](mailto:abg
 | symbol | value | context |
 |---|---|---|
 | `TESTS` | **401** | vitest unit + integration, all green |
-| `E2E_SPECS` | **3** | Playwright headless WebGPU |
-| `CCSD_T_SPEEDUP` | **39.3×** | H₂O · cc-pVDZ · M2 Pro |
+| `E2E_SPECS` | **4** | Playwright headless WebGPU (E32, E33, E34, base levels) |
+| `CCSD_T_SPEEDUP` | **39.3×** | H₂O · cc-pVDZ · M2 Pro · vs our own CPU |
 | `CCSD_T_GPU_TIME` | **5.05 s** | H₂O · cc-pVDZ · GPU |
 | `CCSD_T_CPU_TIME` | **198.6 s** | H₂O · cc-pVDZ · CPU |
 | `CCSD_T_GPU_DELTA` | **2.4×10⁻¹⁰ Ha** | H₂O · cc-pVDZ · &#124;GPU − CPU&#124; |
+| `WIN_HF_H2_STO3G` | **105×** | E34 vs PySCF 2.13.0 · no-startup advantage |
+| `WIN_CCSD_LIH_STO3G` | **40×** | E34 vs PySCF 2.13.0 · small-system advantage |
+| `LOSS_CCSD_H2O_CCPVDZ` | **480× slower** | E34 vs PySCF 2.13.0 · BLAS gap (NumPy wins) |
+| `LOSS_MP2_H2O_CCPVDZ` | **136× slower** | E34 vs PySCF 2.13.0 · BLAS gap |
+| `E34_ENERGY_MAX_DELTA` | **1.0×10⁻⁴ Ha** | max &#124;ΔE&#124; vs PySCF over 19 cells · below chemical accuracy |
+| `E34_ENERGY_MEAN_DELTA` | **8.1×10⁻⁶ Ha** | mean &#124;ΔE&#124; vs PySCF over 19 cells |
 | `EOM_CCSD_PRECISION` | **10⁻⁵ Ha** | H₂ STO-3G · post-32c patch |
 | `IP_EOM_H2O` | **12.03 eV** | expt 12.62 |
 | `EA_EOM_H2O` | **−16.37 eV** | STO-3G (unbound) |
