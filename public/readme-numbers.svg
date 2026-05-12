@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-label="Key headline numbers: 401 tests, 39x CCSDT GPU, 1e-5 Ha EOM-CCSD vs FCI, 7e-14 Ha DF-HF, sub-pHa GPU/CPU, 4.18x fusion, F greater than 0.999999, N=128 MPS">
+  <defs>
+    <linearGradient id="bgNum" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1224"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <pattern id="dotsNum" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.55" fill="#ffffff" opacity="0.05"/>
+    </pattern>
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="420" fill="url(#bgNum)"/>
+  <rect width="1200" height="420" fill="url(#dotsNum)"/>
+
+  <g font-family="ui-monospace, 'SF Mono', monospace">
+
+    <g transform="translate(20 20)">
+      <rect width="285" height="180" rx="10" fill="#0f172a" stroke="#22d3ee" stroke-opacity="0.35" filter="url(#cardShadow)"/>
+      <rect x="0" y="0" width="4" height="180" rx="2" fill="#22d3ee"/>
+      <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#22d3ee" font-weight="600">TEST SURFACE</text>
+      <text x="22" y="105" font-size="64" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">401</text>
+      <text x="22" y="135" font-size="14" font-weight="600" fill="#94a3b8">tests · all green</text>
+      <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">vitest + 3 e2e Playwright · 0 flakes</text>
+    </g>
+
+    <g transform="translate(315 20)">
+      <rect width="285" height="180" rx="10" fill="#0f172a" stroke="#34d399" stroke-opacity="0.35" filter="url(#cardShadow)"/>
+      <rect x="0" y="0" width="4" height="180" rx="2" fill="#34d399"/>
+      <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#34d399" font-weight="600">CCSD(T) ON GPU</text>
+      <text x="22" y="105" font-size="64" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">39.3<tspan font-size="48">×</tspan></text>
+      <text x="22" y="135" font-size="14" font-weight="600" fill="#94a3b8">H₂O cc-pVDZ</text>
+      <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">198.6 s CPU → 5.05 s GPU · M2 Pro</text>
+    </g>
+
+    <g transform="translate(610 20)">
+      <rect width="285" height="180" rx="10" fill="#0f172a" stroke="#c084fc" stroke-opacity="0.35" filter="url(#cardShadow)"/>
+      <rect x="0" y="0" width="4" height="180" rx="2" fill="#c084fc"/>
+      <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#c084fc" font-weight="600">EOM-CCSD ↔ FCI</text>
+      <text x="22" y="105" font-size="58" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">10⁻⁵<tspan font-size="32" fill="#94a3b8" dx="6">Ha</tspan></text>
+      <text x="22" y="135" font-size="14" font-weight="600" fill="#94a3b8">H₂ STO-3G · post-32c patch</text>
+      <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">brute-force diagnosed in 4-SO Fock space</text>
+    </g>
+
+    <g transform="translate(905 20)">
+      <rect width="275" height="180" rx="10" fill="#0f172a" stroke="#fbbf24" stroke-opacity="0.35" filter="url(#cardShadow)"/>
+      <rect x="0" y="0" width="4" height="180" rx="2" fill="#fbbf24"/>
+      <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#fbbf24" font-weight="600">DF-HF ↔ DIRECT HF</text>
+      <text x="22" y="105" font-size="50" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">7×10⁻¹⁴<tspan font-size="26" fill="#94a3b8" dx="6">Ha</tspan></text>
+      <text x="22" y="135" font-size="14" font-weight="600" fill="#94a3b8">machine precision</text>
+      <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">H₂O STO-3G · Cholesky DF · τ=10⁻⁶</text>
+    </g>
+
+    <g transform="translate(20 220)">
+      <rect width="285" height="180" rx="10" fill="#0f172a" stroke="#06b6d4" stroke-opacity="0.35" filter="url(#cardShadow)"/>
+      <rect x="0" y="0" width="4" height="180" rx="2" fill="#06b6d4"/>
+      <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#06b6d4" font-weight="600">GPU ↔ CPU (T)</text>
+      <text x="22" y="105" font-size="46" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">1.35×10⁻¹¹</text>
+      <text x="22" y="135" font-size="14" font-weight="600" fill="#94a3b8">BeH₂ · sub-pHa fidelity</text>
+      <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">f32 storage + f64 reduce strategy works</text>
+    </g>
+
+    <g transform="translate(315 220)">
+      <rect width="285" height="180" rx="10" fill="#0f172a" stroke="#a78bfa" stroke-opacity="0.35" filter="url(#cardShadow)"/>
+      <rect x="0" y="0" width="4" height="180" rx="2" fill="#a78bfa"/>
+      <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#a78bfa" font-weight="600">KERNEL FUSION</text>
+      <text x="22" y="105" font-size="64" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">4.18<tspan font-size="48">×</tspan></text>
+      <text x="22" y="135" font-size="14" font-weight="600" fill="#94a3b8">headline · Tier C</text>
+      <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">8×8 gate cascade · Tier D plateau honest</text>
+    </g>
+
+    <g transform="translate(610 220)">
+      <rect width="285" height="180" rx="10" fill="#0f172a" stroke="#f472b6" stroke-opacity="0.35" filter="url(#cardShadow)"/>
+      <rect x="0" y="0" width="4" height="180" rx="2" fill="#f472b6"/>
+      <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#f472b6" font-weight="600">STATEVECTOR ↔ CPU</text>
+      <text x="22" y="105" font-size="44" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">F ≥ 0.999999</text>
+      <text x="22" y="135" font-size="14" font-weight="600" fill="#94a3b8">all 4 GPU experiments</text>
+      <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">f32 GPU vs f64 CPU · E1 through E4</text>
+    </g>
+
+    <g transform="translate(905 220)">
+      <rect width="275" height="180" rx="10" fill="#0f172a" stroke="#eab308" stroke-opacity="0.35" filter="url(#cardShadow)"/>
+      <rect x="0" y="0" width="4" height="180" rx="2" fill="#eab308"/>
+      <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#eab308" font-weight="600">MPS IN BROWSER</text>
+      <text x="22" y="105" font-size="64" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">N = 128</text>
+      <text x="22" y="135" font-size="14" font-weight="600" fill="#94a3b8">TFIM / Heisenberg</text>
+      <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">matches Pfeuty / Bethe · χ ≤ 32 · live</text>
+    </g>
+  </g>
+</svg>

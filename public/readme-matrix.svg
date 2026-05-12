@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640" role="img" aria-label="Capability comparison: webgpu-q vs PySCF, ORCA, and Psi4">
+  <defs>
+    <linearGradient id="bgMx" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0b1224"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <pattern id="dotsMx" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.55" fill="#ffffff" opacity="0.04"/>
+    </pattern>
+    <linearGradient id="hlight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#22d3ee" stop-opacity="0.02"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="640" fill="url(#bgMx)"/>
+  <rect width="1200" height="640" fill="url(#dotsMx)"/>
+
+  <text x="40" y="38" font-family="ui-monospace, monospace" font-size="11" letter-spacing="0.25em" fill="#64748b" font-weight="600">CAPABILITY MATRIX</text>
+  <text x="40" y="68" font-family="ui-monospace, monospace" font-size="24" font-weight="700" fill="#e2e8f0">webgpu-q vs the rest</text>
+
+  <rect x="430" y="90" width="192" height="44" rx="6" fill="#22d3ee" fill-opacity="0.18" stroke="#22d3ee" stroke-opacity="0.6"/>
+  <rect x="622" y="90" width="192" height="44" rx="6" fill="#c084fc" fill-opacity="0.12" stroke="#c084fc" stroke-opacity="0.4"/>
+  <rect x="814" y="90" width="192" height="44" rx="6" fill="#fbbf24" fill-opacity="0.12" stroke="#fbbf24" stroke-opacity="0.4"/>
+  <rect x="1006" y="90" width="148" height="44" rx="6" fill="#f472b6" fill-opacity="0.12" stroke="#f472b6" stroke-opacity="0.4"/>
+
+  <g font-family="ui-monospace, monospace" font-weight="700" text-anchor="middle">
+    <text x="526" y="118" font-size="16" fill="#22d3ee">webgpu-q</text>
+    <text x="718" y="118" font-size="16" fill="#c084fc">PySCF</text>
+    <text x="910" y="118" font-size="16" fill="#fbbf24">ORCA</text>
+    <text x="1080" y="118" font-size="16" fill="#f472b6">Psi4</text>
+  </g>
+
+  <rect x="430" y="140" width="192" height="460" fill="url(#hlight)"/>
+
+  <g font-family="-apple-system, system-ui, sans-serif" font-size="13" fill="#cbd5e1">
+    <g transform="translate(0 140)">
+      <rect width="1200" height="32" fill="#0f172a" fill-opacity="0.5"/>
+      <text x="50" y="21" font-weight="600">Installs in 0 seconds</text>
+      <circle cx="526" cy="16" r="7" fill="#22d3ee"/>
+      <circle cx="718" cy="16" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+      <circle cx="910" cy="16" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+      <circle cx="1080" cy="16" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+    </g>
+
+    <g transform="translate(0 172)">
+      <text x="50" y="21" font-weight="600">Runs in a browser tab</text>
+      <circle cx="526" cy="16" r="7" fill="#22d3ee"/>
+      <circle cx="718" cy="16" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+      <circle cx="910" cy="16" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+      <circle cx="1080" cy="16" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+    </g>
+
+    <g transform="translate(0 204)">
+      <rect width="1200" height="32" fill="#0f172a" fill-opacity="0.5"/>
+      <text x="50" y="21" font-weight="600">Shareable via URL</text>
+      <circle cx="526" cy="16" r="7" fill="#22d3ee"/>
+      <circle cx="718" cy="16" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+      <circle cx="910" cy="16" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+      <circle cx="1080" cy="16" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+    </g>
+
+    <g transform="translate(0 236)" font-family="ui-monospace, monospace" font-size="12">
+      <text x="50" y="21" font-family="-apple-system, system-ui, sans-serif" font-size="13" font-weight="600" fill="#cbd5e1">License</text>
+      <text x="526" y="21" text-anchor="middle" fill="#22d3ee" font-weight="700">MIT</text>
+      <text x="718" y="21" text-anchor="middle" fill="#94a3b8">Apache 2.0</text>
+      <text x="910" y="21" text-anchor="middle" fill="#94a3b8">academic</text>
+      <text x="1080" y="21" text-anchor="middle" fill="#94a3b8">LGPL</text>
+    </g>
+
+    <g transform="translate(0 268)">
+      <rect width="1200" height="32" fill="#0f172a" fill-opacity="0.5"/>
+      <text x="50" y="21" font-weight="600">HF · UHF · DFT · MP2 · CCSD · CCSD(T)</text>
+      <circle cx="526" cy="16" r="7" fill="#22d3ee"/>
+      <circle cx="718" cy="16" r="7" fill="#c084fc"/>
+      <circle cx="910" cy="16" r="7" fill="#fbbf24"/>
+      <circle cx="1080" cy="16" r="7" fill="#f472b6"/>
+    </g>
+
+    <g transform="translate(0 300)">
+      <text x="50" y="21" font-weight="600">EOM-CCSD (EE · IP · EA)</text>
+      <circle cx="526" cy="16" r="7" fill="#22d3ee"/>
+      <circle cx="718" cy="16" r="7" fill="#c084fc"/>
+      <circle cx="910" cy="16" r="7" fill="#fbbf24"/>
+      <circle cx="1080" cy="16" r="7" fill="#f472b6"/>
+    </g>
+
+    <g transform="translate(0 332)">
+      <rect width="1200" height="32" fill="#0f172a" fill-opacity="0.5"/>
+      <text x="50" y="21" font-weight="600">Excited-state TDDFT (Casida)</text>
+      <circle cx="526" cy="16" r="7" fill="#22d3ee"/>
+      <circle cx="718" cy="16" r="7" fill="#c084fc"/>
+      <circle cx="910" cy="16" r="7" fill="#fbbf24"/>
+      <circle cx="1080" cy="16" r="7" fill="#f472b6"/>
+    </g>
+
+    <g transform="translate(0 364)" font-family="ui-monospace, monospace" font-size="12">
+      <text x="50" y="21" font-family="-apple-system, system-ui, sans-serif" font-size="13" font-weight="600" fill="#cbd5e1">Density fitting</text>
+      <text x="526" y="21" text-anchor="middle" fill="#22d3ee" font-weight="700">CD-DF</text>
+      <text x="718" y="21" text-anchor="middle" fill="#94a3b8">aux + CD</text>
+      <text x="910" y="21" text-anchor="middle" fill="#94a3b8">aux + CD</text>
+      <text x="1080" y="21" text-anchor="middle" fill="#94a3b8">aux + CD</text>
+    </g>
+
+    <g transform="translate(0 396)" font-family="ui-monospace, monospace" font-size="12">
+      <rect width="1200" height="32" fill="#0f172a" fill-opacity="0.5"/>
+      <text x="50" y="21" font-family="-apple-system, system-ui, sans-serif" font-size="13" font-weight="600" fill="#cbd5e1">GPU acceleration</text>
+      <text x="526" y="21" text-anchor="middle" fill="#22d3ee" font-weight="700">WebGPU</text>
+      <text x="718" y="21" text-anchor="middle" fill="#94a3b8">CUDA</text>
+      <text x="910" y="21" text-anchor="middle" fill="#64748b">—</text>
+      <text x="1080" y="21" text-anchor="middle" fill="#94a3b8">plugins</text>
+    </g>
+
+    <g transform="translate(0 428)">
+      <text x="50" y="21" font-weight="600">Geometry opt (BFGS, analytical ∇)</text>
+      <circle cx="526" cy="16" r="7" fill="#22d3ee"/>
+      <circle cx="718" cy="16" r="7" fill="#c084fc"/>
+      <circle cx="910" cy="16" r="7" fill="#fbbf24"/>
+      <circle cx="1080" cy="16" r="7" fill="#f472b6"/>
+    </g>
+
+    <g transform="translate(0 460)">
+      <rect width="1200" height="32" fill="#0f172a" fill-opacity="0.5"/>
+      <text x="50" y="21" font-weight="600">Vibrational · IR · Raman · thermo</text>
+      <circle cx="526" cy="16" r="7" fill="#22d3ee"/>
+      <circle cx="718" cy="16" r="7" fill="#c084fc"/>
+      <circle cx="910" cy="16" r="7" fill="#fbbf24"/>
+      <circle cx="1080" cy="16" r="7" fill="#f472b6"/>
+    </g>
+
+    <g transform="translate(0 492)">
+      <text x="50" y="21" font-weight="600">cc-pVDZ · aug-cc-pVDZ · f / g / h</text>
+      <circle cx="526" cy="16" r="7" fill="#22d3ee"/>
+      <circle cx="718" cy="16" r="7" fill="#c084fc"/>
+      <circle cx="910" cy="16" r="7" fill="#fbbf24"/>
+      <circle cx="1080" cy="16" r="7" fill="#f472b6"/>
+    </g>
+
+    <g transform="translate(0 524)" font-family="ui-monospace, monospace" font-size="12">
+      <rect width="1200" height="32" fill="#0f172a" fill-opacity="0.5"/>
+      <text x="50" y="21" font-family="-apple-system, system-ui, sans-serif" font-size="13" font-weight="600" fill="#cbd5e1">Statevector quantum sim</text>
+      <text x="526" y="21" text-anchor="middle" fill="#22d3ee" font-weight="700">GPU</text>
+      <circle cx="718" cy="16" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+      <circle cx="910" cy="16" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+      <circle cx="1080" cy="16" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+    </g>
+
+    <g transform="translate(0 556)" font-family="ui-monospace, monospace" font-size="12">
+      <text x="50" y="21" font-family="-apple-system, system-ui, sans-serif" font-size="13" font-weight="600" fill="#cbd5e1">MPS / DMRG</text>
+      <circle cx="526" cy="16" r="7" fill="#22d3ee"/>
+      <text x="718" y="21" text-anchor="middle" fill="#94a3b8">via Block2</text>
+      <circle cx="910" cy="16" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+      <circle cx="1080" cy="16" r="6" fill="none" stroke="#475569" stroke-width="1.5"/>
+    </g>
+  </g>
+
+  <text x="40" y="624" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="#64748b" font-style="italic">Filled = supported · Open = not in core · Scope: webgpu-q lacks periodic / relativistic / QM-MM (yet) but ships the rest in a browser tab.</text>
+</svg>

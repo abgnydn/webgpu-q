@@ -64,68 +64,11 @@ No install. No backend. No CUDA. Open a URL and get HF · UHF · DFT · MP2 · C
 
 <h3 align="center">📊 &nbsp; The numbers <sub><sup>(single source of truth — see bottom of file)</sup></sub></h3>
 
-<table align="center" width="100%">
-<tr>
-<td align="center" width="25%">
+<div align="center">
 
-### `401`
-**tests green**<br/>
-<sub>vitest · 0 flakes</sub>
+<img src="./public/readme-numbers.svg" alt="Key numbers: 401 tests, 39.3× CCSD(T) on GPU, 10⁻⁵ Ha EOM-CCSD vs FCI, 7×10⁻¹⁴ Ha DF-HF, 1.35×10⁻¹¹ GPU↔CPU, 4.18× fusion, F ≥ 0.999999 statevector, N=128 MPS" width="100%"/>
 
-</td>
-<td align="center" width="25%">
-
-### `39×`
-**CCSD(T) on GPU**<br/>
-<sub>H₂O cc-pVDZ · 198.6 s → 5.05 s</sub>
-
-</td>
-<td align="center" width="25%">
-
-### `10⁻⁵ Ha`
-**EOM-CCSD ↔ FCI**<br/>
-<sub>H₂ STO-3G · brute-force diagnosed</sub>
-
-</td>
-<td align="center" width="25%">
-
-### `7×10⁻¹⁴`
-**DF-HF ↔ direct HF**<br/>
-<sub>H₂O STO-3G · machine precision</sub>
-
-</td>
-</tr>
-<tr>
-<td align="center">
-
-### `1.35×10⁻¹¹`
-**GPU ↔ CPU ((T))**<br/>
-<sub>BeH₂ · sub-pHa fidelity</sub>
-
-</td>
-<td align="center">
-
-### `4.18×`
-**kernel fusion**<br/>
-<sub>Tier C · 8×8 gate cascade</sub>
-
-</td>
-<td align="center">
-
-### `F ≥ 0.999999`
-**statevector ↔ CPU**<br/>
-<sub>f32 GPU vs f64 ref · all 4 levels</sub>
-
-</td>
-<td align="center">
-
-### `N = 128`
-**TFIM / Heisenberg**<br/>
-<sub>browser MPS · matches Bethe / Pfeuty</sub>
-
-</td>
-</tr>
-</table>
+</div>
 
 <br/>
 
@@ -170,22 +113,13 @@ graph LR
 
 <h3 align="center">⚡ &nbsp; How fast</h3>
 
-<table align="center">
-<tr>
-<th align="left">benchmark</th>
-<th align="right">CPU (JS f64)</th>
-<th align="right">GPU (WebGPU f32→f64)</th>
-<th align="right">speedup</th>
-<th align="right">|Δ|</th>
-</tr>
-<tr><td>CCSD(T) · H₂O · STO-3G</td><td align="right">— ms</td><td align="right">— ms</td><td align="right"><b>13.9×</b></td><td align="right">7.1×10⁻¹³</td></tr>
-<tr><td>CCSD(T) · BeH₂ · STO-3G</td><td align="right">— ms</td><td align="right">— ms</td><td align="right">0.3×</td><td align="right">1.4×10⁻¹¹</td></tr>
-<tr><td>CCSD(T) · H₂O · cc-pVDZ</td><td align="right"><code>198.6 s</code></td><td align="right"><code>5.05 s</code></td><td align="right"><b>39.3×</b></td><td align="right">2.4×10⁻¹⁰</td></tr>
-<tr><td>Kernel fusion · Tier C · 8×8</td><td align="right">—</td><td align="right">—</td><td align="right"><b>4.18×</b></td><td align="right">F ≥ 1 − 10⁻⁵</td></tr>
-<tr><td>MPS TEBD · TFIM N=128</td><td align="right">—</td><td align="right">browser-feasible</td><td align="right">—</td><td align="right">matches Pfeuty</td></tr>
-</table>
+<div align="center">
 
-<sub>↑ M2 Pro · WebGPU on Chromium · single-run measurements (not warmup+trials harness). Algorithm correctness rock-solid across runs; performance numbers ±20% on different hardware.</sub>
+<img src="./public/readme-perf.svg" alt="CCSD(T) headline benchmark: 198.6s CPU → 5.05s GPU on H₂O cc-pVDZ, 39.3× speedup" width="100%"/>
+
+</div>
+
+<sub align="center"><sub>↑ Single-run measurement (not warmup+trials harness). Algorithm correctness rock-solid across runs; the 39.3× number ±20% on different hardware.</sub></sub>
 
 <br/>
 
@@ -193,26 +127,11 @@ graph LR
 
 <h3 align="center">🆚 &nbsp; How it stacks up</h3>
 
-<table align="center">
-<tr><th align="left">capability</th><th align="center">webgpu-q</th><th align="center">PySCF</th><th align="center">ORCA</th><th align="center">Psi4</th></tr>
-<tr><td>Installs in 0 s</td><td align="center">✅</td><td align="center">❌</td><td align="center">❌</td><td align="center">❌</td></tr>
-<tr><td>Runs in a browser tab</td><td align="center">✅</td><td align="center">❌</td><td align="center">❌</td><td align="center">❌</td></tr>
-<tr><td>Shareable via URL</td><td align="center">✅</td><td align="center">❌</td><td align="center">❌</td><td align="center">❌</td></tr>
-<tr><td>Open-source license</td><td align="center">MIT</td><td align="center">Apache 2.0</td><td align="center">academic</td><td align="center">LGPL</td></tr>
-<tr><td>HF / UHF / DFT / MP2 / CCSD / CCSD(T)</td><td align="center">✅</td><td align="center">✅</td><td align="center">✅</td><td align="center">✅</td></tr>
-<tr><td>EOM-CCSD (EE / IP / EA)</td><td align="center">✅</td><td align="center">✅</td><td align="center">✅</td><td align="center">✅</td></tr>
-<tr><td>Excited-state TDDFT (Casida)</td><td align="center">✅</td><td align="center">✅</td><td align="center">✅</td><td align="center">✅</td></tr>
-<tr><td>Density fitting</td><td align="center">CD-DF</td><td align="center">aux+CD</td><td align="center">aux+CD</td><td align="center">aux+CD</td></tr>
-<tr><td>GPU acceleration</td><td align="center"><b>WebGPU</b></td><td align="center">CUDA</td><td align="center">—</td><td align="center">CUDA*</td></tr>
-<tr><td>Geometry optimization</td><td align="center">✅ BFGS</td><td align="center">✅</td><td align="center">✅</td><td align="center">✅</td></tr>
-<tr><td>Vibrational / IR / Raman / thermo</td><td align="center">✅</td><td align="center">✅</td><td align="center">✅</td><td align="center">✅</td></tr>
-<tr><td>cc-pVDZ / aug-cc-pVDZ</td><td align="center">✅</td><td align="center">✅</td><td align="center">✅</td><td align="center">✅</td></tr>
-<tr><td>f / g / h orbitals</td><td align="center">✅</td><td align="center">✅</td><td align="center">✅</td><td align="center">✅</td></tr>
-<tr><td>Statevector quantum sim</td><td align="center">✅ GPU</td><td align="center">—</td><td align="center">—</td><td align="center">—</td></tr>
-<tr><td>MPS / DMRG</td><td align="center">✅</td><td align="center">via Block2</td><td align="center">—</td><td align="center">—</td></tr>
-</table>
+<div align="center">
 
-<sub>*Psi4 GPU support is via plugins, not the core path. Comparisons are qualitative — webgpu-q is far smaller in scope (no periodic, no relativistic, no QM/MM yet) but ships the rest in a browser.</sub>
+<img src="./public/readme-matrix.svg" alt="Capability matrix: webgpu-q vs PySCF, ORCA, Psi4" width="100%"/>
+
+</div>
 
 <br/>
 
