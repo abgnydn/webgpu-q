@@ -138,13 +138,27 @@ will silently truncate large dispatches.
     LiH, BeH₂, H₂O, NH₃, CH₄.
   - **HF + CCSD energies agree to 10⁻⁷ Ha** throughout.
   This pattern (triplets mostly correct, singlets systematically off)
-  points at **spin-coupling intermediates in the singlet R_2 sector**,
-  not a global σ-matrix bug. Tier 3 follow-up: brute-force on LiH
-  STO-3G (dim 14) to isolate which intermediate is wrong; likely
-  candidates are W̄_mnij ↔ W̄_abef double-direction couplings or the
-  R_2 antisym packing factor in σ_1. Possibly revert 32c if it
-  turns out to be the culprit on multi-electron singlets.
-  See `experiments/results/2026-05-12/level-6/E35-comparison.md`.
+  is now **isolated to one missing term in σ_1**. The LiH brute-force
+  diagnostic (`tests/chemistry/eom-ccsd-bruteforce-lih.test.ts`)
+  builds H̄ = e⁻ᵀ̂ H eᵀ̂ explicitly in the 64-state 4-electron Fock
+  space, projects onto the (R_1 + antisym R_2) basis, and diagonalizes.
+  CCSD energy matches FCI exactly on LiH STO-3G (CCSD = FCI for this
+  system). The exact M_exact projection matches PySCF EOM-CCSD on
+  all triplets AND singlets — so PySCF is correct.
+
+  Our σ-equation matches M_exact on triplets to 7 meV but disagrees
+  on singlets by ~2.57 eV in opposite directions: one singlet shifted
+  DOWN by 2.57 eV, another shifted UP by the same amount. The M_exact
+  preview shows the culprit: a `R₁[2,0] ↔ R₁[3,1] = 3.964 eV`
+  off-diagonal coupling between the α and β single-excitation
+  components of the singlet HOMO→LUMO transition. This coupling
+  splits singlet from triplet via level repulsion. Our σ_1
+  construction in `src/chemistry/eom-ccsd.ts` is MISSING this
+  cross-spin ⟨iα jβ ‖ aα bβ⟩·R_1[jβ, bβ] term. Tier 3 fix: add the
+  cross-spin coupling to σ_1; should close singlet gap to triplet-
+  level precision (7 meV).
+  See `experiments/results/2026-05-12/level-6/E35-comparison.md`
+  and `tests/chemistry/eom-ccsd-bruteforce-lih.test.ts`.
 - **IP-EOM-CCSD R₂ satellites** have a known **~2 Ha (~60 eV)
   over-count** on H₂ STO-3G. Documented in `ip-eom-ccsd.ts`. Affects
   R₂-dominated Auger / shake-up states only; physical lowest IPs are
