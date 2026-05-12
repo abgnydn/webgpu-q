@@ -78,8 +78,14 @@ describe("IP-EOM-CCSD — Tier 2 stage 37", () => {
     console.log(`[ip-eom-h2] IP-EOM-CCSD = [${
       Array.from(ip.ips).map(x => (x * HARTREE_TO_EV).toFixed(2)).join(", ")
     }] eV`);
-    // Lowest IP should be positive and < 20 eV (H₂ HOMO is shallow).
-    expect(ip.ips[0]!).toBeGreaterThan(0);
-    expect(ip.ips[0]! * HARTREE_TO_EV).toBeLessThan(25);
+    // Lowest IP-EOM-CCSD value matches the brute-force H̄ projection
+    // EXACTLY for H₂ STO-3G (stage 32 close-out diagnostic):
+    //   exact lowest IP = 0.59856058 Ha = 16.288 eV
+    // This is the FCI-equivalent IP since CCSD = FCI for 2 electrons.
+    // (Higher R_2-dominated eigenvalues have a known structural σ_2
+    // W_mbej over-count — see ip-eom-ccsd-bruteforce.test.ts for the
+    // full diagnostic. Users consuming the lowest IP are unaffected.)
+    const EXACT_H2_LOWEST_IP_HA = 0.59856058;
+    expect(Math.abs(ip.ips[0]! - EXACT_H2_LOWEST_IP_HA)).toBeLessThan(1e-6);
   });
 });

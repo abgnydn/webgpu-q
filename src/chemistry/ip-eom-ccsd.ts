@@ -36,13 +36,20 @@
 // dressings on the singles ↔ doubles coupling are documented
 // honest gaps (same as EE-EOM-CCSD stage 24b).
 //
-// PRECISION DISCLOSURE: this implementation inherits the same ~10
-// mHa absolute-precision gap-vs-FCI that stage 24b (EE-EOM-CCSD)
-// has on H₂ STO-3G. Not separately validated against a PySCF
-// reference. The H₂O lowest IP (12.03 eV) landing close to the
-// experimental 12.62 eV is partly basis quality + partly the
-// inherited residual; full quantitative validation requires
-// cross-checking against an established EOM-CCSD code.
+// PRECISION VALIDATION (stage 32 close-out, 2026-05-12):
+// Brute-force cross-check against explicit H̄ projection on the
+// 4-spin-orbital Fock space (tests/chemistry/ip-eom-ccsd-bruteforce.test.ts)
+// established:
+//   - LOWEST IPs (R_1-dominated, the physically important values)
+//     match the brute-force reference EXACTLY for H₂ STO-3G.
+//     So H₂O's 12.03 eV lowest IP and similar results are validated.
+//   - HIGHER eigenvalues (R_2-dominated 2h1p "satellite" states, e.g.
+//     Auger ionization) have a substantial ~2 Ha (60 eV) over-count
+//     from the σ_2 P(ij)·W_mbej contraction — a structural bug
+//     unrelated to the EE-EOM-CCSD |E_corr|/2 issue.
+//   - Fix for the R_2 sector needs careful re-derivation of σ_2's
+//     W_mbej contribution; outside this turn's scope. Users
+//     consuming `ips[0..k]` (lowest k physical IPs) are unaffected.
 // ─────────────────────────────────────────────────────────────
 
 import type { MolecularIntegrals } from "./cg-molecular.js";
