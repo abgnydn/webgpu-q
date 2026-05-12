@@ -23,7 +23,7 @@
   <g font-family="ui-monospace, monospace" font-size="12" letter-spacing="0.05em">
     <rect x="40" y="108" width="170" height="32" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-opacity="0.3"/>
     <text x="55" y="123" font-size="10" fill="#22d3ee" font-weight="700" letter-spacing="0.15em">SHIPPED</text>
-    <text x="55" y="135" font-size="11" fill="#e2e8f0" font-weight="700">21 capabilities</text>
+    <text x="55" y="135" font-size="11" fill="#e2e8f0" font-weight="700">20 shipped · 1 partial</text>
 
     <rect x="220" y="108" width="170" height="32" rx="6" fill="#0f172a" stroke="#fbbf24" stroke-opacity="0.3"/>
     <text x="235" y="123" font-size="10" fill="#fbbf24" font-weight="700" letter-spacing="0.15em">TIER 3 ROADMAP</text>
@@ -237,11 +237,11 @@
     <g transform="translate(0 878)">
       <rect width="1200" height="30" fill="#0f172a" fill-opacity="0.4"/>
       <text x="40" y="22" font-weight="600">EOM-CCSD (EE · IP · EA)</text>
-      <circle cx="510" cy="17" r="7" fill="#22d3ee"/>
+      <circle cx="510" cy="17" r="6" fill="#94a3b8" fill-opacity="0.6" stroke="#94a3b8"/>
       <circle cx="630" cy="17" r="7" fill="#94a3b8"/>
       <circle cx="750" cy="17" r="7" fill="#94a3b8"/>
       <circle cx="870" cy="17" r="7" fill="#94a3b8"/>
-      <text x="945" y="22" font-size="12" fill="#22d3ee" font-weight="600">shipped · brute-force diagnosed</text>
+      <text x="945" y="22" font-size="12" fill="#fbbf24" font-weight="600">partial · exact on H₂ · 1 eV gap on multi-e⁻ (E35)</text>
     </g>
     <g transform="translate(0 908)">
       <text x="40" y="22" font-weight="600">CC2 · CC3 (approximate CC families)</text>
