@@ -750,6 +750,42 @@ experiments/
 
 ---
 
+## Modern reference standards (audited 2026-05)
+
+What our claims map to in current literature. Run this audit again
+before any release or paper draft.
+
+- **Chemical accuracy** = 1 kcal/mol = **1.594 mHa** (Pople pragmatic
+  threshold). Our CCSD(T) vs FCI residuals (≤ 0.25 mHa) are sub-chemical;
+  our GPU↔CPU |Δ| (≈ 10⁻¹⁰ Ha) is ~6 orders past chemical accuracy and
+  characterizes f32 reduction noise, not method error.
+- **CCSD(T) is still the gold standard** in 2025/2026 (multiple JCTC
+  reviews). MAE ~0.2–0.3 kcal/mol at CBS for noncovalent interactions.
+- **AFQMC** (Mahajan et al. JCTC Feb 2025, arXiv:2410.02885) now beats
+  CCSD(T) at **O(N⁶)** vs O(N⁷). Tier 4 candidate "beyond CCSD(T)".
+- **EOM-CCSD literature accuracy vs FCI** for singlet single-excitations
+  is **0.1–0.2 eV (~3.7–7.4 mHa) typical**, 0.3 eV conservative.
+  Doubly-excited states: errors up to 1 eV. Our 10⁻⁵ Ha on H₂ STO-3G
+  is **algorithmic precision** (T̂² = 0 for 2-electron systems makes
+  EOM-CCSD ≡ FCI exactly there) — it validates the implementation, not
+  the method on real systems.
+- **GMTKN55 best functionals (2024–2025)**: **ωB97M(2)** DH WTMAD2 =
+  **2.19 kcal/mol** (best ever), xrevDSD-PBEP86-D4 = 2.23, revDSD-PBEP86-D4
+  = 2.33. Best RSH: **ωB97X-V**. Best meta-GGA: **SCAN-D3(BJ)**. We
+  benchmark with B3LYP5 / BLYP / LSDA / B88 / LYP — textbook, not
+  current SOTA. Modern functionals are in the Tier 3 row.
+- **MPS state-of-the-art**: TeNPy / ITensor are the reference libraries.
+  Production runs go to **χ = 1000+**. Our χ ≤ 64 is "browser-feasible";
+  the comparison Schollwöck 2011 still holds (χ scales with entanglement).
+- **WebGPU subgroups**: out of WebGPU 1.0 spec (gpuweb#3950); coming
+  later. Would unlock 2× reductions in fusion kernels (shuffle/add).
+- **FAIR / Zenodo DOI**: standard for reproducible computational chemistry
+  data publishing. We emit JSON artifacts with full env capture but
+  don't mint DOIs. Tier 3+ research-publishing improvement.
+- **Browser-native quantum chemistry**: as of 2026-05 web search, no
+  published WebGPU + HF/DFT/CCSD(T) implementation exists outside this
+  repo. Worth a paper if Phase D / hardware verify ever lands.
+
 ## Related repos / links
 
 - **Sibling:** `/Users/ahmetbarisgunaydin2/Downloads/webgpu-dna/` —
@@ -761,6 +797,9 @@ experiments/
 - IBM Heron r2 (156q, 2025), Nighthawk (120q, Jan 2026) — E14 target.
 - Schollwöck 2011 — MPS / DMRG review, χ-vs-error baseline.
 - Vidal 2003 — iTEBD algorithm (what `applyTwoSite` implements).
+- GMTKN55: Goerigk, Hansen, Bauer et al., PCCP 2017 — main DFT benchmark.
+- Mahajan et al. JCTC 2025 — AFQMC beats CCSD(T) at O(N⁶).
+- NIST CCCBDB — experimental reference IP, EA, vibrational data.
 
 ---
 
