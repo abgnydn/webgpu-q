@@ -106,6 +106,38 @@ export function runCCSD(
   const eps = new Float64Array(NSO);
   for (let P = 0; P < NSO; P++) eps[P] = hf.orbitalEnergies[P >> 1]!;
 
+  const core = ccsdIterate(eri, eps, NOCC, NVIRT, NSO, nFrozenSO, opts);
+  return {
+    correlationEnergy: core.correlationEnergy,
+    totalEnergy: hf.energy + core.correlationEnergy,
+    T1: core.T1,
+    T2: core.T2,
+    history: core.history,
+    iter: core.iter,
+    converged: core.converged,
+  };
+}
+
+/**
+ * Shared CCSD iteration core. Takes a precomputed spin-orbital
+ * antisymmetric ERI tensor, spin-resolved orbital energies, and
+ * occupied/virtual counts. Runs the Stanton-Bartlett residual loop.
+ *
+ * Used by both closed-shell `runCCSD` (RHF input) and open-shell
+ * `runUCCSD` (UHF input). For canonical RHF and canonical UHF the
+ * spin-orbital Fock matrix is diagonal (f_PQ = δ_PQ ε_P^σ), so the
+ * existing residual machinery applies in both cases — UHF just
+ * supplies different ε for α and β.
+ */
+export function ccsdIterate(
+  eri: Float64Array,
+  eps: Float64Array,
+  NOCC: number,
+  NVIRT: number,
+  NSO: number,
+  nFrozenSO: number,
+  opts: CCSDOpts,
+): Omit<CCSDResult, "totalEnergy"> {
   // Energy denominators.
   const D_ia = new Float64Array(NOCC * NVIRT);
   for (let i = 0; i < NOCC; i++) {
@@ -204,7 +236,6 @@ export function runCCSD(
 
   return {
     correlationEnergy: E_corr,
-    totalEnergy: hf.energy + E_corr,
     T1, T2, history, iter, converged,
   };
 }
@@ -279,7 +310,7 @@ function zeroCoreAmplitudes(
 //   τ̃ (alpha=½): t_ij^ab + ½ (t_i^a t_j^b − t_i^b t_j^a)   used in F intermediates
 //   τ  (alpha=1): t_ij^ab + (t_i^a t_j^b − t_i^b t_j^a)     used in W intermediates + energy
 // ─────────────────────────────────────────────────────────────
-function makeTau(T1: Float64Array, T2: Float64Array,
+export function makeTau(T1: Float64Array, T2: Float64Array,
                  NOCC: number, NVIRT: number, alpha: number): Float64Array {
   const out = new Float64Array(T2.length);
   for (let i = 0; i < NOCC; i++) {
@@ -317,7 +348,7 @@ function makeTau(T1: Float64Array, T2: Float64Array,
 // terms here.
 // ─────────────────────────────────────────────────────────────
 
-function makeF_ae(T1: Float64Array, eps: Float64Array, eri: Float64Array,
+export function makeF_ae(T1: Float64Array, eps: Float64Array, eri: Float64Array,
                   tau_t: Float64Array, NOCC: number, NVIRT: number, NSO: number): Float64Array {
   const F = new Float64Array(NVIRT * NVIRT);
   for (let a = 0; a < NVIRT; a++) {
@@ -350,7 +381,7 @@ function makeF_ae(T1: Float64Array, eps: Float64Array, eri: Float64Array,
   return F;
 }
 
-function makeF_mi(T1: Float64Array, eps: Float64Array, eri: Float64Array,
+export function makeF_mi(T1: Float64Array, eps: Float64Array, eri: Float64Array,
                   tau_t: Float64Array, NOCC: number, NVIRT: number, NSO: number): Float64Array {
   const F = new Float64Array(NOCC * NOCC);
   for (let m = 0; m < NOCC; m++) {
@@ -382,7 +413,7 @@ function makeF_mi(T1: Float64Array, eps: Float64Array, eri: Float64Array,
   return F;
 }
 
-function makeF_me(T1: Float64Array, eri: Float64Array,
+export function makeF_me(T1: Float64Array, eri: Float64Array,
                   NOCC: number, NVIRT: number, NSO: number): Float64Array {
   const F = new Float64Array(NOCC * NVIRT);
   // Canonical RHF: f_me = 0. Just Σ_nf t_n^f ⟨mn||ef⟩.
@@ -413,7 +444,7 @@ function makeF_me(T1: Float64Array, eri: Float64Array,
 // P(ij) X[i,j] = X[i,j] − X[j,i].
 // ─────────────────────────────────────────────────────────────
 
-function makeW_mnij(T1: Float64Array, tau: Float64Array, eri: Float64Array,
+export function makeW_mnij(T1: Float64Array, tau: Float64Array, eri: Float64Array,
                     NOCC: number, NVIRT: number, NSO: number): Float64Array {
   const W = new Float64Array(NOCC * NOCC * NOCC * NOCC);
   for (let m = 0; m < NOCC; m++) {
@@ -446,7 +477,7 @@ function makeW_mnij(T1: Float64Array, tau: Float64Array, eri: Float64Array,
   return W;
 }
 
-function makeW_abef(T1: Float64Array, tau: Float64Array, eri: Float64Array,
+export function makeW_abef(T1: Float64Array, tau: Float64Array, eri: Float64Array,
                     NOCC: number, NVIRT: number, NSO: number): Float64Array {
   const W = new Float64Array(NVIRT * NVIRT * NVIRT * NVIRT);
   for (let a = 0; a < NVIRT; a++) {
@@ -480,7 +511,7 @@ function makeW_abef(T1: Float64Array, tau: Float64Array, eri: Float64Array,
   return W;
 }
 
-function makeW_mbej(T1: Float64Array, T2: Float64Array, eri: Float64Array,
+export function makeW_mbej(T1: Float64Array, T2: Float64Array, eri: Float64Array,
                     NOCC: number, NVIRT: number, NSO: number): Float64Array {
   const W = new Float64Array(NOCC * NVIRT * NVIRT * NOCC);
   for (let m = 0; m < NOCC; m++) {

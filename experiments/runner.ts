@@ -11,6 +11,8 @@ import { runLevel1, wireRunAllButton } from "./level-1-statevector/run-all.js";
 import { runLevel2, wireRunLevel2Button } from "./level-2-mps/run-all.js";
 import { runLevel3, wireRunLevel3Button } from "./level-3-fusion/run-all.js";
 import { runLevel6, wireRunLevel6Button } from "./level-6-chemistry/run-all.js";
+import { runE32 } from "./level-6-chemistry/E32-ccsdt-gpu.js";
+import { runE33 } from "./level-6-chemistry/E33-h2o-uvvis.js";
 
 wireRunAllButton();
 wireRunLevel2Button();
@@ -24,6 +26,8 @@ declare global {
       runLevel2: typeof runLevel2;
       runLevel3: typeof runLevel3;
       runLevel6: typeof runLevel6;
+      runE32: typeof runE32;
+      runE33: typeof runE33;
       ready: true;
     };
   }
@@ -34,5 +38,7 @@ window.__webgpuq = {
   runLevel2,
   runLevel3,
   runLevel6,
+  runE32,
+  runE33,
   ready: true,
 };

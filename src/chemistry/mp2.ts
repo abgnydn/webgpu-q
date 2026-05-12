@@ -32,6 +32,7 @@
 
 import type { MolecularIntegrals } from "./cg-molecular.js";
 import type { HFResult } from "./hf-scf.js";
+import { choleskyDecomposeERI, type DFResult } from "./df.js";
 
 export interface MP2Result {
   /** MP2 correlation energy (Hartree). E_MP2_corr is negative. */
@@ -52,6 +53,15 @@ export interface MP2Opts {
    * atom (see `defaultFrozenCore` in atoms.ts).
    */
   readonly nFrozenCore?: number;
+  /**
+   * Use density fitting for the MP2 (ia|jb) integrals. `true` →
+   * Cholesky-DF with τ=1e-10 (machine precision); number → τ;
+   * DFResult → reuse a caller-provided B-tensor. The MP2 sum
+   * reformulates as Σ_P over an auxiliary index, with memory
+   * dropping from O(n⁴) to O(n_occ·n_virt·n_aux). Default false
+   * (direct 4-index path).
+   */
+  readonly useDF?: boolean | number | DFResult;
 }
 
 /**
@@ -66,11 +76,34 @@ export function runMP2(
 ): MP2Result {
   const { C_MO, orbitalEnergies, nOccupied } = hf;
   const { eri_AO, n } = integrals;
-  const eri_MO = transformERIToMO(eri_AO, C_MO, n);
   const nFrozen = opts.nFrozenCore ?? 0;
   if (nFrozen < 0 || nFrozen > nOccupied) {
     throw new Error(`runMP2: nFrozenCore=${nFrozen} out of range [0, ${nOccupied}]`);
   }
+
+  // ── DF path: reformulate (ia|jb) via B-tensor contractions. ──
+  if (opts.useDF !== undefined && opts.useDF !== false) {
+    let df: DFResult;
+    if (typeof opts.useDF === "object") {
+      df = opts.useDF;
+    } else {
+      const tau = typeof opts.useDF === "number" ? opts.useDF : 1e-10;
+      df = choleskyDecomposeERI(eri_AO, n, tau);
+    }
+    const E_corr = mp2EnergyDF(C_MO, orbitalEnergies, nOccupied, n, nFrozen, df);
+    // Still return the MO-basis ERI for downstream consumers (CCSD).
+    // Future refactor: pass the DF B-tensor through to CCSD too.
+    const eri_MO_for_downstream = transformERIToMO(eri_AO, C_MO, n);
+    return {
+      correlationEnergy: E_corr,
+      totalEnergy: hf.energy + E_corr,
+      eri_MO: eri_MO_for_downstream,
+      nOccupied,
+    };
+  }
+
+  // ── Direct 4-index path. ─────────────────────────────────────
+  const eri_MO = transformERIToMO(eri_AO, C_MO, n);
 
   // E_MP2 = Σ_{ij active-occ} Σ_{ab virt}
   //           (ia|jb) · (2 (ia|jb) − (ib|ja)) / (ε_i + ε_j − ε_a − ε_b)
@@ -99,6 +132,88 @@ export function runMP2(
     eri_MO,
     nOccupied,
   };
+}
+
+/**
+ * MP2 correlation energy via density fitting.
+ *
+ * Pre-transforms the AO B-tensor B[μν, P] to the (occ × virt) MO
+ * block: B_ov[i, a, P] = Σ_μν C_μi · C_νa · B[μν, P]. Two passes
+ * O(n²·n_aux·n_occ + n_occ·n²·n_virt·n_aux) — smaller than the
+ * 4-index n⁵ MO transform for typical n_aux ~ 3n. Then the MP2 sum
+ * reconstructs (ia|jb) = Σ_P B_ov[i,a,P]·B_ov[j,b,P] on the fly.
+ *
+ * Memory: O(n_occ·n_virt·n_aux) instead of O(n⁴). For H₂O cc-pVDZ
+ * (n=24, nocc=5, nvirt=19, n_aux ~ 100) this is 5·19·100 ≈ 10k
+ * elements vs n⁴ = 330k elements — 33× reduction.
+ */
+function mp2EnergyDF(
+  C_MO: Float64Array,
+  orbitalEnergies: Float64Array,
+  nOccupied: number,
+  n: number,
+  nFrozen: number,
+  df: DFResult,
+): number {
+  const nVirt = n - nOccupied;
+  const nAux = df.nAux;
+
+  // Pass 1: tmp[i, ν, P] = Σ_μ C_μi · B[μν, P]
+  const tmp = new Float64Array(nOccupied * n * nAux);
+  for (let i = 0; i < nOccupied; i++) {
+    for (let nu = 0; nu < n; nu++) {
+      for (let P = 0; P < nAux; P++) {
+        let s = 0;
+        for (let mu = 0; mu < n; mu++) {
+          s += C_MO[mu * n + i]! * df.B[(mu * n + nu) * nAux + P]!;
+        }
+        tmp[(i * n + nu) * nAux + P] = s;
+      }
+    }
+  }
+  // Pass 2: B_ov[i, a, P] = Σ_ν C_νa · tmp[i, ν, P]
+  const B_ov = new Float64Array(nOccupied * nVirt * nAux);
+  for (let i = 0; i < nOccupied; i++) {
+    for (let a = 0; a < nVirt; a++) {
+      const aMO = nOccupied + a;
+      for (let P = 0; P < nAux; P++) {
+        let s = 0;
+        for (let nu = 0; nu < n; nu++) {
+          s += C_MO[nu * n + aMO]! * tmp[(i * n + nu) * nAux + P]!;
+        }
+        B_ov[(i * nVirt + a) * nAux + P] = s;
+      }
+    }
+  }
+  // MP2 energy: E_corr = Σ_ij Σ_ab (ia|jb) · (2(ia|jb) − (ib|ja)) / D
+  // with (ia|jb) = Σ_P B_ov[i,a,P]·B_ov[j,b,P].
+  let E_corr = 0;
+  for (let i = nFrozen; i < nOccupied; i++) {
+    for (let j = nFrozen; j < nOccupied; j++) {
+      for (let a = 0; a < nVirt; a++) {
+        const aMO = nOccupied + a;
+        for (let b = 0; b < nVirt; b++) {
+          const bMO = nOccupied + b;
+          let iajb = 0;
+          let ibja = 0;
+          const iaOffset = (i * nVirt + a) * nAux;
+          const jbOffset = (j * nVirt + b) * nAux;
+          const ibOffset = (i * nVirt + b) * nAux;
+          const jaOffset = (j * nVirt + a) * nAux;
+          for (let P = 0; P < nAux; P++) {
+            iajb += B_ov[iaOffset + P]! * B_ov[jbOffset + P]!;
+            ibja += B_ov[ibOffset + P]! * B_ov[jaOffset + P]!;
+          }
+          const denom =
+            orbitalEnergies[i]! + orbitalEnergies[j]! -
+            orbitalEnergies[aMO]! - orbitalEnergies[bMO]!;
+          if (Math.abs(denom) < 1e-12) continue;
+          E_corr += iajb * (2 * iajb - ibja) / denom;
+        }
+      }
+    }
+  }
+  return E_corr;
 }
 
 /**

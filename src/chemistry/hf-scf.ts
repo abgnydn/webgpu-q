@@ -36,6 +36,7 @@
 
 import { type MolecularIntegrals } from "./cg-molecular.js";
 import { eigsymmetric } from "../manybody/dense-eig.js";
+import { choleskyDecomposeERI, buildJK_DF, type DFResult } from "./df.js";
 
 export interface HFResult {
   /** Total HF energy (Hartree) including nuclear repulsion. */
@@ -82,6 +83,18 @@ export interface HFOpts {
    * D_new ← α · D_new + (1 − α) · D_old. Default 0.5.
    */
   readonly damping?: number;
+  /**
+   * Use density-fitting (Cholesky-decomposed ERI) for the Fock J + K
+   * build. `true` → use default Cholesky threshold 1e-10 (machine
+   * precision); number → use as threshold; DFResult → reuse a
+   * pre-computed B-tensor. Default false (direct 4-index path).
+   *
+   * For closed-shell HF the DF Fock contribution is G_DF = J − ½K,
+   * where (J, K) come from `buildJK_DF`. At threshold τ ≤ 1e-10 the
+   * DF-HF energy matches the direct path to better than 1 µHa on
+   * STO-3G systems and machine precision on cc-pVDZ.
+   */
+  readonly useDF?: boolean | number | DFResult;
 }
 
 /**
@@ -110,6 +123,19 @@ export function runRHFSCF(
 
   const { S_AO, h_AO, eri_AO, X, Vnn } = integrals;
 
+  // ── Optional: pre-compute the density-fitting B-tensor. ──
+  // useDF=true uses τ=1e-10; useDF=<number> uses that threshold;
+  // useDF=<DFResult> reuses a caller-provided B-tensor.
+  let dfTensor: DFResult | null = null;
+  if (opts.useDF !== undefined && opts.useDF !== false) {
+    if (typeof opts.useDF === "object") {
+      dfTensor = opts.useDF;
+    } else {
+      const tau = typeof opts.useDF === "number" ? opts.useDF : 1e-10;
+      dfTensor = choleskyDecomposeERI(eri_AO, n, tau);
+    }
+  }
+
   // ── Initial guess: diagonalize core h to get starting C ──
   const hPrime = transformSymmetric(h_AO, X, n);
   let { C_MO, eps } = solveFock(hPrime, X, n);
@@ -125,7 +151,7 @@ export function runRHFSCF(
 
   for (iter = 1; iter <= maxIter; iter++) {
     // ── Build Fock F = h + G(D) ─────────────────────────────
-    const G = buildG(D, eri_AO, n);
+    const G = dfTensor !== null ? buildG_DF(D, dfTensor, n) : buildG(D, eri_AO, n);
     const F = new Float64Array(n * n);
     for (let i = 0; i < n * n; i++) F[i] = h_AO[i]! + G[i]!;
 
@@ -299,6 +325,14 @@ function buildG(D: Float64Array, eri_AO: Float64Array, n: number): Float64Array 
       G[mu * n + nu] = s;
     }
   }
+  return G;
+}
+
+/** Density-fitting variant: G = J − ½ K from B-tensor contractions. */
+function buildG_DF(D: Float64Array, df: DFResult, n: number): Float64Array {
+  const { J, K } = buildJK_DF(df, D);
+  const G = new Float64Array(n * n);
+  for (let i = 0; i < n * n; i++) G[i] = J[i]! - 0.5 * K[i]!;
   return G;
 }
 
