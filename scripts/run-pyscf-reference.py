@@ -69,6 +69,40 @@ MOLECULES = [
 BASES = ["sto-3g", "cc-pvdz"]
 
 
+# Honest scope: webgpu-q's STO-3G Li is currently "s-only" — just 1s + 2s,
+# missing the 2p L-shell that standard STO-3G includes. See
+# src/chemistry/integrals.ts and LIMITATIONS.md. To make LiH cells truly
+# apples-to-apples, we pass the matching s-only Li basis to PySCF.
+#
+# Exponents and coefficients copied from src/chemistry/integrals.ts so the
+# two sides agree to the last digit.
+LI_S_ONLY_STO3G_PYSCF = """
+Li    S
+     16.1195750             0.15432897
+      2.9362007              0.53532814
+      0.7946505              0.44463454
+Li    S
+      0.6362897              -0.09996723
+      0.1478601              0.39951283
+      0.0480887              0.70011547
+"""
+
+
+def basis_for(molecule, basis):
+    """Map (molecule, basis) → PySCF basis spec.
+
+    For STO-3G with Li present, return a dict that uses our s-only Li
+    basis (matching webgpu-q exactly) and standard STO-3G for the rest.
+    For everything else, return the plain basis string.
+    """
+    symbols = {a.split()[0] for a in molecule["atom"].replace(";", " ").split() if a and not a[0].isdigit() and a not in ("-", "+")}
+    has_li = "Li" in symbols
+    if basis == "sto-3g" and has_li:
+        return {sym: gto.basis.parse(LI_S_ONLY_STO3G_PYSCF) if sym == "Li" else "sto-3g"
+                for sym in symbols if sym in {"H", "Li", "Be", "C", "N", "O"}}
+    return basis
+
+
 def timed(fn):
     t0 = time.perf_counter()
     out = fn()
@@ -76,12 +110,19 @@ def timed(fn):
 
 
 def row(molecule, basis, method, seconds, energy_Ha, success, notes=None):
+    # Emit `null` (not `NaN`) for missing energies so the JSON is
+    # parseable by strict JSON consumers (downstream TS renderer).
+    if energy_Ha is None:
+        energy_out = None
+    else:
+        e = float(energy_Ha)
+        energy_out = None if (e != e) else e  # NaN check via e != e
     r = {
         "molecule": molecule,
         "basis": basis,
         "method": method,
         "seconds": seconds,
-        "energy_Ha": float(energy_Ha) if energy_Ha is not None else float("nan"),
+        "energy_Ha": energy_out,
         "success": bool(success),
     }
     if notes is not None:
@@ -94,7 +135,7 @@ def run_one(molecule, basis):
     rows = []
     mol = gto.M(
         atom=molecule["atom"],
-        basis=basis,
+        basis=basis_for(molecule, basis),
         unit="Angstrom",
         symmetry=False,
         verbose=0,

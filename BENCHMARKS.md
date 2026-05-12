@@ -30,7 +30,8 @@ Updated 2026-05.
 | **Schreiber** (vertical excitations) | TDDFT / EOM benchmark | 28 | 🛣️ Tier 3 queued | smaller than Thiel, faster |
 | MP2-F12 / CCSD(T)-F12 vs CBS | basis-set convergence | various | 🛣️ Tier 3 queued | needs F12 implementation |
 | Cross-vendor parity | GPU vendor matrix | n/a | 🛣️ Tier 3 queued | NVIDIA / AMD / Intel / Apple |
-| **Wall-clock vs PySCF / gpu4pyscf** | head-to-head timing | 4 mol × 2 basis | 🟡 infrastructure shipped (E34) · awaiting PySCF run | the "is it actually fast" question |
+| **Wall-clock vs PySCF (CPU)** | head-to-head timing | 4 mol × 2 basis × 5 methods | ✅ shipped (E34) | see comparison artifact + honest summary below |
+| **Wall-clock vs gpu4pyscf** | head-to-head GPU timing | same | 🛣️ Tier 3 next | needs gpu4pyscf install + PySCF script flag |
 
 ✅ shipped · 🛣️ Tier 3 · ⏳ Tier 4
 
@@ -110,6 +111,38 @@ Honest expectation: PySCF is faster on CPU due to BLAS, gpu4pyscf
 is faster on big systems due to cuBLAS; we win on small systems
 because we have zero startup / JIT cost, and on "no-install" UX
 plus the cc-pVDZ CCSD(T) WGSL kernel.
+
+### Headline result (2026-05-12, Apple M2 Pro, PySCF 2.13.0 CPU)
+
+[Full comparison →](./experiments/results/2026-05-12/level-6/E34-comparison.md)
+
+**Energy agreement** — 19 directly comparable cells:
+- max **\|ΔE\| = 1.00×10⁻⁴ Ha** (H₂O STO-3G CCSD(T), 100 µHa — below
+  chemical accuracy of 1.594 mHa; the bulk of this is in the (T)
+  correction itself, possibly frozen-core defaults differ)
+- mean **\|ΔE\| = 8.13×10⁻⁶ Ha** across all cells
+
+**Wall-clock** — 19 cells, **webgpu-q faster on 11 / 19**:
+
+| we win | we lose |
+|---|---|
+| HF on small systems (105× on H₂ STO-3G, 12× on H₂O STO-3G, 1.09× on H₂O cc-pVDZ) — no Python startup cost | MP2 / CCSD on cc-pVDZ — PySCF uses NumPy/BLAS, we use TS loops (e.g. H₂O cc-pVDZ CCSD: **41.6 s for us vs 87 ms for PySCF = 480× slower**) |
+| Small CCSD (e.g. LiH STO-3G: 0.8 ms vs PySCF 32 ms = 40× faster) | CPU CCSD(T) on medium systems (BeH₂ STO-3G: 42 ms vs PySCF 2 ms = 20× slower) |
+| **CCSD(T)-GPU at cc-pVDZ — 4.2 s on H₂O**. PySCF without `gpu4pyscf` can't do this at all. | Anything bandwidth-bound where BLAS vectorization dominates |
+
+**The honest story**: webgpu-q is **not always faster** — and the
+README updated to reflect this. We win on (a) the no-install /
+no-startup edge, (b) HF up through medium systems, (c) GPU (T) at
+cc-pVDZ. PySCF wins on CPU-BLAS-bound MP2 / CCSD at production
+basis. gpu4pyscf comparison is the next step.
+
+### Known method-level residuals to investigate (Tier 3)
+
+- BeH₂ STO-3G CCSD(T): |ΔE| = 3.5×10⁻⁵ Ha (35 µHa)
+- H₂O STO-3G CCSD(T):  |ΔE| = 1.0×10⁻⁴ Ha (100 µHa)
+- Likely candidates: frozen-core defaults, (T) prefactor convention,
+  spin-orbital ordering. All below chemical accuracy but worth
+  closing the loop on.
 
 ---
 
