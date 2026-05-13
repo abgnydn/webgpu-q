@@ -99,6 +99,50 @@ highest-leverage demonstration.
 
 ---
 
+## Session marker: 2026-05-13 — EOM-CCSD σ_1 sign-flip closed
+
+**TL;DR:** The multi-electron singlet bug E35 surfaced (2.57 eV gap vs
+PySCF) was traced via the LiH brute-force diagnostic to a **sign-flip
+in the σ_1 ← R_2 W̄_amef term**. Code used `+½ ⟨ma||ef⟩` where
+Stanton-Bartlett 1993 Eq 41 requires `+½ ⟨am||ef⟩` (= −½ ⟨ma||ef⟩ by
+antisymmetry). One-line fix in stage 32k:
+
+```typescript
+// before
+s += 0.5 * V(m, a + VO, e + VO, f + VO) * R_2[...]
+// after
+s += 0.5 * V(a + VO, m, e + VO, f + VO) * R_2[...]
+```
+
+**Result:** LiH STO-3G singlet gap **2.57 eV → 0.27 eV** (10× shrink,
+inside literature EOM-CCSD ↔ FCI accuracy of ~0.1–0.2 eV). Triplets
+unchanged (already exact at 7 meV).
+
+**Bigger systems** (H₂O / NH₃ / CH₄) improved 30–40% from the same fix
+(2.55 → 1.88 eV on H₂O singlet) but still need 5+ more T-dressings to
+fully close. The PySCF port (MIGRATION.md) lands them all at once.
+
+**Today's full arc** (intentionally including the wrong leads — they
+ruled out hypotheses):
+- 32f rejected: "missing σ_1 cross-spin coupling" — R_1×R_1 was fine
+- 32f-2 rejected: "R_2×R_2 off-diagonal bug 7.26 eV" — was diagnostic noise
+- 32g rejected: "stage 32c patches over-correct" — they're net positive
+- 32h rejected: "sign flip on (α,β) ↔ (β,α) R_2 pairs" — basis-ordering artifact
+- 32i confirmed: **diagnostic basis-ordering needed correcting**
+- 32j confirmed: T1·T1 + T1 dressings on W̄_abej / W̄_mbij / W̄_mnie / W̄_amef are real missing terms
+- 32k confirmed: **σ_1 ← R_2 W̄_amef sign flipped** — the actual bug
+- 32l confirmed: linear-T1 on W̄_abej / W̄_mbij give additional 5–25% improvement
+
+**Permanent verifier**: `tests/chemistry/eom-ccsd-bruteforce-lih.test.ts`.
+After any σ_1/σ_2 change run this; M_mine − M_exact full 14×14 diff
+shrinks or doesn't. Binary feedback.
+
+Eight commits today: 458a41a, 30b971b, 43355cd, 851182b, da665b0,
+05dc5af, bfa785b, c710d29, 241dea8. See LIMITATIONS.md for current
+state and MIGRATION.md for closure path.
+
+---
+
 ## Current state (2026-05-12)
 
 **Stage 24a–b shipped: approximate EE-EOM-CCSD for correlated
