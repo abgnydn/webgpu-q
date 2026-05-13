@@ -552,14 +552,24 @@ describe("Brute-force EOM-CCSD on LiH STO-3G (4 electrons, NSO=6)", () => {
     // Build the FULL 14×14 M_mine by applying σ to each packed basis
     // unit vector (8 singles + 6 antisym doubles). This is the
     // matrix-on-unit-vectors construction runEOMCCSD does internally.
+    //
+    // CRITICAL: basisVecs above is enumerated with i<j (rows 8–13 =
+    // "R₂[0<1]", "R₂[0<2]", "R₂[0<3]", "R₂[1<2]", "R₂[1<3]", "R₂[2<3]"),
+    // so to diff M_mine vs M_exact element-by-element we MUST iterate
+    // ijPairs with the same i<j ordering. (Previously this test used
+    // an i>j enumeration matching production runEOMCCSD's internal
+    // packing — a hidden basis permutation that made M_mine appear to
+    // have a "sign-flip bug" at indices 10/11 vs the i<j-ordered
+    // basisVecs. Stage 32h diagnosis traced to here. The production
+    // packing doesn't have a bug; the diff matrix did.)
     const NS = NOCC * NVIRT;
     const ijPairs: Array<{ i: number; j: number }> = [];
-    for (let i = 1; i < NOCC; i++) {
-      for (let j = 0; j < i; j++) ijPairs.push({ i, j });
+    for (let i = 0; i < NOCC; i++) {
+      for (let j = i + 1; j < NOCC; j++) ijPairs.push({ i, j });
     }
     const abPairs: Array<{ i: number; j: number }> = [];
-    for (let a = 1; a < NVIRT; a++) {
-      for (let b = 0; b < a; b++) abPairs.push({ i: a, j: b });
+    for (let a = 0; a < NVIRT; a++) {
+      for (let b = a + 1; b < NVIRT; b++) abPairs.push({ i: a, j: b });
     }
     const nIJ = ijPairs.length;
     const nAB = abPairs.length;
@@ -647,6 +657,47 @@ describe("Brute-force EOM-CCSD on LiH STO-3G (4 electrons, NSO=6)", () => {
         row.push(v.toFixed(3).padStart(11));
       }
       console.log(`[bf-eom-lih]   ${basisLabels[i]!.padEnd(11)} ${row.join(" ")}`);
+    }
+
+    // Antisymmetry sanity check on σ_2. The σ_2 output should satisfy:
+    //   σ_2[i,j,a,b] = -σ_2[j,i,a,b]   (antisym in occupied pair)
+    //   σ_2[i,j,a,b] = -σ_2[i,j,b,a]   (antisym in virtual pair)
+    // If either fails for ANY (i,j,a,b) given an antisym R_2 input, the
+    // σ_2 equations themselves violate antisymmetry — that would be the
+    // immediate cause of the sign-flip pattern in the diff matrix.
+    {
+      // Apply σ to one antisym R_2 unit vector and inspect output antisym.
+      const R1z = new Float64Array(NOCC * NVIRT);
+      const R2u = new Float64Array(NOCC * NOCC * NVIRT * NVIRT);
+      // R_2 unit at (i=0, j=3, a=0, b=1):
+      R2u[((0 * NOCC + 3) * NVIRT + 0) * NVIRT + 1] = 1;
+      R2u[((3 * NOCC + 0) * NVIRT + 0) * NVIRT + 1] = -1;
+      R2u[((0 * NOCC + 3) * NVIRT + 1) * NVIRT + 0] = -1;
+      R2u[((3 * NOCC + 0) * NVIRT + 1) * NVIRT + 0] = 1;
+      const { s2: s2_unit } = sigma(R1z, R2u);
+      let maxAsym_ij = 0;
+      let maxAsym_ab = 0;
+      let loc_ij = "", loc_ab = "";
+      for (let i = 0; i < NOCC; i++) {
+        for (let j = 0; j < NOCC; j++) {
+          for (let a = 0; a < NVIRT; a++) {
+            for (let b = 0; b < NVIRT; b++) {
+              const v_ij_ab = s2_unit[((i * NOCC + j) * NVIRT + a) * NVIRT + b]!;
+              const v_ji_ab = s2_unit[((j * NOCC + i) * NVIRT + a) * NVIRT + b]!;
+              const v_ij_ba = s2_unit[((i * NOCC + j) * NVIRT + b) * NVIRT + a]!;
+              const dij = Math.abs(v_ij_ab + v_ji_ab);
+              const dab = Math.abs(v_ij_ab + v_ij_ba);
+              if (dij > maxAsym_ij) { maxAsym_ij = dij; loc_ij = `(${i},${j},${a},${b})`; }
+              if (dab > maxAsym_ab) { maxAsym_ab = dab; loc_ab = `(${i},${j},${a},${b})`; }
+            }
+          }
+        }
+      }
+      console.log(`[bf-eom-lih]`);
+      console.log(`[bf-eom-lih] σ_2 antisymmetry check (R_2 unit at [0,3,0,1]):`);
+      console.log(`[bf-eom-lih]   max |σ_2[i,j,a,b] + σ_2[j,i,a,b]| = ${maxAsym_ij.toExponential(3)} at ${loc_ij}`);
+      console.log(`[bf-eom-lih]   max |σ_2[i,j,a,b] + σ_2[i,j,b,a]| = ${maxAsym_ab.toExponential(3)} at ${loc_ab}`);
+      console.log(`[bf-eom-lih]   (both should be ≤ 1e-14 if σ_2 is properly antisymmetric)`);
     }
 
     // Surgical: report key W_mnij values at the offending indices.
