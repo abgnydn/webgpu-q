@@ -636,6 +636,43 @@ describe("Brute-force EOM-CCSD on LiH STO-3G (4 electrons, NSO=6)", () => {
       console.log(`[bf-eom-lih]   ${basisLabels[i]!.padEnd(11)} ${row.join(" ")}`);
     }
 
+    // Print full M_exact (14×14) in eV for reference.
+    console.log(`[bf-eom-lih]`);
+    console.log(`[bf-eom-lih] Full M_exact (14×14, in eV):`);
+    console.log(`[bf-eom-lih]             ${colHdr}`);
+    for (let i = 0; i < bdim; i++) {
+      const row: string[] = [];
+      for (let j = 0; j < bdim; j++) {
+        const v = M_exact[i * bdim + j]! * HA_TO_EV;
+        row.push(v.toFixed(3).padStart(11));
+      }
+      console.log(`[bf-eom-lih]   ${basisLabels[i]!.padEnd(11)} ${row.join(" ")}`);
+    }
+
+    // Surgical: report key W_mnij values at the offending indices.
+    // The R_2 × R_2 max-diff entry is [R_2[0<3,0<1], R_2[0<1,0<1]] = 7.26 eV.
+    // The σ_2 ← R_2 term involved is 0.5 Σ_mn W_mnij[m,n,i,j] · R_2[m,n,a,b].
+    // For (i=0,j=3) reading R_2[0,1,0,1]=+1 / R_2[1,0,0,1]=−1 (antisym
+    // unit vector), the contribution is ½(W_mnij[0,1,0,3]−W_mnij[1,0,0,3]),
+    // which doubles to W_mnij[0,1,0,3] if W is antisym in (m,n).
+    console.log(`[bf-eom-lih]`);
+    console.log(`[bf-eom-lih] W_mnij surgical sample at indices used by offending coupling:`);
+    const sampleIdxs: Array<[number, number, number, number, string]> = [
+      [0, 1, 0, 3, "W_mnij[0,1,0,3] — feeds [R₂[0<3,0<1], R₂[0<1,0<1]]"],
+      [1, 0, 0, 3, "W_mnij[1,0,0,3] — antisym partner; expect = -W_mnij[0,1,0,3]"],
+      [0, 1, 3, 0, "W_mnij[0,1,3,0] — antisym in (i,j); expect = -W_mnij[0,1,0,3]"],
+      [0, 3, 0, 1, "W_mnij[0,3,0,1] — column permutation; not obvious"],
+    ];
+    // Recompute W_mnij here to confirm value (it's already a local in
+    // the sigma builder above).
+    for (const [m, nn, i, j, lbl] of sampleIdxs) {
+      const idx = ((m * NOCC + nn) * NOCC + i) * NOCC + j;
+      const wVal = W_mnij[idx]!;
+      console.log(
+        `[bf-eom-lih]   ${lbl.padEnd(70)} = ${wVal.toFixed(8)} Ha = ${(wVal * HA_TO_EV).toFixed(4)} eV`,
+      );
+    }
+
     // No hard assertions — this is a diagnostic, not a regression check.
   }, 60_000);
 });
