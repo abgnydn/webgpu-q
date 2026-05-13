@@ -13,7 +13,7 @@
     "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
     "arch": "arm64",
     "hostname": "Ahmets-MBP.localdomain",
-    "timestamp": "2026-05-13T10:02:36.310026Z",
+    "timestamp": "2026-05-13T10:39:37.221520Z",
     "method": "PySCF: scf.RHF → cc.CCSD → eomee_ccsd_singlet + eomee_ccsd_triplet, N=5 each, merged ascending."
   },
   "rows": [
@@ -70,9 +70,9 @@
         0.0,
         0.0
       ],
-      "seconds_HF": 0.05353766700136475,
-      "seconds_CCSD": 0.028942083998117596,
-      "seconds_EOM": 1.66997779160738e-07,
+      "seconds_HF": 0.07234199999948032,
+      "seconds_CCSD": 0.041645207995316014,
+      "seconds_EOM": 2.500019036233425e-07,
       "success": true
     },
     {
@@ -128,9 +128,9 @@
         1.0,
         0.0
       ],
-      "seconds_HF": 0.01880541699938476,
-      "seconds_CCSD": 0.06009762499888893,
-      "seconds_EOM": 2.500019036233425e-07,
+      "seconds_HF": 0.02415304200258106,
+      "seconds_CCSD": 0.0950044580094982,
+      "seconds_EOM": 1.66997779160738e-07,
       "success": true
     },
     {
@@ -186,9 +186,9 @@
         0.0,
         0.0
       ],
-      "seconds_HF": 0.045825207998859696,
-      "seconds_CCSD": 0.09006200000294484,
-      "seconds_EOM": 8.300412446260452e-08,
+      "seconds_HF": 0.021539624998695217,
+      "seconds_CCSD": 0.0304122079978697,
+      "seconds_EOM": 1.66997779160738e-07,
       "success": true
     },
     {
@@ -244,9 +244,9 @@
         0.0,
         0.0
       ],
-      "seconds_HF": 0.02642254099191632,
-      "seconds_CCSD": 0.03856058399833273,
-      "seconds_EOM": 8.298957254737616e-08,
+      "seconds_HF": 0.02408045800984837,
+      "seconds_CCSD": 0.03623879099905025,
+      "seconds_EOM": 8.300412446260452e-08,
       "success": true
     },
     {
@@ -302,9 +302,9 @@
         0.0,
         0.0
       ],
-      "seconds_HF": 0.023787874990375713,
-      "seconds_CCSD": 0.05169820900482591,
-      "seconds_EOM": 4.1996827349066734e-08,
+      "seconds_HF": 0.022707167008775286,
+      "seconds_CCSD": 0.05247779199271463,
+      "seconds_EOM": 0.0,
       "success": true
     },
     {
@@ -360,9 +360,9 @@
         0.0,
         0.0
       ],
-      "seconds_HF": 0.035026917001232505,
-      "seconds_CCSD": 0.06335504200251307,
-      "seconds_EOM": 1.2500095181167126e-07,
+      "seconds_HF": 0.03463912499137223,
+      "seconds_CCSD": 0.06510045900358818,
+      "seconds_EOM": 4.099274519830942e-08,
       "success": true
     },
     {
@@ -418,9 +418,9 @@
         0.0,
         0.0
       ],
-      "seconds_HF": 0.02955508400918916,
-      "seconds_CCSD": 0.09662150000804104,
-      "seconds_EOM": 8.300412446260452e-08,
+      "seconds_HF": 0.03131099999882281,
+      "seconds_CCSD": 0.11404112499440089,
+      "seconds_EOM": 1.2500095181167126e-07,
       "success": true
     }
   ],

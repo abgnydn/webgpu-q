@@ -538,6 +538,15 @@ describe("Brute-force EOM-CCSD on LiH STO-3G (4 electrons, NSO=6)", () => {
                     Wabej_i += 0.5 * tau_mnab * eri_SO[((mm * NSO + nn) * NSO + (e + VO)) * NSO + i]!;
                   }
                 }
+                // Linear T1 dressing (Stage 32l).
+                for (let mm = 0; mm < NOCC; mm++) {
+                  const t1ma = T1[mm * NVIRT + a]!;
+                  const t1mb = T1[mm * NVIRT + b]!;
+                  Wabej_j -= t1ma * V(mm, b + VO, e + VO, j);
+                  Wabej_j += t1mb * V(mm, a + VO, e + VO, j);
+                  Wabej_i -= t1ma * V(mm, b + VO, e + VO, i);
+                  Wabej_i += t1mb * V(mm, a + VO, e + VO, i);
+                }
                 z += Wabej_j * R_1_in[i * NVIRT + e]!;
                 z -= Wabej_i * R_1_in[j * NVIRT + e]!;
               }
@@ -555,6 +564,15 @@ describe("Brute-force EOM-CCSD on LiH STO-3G (4 electrons, NSO=6)", () => {
                     Wmbij += 0.5 * tau_ijef * eri_SO[((m * NSO + (b + VO)) * NSO + (e + VO)) * NSO + (f + VO)]!;
                     Wmaij += 0.5 * tau_ijef * eri_SO[((m * NSO + (a + VO)) * NSO + (e + VO)) * NSO + (f + VO)]!;
                   }
+                }
+                // Linear T1 dressing (Stage 32l).
+                for (let e = 0; e < NVIRT; e++) {
+                  const t1ie = T1[i * NVIRT + e]!;
+                  const t1je = T1[j * NVIRT + e]!;
+                  Wmbij += t1ie * V(m, b + VO, e + VO, j);
+                  Wmbij -= t1je * V(m, b + VO, e + VO, i);
+                  Wmaij += t1ie * V(m, a + VO, e + VO, j);
+                  Wmaij -= t1je * V(m, a + VO, e + VO, i);
                 }
                 z -= Wmbij * R_1_in[m * NVIRT + a]!;
                 z += Wmaij * R_1_in[m * NVIRT + b]!;

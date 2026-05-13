@@ -295,12 +295,12 @@ export function runEOMCCSD(
                      R_2[((j * NOCC + m) * NVIRT + b) * NVIRT + e]!;
               }
             }
-            // P(ij) Σ_e W̄_abej R_1[i,e]  with W̄_abej = ⟨ab||ej⟩ + ½ Σ_mn τ_mn^ab ⟨mn||ej⟩
-            // τ_mn^ab = T2[m,n,a,b] + T1[m,a]·T1[n,b] − T1[m,b]·T1[n,a]
-            // (Stage 32j fix 2026-05-13: added missing T1·T1 dressing — the
-            //  "T1 dressing omitted" comment in the old code was wrong; even
-            //  for LiH STO-3G with T1 ~ 0.273 the dressing contributes
-            //  multiple eV to the W̄_abej R_1 ↔ R_2 cross-coupling.)
+            // P(ij) Σ_e W̄_abej R_1[i,e]
+            // W̄_abej = ⟨ab||ej⟩ + ½ Σ_mn τ_mn^ab ⟨mn||ej⟩
+            //        − Σ_m T1[m,a] ⟨mb||ej⟩ + Σ_m T1[m,b] ⟨ma||ej⟩
+            // (Stage 32l 2026-05-13: added the linear-T1 terms that
+            //  Crawford-Schaefer 2000 includes alongside the τ_mn^ab
+            //  T2+T1·T1 ladder.)
             for (let e = 0; e < NVIRT; e++) {
               let Wabej_j = V(a + VO, b + VO, e + VO, j);
               let Wabej_i = V(a + VO, b + VO, e + VO, i);
@@ -316,12 +316,22 @@ export function runEOMCCSD(
                   Wabej_i += 0.5 * tau_mnab * eri[((mm * NSO + nn) * NSO + (e + VO)) * NSO + i]!;
                 }
               }
+              // Linear T1 dressing.
+              for (let mm = 0; mm < NOCC; mm++) {
+                const t1ma = T1[mm * NVIRT + a]!;
+                const t1mb = T1[mm * NVIRT + b]!;
+                Wabej_j -= t1ma * V(mm, b + VO, e + VO, j);
+                Wabej_j += t1mb * V(mm, a + VO, e + VO, j);
+                Wabej_i -= t1ma * V(mm, b + VO, e + VO, i);
+                Wabej_i += t1mb * V(mm, a + VO, e + VO, i);
+              }
               z += Wabej_j * R_1[i * NVIRT + e]!;
               z -= Wabej_i * R_1[j * NVIRT + e]!;
             }
-            // −P(ab) Σ_m W̄_mbij R_1[m,a]  with W̄_mbij = ⟨mb||ij⟩ + ½ Σ_ef τ_ij^ef ⟨mb||ef⟩
-            // τ_ij^ef = T2[i,j,e,f] + T1[i,e]·T1[j,f] − T1[i,f]·T1[j,e]
-            // (Stage 32j fix 2026-05-13: same T1·T1 dressing addition.)
+            // −P(ab) Σ_m W̄_mbij R_1[m,a]
+            // W̄_mbij = ⟨mb||ij⟩ + ½ Σ_ef τ_ij^ef ⟨mb||ef⟩
+            //        + Σ_e T1[i,e] ⟨mb||ej⟩ − Σ_e T1[j,e] ⟨mb||ei⟩
+            // (Stage 32l 2026-05-13: added linear-T1 terms on i,j.)
             for (let m = 0; m < NOCC; m++) {
               let Wmbij = V(m, b + VO, i, j);
               let Wmaij = V(m, a + VO, i, j);
@@ -336,6 +346,15 @@ export function runEOMCCSD(
                   Wmbij += 0.5 * tau_ijef * eri[((m * NSO + (b + VO)) * NSO + (e + VO)) * NSO + (f + VO)]!;
                   Wmaij += 0.5 * tau_ijef * eri[((m * NSO + (a + VO)) * NSO + (e + VO)) * NSO + (f + VO)]!;
                 }
+              }
+              // Linear T1 dressing.
+              for (let e = 0; e < NVIRT; e++) {
+                const t1ie = T1[i * NVIRT + e]!;
+                const t1je = T1[j * NVIRT + e]!;
+                Wmbij += t1ie * V(m, b + VO, e + VO, j);
+                Wmbij -= t1je * V(m, b + VO, e + VO, i);
+                Wmaij += t1ie * V(m, a + VO, e + VO, j);
+                Wmaij -= t1je * V(m, a + VO, e + VO, i);
               }
               z -= Wmbij * R_1[m * NVIRT + a]!;
               z += Wmaij * R_1[m * NVIRT + b]!;
