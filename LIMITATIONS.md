@@ -147,16 +147,32 @@ will silently truncate large dispatches.
   all triplets AND singlets — so PySCF is correct.
 
   Our σ-equation matches M_exact on triplets to 7 meV but disagrees
-  on singlets by ~2.57 eV in opposite directions: one singlet shifted
-  DOWN by 2.57 eV, another shifted UP by the same amount. The M_exact
-  preview shows the culprit: a `R₁[2,0] ↔ R₁[3,1] = 3.964 eV`
-  off-diagonal coupling between the α and β single-excitation
-  components of the singlet HOMO→LUMO transition. This coupling
-  splits singlet from triplet via level repulsion. Our σ_1
-  construction in `src/chemistry/eom-ccsd.ts` is MISSING this
-  cross-spin ⟨iα jβ ‖ aα bβ⟩·R_1[jβ, bβ] term. Tier 3 fix: add the
-  cross-spin coupling to σ_1; should close singlet gap to triplet-
-  level precision (7 meV).
+  on singlets by ~2.57 eV in opposite directions. After extending
+  the LiH brute-force test to diff the FULL 14×14 M_mine vs M_exact
+  element-by-element (not just R_1×R_1), the bug structure is now:
+
+  | block | max \|Δ\| | nature |
+  |-------|----------:|--------|
+  | R_1 × R_1 | 0.53 eV  | diagonal patch artifact (cosmetic) |
+  | R_1 × R_2 | 5.84 eV  | cross-coupling — major |
+  | R_2 × R_1 | 4.04 eV  | cross-coupling — major |
+  | R_2 × R_2 | 7.26 eV  | self-coupling — dominant bug |
+
+  The R_1×R_1 off-diagonal couplings ARE correct (initial hypothesis
+  about missing ⟨iα jβ ‖ aα bβ⟩·R_1 was wrong — that coupling is
+  in W_mbej and the diff confirms it). The singlet eigenvalue gap
+  flows from R_2 contamination via R_1 ↔ R_2 mixing, not from R_1
+  itself. The dominant offending entry is
+  [R₂[0<3,0<1], R₂[0<1,0<1]] = 7.26 eV — an R_2 ↔ R_2 coupling
+  between two doubles sharing the (a=0, b=1) virtual pair but
+  different occupied pairs. That kind of coupling flows through
+  Σ_mn W̄_mnij R_2[m,n,a,b] in σ_2 — so our W_mnij contraction or
+  the W̄_mnij intermediate itself is the next thing to audit.
+
+  Scope: this is a real σ_2 bug, larger than a one-line fix.
+  Tier 3 follow-up: trace W_mnij values for LiH STO-3G against the
+  M_exact projection, identify the wrong term, possibly revert
+  parts of stage 32c that are R_2-coupled.
   See `experiments/results/2026-05-12/level-6/E35-comparison.md`
   and `tests/chemistry/eom-ccsd-bruteforce-lih.test.ts`.
 - **IP-EOM-CCSD R₂ satellites** have a known **~2 Ha (~60 eV)

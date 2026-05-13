@@ -27,7 +27,17 @@ import { describe, test, expect } from "vitest";
 import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
 import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
-import { runCCSD, buildSpinOrbitalERI } from "../../src/chemistry/ccsd.js";
+import {
+  runCCSD,
+  buildSpinOrbitalERI,
+  makeF_ae,
+  makeF_mi,
+  makeF_me,
+  makeW_mnij,
+  makeW_abef,
+  makeW_mbej,
+  makeTau,
+} from "../../src/chemistry/ccsd.js";
 import { runEOMCCSD } from "../../src/chemistry/eom-ccsd.js";
 import { transformERIToMO } from "../../src/chemistry/mp2.js";
 import { eigsymmetric } from "../../src/manybody/dense-eig.js";
@@ -404,21 +414,227 @@ describe("Brute-force EOM-CCSD on LiH STO-3G (4 electrons, NSO=6)", () => {
       );
     }
 
-    // ── M_exact preview: top-left 8×8 of the singles block. ──
-    console.log(`[bf-eom-lih]`);
-    console.log(`[bf-eom-lih] M_exact preview (R₁ × R₁ block, 8×8, in eV):`);
-    console.log(`[bf-eom-lih]   ${basisLabels.slice(0, 8).map((l) => l.padStart(10)).join(" ")}`);
-    for (let i = 0; i < 8; i++) {
-      const row: string[] = [];
-      for (let j = 0; j < 8; j++) {
-        row.push((M_exact[i * bdim + j]! * HA_TO_EV).toFixed(3).padStart(10));
+    // ── Build M_mine via σ-equation on unit vectors (replicating
+    //    runEOMCCSD's matrix-build EXACTLY, so we can diff it against
+    //    M_exact element-by-element). ──────────────────────────
+    const T1 = ccsd.T1;
+    const T2 = ccsd.T2;
+    const tau_t = makeTau(T1, T2, NOCC, NVIRT, 0.5);
+    const tau   = makeTau(T1, T2, NOCC, NVIRT, 1.0);
+    const eps = new Float64Array(NSO);
+    for (let P = 0; P < NSO; P++) eps[P] = hf.orbitalEnergies[P >> 1]!;
+    const F_ae = makeF_ae(T1, eps, eri_SO, tau_t, NOCC, NVIRT, NSO);
+    const F_mi = makeF_mi(T1, eps, eri_SO, tau_t, NOCC, NVIRT, NSO);
+    const F_me = makeF_me(T1, eri_SO, NOCC, NVIRT, NSO);
+    const W_mnij = makeW_mnij(T1, tau, eri_SO, NOCC, NVIRT, NSO);
+    const W_abef = makeW_abef(T1, tau, eri_SO, NOCC, NVIRT, NSO);
+    const W_mbej = makeW_mbej(T1, T2, eri_SO, NOCC, NVIRT, NSO);
+    const V = (P: number, Q: number, R: number, S: number): number =>
+      eri_SO[((P * NSO + Q) * NSO + R) * NSO + S]!;
+
+    // σ on (R_1, R_2) → (s1, s2), replicating eom-ccsd.ts exactly
+    // (including the stage-32c diagonal patch).
+    function sigma(R_1_in: Float64Array, R_2_in: Float64Array): { s1: Float64Array; s2: Float64Array } {
+      const s1 = new Float64Array(NOCC * NVIRT);
+      const s2 = new Float64Array(NOCC * NOCC * NVIRT * NVIRT);
+      const VO = NOCC;
+      for (let i = 0; i < NOCC; i++) {
+        for (let a = 0; a < NVIRT; a++) {
+          let s = (eps[a + VO]! - eps[i]!) * R_1_in[i * NVIRT + a]!;
+          for (let e = 0; e < NVIRT; e++) s += F_ae[a * NVIRT + e]! * R_1_in[i * NVIRT + e]!;
+          for (let m = 0; m < NOCC; m++) s -= F_mi[m * NOCC + i]! * R_1_in[m * NVIRT + a]!;
+          for (let m = 0; m < NOCC; m++) {
+            for (let e = 0; e < NVIRT; e++) {
+              s += F_me[m * NVIRT + e]! * R_2_in[((i * NOCC + m) * NVIRT + a) * NVIRT + e]!;
+            }
+          }
+          for (let m = 0; m < NOCC; m++) {
+            for (let e = 0; e < NVIRT; e++) {
+              s += W_mbej[((m * NVIRT + a) * NVIRT + e) * NOCC + i]! * R_1_in[m * NVIRT + e]!;
+            }
+          }
+          for (let m = 0; m < NOCC; m++) {
+            for (let nn = 0; nn < NOCC; nn++) {
+              for (let e = 0; e < NVIRT; e++) {
+                s -= 0.5 * V(m, nn, i, e + VO) * R_2_in[((m * NOCC + nn) * NVIRT + a) * NVIRT + e]!;
+              }
+            }
+          }
+          for (let m = 0; m < NOCC; m++) {
+            for (let e = 0; e < NVIRT; e++) {
+              for (let f = 0; f < NVIRT; f++) {
+                s += 0.5 * V(m, a + VO, e + VO, f + VO) * R_2_in[((i * NOCC + m) * NVIRT + e) * NVIRT + f]!;
+              }
+            }
+          }
+          // Stage 32c patch (same as eom-ccsd.ts).
+          s += 0.5 * ccsd.correlationEnergy * R_1_in[i * NVIRT + a]!;
+          s1[i * NVIRT + a] = s;
+        }
       }
-      console.log(`[bf-eom-lih]   ${basisLabels[i]!.padEnd(10)} ${row.join(" ")}`);
+      // σ_2 — replicate eom-ccsd.ts exactly.
+      for (let i = 0; i < NOCC; i++) {
+        for (let j = 0; j < NOCC; j++) {
+          for (let a = 0; a < NVIRT; a++) {
+            for (let b = 0; b < NVIRT; b++) {
+              let z = 0;
+              const idx_ijab = ((i * NOCC + j) * NVIRT + a) * NVIRT + b;
+              z += (eps[a + VO]! + eps[b + VO]! - eps[i]! - eps[j]!) * R_2_in[idx_ijab]!;
+              for (let e = 0; e < NVIRT; e++) {
+                z += F_ae[a * NVIRT + e]! * R_2_in[((i * NOCC + j) * NVIRT + e) * NVIRT + b]!;
+                z -= F_ae[b * NVIRT + e]! * R_2_in[((i * NOCC + j) * NVIRT + e) * NVIRT + a]!;
+              }
+              for (let m = 0; m < NOCC; m++) {
+                z -= F_mi[m * NOCC + i]! * R_2_in[((m * NOCC + j) * NVIRT + a) * NVIRT + b]!;
+                z += F_mi[m * NOCC + j]! * R_2_in[((m * NOCC + i) * NVIRT + a) * NVIRT + b]!;
+              }
+              for (let m = 0; m < NOCC; m++) {
+                for (let nn = 0; nn < NOCC; nn++) {
+                  z += 0.5 * W_mnij[((m * NOCC + nn) * NOCC + i) * NOCC + j]! *
+                       R_2_in[((m * NOCC + nn) * NVIRT + a) * NVIRT + b]!;
+                }
+              }
+              for (let e = 0; e < NVIRT; e++) {
+                for (let f = 0; f < NVIRT; f++) {
+                  z += 0.5 * W_abef[((a * NVIRT + b) * NVIRT + e) * NVIRT + f]! *
+                       R_2_in[((i * NOCC + j) * NVIRT + e) * NVIRT + f]!;
+                }
+              }
+              for (let m = 0; m < NOCC; m++) {
+                for (let e = 0; e < NVIRT; e++) {
+                  z += W_mbej[((m * NVIRT + b) * NVIRT + e) * NOCC + j]! *
+                       R_2_in[((i * NOCC + m) * NVIRT + a) * NVIRT + e]!;
+                  z -= W_mbej[((m * NVIRT + a) * NVIRT + e) * NOCC + j]! *
+                       R_2_in[((i * NOCC + m) * NVIRT + b) * NVIRT + e]!;
+                  z -= W_mbej[((m * NVIRT + b) * NVIRT + e) * NOCC + i]! *
+                       R_2_in[((j * NOCC + m) * NVIRT + a) * NVIRT + e]!;
+                  z += W_mbej[((m * NVIRT + a) * NVIRT + e) * NOCC + i]! *
+                       R_2_in[((j * NOCC + m) * NVIRT + b) * NVIRT + e]!;
+                }
+              }
+              for (let e = 0; e < NVIRT; e++) {
+                let Wabej_j = V(a + VO, b + VO, e + VO, j);
+                let Wabej_i = V(a + VO, b + VO, e + VO, i);
+                for (let mm = 0; mm < NOCC; mm++) {
+                  for (let nn = 0; nn < NOCC; nn++) {
+                    const t2 = T2[((mm * NOCC + nn) * NVIRT + a) * NVIRT + b]!;
+                    Wabej_j += 0.5 * t2 * eri_SO[((mm * NSO + nn) * NSO + (e + VO)) * NSO + j]!;
+                    Wabej_i += 0.5 * t2 * eri_SO[((mm * NSO + nn) * NSO + (e + VO)) * NSO + i]!;
+                  }
+                }
+                z += Wabej_j * R_1_in[i * NVIRT + e]!;
+                z -= Wabej_i * R_1_in[j * NVIRT + e]!;
+              }
+              for (let m = 0; m < NOCC; m++) {
+                let Wmbij = V(m, b + VO, i, j);
+                let Wmaij = V(m, a + VO, i, j);
+                for (let e = 0; e < NVIRT; e++) {
+                  for (let f = 0; f < NVIRT; f++) {
+                    const t2 = T2[((i * NOCC + j) * NVIRT + e) * NVIRT + f]!;
+                    Wmbij += 0.5 * t2 * eri_SO[((m * NSO + (b + VO)) * NSO + (e + VO)) * NSO + (f + VO)]!;
+                    Wmaij += 0.5 * t2 * eri_SO[((m * NSO + (a + VO)) * NSO + (e + VO)) * NSO + (f + VO)]!;
+                  }
+                }
+                z -= Wmbij * R_1_in[m * NVIRT + a]!;
+                z += Wmaij * R_1_in[m * NVIRT + b]!;
+              }
+              // Stage 32c R_2 patch.
+              z -= ccsd.correlationEnergy * R_2_in[idx_ijab]!;
+              s2[idx_ijab] = z;
+            }
+          }
+        }
+      }
+      return { s1, s2 };
+    }
+
+    // Build the FULL 14×14 M_mine by applying σ to each packed basis
+    // unit vector (8 singles + 6 antisym doubles). This is the
+    // matrix-on-unit-vectors construction runEOMCCSD does internally.
+    const NS = NOCC * NVIRT;
+    const ijPairs: Array<{ i: number; j: number }> = [];
+    for (let i = 1; i < NOCC; i++) {
+      for (let j = 0; j < i; j++) ijPairs.push({ i, j });
+    }
+    const abPairs: Array<{ i: number; j: number }> = [];
+    for (let a = 1; a < NVIRT; a++) {
+      for (let b = 0; b < a; b++) abPairs.push({ i: a, j: b });
+    }
+    const nIJ = ijPairs.length;
+    const nAB = abPairs.length;
+    expect(NS + nIJ * nAB).toBe(bdim);
+
+    const M_mine = new Float64Array(bdim * bdim);
+    const R1unit = new Float64Array(NOCC * NVIRT);
+    const R2unit = new Float64Array(NOCC * NOCC * NVIRT * NVIRT);
+    for (let col = 0; col < bdim; col++) {
+      R1unit.fill(0);
+      R2unit.fill(0);
+      if (col < NS) {
+        R1unit[col] = 1;
+      } else {
+        const d = col - NS;
+        const ij = ijPairs[Math.floor(d / nAB)]!;
+        const ab = abPairs[d - Math.floor(d / nAB) * nAB]!;
+        const i = ij.i, j = ij.j, a = ab.i, b = ab.j;
+        R2unit[((i * NOCC + j) * NVIRT + a) * NVIRT + b] = 1;
+        R2unit[((j * NOCC + i) * NVIRT + a) * NVIRT + b] = -1;
+        R2unit[((i * NOCC + j) * NVIRT + b) * NVIRT + a] = -1;
+        R2unit[((j * NOCC + i) * NVIRT + b) * NVIRT + a] = 1;
+      }
+      const { s1, s2 } = sigma(R1unit, R2unit);
+      for (let row = 0; row < NS; row++) M_mine[row * bdim + col] = s1[row]!;
+      for (let d = 0; d < nIJ * nAB; d++) {
+        const ij = ijPairs[Math.floor(d / nAB)]!;
+        const ab = abPairs[d - Math.floor(d / nAB) * nAB]!;
+        const i = ij.i, j = ij.j, a = ab.i, b = ab.j;
+        M_mine[(NS + d) * bdim + col] = s2[((i * NOCC + j) * NVIRT + a) * NVIRT + b]!;
+      }
+    }
+
+    // ── Diff M_mine − M_exact full 14×14, broken into 3 blocks. ──
+    const blocks: Array<{ name: string; rowFrom: number; rowTo: number; colFrom: number; colTo: number }> = [
+      { name: "R₁ × R₁",   rowFrom: 0,  rowTo: NS,    colFrom: 0,  colTo: NS },
+      { name: "R₁ × R₂",   rowFrom: 0,  rowTo: NS,    colFrom: NS, colTo: bdim },
+      { name: "R₂ × R₁",   rowFrom: NS, rowTo: bdim,  colFrom: 0,  colTo: NS },
+      { name: "R₂ × R₂",   rowFrom: NS, rowTo: bdim,  colFrom: NS, colTo: bdim },
+    ];
+    let globalMaxDiff = 0;
+    let globalMaxLoc = "";
+    for (const blk of blocks) {
+      let blockMax = 0;
+      let blockLoc = "";
+      for (let i = blk.rowFrom; i < blk.rowTo; i++) {
+        for (let j = blk.colFrom; j < blk.colTo; j++) {
+          const d = (M_mine[i * bdim + j]! - M_exact[i * bdim + j]!) * HA_TO_EV;
+          if (Math.abs(d) > Math.abs(blockMax)) {
+            blockMax = d;
+            blockLoc = `[${basisLabels[i]}, ${basisLabels[j]}]`;
+          }
+        }
+      }
+      console.log(`[bf-eom-lih] block ${blk.name.padEnd(10)} max |Δ| = ${Math.abs(blockMax).toFixed(4)} eV at ${blockLoc}`);
+      if (Math.abs(blockMax) > Math.abs(globalMaxDiff)) {
+        globalMaxDiff = blockMax;
+        globalMaxLoc = `${blk.name}: ${blockLoc}`;
+      }
+    }
+    console.log(`[bf-eom-lih] OVERALL max |M_mine − M_exact| = ${Math.abs(globalMaxDiff).toFixed(4)} eV at ${globalMaxLoc}`);
+
+    // Print full 14×14 diff in eV.
+    console.log(`[bf-eom-lih]`);
+    console.log(`[bf-eom-lih] Full M_mine − M_exact (14×14, in eV):`);
+    const colHdr = basisLabels.map((l) => l.padStart(11)).join(" ");
+    console.log(`[bf-eom-lih]             ${colHdr}`);
+    for (let i = 0; i < bdim; i++) {
+      const row: string[] = [];
+      for (let j = 0; j < bdim; j++) {
+        const d = (M_mine[i * bdim + j]! - M_exact[i * bdim + j]!) * HA_TO_EV;
+        row.push(d.toFixed(3).padStart(11));
+      }
+      console.log(`[bf-eom-lih]   ${basisLabels[i]!.padEnd(11)} ${row.join(" ")}`);
     }
 
     // No hard assertions — this is a diagnostic, not a regression check.
-    // We expect the singlet roots to disagree by ~2-3 eV (the E35 finding);
-    // the table above tells us WHICH roots are singlet and whether they
-    // shift relative to the exact projection.
   }, 60_000);
 });
