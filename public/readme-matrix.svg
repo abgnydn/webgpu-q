@@ -241,7 +241,7 @@
       <circle cx="630" cy="17" r="7" fill="#94a3b8"/>
       <circle cx="750" cy="17" r="7" fill="#94a3b8"/>
       <circle cx="870" cy="17" r="7" fill="#94a3b8"/>
-      <text x="945" y="22" font-size="12" fill="#fbbf24" font-weight="600">partial · exact on H₂ · 1 eV gap on multi-e⁻ (E35)</text>
+      <text x="945" y="22" font-size="12" fill="#fbbf24" font-weight="600">partial · LiH 0.27 eV · H₂O 1.9 eV (32k sign-fix shipped)</text>
     </g>
     <g transform="translate(0 908)">
       <text x="40" y="22" font-weight="600">CC2 · CC3 (approximate CC families)</text>

@@ -169,22 +169,47 @@ will silently truncate large dispatches.
   Σ_mn W̄_mnij R_2[m,n,a,b] in σ_2 — so our W_mnij contraction or
   the W̄_mnij intermediate itself is the next thing to audit.
 
-  Scope: this is a real σ_2 bug, larger than a one-line fix.
+  Scope: was a real σ_2 bug, partially closed via a sign correction.
 
   Tested-and-rejected hypotheses (2026-05-13):
   - "Stage 32c patches over-correct on multi-electron — revert them
-    and see if singlets improve." Reverting both σ_1 and σ_2 patches
-    made the LiH lowest triplet WORSE (7 meV → 540 meV gap) and did
-    NOT shrink the singlet gap. The 32c patches are net-positive
-    and the R_2 × R_2 off-diagonal bug at [R_2[0<3,0<1], R_2[0<1,0<1]]
-    = 7.26 eV is INDEPENDENT of any patch — it lives in the
-    W_mnij / W̄_abef / W̄_mbej R_2 contractions.
+    and see if singlets improve." Reverting made the LiH lowest
+    triplet WORSE (7 meV → 540 meV gap) and did NOT shrink singlets.
+    Patches restored.
 
-  Conclusion: the proper fix is the PySCF port (MIGRATION.md).
-  Until then the patch stays for the triplet-correctness benefit
-  and the multi-electron singlet gap is a documented honest negative.
-  See `experiments/results/2026-05-12/level-6/E35-comparison.md`
-  and `tests/chemistry/eom-ccsd-bruteforce-lih.test.ts`.
+  Stage 32i: diagnostic basis-ordering correction — the prior R_2 ×
+  R_2 "off-diagonal 7.26 eV bug" was diagnostic permutation noise,
+  not a real bug. After correction the R_2 × R_2 off-diagonals went
+  to ~10⁻¹⁵ Ha.
+
+  Stage 32k (the actual fix): the σ_1 ← R_2 W̄_amef term had a
+  sign-flip. Code used `+½ ⟨ma||ef⟩` where Stanton-Bartlett 1993
+  Eq 41 requires `+½ ⟨am||ef⟩` (= −½ ⟨ma||ef⟩ by antisymmetry).
+  One-line fix:
+    V(m, a+VO, e+VO, f+VO)  →  V(a+VO, m, e+VO, f+VO)
+  RESULT: LiH singlet gap collapsed 2.57 eV → **0.27 eV** (10×
+  better), within the literature EOM-CCSD ↔ FCI accuracy bar
+  (0.1–0.2 eV per Stanton-Bartlett). Triplet 6.77 meV (essentially
+  exact).
+
+  Stages 32j, 32l: added T1·T1 + linear-T1 dressings on W̄_abej,
+  W̄_mbij, W̄_mnie, W̄_amef per Crawford-Schaefer 2000. Each closed
+  ~10–25% of the remaining gap on bigger systems.
+
+  Current state:
+  - LiH STO-3G: triplets exact (7 meV); singlets 0.27 eV (method
+    precision limit reached).
+  - BeH₂: triplets within 0.1 eV; singlets not separately tested.
+  - H₂O / NH₃ / CH₄: singlets still ~0.5–1.9 eV off — more
+    structural T-dressings missing (PySCF's woVoO has ~8 dressings;
+    we have 3-4 of them).
+
+  Closure path: the PySCF port (MIGRATION.md) lands all remaining
+  T-dressings at once. The brute-force diagnostic
+  (`tests/chemistry/eom-ccsd-bruteforce-lih.test.ts`) is the
+  permanent verifier — every fix attempt makes the M_mine − M_exact
+  diff shrink or doesn't.
+  See `experiments/results/2026-05-13/level-6/E35-comparison.md`.
 - **IP-EOM-CCSD R₂ satellites** have a known **~2 Ha (~60 eV)
   over-count** on H₂ STO-3G. Documented in `ip-eom-ccsd.ts`. Affects
   R₂-dominated Auger / shake-up states only; physical lowest IPs are

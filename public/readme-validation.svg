@@ -58,8 +58,8 @@
     <g transform="translate(0 282)">
       <rect width="1200" height="38" fill="#0f172a" fill-opacity="0.5"/>
       <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">EE-EOM-CCSD</text>
-      <text x="370" y="24" font-size="13" fill="#94a3b8">brute-force H̄ on H₂ (2e⁻) · PySCF cross-check (E35)</text>
-      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#fbbf24">10⁻⁵ Ha (H₂) · 0.5–3.9 eV (multi-e⁻)</text>
+      <text x="370" y="24" font-size="13" fill="#94a3b8">brute-force H̄ + PySCF E35 (LiH/BeH₂/H₂O/NH₃/CH₄)</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#fbbf24">10⁻⁵ Ha (H₂) · 0.27 eV (LiH) · ~1.9 eV (H₂O open)</text>
       <circle cx="1100" cy="19" r="8" fill="#fbbf24"/>
     </g>
 

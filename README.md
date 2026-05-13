@@ -416,7 +416,8 @@ Contributor Covenant 2.1. Report concerns to [abgunaydin94@gmail.com](mailto:abg
 | `E34_ENERGY_MEAN_DELTA` | **8.1×10⁻⁶ Ha** | mean &#124;ΔE&#124; vs PySCF over 19 cells |
 | `EOM_CCSD_PRECISION` | **10⁻⁵ Ha** | H₂ STO-3G · post-32c patch · 2-electron only |
 | `EOM_CCSD_LIH_TRIPLET_GAP` | **7 meV** | E35 vs PySCF · 4-electron triplet · effectively exact |
-| `EOM_CCSD_MULTI_ELECTRON_SINGLET_GAP` | **~2–3 eV** | E35 vs PySCF · singlet sector across LiH/BeH₂/H₂O/NH₃/CH₄ · localized bug |
+| `EOM_CCSD_LIH_SINGLET_GAP` | **~0.27 eV** | E35 vs PySCF · post-32k sign-fix · within literature EOM-CCSD ↔ FCI bar (~0.1–0.2 eV) |
+| `EOM_CCSD_H2O_SINGLET_GAP` | **~1.9 eV** | E35 vs PySCF · 10-e⁻ system · remaining missing T-dressings · PySCF port closes |
 | `IP_EOM_H2O` | **12.03 eV** | expt 12.62 |
 | `EA_EOM_H2O` | **−16.37 eV** | STO-3G (unbound) |
 | `DF_HF_PRECISION` | **7×10⁻¹⁴ Ha** | H₂O STO-3G |
