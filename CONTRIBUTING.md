@@ -21,18 +21,35 @@ Before you commit, all four of the above MUST pass. CI enforces it.
 
 Ranked by impact-per-effort:
 
-1. **Cross-checks against PySCF 2.13 / ORCA 6.1 / Psi4 1.10** on
+1. **Reference-implementation ports** — see [`MIGRATION.md`](./MIGRATION.md).
+   Methods like HF, CCSD, EOM-CCSD have peer-reviewed PySCF implementations.
+   Porting (with proper attribution) is more reliable and faster than
+   re-deriving from textbooks. EOM-CCSD σ_2 is the first scheduled port.
+2. **Cross-checks against PySCF 2.13 / ORCA 6.1 / Psi4 1.10** on
    identical inputs. We claim agreement; a side-by-side artifact in
    `experiments/results/` cements it.
-2. **Standardized benchmark runs** — see `BENCHMARKS.md` for the queue
+3. **Standardized benchmark runs** — see `BENCHMARKS.md` for the queue
    (Thiel/QUEST, GMTKN55, W4-11, S66, HEAT-345). Each new set ships as
    a research-grade experiment with named seed, warmup, trials.
-3. **Cross-browser / cross-vendor verification** — we test on M2 Pro +
+4. **Cross-browser / cross-vendor verification** — we test on M2 Pro +
    Chromium. NVIDIA / AMD / Intel adapters, Firefox / Safari WebGPU
    support — all open.
-4. **Modern functional implementations** — see Tier 3 roadmap
-   (ωB97M(2), revDSD-PBEP86-D4, ωB97X-V, SCAN-D3).
-5. **Bug reports** with a reproducer JSON artifact, ideally.
+5. **Modern functional implementations** — see Tier 3 roadmap
+   (ωB97M(2), revDSD-PBEP86-D4, ωB97X-V, SCAN-D3). Port from libxc.
+6. **Bug reports** with a reproducer JSON artifact, ideally.
+
+## Porting policy (NEW — 2026-05-13)
+
+webgpu-q's differentiator is the browser/WebGPU layer, not the chemistry
+methods. **Hand-write only what's novel** (WGSL kernels, dispatch glue,
+research harness). **Port everything with a working reference** (PySCF,
+libxc, ITensor, EMSL Basis Set Exchange) with full attribution.
+
+See [`MIGRATION.md`](./MIGRATION.md) for the per-module status table,
+attribution recipe, and priority order. License compatibility:
+- Original webgpu-q code: MIT.
+- Ported from PySCF: Apache 2.0 (`LICENSE-PYSCF` at root).
+- Both kept side-by-side; per-file headers state provenance.
 
 ## Coding conventions
 

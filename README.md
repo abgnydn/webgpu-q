@@ -341,9 +341,9 @@ Standardized sets we've run vs. queued: GMTKN55, Thiel/QUEST, W4-11, S66, HEAT-3
 <tr>
 <td valign="top">
 
-**🛠️ [Contributing](./CONTRIBUTING.md)**
+**🛠️ [Contributing](./CONTRIBUTING.md) · 🔁 [Migration](./MIGRATION.md)**
 
-Quick start, validation discipline (5 warmup + 20 trials, fidelity pass bar, honest negatives committed), PR checklist, what's most valuable.
+Validation discipline (5w + 20t, fidelity pass bar, honest negatives committed). **Migration policy**: hand-write only the WebGPU/WGSL/browser layer; port chemistry methods (HF, CCSD, EOM-CCSD, DFT functionals…) from PySCF / libxc with attribution. See [`LICENSE-PYSCF`](./LICENSE-PYSCF) for the upstream license.
 
 </td>
 <td valign="top">

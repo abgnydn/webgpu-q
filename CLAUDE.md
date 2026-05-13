@@ -750,6 +750,32 @@ experiments/
 
 ---
 
+## Engineering policy — port, don't re-derive (NEW 2026-05-13)
+
+**Discovered the hard way via E35/E36 EOM-CCSD bug:** webgpu-q's
+differentiator is the browser/WebGPU layer. The chemistry methods
+themselves are textbook with peer-reviewed reference implementations
+(PySCF, libxc, ITensor). Re-deriving them from papers, as we did,
+produces bugs that take weeks to find. Going forward:
+
+- **Hand-write only the novel layer**: WGSL shaders, WebGPU dispatch +
+  sync, MPS browser memory bookkeeping, kernel fusion, research-grade
+  harness.
+- **Port from references** with proper Apache 2.0 attribution
+  everything else: HF, MP2, CCSD, UCCSD, CCSD(T), EOM-CCSD, DFT
+  functionals (libxc), gradients (Pulay), density fitting, integrals
+  if vectorizable, basis-set tables (EMSL).
+
+Migration framework in [`MIGRATION.md`](./MIGRATION.md). Per-module
+status table (🔴 hand-derived → 🟢 ported), priority order, attribution
+recipe. `LICENSE-PYSCF` at root covers ported portions.
+
+**First scheduled port**: `eom-ccsd.ts` σ_2 from PySCF
+`pyscf/cc/eom_rccsd.py`. Closes the singlet-sector bug E35 surfaced
+on H₂O / NH₃ / CH₄ / BeH₂ / LiH. Verifier is the LiH brute-force
+diagnostic (`tests/chemistry/eom-ccsd-bruteforce-lih.test.ts`) — after
+the port, M_mine − M_exact should collapse to numerical noise.
+
 ## Modern reference standards (audited 2026-05)
 
 What our claims map to in current literature. Run this audit again
