@@ -193,20 +193,36 @@ export function runEOMCCSD(
                  R_1[m * NVIRT + e]!;
           }
         }
-        // − ½ Σ_mne ⟨mn||ie⟩ R_2[m, n, a, e]   (bare ERI; T1=0 approx)
+        // − ½ Σ_mne W̄_mnie R_2[m, n, a, e]
+        // W̄_mnie = ⟨mn||ie⟩ + Σ_f T1[i,f] · ⟨mn||fe⟩
+        // (Stage 32j fix 2026-05-13: added T1 dressing; old comment
+        //  "T1=0 approx" was wrong — T1 ≠ 0 for LiH STO-3G.)
         for (let m = 0; m < NOCC; m++) {
           for (let nn = 0; nn < NOCC; nn++) {
             for (let e = 0; e < NVIRT; e++) {
-              s -= 0.5 * V(m, nn, i, e + VO) *
+              let Wmnie = V(m, nn, i, e + VO);
+              for (let f = 0; f < NVIRT; f++) {
+                Wmnie += T1[i * NVIRT + f]! * V(m, nn, f + VO, e + VO);
+              }
+              s -= 0.5 * Wmnie *
                    R_2[((m * NOCC + nn) * NVIRT + a) * NVIRT + e]!;
             }
           }
         }
-        // + ½ Σ_mef ⟨ma||ef⟩ R_2[i, m, e, f]   (bare ERI; T1=0 approx)
+        // + ½ Σ_mef W̄_amef R_2[i, m, e, f]
+        // Our index access uses ⟨ma||ef⟩ = −⟨am||ef⟩, so
+        // W̄_(via ma) = ⟨ma||ef⟩ − Σ_n T1[n,a] · ⟨mn||ef⟩
+        // (Stage 32j: T1 dressing added; equivalent to PySCF's
+        //  wvOvV intermediate.)
         for (let m = 0; m < NOCC; m++) {
           for (let e = 0; e < NVIRT; e++) {
             for (let f = 0; f < NVIRT; f++) {
-              s += 0.5 * V(m, a + VO, e + VO, f + VO) *
+              let Wmaef = V(m, a + VO, e + VO, f + VO);
+              for (let nn = 0; nn < NOCC; nn++) {
+                Wmaef -= T1[nn * NVIRT + a]! *
+                         V(m, nn, e + VO, f + VO);
+              }
+              s += 0.5 * Wmaef *
                    R_2[((i * NOCC + m) * NVIRT + e) * NVIRT + f]!;
             }
           }
@@ -279,31 +295,46 @@ export function runEOMCCSD(
                      R_2[((j * NOCC + m) * NVIRT + b) * NVIRT + e]!;
               }
             }
-            // P(ij) Σ_e W̄_abej R_1[i,e]  with W̄_abej = ⟨ab||ej⟩ + ½ Σ_mn t_mn^ab ⟨mn||ej⟩
-            // (T2 ladder dressing; T1 dressing omitted — exact for T1=0).
+            // P(ij) Σ_e W̄_abej R_1[i,e]  with W̄_abej = ⟨ab||ej⟩ + ½ Σ_mn τ_mn^ab ⟨mn||ej⟩
+            // τ_mn^ab = T2[m,n,a,b] + T1[m,a]·T1[n,b] − T1[m,b]·T1[n,a]
+            // (Stage 32j fix 2026-05-13: added missing T1·T1 dressing — the
+            //  "T1 dressing omitted" comment in the old code was wrong; even
+            //  for LiH STO-3G with T1 ~ 0.273 the dressing contributes
+            //  multiple eV to the W̄_abej R_1 ↔ R_2 cross-coupling.)
             for (let e = 0; e < NVIRT; e++) {
               let Wabej_j = V(a + VO, b + VO, e + VO, j);
               let Wabej_i = V(a + VO, b + VO, e + VO, i);
               for (let mm = 0; mm < NOCC; mm++) {
                 for (let nn = 0; nn < NOCC; nn++) {
                   const t2 = T2[((mm * NOCC + nn) * NVIRT + a) * NVIRT + b]!;
-                  Wabej_j += 0.5 * t2 * eri[((mm * NSO + nn) * NSO + (e + VO)) * NSO + j]!;
-                  Wabej_i += 0.5 * t2 * eri[((mm * NSO + nn) * NSO + (e + VO)) * NSO + i]!;
+                  const t1ma = T1[mm * NVIRT + a]!;
+                  const t1nb = T1[nn * NVIRT + b]!;
+                  const t1mb = T1[mm * NVIRT + b]!;
+                  const t1na = T1[nn * NVIRT + a]!;
+                  const tau_mnab = t2 + t1ma * t1nb - t1mb * t1na;
+                  Wabej_j += 0.5 * tau_mnab * eri[((mm * NSO + nn) * NSO + (e + VO)) * NSO + j]!;
+                  Wabej_i += 0.5 * tau_mnab * eri[((mm * NSO + nn) * NSO + (e + VO)) * NSO + i]!;
                 }
               }
               z += Wabej_j * R_1[i * NVIRT + e]!;
               z -= Wabej_i * R_1[j * NVIRT + e]!;
             }
-            // −P(ab) Σ_m W̄_mbij R_1[m,a]  with W̄_mbij = ⟨mb||ij⟩ + ½ Σ_ef t_ij^ef ⟨mb||ef⟩
-            // (T2 ladder dressing; T1 dressing omitted — exact for T1=0).
+            // −P(ab) Σ_m W̄_mbij R_1[m,a]  with W̄_mbij = ⟨mb||ij⟩ + ½ Σ_ef τ_ij^ef ⟨mb||ef⟩
+            // τ_ij^ef = T2[i,j,e,f] + T1[i,e]·T1[j,f] − T1[i,f]·T1[j,e]
+            // (Stage 32j fix 2026-05-13: same T1·T1 dressing addition.)
             for (let m = 0; m < NOCC; m++) {
               let Wmbij = V(m, b + VO, i, j);
               let Wmaij = V(m, a + VO, i, j);
               for (let e = 0; e < NVIRT; e++) {
                 for (let f = 0; f < NVIRT; f++) {
                   const t2 = T2[((i * NOCC + j) * NVIRT + e) * NVIRT + f]!;
-                  Wmbij += 0.5 * t2 * eri[((m * NSO + (b + VO)) * NSO + (e + VO)) * NSO + (f + VO)]!;
-                  Wmaij += 0.5 * t2 * eri[((m * NSO + (a + VO)) * NSO + (e + VO)) * NSO + (f + VO)]!;
+                  const t1ie = T1[i * NVIRT + e]!;
+                  const t1jf = T1[j * NVIRT + f]!;
+                  const t1if = T1[i * NVIRT + f]!;
+                  const t1je = T1[j * NVIRT + e]!;
+                  const tau_ijef = t2 + t1ie * t1jf - t1if * t1je;
+                  Wmbij += 0.5 * tau_ijef * eri[((m * NSO + (b + VO)) * NSO + (e + VO)) * NSO + (f + VO)]!;
+                  Wmaij += 0.5 * tau_ijef * eri[((m * NSO + (a + VO)) * NSO + (e + VO)) * NSO + (f + VO)]!;
                 }
               }
               z -= Wmbij * R_1[m * NVIRT + a]!;
