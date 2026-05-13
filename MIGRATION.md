@@ -150,6 +150,32 @@ For each module:
 
 ---
 
+## Concrete port-verification findings (2026-05-13 session)
+
+Built `tests/chemistry/eom-ccsd-imds-vs-pyscf.test.ts` as the
+per-intermediate verifier. Loads `experiments/results/2026-05-13/level-6/E36-pyscf-imds-lih.json`
+and diffs our spin-orbital intermediates against PySCF's spatial
+ones on same-spin (closed-shell RHF) pairs.
+
+Results on LiH STO-3G:
+
+| intermediate | max \|Δ\| vs PySCF | status |
+|---|---:|---|
+| F_me ↔ F_ov | 3.3×10⁻⁹ Ha | ✅ exact (within SCF tol) |
+| F_ae ↔ F_vv + ε_a δ_ab | 8.7×10⁻⁵ Ha | 🟡 87 µHa — missing F_ov · T1 dressing |
+| F_mi ↔ F_oo + ε_i δ_mi | 8.7×10⁻⁵ Ha | 🟡 87 µHa — same root cause |
+
+The identical 87 µHa magnitude on F_ae and F_mi confirms a single
+missing term: PySCF's make_imds tail adds 0.5 · F_ov · T1 to both
+F_oo and F_vv. Our `makeF_ae` / `makeF_mi` don't include this
+dressing because they're shared with the CCSD residual iteration.
+Adding it for EOM requires either splitting the helpers into
+`*_ccsd` / `*_eom` variants or passing F_me as an argument.
+
+This finding is documented in the diagnostic test as a tolerance
+loose at 1e-3 — tight gate (1e-8) is the goal for a successful port.
+W intermediates (woOoO, woVoO, etc.) are next to verify.
+
 ## Status as of 2026-05-13
 
 Migration framework shipped (LICENSE-PYSCF, this doc, attribution
