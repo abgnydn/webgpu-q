@@ -1,0 +1,225 @@
+{
+  "meta": {
+    "protocol": "E35-eom-ccsd-validation",
+    "hypothesis": "EE-EOM-CCSD implementation in webgpu-q reproduces PySCF EOM-CCSD excitation energies on small organics (H₂O, NH₃, CH₄, BeH₂, CH₂O, HCN) at STO-3G to ~10⁻⁴ Ha (~3 meV) per root, dominated by SCF/CCSD convergence tolerance.",
+    "passBar": "Every (molecule, root) cell either converges to a real positive eigenvalue OR is explicitly flagged. PySCF comparison is the cross-check; this artifact is one side of the comparison.",
+    "seed": "E35_EOM_VALIDATION",
+    "warmup": 0,
+    "trials": 1
+  },
+  "env": {
+    "gitSha": "05dc5af3b778",
+    "timestamp": "2026-05-13T10:00:37.651Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "platform": "Win32",
+    "adapter": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "limits": {
+      "maxBufferSize": 4294967292,
+      "maxStorageBufferBindingSize": 4294967292,
+      "maxComputeWorkgroupsPerDimension": 65535,
+      "maxComputeInvocationsPerWorkgroup": 256,
+      "maxComputeWorkgroupStorageSize": 32768
+    },
+    "hardwareConcurrency": 12,
+    "devicePixelRatio": 1
+  },
+  "rows": [
+    {
+      "molecule": "LiH",
+      "basis": "sto-3g",
+      "E_HF_Ha": -7.80424255601042,
+      "E_CCSD_Ha": -7.843394187625011,
+      "excitations_eV": [
+        3.4626022067340076,
+        3.4626022067340405,
+        3.462602206734044,
+        10.318801667717608,
+        16.83040038083936
+      ],
+      "oscillator_strengths": [
+        2.8292463418043456e-33,
+        1.6730199425416493e-32,
+        2.4427323360297836e-33,
+        1.0207612328462006,
+        0.29511331846846856
+      ],
+      "singlet_weight": [
+        6.830490623180122e-33,
+        9.237751660315535e-32,
+        1.1876091517440411e-32,
+        0.8142674973814995,
+        0.14454558490943936
+      ],
+      "triplet_weight": [
+        0.999999715682219,
+        0.9999997156822192,
+        0.9999997156822191,
+        3.7615258868862534e-28,
+        3.015532394981807e-26
+      ],
+      "seconds_HF": 0.0007999999970197678,
+      "seconds_CCSD": 0.005100000008940697,
+      "seconds_EOM": 0.006399999991059303,
+      "success": true
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "sto-3g",
+      "E_HF_Ha": -15.55940528046258,
+      "E_CCSD_Ha": -15.594456146669165,
+      "excitations_eV": [
+        6.824288356622205,
+        6.824288356622645,
+        6.824288356623029,
+        6.824288356623037,
+        6.824288356623188
+      ],
+      "oscillator_strengths": [
+        2.7790950302614652e-30,
+        6.519098537961445e-29,
+        1.8967697911243018e-29,
+        3.0333838200417994e-29,
+        1.0238276643276416e-29
+      ],
+      "singlet_weight": [
+        8.377280878614223e-27,
+        1.389785266292237e-26,
+        4.4033511554527e-27,
+        4.27695097344394e-24,
+        4.577414010554715e-28
+      ],
+      "triplet_weight": [
+        0.9639219122030493,
+        0.963921912203049,
+        0.9639219122030495,
+        0.963921912203049,
+        0.9639219122030493
+      ],
+      "seconds_HF": 0.0012999999970197678,
+      "seconds_CCSD": 0.08570000000298023,
+      "seconds_EOM": 4.245,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "sto-3g",
+      "E_HF_Ha": -74.96292755121948,
+      "E_CCSD_Ha": -75.01228662440352,
+      "excitations_eV": [
+        10.165165990459922,
+        10.165165990460405,
+        10.165165990460437,
+        11.806491688309064,
+        13.138549012189534
+      ],
+      "oscillator_strengths": [
+        4.480630953559146e-30,
+        2.176692310708095e-30,
+        3.338111628640806e-29,
+        0.0030276391651369717,
+        3.286802968191635e-30
+      ],
+      "singlet_weight": [
+        1.1445506751226401e-28,
+        7.334816185850604e-28,
+        4.836782105344134e-28,
+        0.9538047336793584,
+        7.978629478790568e-28
+      ],
+      "triplet_weight": [
+        0.9676822913498565,
+        0.9676822913498568,
+        0.9676822913498568,
+        4.0397667544791264e-27,
+        0.9704825021709458
+      ],
+      "seconds_HF": 0.0006000000089406968,
+      "seconds_CCSD": 0.053799999997019766,
+      "seconds_EOM": 1.6902000000029802,
+      "success": true
+    },
+    {
+      "molecule": "NH₃",
+      "basis": "sto-3g",
+      "E_HF_Ha": -55.45408666469078,
+      "E_CCSD_Ha": -55.519004856922784,
+      "excitations_eV": [
+        12.299762239989517,
+        12.299762239989699,
+        12.29976223999025,
+        13.373451025731466,
+        13.373451025732232
+      ],
+      "oscillator_strengths": [
+        1.9852749899985425e-27,
+        5.196434094598739e-28,
+        9.271630276793098e-29,
+        9.89906724076052e-20,
+        6.609818086485567e-20
+      ],
+      "singlet_weight": [
+        2.5083208998764964e-23,
+        1.9649652017730137e-25,
+        8.94330829322774e-27,
+        3.21756137259382e-17,
+        2.1486365263509214e-17
+      ],
+      "triplet_weight": [
+        0.9711299440091502,
+        0.9711299440091552,
+        0.9711299440091553,
+        0.9807287189328894,
+        0.9807287189341855
+      ],
+      "seconds_HF": 0.0008999999910593033,
+      "seconds_CCSD": 0.1415,
+      "seconds_EOM": 16.08380000001192,
+      "success": true
+    },
+    {
+      "molecule": "CH₄",
+      "basis": "sto-3g",
+      "E_HF_Ha": -39.726810223796875,
+      "E_CCSD_Ha": -39.8054507053815,
+      "excitations_eV": [
+        15.889711644956767,
+        15.889711644957673,
+        15.88971164496204,
+        17.38746226999664,
+        17.387462269996824
+      ],
+      "oscillator_strengths": [
+        6.10442786041636e-29,
+        2.8795290257007987e-29,
+        1.013611491503948e-28,
+        1.3020942639676017e-28,
+        1.087443166881364e-28
+      ],
+      "singlet_weight": [
+        2.4296521286310373e-27,
+        3.264609630105265e-28,
+        4.083426804000322e-28,
+        1.799843125016563e-27,
+        3.7747815474319274e-28
+      ],
+      "triplet_weight": [
+        0.9979401938087067,
+        0.997940193808706,
+        0.9979401938087074,
+        0.9927566943569832,
+        0.9927566943571827
+      ],
+      "seconds_HF": 0.001,
+      "seconds_CCSD": 0.2947999999970198,
+      "seconds_EOM": 79.29109999999405,
+      "success": true
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "Generated 5 rows × 5 excitations each. Compare against scripts/run-pyscf-eom-reference.py (matching schema) for the validation half."
+}

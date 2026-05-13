@@ -465,15 +465,15 @@ describe("Brute-force EOM-CCSD on LiH STO-3G (4 electrons, NSO=6)", () => {
               }
             }
           }
-          // T1-dressed W̄_(ma)ef (Stage 32j 2026-05-13).
+          // T1-dressed W̄_amef (Stage 32k 2026-05-13 — sign correction).
           for (let m = 0; m < NOCC; m++) {
             for (let e = 0; e < NVIRT; e++) {
               for (let f = 0; f < NVIRT; f++) {
-                let Wmaef = V(m, a + VO, e + VO, f + VO);
+                let Wamef = V(a + VO, m, e + VO, f + VO);
                 for (let nn = 0; nn < NOCC; nn++) {
-                  Wmaef -= T1[nn * NVIRT + a]! * V(m, nn, e + VO, f + VO);
+                  Wamef += T1[nn * NVIRT + a]! * V(nn, m, e + VO, f + VO);
                 }
-                s += 0.5 * Wmaef * R_2_in[((i * NOCC + m) * NVIRT + e) * NVIRT + f]!;
+                s += 0.5 * Wamef * R_2_in[((i * NOCC + m) * NVIRT + e) * NVIRT + f]!;
               }
             }
           }

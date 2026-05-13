@@ -210,19 +210,19 @@ export function runEOMCCSD(
           }
         }
         // + ½ Σ_mef W̄_amef R_2[i, m, e, f]
-        // Our index access uses ⟨ma||ef⟩ = −⟨am||ef⟩, so
-        // W̄_(via ma) = ⟨ma||ef⟩ − Σ_n T1[n,a] · ⟨mn||ef⟩
-        // (Stage 32j: T1 dressing added; equivalent to PySCF's
-        //  wvOvV intermediate.)
+        // W̄_amef = ⟨am||ef⟩ + Σ_n T1[n,a] · ⟨nm||ef⟩  (Stanton-Bartlett)
+        // (Stage 32k fix 2026-05-13: sign correction — old code used
+        //  ⟨ma||ef⟩ = −⟨am||ef⟩, flipping the sign of the whole term.
+        //  Indexed via V(a+VO, m, e+VO, f+VO) directly.)
         for (let m = 0; m < NOCC; m++) {
           for (let e = 0; e < NVIRT; e++) {
             for (let f = 0; f < NVIRT; f++) {
-              let Wmaef = V(m, a + VO, e + VO, f + VO);
+              let Wamef = V(a + VO, m, e + VO, f + VO);
               for (let nn = 0; nn < NOCC; nn++) {
-                Wmaef -= T1[nn * NVIRT + a]! *
-                         V(m, nn, e + VO, f + VO);
+                Wamef += T1[nn * NVIRT + a]! *
+                         V(nn, m, e + VO, f + VO);
               }
-              s += 0.5 * Wmaef *
+              s += 0.5 * Wamef *
                    R_2[((i * NOCC + m) * NVIRT + e) * NVIRT + f]!;
             }
           }
