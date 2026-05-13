@@ -467,7 +467,8 @@ describe("Brute-force EOM-CCSD on LiH STO-3G (4 electrons, NSO=6)", () => {
               }
             }
           }
-          // Stage 32c patch (same as eom-ccsd.ts).
+          // Stage 32c patch (restored 2026-05-13 after revert experiment
+          // showed it's a net positive on multi-electron triplets).
           s += 0.5 * ccsd.correlationEnergy * R_1_in[i * NVIRT + a]!;
           s1[i * NVIRT + a] = s;
         }
@@ -538,7 +539,7 @@ describe("Brute-force EOM-CCSD on LiH STO-3G (4 electrons, NSO=6)", () => {
                 z -= Wmbij * R_1_in[m * NVIRT + a]!;
                 z += Wmaij * R_1_in[m * NVIRT + b]!;
               }
-              // Stage 32c R_2 patch.
+              // Stage 32c R_2 patch (restored 2026-05-13).
               z -= ccsd.correlationEnergy * R_2_in[idx_ijab]!;
               s2[idx_ijab] = z;
             }

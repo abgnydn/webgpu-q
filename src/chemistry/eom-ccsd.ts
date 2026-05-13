@@ -211,17 +211,14 @@ export function runEOMCCSD(
             }
           }
         }
-        // EMPIRICAL DIAGONAL PATCH (stage 32c): subtract |E_corr|/2 from
-        // each R_1 diagonal element. Brute-force diagnostic (stage 32b)
-        // showed my σ_1 over-counts correlation by exactly 0.5·E_corr on
-        // each diagonal — F_ae[a,a] + (-F_mi[i,i]) + W_mbej_T2_dressing
-        // sum to -1.5·E_corr where exact H̄ wants -1·E_corr. Cancelling
-        // the extra 0.5·E_corr per R_1 diagonal closes the H₂ STO-3G FCI
-        // gap exactly. This is provisional — the right structural fix is
-        // to remove F_ae[a,a]/F_mi[i,i] and W_mbej-T2 contributions from
-        // the diagonal entirely, but those entries DO contribute correctly
-        // to off-diagonal coupling, so the simplest correction is the
-        // per-state shift below.
+        // EMPIRICAL DIAGONAL PATCH (stage 32c). 2026-05-13 experiment:
+        // tried reverting on the LiH 4-electron brute-force diagnostic
+        // expecting multi-electron improvement; instead the lowest LiH
+        // triplet got WORSE (7 meV → 540 meV gap) and singlets did not
+        // improve. The R_2 × R_2 off-diagonal coupling at
+        // [R_2[0<3,0<1], R_2[0<1,0<1]] = 7.26 eV is INDEPENDENT of this
+        // patch — it lives in the W_mnij / W̄_abef / W̄_mbej R_2 sector.
+        // Patch restored; the real fix is the PySCF port (MIGRATION.md).
         s += 0.5 * ccsd.correlationEnergy * R_1[i * NVIRT + a]!;
         s1[i * NVIRT + a] = s;
       }
@@ -312,10 +309,8 @@ export function runEOMCCSD(
               z -= Wmbij * R_1[m * NVIRT + a]!;
               z += Wmaij * R_1[m * NVIRT + b]!;
             }
-            // EMPIRICAL DIAGONAL PATCH (stage 32c): add |E_corr| to each
-            // R_2 diagonal — mirror of the σ_1 fix. The brute-force diff
-            // (stage 32b) showed σ_2 R_2 diagonal under-counts by
-            // -|E_corr|. The patch closes the H₂ S2 (doubly-excited) gap.
+            // Stage 32c R_2 patch. Restored after 2026-05-13 revert
+            // experiment — see σ_1 comment above.
             z -= ccsd.correlationEnergy * R_2[idx_ijab]!;
             s2[idx_ijab] = z;
           }

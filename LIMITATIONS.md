@@ -170,9 +170,19 @@ will silently truncate large dispatches.
   the W̄_mnij intermediate itself is the next thing to audit.
 
   Scope: this is a real σ_2 bug, larger than a one-line fix.
-  Tier 3 follow-up: trace W_mnij values for LiH STO-3G against the
-  M_exact projection, identify the wrong term, possibly revert
-  parts of stage 32c that are R_2-coupled.
+
+  Tested-and-rejected hypotheses (2026-05-13):
+  - "Stage 32c patches over-correct on multi-electron — revert them
+    and see if singlets improve." Reverting both σ_1 and σ_2 patches
+    made the LiH lowest triplet WORSE (7 meV → 540 meV gap) and did
+    NOT shrink the singlet gap. The 32c patches are net-positive
+    and the R_2 × R_2 off-diagonal bug at [R_2[0<3,0<1], R_2[0<1,0<1]]
+    = 7.26 eV is INDEPENDENT of any patch — it lives in the
+    W_mnij / W̄_abef / W̄_mbej R_2 contractions.
+
+  Conclusion: the proper fix is the PySCF port (MIGRATION.md).
+  Until then the patch stays for the triplet-correctness benefit
+  and the multi-electron singlet gap is a documented honest negative.
   See `experiments/results/2026-05-12/level-6/E35-comparison.md`
   and `tests/chemistry/eom-ccsd-bruteforce-lih.test.ts`.
 - **IP-EOM-CCSD R₂ satellites** have a known **~2 Ha (~60 eV)
