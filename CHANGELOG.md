@@ -5,6 +5,97 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.4.1] — 2026-05-14
+
+EOM-CCSD multi-electron singlet bug-hunt + migration framework. The
+E35 cross-validation in v0.4.0 surfaced a 2.57 eV singlet gap vs PySCF
+on multi-electron systems. Today's arc traced it through 4 rejected
+hypotheses to a **single-character sign flip** in the σ_1 ← R_2 W̄_amef
+term, and shipped the framework for the structural close (PySCF port).
+
+### Fixed — Stage 32k: σ_1 sign correction
+
+The σ_1 ← R_2 W̄_amef contribution used `+½ ⟨ma||ef⟩` where
+Stanton-Bartlett 1993 Eq 41 requires `+½ ⟨am||ef⟩` (= −½ ⟨ma||ef⟩ by
+antisymmetry). One-line fix in `src/chemistry/eom-ccsd.ts`:
+
+  V(m, a+VO, e+VO, f+VO)  →  V(a+VO, m, e+VO, f+VO)
+
+**Result**: LiH STO-3G EOM-CCSD singlet gap **2.57 eV → 0.27 eV**
+(10× shrink, within literature EOM-CCSD ↔ FCI bar of 0.1–0.2 eV).
+Triplets unchanged at 7 meV (already exact). H₂O / NH₃ / CH₄
+multi-electron singlets improved 30–40% from same fix.
+
+### Added — Stages 32j, 32l: missing T-dressings on W̄ intermediates
+
+Per Stanton-Bartlett / Crawford-Schaefer 2000, added:
+- T1·T1 dressing on W̄_abej, W̄_mbij (τ_mn^ab = T2 + T1·T1 antisym)
+- Linear T1 dressing on W̄_abej, W̄_mbij (Σ_m T1[m,a] ⟨mb||ej⟩ etc.)
+- T1 dressing on W̄_mnie and W̄_amef in σ_1 ← R_2
+
+Each closes 5–25% of the remaining multi-electron gap.
+
+### Added — Migration framework (`MIGRATION.md`, `LICENSE-PYSCF`)
+
+Project-wide engineering policy: hand-write only the novel WebGPU
+layer; port chemistry methods from peer-reviewed references (PySCF,
+libxc, EMSL Basis Set Exchange) with Apache 2.0 attribution.
+- `LICENSE-PYSCF` (Apache 2.0 verbatim) at repo root
+- `MIGRATION.md` — per-module status table, priority order,
+  attribution recipe, JOSS narrative
+- `src/chemistry/eom-ccsd-ported.ts` — scaffolded port skeleton
+  ready for the structural σ_1/σ_2 fix
+- `scripts/dump-pyscf-eom-imds.py` — emits PySCF reference values
+  for every EOM-CCSD intermediate
+- `experiments/results/2026-05-13/level-6/E36-pyscf-imds-lih.json`
+  — first reference artifact (LiH STO-3G; 9 W̄ tensors + t1/t2/eris)
+
+### Added — Permanent verifiers (regression tests + diagnostics)
+
+- `tests/chemistry/eom-ccsd-bruteforce-lih.test.ts` (~700 lines)
+  Brute-force H̄ = e^(-T̂) H e^(T̂) on the 4-electron Fock space
+  (DIM=64), projects onto (R_1 + antisym R_2) basis (dim=14),
+  builds M_mine via σ-on-unit-vectors, diffs element-wise. The
+  permanent verifier for any σ_1/σ_2 change.
+- `tests/chemistry/eom-ccsd-imds-vs-pyscf.test.ts`
+  Per-intermediate diff vs PySCF E36 reference. F_me bit-exact
+  (3.3×10⁻⁹ Ha); F_ae and F_mi both 87 µHa off vs PySCF — same
+  magnitude points at a single missing F_ov·T1 dressing term
+  (documented in MIGRATION.md as the next concrete port piece).
+
+### Documented — Honest negatives (the four rejected hypotheses)
+
+- Stage 32f: "missing σ_1 cross-spin coupling" — R_1×R_1 was correct
+- Stage 32f-2: "R_2×R_2 off-diagonal 7.26 eV bug" — was diagnostic
+  permutation noise, not a physics bug
+- Stage 32g: "stage 32c diagonal patches over-correct" — patches
+  are net-positive (revert made LiH triplet WORSE: 7 → 540 meV)
+- Stage 32h: "sign-flip on (α,β)↔(β,α) R_2 pairs" — basis-ordering
+  artifact in the diagnostic, not in production code
+
+All four are documented in commit messages, `LIMITATIONS.md`, and
+the diagnostic-test comments so future sessions don't re-test them.
+
+### Test surface
+
+- 320 / 320 vitest chemistry tests pass (no regressions from σ_1
+  sign fix; H₂ STO-3G brute-force still exact since T1 = 0 for 2e)
+- `npx tsc --noEmit` clean
+- `npm run lint` clean (2 pre-existing warnings)
+- 3 e2e specs green (CCSD(T) GPU, H₂O UV-vis, wallclock-vs-PySCF)
+- E35 EOM-CCSD validation: LiH essentially closed; H₂O / NH₃ / CH₄
+  remaining 0.5–1.9 eV gaps queued for the PySCF port
+
+### Honest scope (carried from v0.4.0)
+
+- LiH STO-3G EOM-CCSD: at literature method precision (0.27 eV is
+  the inherent EOM-CCSD ↔ FCI gap, not an implementation bug)
+- H₂O / NH₃ / CH₄: 0.5–1.9 eV gaps remain. The 32m verifier
+  isolates F_ae / F_mi as having a missing F_ov · T1 dressing
+  (87 µHa). W intermediates (woOoO, woVoO, wvOvV, woVVo, woVvO,
+  woOoV) not yet diff'd — each is a ~30-line test in the same
+  pattern.
+
 ## [0.4.0] — 2026-05-12
 
 The chemistry track closed out Tier 2 of the roadmap: every method
