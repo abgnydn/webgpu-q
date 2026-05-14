@@ -38,6 +38,17 @@ Ranked by impact-per-effort:
    (ωB97M(2), revDSD-PBEP86-D4, ωB97X-V, SCAN-D3). Port from libxc.
 6. **Bug reports** with a reproducer JSON artifact, ideally.
 
+## Research-grade engineering standards
+
+All contributions follow the 15-principle canonical document at
+[`RESEARCH_STANDARDS.md`](./RESEARCH_STANDARDS.md), mirrored in our
+sibling [`webgpu-dna`](https://github.com/abgnydn/webgpu-dna).
+Short version: single source of truth for numbers, falsifiable
+JSON artifacts, honest negatives committed, no `Math.random()`,
+GPU-sync timing, multi-level correctness verification, no fudge
+factors without citation, shader byte-hashing, per-release Zenodo
+DOI. See the canonical doc for full text.
+
 ## Porting policy (NEW — 2026-05-13)
 
 webgpu-q's differentiator is the browser/WebGPU layer, not the chemistry

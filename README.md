@@ -341,9 +341,9 @@ Standardized sets we've run vs. queued: GMTKN55, Thiel/QUEST, W4-11, S66, HEAT-3
 <tr>
 <td valign="top">
 
-**🛠️ [Contributing](./CONTRIBUTING.md) · 🔁 [Migration](./MIGRATION.md)**
+**🛠️ [Contributing](./CONTRIBUTING.md) · 🔁 [Migration](./MIGRATION.md) · 📐 [Research standards](./RESEARCH_STANDARDS.md)**
 
-Validation discipline (5w + 20t, fidelity pass bar, honest negatives committed). **Migration policy**: hand-write only the WebGPU/WGSL/browser layer; port chemistry methods (HF, CCSD, EOM-CCSD, DFT functionals…) from PySCF / libxc with attribution. See [`LICENSE-PYSCF`](./LICENSE-PYSCF) for the upstream license.
+15 canonical principles ([`RESEARCH_STANDARDS.md`](./RESEARCH_STANDARDS.md), mirrored in sibling [webgpu-dna](https://github.com/abgnydn/webgpu-dna)). Validation discipline (5w + 20t, fidelity pass bar, honest negatives committed). **Migration policy**: hand-write only the WebGPU/WGSL/browser layer; port chemistry methods (HF, CCSD, EOM-CCSD, DFT functionals…) from PySCF / libxc with attribution. See [`LICENSE-PYSCF`](./LICENSE-PYSCF) for the upstream license.
 
 </td>
 <td valign="top">
