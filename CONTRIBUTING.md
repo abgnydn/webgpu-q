@@ -41,8 +41,12 @@ Ranked by impact-per-effort:
 ## Research-grade engineering standards
 
 All contributions follow the 15-principle canonical document at
-[`RESEARCH_STANDARDS.md`](./RESEARCH_STANDARDS.md), mirrored in our
-sibling [`webgpu-dna`](https://github.com/abgnydn/webgpu-dna).
+[`RESEARCH_STANDARDS.md`](./RESEARCH_STANDARDS.md), mirrored across
+four sibling WebGPU/WGSL research projects:
+[`webgpu-q`](https://github.com/abgnydn/webgpu-q) (this repo),
+[`webgpu-dna`](https://github.com/abgnydn/webgpu-dna),
+[`zero-tvm`](https://github.com/abgnydn/zero-tvm), and
+[`neuropulse`](https://github.com/abgnydn/neuropulse).
 Short version: single source of truth for numbers, falsifiable
 JSON artifacts, honest negatives committed, no `Math.random()`,
 GPU-sync timing, multi-level correctness verification, no fudge
