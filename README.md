@@ -12,7 +12,7 @@
 
 <br/><br/>
 
-<img alt="version" src="https://img.shields.io/badge/v0.4.0-0ea5e9?style=flat-square&labelColor=0b1224"/>
+<img alt="version" src="https://img.shields.io/badge/v0.4.1-0ea5e9?style=flat-square&labelColor=0b1224"/>
 <img alt="license" src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="tests" src="https://img.shields.io/badge/tests-401%20green-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="typescript" src="https://img.shields.io/badge/typescript-strict-3178c6?style=flat-square&labelColor=0b1224"/>
@@ -318,7 +318,7 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 
 See [`CITATION.cff`](./CITATION.cff). For papers:
 
-> Günaydın, A.B. (2026). _webgpu-q v0.4.0_. https://github.com/abgnydn/webgpu-q
+> Günaydın, A.B. (2026). _webgpu-q v0.4.1_. https://github.com/abgnydn/webgpu-q
 
 A Zenodo DOI will be minted on the next versioned release.
 
@@ -427,7 +427,7 @@ Contributor Covenant 2.1. Report concerns to [abgunaydin94@gmail.com](mailto:abg
 | `MPS_N_MAX` | **128** | TFIM/Heisenberg, χ ≤ 32, browser |
 | `MPS_CHI_MAX` | **64** | Phase 6 GPU MPS |
 | `H2O_ENTROPY` | **45.06 cal/(mol·K)** | expt 45.1 |
-| `STAGES_SHIPPED` | **24–38, 32b–e** | this release (v0.4.0) |
+| `STAGES_SHIPPED` | **24–38, 32b–m** | through v0.4.1 (32k σ_1 sign-fix + migration framework) |
 | `LIVE_URL` | **webgpu-q.vercel.app** | production |
 
 </details>

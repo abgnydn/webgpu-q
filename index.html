@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#6ea8ff" />
 
     <title>webgpu-q — quantum simulation in a browser tab</title>
-    <meta name="description" content="WebGPU quantum + chemistry tool in a browser tab: HF + UHF + UCCSD, DFT, MP2, CCSD, CCSD(T) on GPU (39× speedup), EE/IP/EA-EOM-CCSD (FCI-validated), density fitting, TDDFT (singlet + triplet), geometry optimization, full IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, IPs + EAs, thermochemistry, statevector + MPS. Browser-native, PySCF + brute-force-EOM-CCSD + experiment validated." />
+    <meta name="description" content="WebGPU quantum + chemistry tool in a browser tab: HF + UHF + UCCSD, DFT, MP2, CCSD, CCSD(T) on GPU (39× speedup), EE/IP/EA-EOM-CCSD (PySCF cross-checked, LiH at method precision), density fitting, TDDFT (singlet + triplet), geometry optimization, full IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, IPs + EAs, thermochemistry, statevector + MPS. Browser-native, PySCF + brute-force-EOM-CCSD + experiment validated." />
     <meta name="author" content="Ahmet Baris Gunaydin" />
     <meta name="keywords" content="WebGPU, quantum simulator, MPS, DMRG, kernel fusion, VQE, quantum chemistry, TFIM, phase transition, ITensor, condensed matter, browser, WGSL, TypeScript" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -17,7 +17,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="webgpu-q" />
     <meta property="og:title" content="webgpu-q · quantum simulation in a browser tab" />
-    <meta property="og:description" content="WebGPU quantum + chemistry tool: HF + UHF + UCCSD, DFT, MP2, CCSD, CCSD(T) on GPU (39×), EE/IP/EA-EOM-CCSD (FCI-validated), density fitting, TDDFT, full IR + Raman + UV-vis spectra, IPs + EAs, thermochemistry. PySCF + experiment validated. Browser-native, no install." />
+    <meta property="og:description" content="WebGPU quantum + chemistry tool: HF + UHF + UCCSD, DFT, MP2, CCSD, CCSD(T) on GPU (39×), EE/IP/EA-EOM-CCSD (PySCF cross-checked, LiH at method precision), density fitting, TDDFT, full IR + Raman + UV-vis spectra, IPs + EAs, thermochemistry. PySCF + experiment validated. Browser-native, no install." />
     <meta property="og:url" content="https://webgpu-q.vercel.app/" />
     <meta property="og:image" content="https://webgpu-q.vercel.app/og-image.png" />
     <meta property="og:image:type" content="image/png" />
@@ -29,7 +29,7 @@
     <!-- Twitter / X -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="webgpu-q · quantum simulation in a browser tab" />
-    <meta name="twitter:description" content="HF + UCCSD + DFT + CCSD(T) on GPU (39×) + EE/IP/EA-EOM-CCSD + density fitting + TDDFT + statevector + MPS — all WebGPU, all in a browser tab. PySCF + ITensor + brute-force-EOM validated. No install." />
+    <meta name="twitter:description" content="HF + UCCSD + DFT + CCSD(T) on GPU (39×) + EE/IP/EA-EOM-CCSD (LiH within method precision) + density fitting + TDDFT + statevector + MPS — all WebGPU, all in a browser tab. PySCF + ITensor + brute-force-EOM validated. No install." />
     <meta name="twitter:image" content="https://webgpu-q.vercel.app/og-image.png" />
     <meta name="twitter:image:alt" content="webgpu-q — Quantum simulation, in a browser tab." />
 
@@ -450,7 +450,7 @@
       <p class="lead">
         Hartree-Fock + UHF + UCCSD (radicals), DFT (5 functionals), MP2,
         CCSD, <strong>CCSD(T) on GPU (39× speedup on H₂O cc-pVDZ)</strong>,
-        <strong>EE/IP/EA-EOM-CCSD (FCI-validated)</strong>,
+        <strong>EE/IP/EA-EOM-CCSD (PySCF cross-checked · LiH at method precision)</strong>,
         <strong>density fitting (Cholesky-DF for HF + MP2)</strong>,
         geometry optimization with analytical gradients, full IR + Raman +
         UV-vis spectra (singlet + triplet), polarizability +
