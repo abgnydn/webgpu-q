@@ -1,12 +1,23 @@
 # Research-grade engineering standards
 
-**Canonical document. Mirrored in [`webgpu-dna`](https://github.com/abgnydn/webgpu-dna/blob/main/RESEARCH_STANDARDS.md).** Edit either and propagate.
+**Canonical document. Mirrored across four sibling WebGPU/WGSL research
+projects:**
 
-This is the discipline that makes work in `webgpu-q` and `webgpu-dna`
-publishable in JOSS, citable years later, and reproducible by reviewers
-on different hardware. The discipline matured in `webgpu-dna` first
-and is being back-ported / forward-ported across the sibling projects.
-Future siblings inherit it.
+- [`webgpu-q`](https://github.com/abgnydn/webgpu-q) — quantum chemistry
+- [`webgpu-dna`](https://github.com/abgnydn/webgpu-dna) — radiation track-structure / radiobiology
+- [`zero-tvm`](https://github.com/abgnydn/zero-tvm) — Phi-3 LLM inference (hand-written WGSL, head-to-head vs WebLLM)
+- [`neuropulse`](https://github.com/abgnydn/neuropulse) — live 1:1 LLM forward-pass visualization (Phi-3, 3.8B params)
+
+Edit any one and propagate. Project-specific examples in §§ 1, 6, 7, 8, 10
+diverge per repo; sections 2–5, 9, 11–15 are universal.
+
+This is the discipline that makes the work publishable in JOSS, citable
+years later, and reproducible by reviewers on different hardware. The
+patterns matured in different repos and back-port / forward-port between
+them (research-grade artifact discipline first in `webgpu-dna`, the
+"falsify before shipping" CPU pre-screen in `zero-tvm`, automated
+doc-vs-code drift detection in `neuropulse`, full porting framework in
+`webgpu-q`). Future siblings inherit the union.
 
 **Umbrella thesis**: every advanced physics simulation in the world
 should ship as a URL. The browser/WebGPU layer is what's novel; the
