@@ -4,13 +4,15 @@ test.describe("Landing page", () => {
   test("renders, links work, screenshot saved", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/webgpu-q/);
-    await expect(page.locator("h1")).toContainText("Quantum simulation");
+    await expect(page.locator("h1")).toContainText("Quantum chemistry");
     // Screenshot full page so we can eyeball it.
     await page.screenshot({ path: "e2e/.artifacts/landing.png", fullPage: true });
 
-    // Verify the three demo links resolve to the right targets.
+    // Verify the demo links resolve to the right targets.
     const hyperscope = page.locator('a[href="/viz.html"]').first();
     await expect(hyperscope).toBeVisible();
+    const molecule = page.locator('a[href="/molecule.html"]').first();
+    await expect(molecule).toBeVisible();
     const experiments = page.locator('a[href="/experiments/"]').first();
     await expect(experiments).toBeVisible();
     const demo = page.locator('a[href="/demo.html"]').first();
