@@ -70,7 +70,7 @@
       <circle cx="630" cy="17" r="7" fill="#94a3b8"/>
       <circle cx="750" cy="17" r="7" fill="#94a3b8"/>
       <circle cx="870" cy="17" r="7" fill="#94a3b8"/>
-      <text x="945" y="22" font-size="12" fill="#22d3ee" font-weight="600">shipped · 401 tests</text>
+      <text x="945" y="22" font-size="12" fill="#22d3ee" font-weight="600">shipped · 546 tests</text>
     </g>
     <g transform="translate(0 272)">
       <rect width="1200" height="30" fill="#0f172a" fill-opacity="0.4"/>

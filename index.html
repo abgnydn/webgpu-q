@@ -52,7 +52,7 @@
           "applicationCategory": "ScienceApplication",
           "applicationSubCategory": "Quantum Many-Body Simulation",
           "operatingSystem": "Any OS with a WebGPU-capable browser",
-          "description": "A WebGPU quantum + computational-chemistry tool: HF + UHF, DFT (5 functionals), MP2, CCSD(T), CIS / TDA / TDDFT (singlet + triplet), geometry optimization, IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, ionization potentials, thermochemistry, statevector + MPS, kernel fusion. PySCF + ITensor + experiment validated.",
+          "description": "A WebGPU quantum + computational-chemistry tool: HF + UHF + UCCSD, DFT (5 functionals), MP2 + Cholesky density fitting, CCSD, CCSD(T) on GPU (39× speedup), EE/IP/EA-EOM-CCSD (PySCF cross-checked, LiH at method precision), CIS / TDA / TDDFT (singlet + triplet), geometry optimization, IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, ionization potentials + electron affinities, thermochemistry, statevector + MPS, kernel fusion. PySCF + libxc + ITensor + experiment validated.",
           "url": "https://webgpu-q.vercel.app/",
           "author": {
             "@type": "Person",
@@ -442,7 +442,7 @@
     </nav>
 
     <section class="hero">
-      <span class="badge">browser-native · webGPU · 401 tests green</span>
+      <span class="badge">browser-native · webGPU · PySCF cross-checked · CI green</span>
       <h1>
         Quantum chemistry,<br/>
         <em>in a browser tab.</em>
@@ -473,16 +473,16 @@
 
     <div class="stats">
       <div class="stat">
-        <div class="num">401</div>
-        <div class="lab">unit tests passing</div>
-      </div>
-      <div class="stat">
-        <div class="num">5.05 s</div>
-        <div class="lab">cc-pVDZ CCSD(T) on H₂O — 39× speedup on GPU</div>
+        <div class="num">39×</div>
+        <div class="lab">cc-pVDZ CCSD(T) on H₂O — GPU vs CPU speedup</div>
       </div>
       <div class="stat">
         <div class="num">35 µHa</div>
         <div class="lab">match with PySCF on cc-pVDZ HF (spherical-d)</div>
+      </div>
+      <div class="stat">
+        <div class="num">0.27 eV</div>
+        <div class="lab">LiH EOM-CCSD singlet vs PySCF — method precision</div>
       </div>
       <div class="stat">
         <div class="num">7×</div>
@@ -491,9 +491,9 @@
     </div>
 
     <section class="section">
-      <h2>Three live demos.</h2>
+      <h2>Four live demos.</h2>
       <p class="sub">
-        Three URLs. Open any of them — no install, no Linux, no Python. Just a tab.
+        Four URLs. Open any of them — no install, no Linux, no Python. Just a tab.
       </p>
       <div class="demos">
         <a href="/viz.html" class="demo-card">
@@ -665,7 +665,8 @@
           <div class="body">
             <strong>MPS — TypeScript</strong>
             <p>f64 Jacobi complex-SVD + canonical-form sweeps. Validated against
-              ITensor DMRG to ≤ 5 mHa on N=8 chains.</p>
+              ITensor DMRG to f64 precision on N=8 chains; TFIM &amp; Heisenberg
+              N=128 in browser, χ ≤ 32.</p>
           </div>
         </div>
         <div class="lvl">
@@ -684,10 +685,12 @@
           <div class="body">
             <strong>Quantum chemistry — full stack</strong>
             <p>HF + <strong>UHF (radicals)</strong>, RKS-DFT (5 functionals —
-              LDA / BVWN5 / BLYP / B3VWN5 / B3LYP5), MP2, FCI, CCSD, CCSD(T).
-              cc-pVDZ CCSD(T) on H₂O in <strong>106 s in a browser tab</strong>;
-              HF matches PySCF to <strong>35 µHa</strong> with spherical-d on
-              cc-pVDZ.</p>
+              LDA / BVWN5 / BLYP / B3VWN5 / B3LYP5), MP2 + DF-MP2, FCI, CCSD +
+              <strong>UCCSD</strong>, CPU CCSD(T), and a <strong>hand-written WGSL
+              CCSD(T) kernel</strong> (1 thread per occupied (i, j, k) triple, f32→f64
+              reduce). cc-pVDZ CCSD(T) on H₂O in <strong>~5 s on GPU vs ~199 s
+              CPU</strong>; HF matches PySCF to <strong>35 µHa</strong>;
+              <strong>Cholesky density fitting</strong> wired into HF + MP2.</p>
           </div>
         </div>
         <div class="lvl">
@@ -706,13 +709,15 @@
         <div class="lvl">
           <div class="num">6</div>
           <div class="body">
-            <strong>Spectra + properties</strong>
+            <strong>Spectra, properties, excited states</strong>
             <p><strong>CIS / TDA / TDDFT singlet + triplet</strong> across
-              HF + 5 DFT functionals (Miehlich spin-LYP). Oscillator strengths
-              for UV-vis. Static polarizability α + first hyperpolarizability β
-              tensors via finite-field. ΔSCF ionization potentials. Mulliken
-              charges, Wiberg-Mayer bond orders, dipole moments. Every property
-              an experimental SI table reports.</p>
+              HF + 5 DFT functionals (Miehlich spin-LYP). <strong>EE-, IP-, and
+              EA-EOM-CCSD</strong> for correlated excited states, ionization
+              potentials, and electron affinities — PySCF cross-checked, LiH
+              singlet at method precision (0.27 eV after the σ_1 sign-fix
+              uncovered by a brute-force Fock-space diagnostic). Oscillator
+              strengths, polarizability α, hyperpolarizability β, Koopmans /
+              ΔSCF / EOM IPs, Mulliken charges, Wiberg-Mayer bond orders.</p>
           </div>
         </div>
       </div>
@@ -878,6 +883,56 @@
           </div>
         </a>
 
+        <a class="demo-card" href="https://markview.ai" target="_blank" rel="noopener">
+          <div class="preview" style="background: linear-gradient(135deg, #1a1325 0%, #251a36 100%);">
+            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
+              <g stroke="#ec4899" stroke-width="1.4" fill="none" opacity="0.85">
+                <path d="M 50 110 L 70 60 L 90 90 L 110 50 L 130 100"/>
+                <path d="M 150 60 L 270 60" stroke-width="1.2" opacity="0.6"/>
+                <path d="M 150 80 L 250 80" stroke-width="1.2" opacity="0.5"/>
+                <path d="M 150 100 L 240 100" stroke-width="1.2" opacity="0.4"/>
+              </g>
+              <g fill="#ec4899">
+                <text x="32" y="48" font-family="ui-monospace, monospace"
+                      font-size="11" opacity="0.8"># MarkView</text>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <h3>markview.ai <span class="arrow">↗</span></h3>
+            <p>
+              Embeddable markdown rendering stack — <strong>React SDK, Web
+              Component, native macOS app</strong>. Shiki, Mermaid, KaTeX, MCP.
+              The dev-tool sibling of this research line.
+            </p>
+            <div class="meta">
+              <span>React SDK</span><span>Web Component</span><span>macOS app</span>
+            </div>
+          </div>
+        </a>
+
+        <a class="demo-card" href="https://safenpm.dev" target="_blank" rel="noopener">
+          <div class="preview" style="background: linear-gradient(135deg, #1f0e0e 0%, #2e1414 100%);">
+            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
+              <g stroke="#ef4444" stroke-width="1.6" fill="none" opacity="0.85">
+                <path d="M 160 30 L 220 60 L 220 100 L 160 130 L 100 100 L 100 60 Z"/>
+                <path d="M 130 80 L 155 100 L 195 60" stroke-width="2"/>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <h3>safenpm.dev <span class="arrow">↗</span></h3>
+            <p>
+              Drop-in <code>npm install</code> replacement — sandboxes
+              postinstall scripts, detects supply-chain attacks, shares alerts
+              across a decentralized threat-intel network.
+            </p>
+            <div class="meta">
+              <span>Sandboxed postinstall</span><span>Decentralized intel</span>
+            </div>
+          </div>
+        </a>
+
         <a class="demo-card" href="https://barisgunaydin.com" target="_blank" rel="noopener">
           <div class="preview" style="background: linear-gradient(135deg, #11141d 0%, #1b2030 100%);">
             <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
@@ -948,9 +1003,9 @@ scene.<span class="k">updateGrid</span>(grid);  <span class="c">// → WebGPU sp
         <span class="pill">TypeScript · zero deps for math</span>
         <span class="pill">WGSL · JIT-emitted for fusion</span>
         <span class="pill">Vite · ESM-only</span>
-        <span class="pill">Vitest · 479 tests</span>
+        <span class="pill">Vitest · CI green</span>
         <span class="pill">Playwright e2e on Chromium-Metal-3</span>
-        <span class="pill">ITensor (Julia) reference data</span>
+        <span class="pill">PySCF · ITensor · libxc reference</span>
       </div>
     </section>
 
@@ -958,7 +1013,8 @@ scene.<span class="k">updateGrid</span>(grid);  <span class="c">// → WebGPU sp
       <div>
         <strong style="color: var(--text);">webgpu-q</strong>
         — research playground · MIT ·
-        by <a href="https://barisgunaydin.com" target="_blank" rel="noopener">Ahmet Baris Gunaydin</a>
+        by <a href="https://barisgunaydin.com" target="_blank" rel="noopener">Ahmet Baris Gunaydin</a> ·
+        <a href="mailto:hi@barisgunaydin.com">hi@barisgunaydin.com</a>
         <br/>
         <span style="font-size: 11px; color: var(--muted);">
           Part of the
@@ -968,7 +1024,9 @@ scene.<span class="k">updateGrid</span>(grid);  <span class="c">// → WebGPU sp
           <a href="https://webgpudna.com" target="_blank" rel="noopener">webgpudna.com</a> ·
           <a href="https://gpubench.dev" target="_blank" rel="noopener">gpubench.dev</a> ·
           <a href="https://zerotvm.com" target="_blank" rel="noopener">zerotvm.com</a> ·
-          <a href="https://neuropulse.live" target="_blank" rel="noopener">neuropulse.live</a>
+          <a href="https://neuropulse.live" target="_blank" rel="noopener">neuropulse.live</a> ·
+          <a href="https://markview.ai" target="_blank" rel="noopener">markview.ai</a> ·
+          <a href="https://safenpm.dev" target="_blank" rel="noopener">safenpm.dev</a>
         </span>
       </div>
       <div style="display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap;">

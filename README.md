@@ -14,7 +14,7 @@
 
 <img alt="version" src="https://img.shields.io/badge/v0.4.1-0ea5e9?style=flat-square&labelColor=0b1224"/>
 <img alt="license" src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square&labelColor=0b1224"/>
-<img alt="tests" src="https://img.shields.io/badge/tests-401%20green-22c55e?style=flat-square&labelColor=0b1224"/>
+<img alt="tests" src="https://img.shields.io/badge/tests-CI%20green-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="typescript" src="https://img.shields.io/badge/typescript-strict-3178c6?style=flat-square&labelColor=0b1224"/>
 <img alt="webgpu" src="https://img.shields.io/badge/WebGPU-required-ff7849?style=flat-square&labelColor=0b1224"/>
 <img alt="install-free" src="https://img.shields.io/badge/install-0%20bytes-eab308?style=flat-square&labelColor=0b1224"/>
@@ -66,7 +66,7 @@ No install. No backend. No CUDA. Open a URL and get HF · UHF · DFT · MP2 · C
 
 <div align="center">
 
-<img src="./public/readme-numbers.svg" alt="Key numbers: 401 tests, 39.3× CCSD(T) on GPU, 10⁻⁵ Ha EOM-CCSD vs FCI, 7×10⁻¹⁴ Ha DF-HF, 1.35×10⁻¹¹ GPU↔CPU, 4.18× fusion, F ≥ 0.999999 statevector, N=128 MPS" width="100%"/>
+<img src="./public/readme-numbers.svg" alt="Key numbers: 546 tests, 39.3× CCSD(T) on GPU, 10⁻⁵ Ha EOM-CCSD vs FCI, 7×10⁻¹⁴ Ha DF-HF, 1.35×10⁻¹¹ GPU↔CPU, 4.18× fusion, F ≥ 0.999999 statevector, N=128 MPS" width="100%"/>
 
 </div>
 
@@ -151,9 +151,9 @@ npm run dev          # http://localhost:5175
 ```
 
 ```bash
-npm run test         # 401 unit/integration green
+npm run test         # vitest unit/integration · CI green
 npm run typecheck    # tsc --noEmit, strict + noUncheckedIndexedAccess
-npm run test:e2e     # 3 specs · headless WebGPU Chromium
+npm run test:e2e     # Playwright · headless WebGPU Chromium
 ```
 
 ```ts
@@ -202,7 +202,7 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 - Pass bar: `F ≥ 1 − 10⁻⁵` (f32 GPU paths)
 - `std/median > 0.1` → `status: "noisy"`
 - Honest negatives **committed** as JSON with diagnosis
-- 401 vitest + 3 e2e Playwright · TS strict + `noUncheckedIndexedAccess`
+- vitest + Playwright e2e · CI green · TS strict + `noUncheckedIndexedAccess`
 
 </td>
 </tr>
@@ -373,16 +373,18 @@ Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@ba
 <tr>
 <td align="left" width="50%">
 
-- **[kernelfusion.dev](https://kernelfusion.dev)** — umbrella theory site
-- **[gpubench.dev](https://gpubench.dev)** — WebGPU bench harness
-- **webgpu-dna** — Geant4-DNA chemistry port (sibling repo)
+- **[kernelfusion.dev](https://kernelfusion.dev)** — umbrella theory site, two preprints
+- **[gpubench.dev](https://gpubench.dev)** — WebGPU bench harness, 592+ devices
+- **[webgpudna.com](https://webgpudna.com)** — Geant4-DNA radiobiology port (sibling repo)
+- **[zerotvm.com](https://zerotvm.com)** — Phi-3-mini in the browser, no compiler
 
 </td>
 <td align="left" width="50%">
 
-- **webgpu-fusion-max** — kernel-fusion experiment hub
-- **webgpu-fusion-sdk** — programmable fusion SDK
-- **webgpu-p2p-evolution** — WebRTC relay (L4 substrate)
+- **[neuropulse.live](https://neuropulse.live)** — live 3.8B-param transformer visualization
+- **[markview.ai](https://markview.ai)** — embeddable markdown rendering stack
+- **[safenpm.dev](https://safenpm.dev)** — supply-chain firewall for `npm install`
+- **[barisgunaydin.com](https://barisgunaydin.com)** — author site, project hub
 
 </td>
 </tr>
@@ -402,8 +404,9 @@ Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@ba
 
 | symbol | value | context |
 |---|---|---|
-| `TESTS` | **401** | vitest unit + integration, all green |
-| `E2E_SPECS` | **4** | Playwright headless WebGPU (E32, E33, E34, base levels) |
+| `TESTS` | **546** | vitest unit + integration, all green |
+| `CHEMISTRY_TESTS` | **321** | chemistry subset (1 skipped: opt-in cc-pVDZ CCSD(T)) |
+| `E2E_SPECS` | **14** | Playwright headless WebGPU (CCSD(T), EOM, UV-vis, wallclock-vs-PySCF, levels 1/2/3/6, smoke tests) |
 | `CCSD_T_SPEEDUP` | **39.3×** | H₂O · cc-pVDZ · M2 Pro · vs our own CPU |
 | `CCSD_T_GPU_TIME` | **5.05 s** | H₂O · cc-pVDZ · GPU |
 | `CCSD_T_CPU_TIME` | **198.6 s** | H₂O · cc-pVDZ · CPU |

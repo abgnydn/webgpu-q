@@ -9,7 +9,7 @@ benchmark additions, and honest negative results are all welcome.
 git clone https://github.com/abgnydn/webgpu-q
 cd webgpu-q
 npm install
-npm run test         # 401 vitest, all green
+npm run test         # vitest unit/integration · CI green
 npm run typecheck    # tsc --noEmit, strict + noUncheckedIndexedAccess
 npm run lint         # ESLint flat config
 npm run test:e2e     # Playwright headless WebGPU

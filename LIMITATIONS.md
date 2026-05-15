@@ -230,8 +230,8 @@ will silently truncate large dispatches.
 
 - **No CI vendor-matrix** — GitHub Actions runs Linux Chromium only.
   Apple Silicon, Windows, AMD, NVIDIA, Intel — manual spot checks.
-- **No mutation testing** — `npm run test` is 401 cases; we don't
-  measure whether they'd catch real mutations.
+- **No mutation testing** — `npm run test` runs the full vitest suite
+  green, but we don't measure whether it would catch real mutations.
 - **No formal coverage metric** — we know which files have tests; we
   don't track lines/branches.
 - **No fuzz testing** of the integral / SCF / CC paths.
