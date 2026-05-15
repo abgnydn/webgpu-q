@@ -357,7 +357,7 @@ Every claim mapped to current literature — GMTKN55 functional rankings, EOM-CC
 
 **🤝 [Code of conduct](./CODE_OF_CONDUCT.md)**
 
-Contributor Covenant 2.1. Report concerns to [abgunaydin94@gmail.com](mailto:abgunaydin94@gmail.com).
+Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@barisgunaydin.com).
 
 </td>
 </tr>
@@ -440,7 +440,7 @@ Contributor Covenant 2.1. Report concerns to [abgunaydin94@gmail.com](mailto:abg
 
 <sub>
 MIT · Built with WebGPU, TypeScript strict, vitest, Playwright<br/>
-Author <a href="https://github.com/abgnydn">@abgnydn</a> · <a href="mailto:abgunaydin94@gmail.com">abgunaydin94@gmail.com</a>
+Author <a href="https://github.com/abgnydn">@abgnydn</a> · <a href="mailto:hi@barisgunaydin.com">hi@barisgunaydin.com</a>
 </sub>
 
 <br/><br/>

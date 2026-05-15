@@ -123,4 +123,4 @@ This project follows the [Contributor Covenant 2.1](./CODE_OF_CONDUCT.md).
 
 ## Questions
 
-Open a GitHub issue. For sensitive matters: <abgunaydin94@gmail.com>.
+Open a GitHub issue. For sensitive matters: <hi@barisgunaydin.com>.
