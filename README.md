@@ -376,14 +376,12 @@ Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@ba
 - **[kernelfusion.dev](https://kernelfusion.dev)** — umbrella theory site, two preprints
 - **[gpubench.dev](https://gpubench.dev)** — WebGPU bench harness, 592+ devices
 - **[webgpudna.com](https://webgpudna.com)** — Geant4-DNA radiobiology port (sibling repo)
-- **[zerotvm.com](https://zerotvm.com)** — Phi-3-mini in the browser, no compiler
 
 </td>
 <td align="left" width="50%">
 
+- **[zerotvm.com](https://zerotvm.com)** — Phi-3-mini in the browser, no compiler
 - **[neuropulse.live](https://neuropulse.live)** — live 3.8B-param transformer visualization
-- **[markview.ai](https://markview.ai)** — embeddable markdown rendering stack
-- **[safenpm.dev](https://safenpm.dev)** — supply-chain firewall for `npm install`
 - **[barisgunaydin.com](https://barisgunaydin.com)** — author site, project hub
 
 </td>
