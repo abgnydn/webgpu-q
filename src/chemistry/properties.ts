@@ -268,3 +268,57 @@ export function bondOrders(
   }
   return B;
 }
+
+/**
+ * Mayer bond orders for UHF / UCCSD (Mayer 1985). Spin-resolved
+ * extension of the closed-shell formula:
+ *
+ *   B_AB = 2 · [Σ_{μ∈A, ν∈B} (P^α·S)_μν (P^α·S)_νμ
+ *              + (P^β·S)_μν (P^β·S)_νμ]
+ *
+ * For closed-shell input (P^α = P^β = P_total/2) this reduces
+ * exactly to the closed-shell formula above (factor 2·2·(½)² = 1
+ * on each spin block; α + β combine to give Σ (P_total·S)² as in
+ * `bondOrders`).
+ *
+ * Same basis-set sensitivity caveats as the closed-shell version.
+ */
+export function bondOrdersUHF(
+  integrals: MolecularIntegrals,
+  D_alpha: Float64Array,
+  D_beta: Float64Array,
+  shellAtomIdx: readonly number[],
+): Float64Array {
+  const n = integrals.n;
+  const S = integrals.S_AO;
+  const nAtoms = integrals.nuclei.length;
+  if (shellAtomIdx.length !== n) {
+    throw new Error(
+      `bondOrdersUHF: shellAtomIdx length ${shellAtomIdx.length} ≠ n ${n}`,
+    );
+  }
+  const matmulPS = (P: Float64Array): Float64Array => {
+    const PS = new Float64Array(n * n);
+    for (let i = 0; i < n; i++) {
+      for (let k = 0; k < n; k++) {
+        const Pik = P[i * n + k]!;
+        if (Pik === 0) continue;
+        for (let j = 0; j < n; j++) PS[i * n + j]! += Pik * S[k * n + j]!;
+      }
+    }
+    return PS;
+  };
+  const PSα = matmulPS(D_alpha);
+  const PSβ = matmulPS(D_beta);
+  const B = new Float64Array(nAtoms * nAtoms);
+  for (let mu = 0; mu < n; mu++) {
+    const A = shellAtomIdx[mu]!;
+    for (let nu = 0; nu < n; nu++) {
+      const Aprime = shellAtomIdx[nu]!;
+      const ab = PSα[mu * n + nu]! * PSα[nu * n + mu]!
+               + PSβ[mu * n + nu]! * PSβ[nu * n + mu]!;
+      B[A * nAtoms + Aprime]! += 2 * ab;
+    }
+  }
+  return B;
+}
