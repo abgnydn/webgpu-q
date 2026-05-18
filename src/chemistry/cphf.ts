@@ -187,7 +187,9 @@ export function cphfPolarizability(
   for (let x = 0; x < 3; x++) {
     for (let y = 0; y < 3; y++) {
       let s = 0;
-      for (let k = 0; k < dim; k++) s += X[x][k]! * muOV[y][k]!;
+      const Xx = X[x]!;
+      const Fy = muOV[y]!;
+      for (let k = 0; k < dim; k++) s += Xx[k]! * Fy[k]!;
       alpha[x * 3 + y] = 4 * s;
     }
   }

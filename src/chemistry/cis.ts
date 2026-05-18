@@ -32,6 +32,7 @@
 import type { MolecularIntegrals } from "./cg-molecular.js";
 import { transformERIToMO } from "./mp2.js";
 import { eigsymmetric } from "../manybody/dense-eig.js";
+import { davidson } from "../manybody/davidson.js";
 
 export interface HFLike {
   /** AO → MO coefficients (row-major, column i = MO i). */
@@ -50,6 +51,13 @@ export interface CISOpts {
   readonly nRoots?: number;
   /** Spin sector (default both). Singlet only is the common case. */
   readonly spin?: "singlet" | "triplet" | "both";
+  /** Use the block Davidson iterative eigensolver instead of building
+   *  the full A matrix and calling `eigsymmetric`. Recommended for
+   *  dim ≳ 200 (cc-pVDZ on multi-atom systems). Default false
+   *  preserves the existing dense behavior. */
+  readonly useDavidson?: boolean;
+  /** Davidson residual-norm tolerance. Default 1e-7. */
+  readonly davidsonTol?: number;
 }
 
 export interface CISStateBlock {
@@ -146,9 +154,55 @@ export function runCIS(
     return { energies, amplitudes };
   };
 
+  /** Davidson path — never materializes A. Builds a matvec from
+   *  the CIS A-block formula and supplies the Koopmans diagonal
+   *  preconditioner (ε_a − ε_i). */
+  const davidsonExtract = (sCoul: number): CISStateBlock => {
+    const eps = hf.orbitalEnergies;
+    const diagonal = new Float64Array(dim);
+    for (let i = 0; i < nOcc; i++) {
+      for (let a = 0; a < nVirt; a++) {
+        const ai = nOcc + a;
+        diagonal[i * nVirt + a] = eps[ai]! - eps[i]!;
+      }
+    }
+    const matvec = (v: Float64Array): Float64Array => {
+      // (Av)_{ia} = (ε_a − ε_i) v_ia
+      //           + Σ_{jb} [sCoul · (ia|jb) − (ij|ab)] v_jb
+      const out = new Float64Array(dim);
+      for (let i = 0; i < nOcc; i++) {
+        for (let a = 0; a < nVirt; a++) {
+          const ai = nOcc + a;
+          const eOrb = eps[ai]! - eps[i]!;
+          let s = eOrb * v[i * nVirt + a]!;
+          for (let j = 0; j < nOcc; j++) {
+            for (let b = 0; b < nVirt; b++) {
+              const bj = nOcc + b;
+              const coul = sCoul !== 0 ? sCoul * eri(i, ai, j, bj) : 0;
+              const exch = eri(i, j, ai, bj);
+              s += (coul - exch) * v[j * nVirt + b]!;
+            }
+          }
+          out[i * nVirt + a] = s;
+        }
+      }
+      return out;
+    };
+    const dav = davidson(dim, matvec, diagonal, {
+      k: nRoots,
+      tol: opts.davidsonTol ?? 1e-7,
+      maxIter: 200,
+      filter: (_re, im) => Math.abs(im) < 1e-6,
+    });
+    return { energies: dav.energies, amplitudes: dav.vectors };
+  };
+
   const empty: CISStateBlock = { energies: new Float64Array(0), amplitudes: new Float64Array(0) };
-  const singlet = (spin === "singlet" || spin === "both") ? diagAndExtract(buildA(2)) : empty;
-  const triplet = (spin === "triplet" || spin === "both") ? diagAndExtract(buildA(0)) : empty;
+  const extract = opts.useDavidson
+    ? davidsonExtract
+    : (sCoul: number): CISStateBlock => diagAndExtract(buildA(sCoul));
+  const singlet = (spin === "singlet" || spin === "both") ? extract(2) : empty;
+  const triplet = (spin === "triplet" || spin === "both") ? extract(0) : empty;
 
   return { nOccupied: nOcc, nVirtual: nVirt, singlet, triplet };
 }

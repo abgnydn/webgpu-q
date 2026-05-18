@@ -124,7 +124,7 @@ will silently truncate large dispatches.
 | ccData / QC-Schema compatibility | Output not consumable by external tooling | Tier 3 |
 | FAIR / Zenodo DOIs per release | Citations point at GitHub tag, not DOI | Tier 3 — set up CI workflow |
 | Aux-basis density fitting | We have CD-DF but not JKFIT / RIFIT integral path | Tier 3 — needs 3-index ERI routine |
-| Davidson / Krylov eigensolver | OK for n_occ·n_virt ≤ ~500; dense above. Measured 2026-05: EOM-CCSD on CH₂O / HCN at STO-3G (dim 3488 / 2660) takes 15-30 min per molecule on M2 Pro because the Hessenberg + Wilkinson QR is dense. Davidson would make these ~minutes. | Tier 3 · high impact |
+| Davidson / Krylov eigensolver | **Shipped 2026-05**. Block Davidson (`src/manybody/davidson.ts`) wired into EE/IP/EA-EOM-CCSD (commits 6b9a96f, a35baeb) and now also CIS / TDA (this commit) behind `useDavidson: true`. Dense + Davidson agree on k roots to ≤ 1e-6 Ha across all paths. Unblocks large-basis CIS/TDDFT + bigger EOM-CCSD systems. | shipped ✓ |
 | Multi-node parallel | One tab, one GPU | Tier 4 — substrate is Phase D WebRTC |
 | Periodic boundary conditions | No solids, no surfaces | Tier 4 |
 | Spin-orbit coupling / X2C / DKH | No heavy elements | Tier 4 |
