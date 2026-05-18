@@ -85,20 +85,45 @@ export function runCCSDT(
   const NSO = 2 * n;
   const NOCC = 2 * hf.nOccupied;
   const NVIRT = NSO - NOCC;
-
   const nFrozenSO = 2 * (opts.nFrozenCore ?? 0);
-  // No triple excitations possible if either block is too small.
   if (NOCC - nFrozenSO < 3 || NVIRT < 3) {
     return { tripleCorrection: 0, totalEnergy: ccsd.totalEnergy, seconds: 0 };
   }
-
   const eri_MO = transformERIToMO(integrals.eri_AO, hf.C_MO, n);
   const eri = buildSpinOrbitalERI(eri_MO, n);
   const eps = new Float64Array(NSO);
   for (let P = 0; P < NSO; P++) eps[P] = hf.orbitalEnergies[P >> 1]!;
+  const E_T = ccsdtFromSO(eri, eps, ccsd.T1, ccsd.T2, NOCC, NVIRT, nFrozenSO);
+  return {
+    tripleCorrection: E_T,
+    totalEnergy: ccsd.totalEnergy + E_T,
+    seconds: (performance.now() - tStart) / 1000,
+  };
+}
 
-  const T1 = ccsd.T1;
-  const T2 = ccsd.T2;
+/**
+ * Reusable (T) perturbative-triples core. Takes the spin-orbital
+ * antisymmetric ERI tensor ⟨PQ||RS⟩, spin-resolved orbital energies,
+ * and CCSD T1/T2 amplitudes in the **same SO ordering** as the
+ * ERI tensor + eps. Used by `runCCSDT` (closed-shell, P = 2p+σ
+ * interleaved) and `runUCCSDT` (open-shell, all-α-occ first).
+ *
+ * Frozen-core: `nFrozenSO` skips occupied indices [0, nFrozenSO).
+ * Correct for contiguous-frozen SO orderings (RHF interleaved).
+ * For non-contiguous frozen sets (UCCSD all-α-first), pass 0 here
+ * and frozen-core is supplied through the upstream pipeline (T1/T2
+ * are already zero at frozen indices by `zeroCoreAmplitudes`).
+ */
+export function ccsdtFromSO(
+  eri: Float64Array,
+  eps: Float64Array,
+  T1: Float64Array,
+  T2: Float64Array,
+  NOCC: number,
+  NVIRT: number,
+  nFrozenSO: number,
+): number {
+  const NSO = NOCC + NVIRT;
 
   const eIdx = (P: number, Q: number, R: number, S: number) =>
     ((P * NSO + Q) * NSO + R) * NSO + S;
@@ -163,10 +188,5 @@ export function runCCSDT(
     }
   }
 
-  const seconds = (performance.now() - tStart) / 1000;
-  return {
-    tripleCorrection: E_T,
-    totalEnergy: ccsd.totalEnergy + E_T,
-    seconds,
-  };
+  return E_T;
 }
