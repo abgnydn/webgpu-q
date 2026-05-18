@@ -39,6 +39,29 @@ import { type CCSDOpts, type CCSDResult, ccsdIterate } from "./ccsd.js";
 export interface UCCSDResult extends CCSDResult {
   readonly nAlpha: number;
   readonly nBeta: number;
+  /** ⟨S²⟩ of the UHF reference determinant — same value as `uhf.s2`.
+   *  Carried into the UCCSD result for convenience. Exact value is
+   *  S(S+1) where 2S = nα − nβ; deviations indicate UHF spin
+   *  contamination (broken-symmetry solutions, near-degenerate
+   *  HOMO-LUMO gap, etc.). */
+  readonly s2Reference: number;
+  /** First-order T2 spin-contamination correction (Chen & Schlegel 1994):
+   *
+   *    ΔS²_T2 = − Σ_{i_α j_β a_α b_β} |T2[i, j, a, b]|²
+   *
+   *  Summed over α-occupied × β-occupied × α-virtual × β-virtual
+   *  blocks of T2 in the UCCSD SO ordering. Negative (T2 reduces
+   *  spin contamination toward the exact value). For closed-shell
+   *  reference this typically dominates the UCCSD correction over T1.
+   */
+  readonly s2T2Correction: number;
+  /** Approximate UCCSD ⟨S²⟩ = `s2Reference + s2T2Correction`. First-
+   *  order Hylleraas estimate; higher-order corrections (T1·T2,
+   *  T2², T1·T2 mixed) are typically smaller than this. For
+   *  diagnostic use — to flag whether UCCSD wavefunction has
+   *  meaningful spin contamination, not for publishable spin
+   *  expectation values. */
+  readonly s2Approx: number;
 }
 
 /**
@@ -162,6 +185,29 @@ export function runUCCSD(
   }
 
   const core = ccsdIterate(eri, eps, NOCC, NVIRT, NSO, frozenOccSet, opts);
+
+  // ── ⟨S²⟩ Chen-Schlegel 1994 T2 correction. ───────────────────
+  // ΔS²_T2 = − Σ_{i_α, j_β, a_α, b_β} |T2[i, j, a, b]|²
+  //
+  // In UCCSD's "all-α-occ first" SO ordering:
+  //   i_α ∈ [0, nAlpha)
+  //   j_β ∈ [nAlpha, nAlpha + nBeta)
+  //   T2 virtual index a is the SO offset past NOCC; α-virt are
+  //     [NOCC, NOCC + nVirtA), so a_α (offset) ∈ [0, nVirtA)
+  //   β-virt SOs are [NOCC + nVirtA, NSO), so b_β (offset) ∈ [nVirtA, NVIRT)
+  let s2T2Correction = 0;
+  for (let i = 0; i < nAlpha; i++) {
+    for (let j = nAlpha; j < nAlpha + nBeta; j++) {
+      for (let a = 0; a < nVirtA; a++) {
+        for (let b = nVirtA; b < NVIRT; b++) {
+          const t = core.T2[((i * NOCC + j) * NVIRT + a) * NVIRT + b]!;
+          s2T2Correction -= t * t;
+        }
+      }
+    }
+  }
+  const s2Approx = uhf.s2 + s2T2Correction;
+
   return {
     correlationEnergy: core.correlationEnergy,
     totalEnergy: uhf.energy + core.correlationEnergy,
@@ -172,6 +218,9 @@ export function runUCCSD(
     converged: core.converged,
     nAlpha,
     nBeta,
+    s2Reference: uhf.s2,
+    s2T2Correction,
+    s2Approx,
   };
 }
 
