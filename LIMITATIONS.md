@@ -102,7 +102,9 @@ will silently truncate large dispatches.
 | missing | impact | roadmap |
 |---|---|---|
 | Counterpoise correction (BSSE) | Can't quote noncovalent interaction energies | Tier 3 — additive on top of HF/CCSD |
-| Frozen-core in EOM / CCSD(T) | We freeze core for HF but **don't verify** propagation through (T) and EOM | Tier 3 audit needed |
+| Frozen-core in CCSD(T) | **Audited 2026-05** — CCSD(T) frozen-1s on H₂O / CH₄ lies above all-electron by < 30 mHa, (T) stays negative. Verified by `tests/chemistry/frozen-core-audit.test.ts`. | shipped ✓ |
+| Frozen-core in UCCSD | **Audit found bug**: SO-ordering mismatch. UCCSD uses "all-α-occ first, then all-β-occ", but ccsdIterate's `zeroCoreAmplitudes` zeros SOs `[0, nFrozenSO)` — which on UCCSD freezes 2 α-occupied SOs instead of α+β of the lowest spatial. UCCSD frozen-core diverges from RHF-CCSD frozen-core by ~9 mHa on H₂O / STO-3G. Bare (no frozen-core) UCCSD is correct. | Tier 3 — fix is either reorder UCCSD SOs (frozen-first), or pass an explicit frozen-SO mask to ccsdIterate. Honest-negative test pins the current behavior so the fix flips it to a pass. |
+| Frozen-core in EE / IP / EA-EOM-CCSD | **NOT IMPLEMENTED** — `runEOMCCSD`, `runIP_EOMCCSD`, `runEA_EOMCCSD` have no `nFrozenCore` option. The σ-equations iterate occupied indices over the full `[0, NOCC)` range. The MIGRATION.md PySCF port will land it; pre-port, frozen-core in EOM-CCSD is silently impossible. | Tier 3 — ~1 day; add option + guard occupied-index loops in σ_1 / σ_2 to `[nFrozenSO, NOCC)`, plus an audit test on the energy bounds. |
 | ⟨S²⟩ post-CC spin diagnostics | UHF reports ⟨S²⟩; UCCSD doesn't | Tier 3 — trivial extension |
 | Level-shift / damping | Stretched-bond HF fails | Tier 3 — standard SCF technique |
 | Quadratically-convergent SCF | Hard cases bail out | Tier 3 |
