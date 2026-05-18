@@ -66,6 +66,7 @@ import {
 } from "./ccsd.js";
 import { transformERIToMO } from "./mp2.js";
 import { eigGeneral } from "../manybody/dense-eig-general.js";
+import { davidson } from "../manybody/davidson.js";
 
 export interface IPEOMCCSDResult {
   /** Ionization potentials (Hartree), sorted ascending. */
@@ -79,6 +80,17 @@ export interface IPEOMCCSDResult {
 export interface IPEOMCCSDOpts {
   readonly nRoots?: number;
   readonly imagTol?: number;
+  /** Frozen-core spatial orbitals. Same convention as `runEOMCCSD`:
+   *  restricts the packed (1h + antisym 2h1p) basis to occupied
+   *  indices ≥ 2·nFrozenCore. Core-ionization satellites are
+   *  excluded — this method isn't intended for them anyway
+   *  (would need separate Auger-CC machinery). */
+  readonly nFrozenCore?: number;
+  /** Use block Davidson instead of the dense Hessenberg-QR. Recommended
+   *  for dim ≳ 200 systems. */
+  readonly useDavidson?: boolean;
+  readonly davidsonTol?: number;
+  readonly davidsonMaxIter?: number;
 }
 
 export function runIPEOMCCSD(
@@ -193,55 +205,110 @@ export function runIPEOMCCSD(
   }
 
   // ── Build packed (R_1 + antisym R_2) basis. ────────────────
+  // Frozen-core: restrict occupied indices to [nFrozenSO, NOCC).
+  // R_1 lives in [0, NOCC) but is zero for frozen i; same for R_2's
+  // (i, j) indices. σ-equation internals unchanged — frozen-index
+  // contributions vanish because R_1, R_2 are zero there.
+  const nFrozenCore = opts.nFrozenCore ?? 0;
+  const nFrozenSO = 2 * nFrozenCore;
+  if (nFrozenSO < 0 || nFrozenSO >= NOCC) {
+    throw new Error(
+      `runIPEOMCCSD: nFrozenCore=${nFrozenCore} leaves no active occupied orbitals ` +
+      `(NOCC=${NOCC}, would freeze ${nFrozenSO})`,
+    );
+  }
   const ijPairs: { i: number; j: number }[] = [];
-  for (let i = 1; i < NOCC; i++)
-    for (let j = 0; j < i; j++) ijPairs.push({ i, j });
+  for (let i = nFrozenSO + 1; i < NOCC; i++)
+    for (let j = nFrozenSO; j < i; j++) ijPairs.push({ i, j });
   const nIJ = ijPairs.length;
-  const nS = NOCC;
+  const nActiveOcc = NOCC - nFrozenSO;
+  const nS = nActiveOcc;
   const dim = nS + nIJ * NVIRT;
-  const M = new Float64Array(dim * dim);
   const R_1 = new Float64Array(NOCC);
   const R_2 = new Float64Array(NOCC * NOCC * NVIRT);
+  const imagTol = opts.imagTol ?? 1e-6;
 
-  for (let k = 0; k < dim; k++) {
-    R_1.fill(0);
+  // Pack/unpack helpers — shared by dense and Davidson paths.
+  function unpackInto(v: Float64Array): void {
+    R_1.fill(0);  // frozen-i entries stay zero
     R_2.fill(0);
-    if (k < nS) {
-      R_1[k] = 1;
-    } else {
-      const d = k - nS;
-      const pair = ijPairs[Math.floor(d / NVIRT)]!;
-      const a = d - Math.floor(d / NVIRT) * NVIRT;
-      // r_2 antisym in (i, j): r[i,j,a] = 1, r[j,i,a] = -1 (others 0).
-      R_2[(pair.i * NOCC + pair.j) * NVIRT + a] = 1;
-      R_2[(pair.j * NOCC + pair.i) * NVIRT + a] = -1;
+    for (let row = 0; row < nS; row++) {
+      R_1[nFrozenSO + row] = v[row]!;
     }
-    const { s1, s2 } = sigma(R_1, R_2);
-    for (let row = 0; row < nS; row++) M[row * dim + k] = s1[row]!;
     for (let d = 0; d < nIJ * NVIRT; d++) {
       const pair = ijPairs[Math.floor(d / NVIRT)]!;
       const a = d - Math.floor(d / NVIRT) * NVIRT;
-      M[(nS + d) * dim + k] = s2[(pair.i * NOCC + pair.j) * NVIRT + a]!;
+      const val = v[nS + d]!;
+      R_2[(pair.i * NOCC + pair.j) * NVIRT + a] = val;
+      R_2[(pair.j * NOCC + pair.i) * NVIRT + a] = -val;
     }
+  }
+  function packFrom(s1: Float64Array, s2: Float64Array): Float64Array {
+    const out = new Float64Array(dim);
+    for (let row = 0; row < nS; row++) out[row] = s1[nFrozenSO + row]!;
+    for (let d = 0; d < nIJ * NVIRT; d++) {
+      const pair = ijPairs[Math.floor(d / NVIRT)]!;
+      const a = d - Math.floor(d / NVIRT) * NVIRT;
+      out[nS + d] = s2[(pair.i * NOCC + pair.j) * NVIRT + a]!;
+    }
+    return out;
   }
 
-  // ── Diagonalize and extract IPs. ────────────────────────────
-  // Eigenvalues ω > 0 ARE the IPs (no negation needed — see header).
-  const eig = eigGeneral(M, dim);
-  const imagTol = opts.imagTol ?? 1e-6;
-  const ipList: Array<{ ip: number; im: number }> = [];
-  for (let k = 0; k < dim; k++) {
-    if (Math.abs(eig.imag[k]!) < imagTol && eig.real[k]! > 1e-6) {
-      ipList.push({ ip: eig.real[k]!, im: eig.imag[k]! });
+  let ips: Float64Array;
+  let imag: Float64Array;
+
+  if (opts.useDavidson) {
+    // ── Davidson path. ──────────────────────────────────────────
+    // Diagonal preconditioner: -ε_i for R_1 (Koopmans IP);
+    // -ε_i - ε_j + ε_a for R_2 (2h1p satellite energy gap).
+    const diagonal = new Float64Array(dim);
+    for (let row = 0; row < nS; row++) diagonal[row] = -eps[nFrozenSO + row]!;
+    for (let d = 0; d < nIJ * NVIRT; d++) {
+      const pair = ijPairs[Math.floor(d / NVIRT)]!;
+      const a = d - Math.floor(d / NVIRT) * NVIRT;
+      diagonal[nS + d] = -eps[pair.i]! - eps[pair.j]! + eps[a + VO]!;
     }
-  }
-  ipList.sort((a, b) => a.ip - b.ip);
-  const nRoots = Math.min(opts.nRoots ?? ipList.length, ipList.length);
-  const ips = new Float64Array(nRoots);
-  const imag = new Float64Array(nRoots);
-  for (let k = 0; k < nRoots; k++) {
-    ips[k] = ipList[k]!.ip;
-    imag[k] = ipList[k]!.im;
+    const matvec = (v: Float64Array): Float64Array => {
+      unpackInto(v);
+      const { s1, s2 } = sigma(R_1, R_2);
+      return packFrom(s1, s2);
+    };
+    const nRoots = Math.min(opts.nRoots ?? 10, dim);
+    const dav = davidson(dim, matvec, diagonal, {
+      k: nRoots,
+      tol: opts.davidsonTol ?? 1e-7,
+      maxIter: opts.davidsonMaxIter ?? 200,
+      filter: (re, im) => Math.abs(im) < imagTol && re > 1e-6,
+    });
+    ips = dav.energies;
+    imag = dav.imag;
+  } else {
+    // ── Dense path: build M column by column, then Hessenberg-QR. ──
+    const M = new Float64Array(dim * dim);
+    const ek = new Float64Array(dim);
+    for (let k = 0; k < dim; k++) {
+      ek.fill(0);
+      ek[k] = 1;
+      unpackInto(ek);
+      const { s1, s2 } = sigma(R_1, R_2);
+      const col = packFrom(s1, s2);
+      for (let row = 0; row < dim; row++) M[row * dim + k] = col[row]!;
+    }
+    const eig = eigGeneral(M, dim);
+    const ipList: Array<{ ip: number; im: number }> = [];
+    for (let k = 0; k < dim; k++) {
+      if (Math.abs(eig.imag[k]!) < imagTol && eig.real[k]! > 1e-6) {
+        ipList.push({ ip: eig.real[k]!, im: eig.imag[k]! });
+      }
+    }
+    ipList.sort((a, b) => a.ip - b.ip);
+    const nRoots = Math.min(opts.nRoots ?? ipList.length, ipList.length);
+    ips = new Float64Array(nRoots);
+    imag = new Float64Array(nRoots);
+    for (let k = 0; k < nRoots; k++) {
+      ips[k] = ipList[k]!.ip;
+      imag[k] = ipList[k]!.im;
+    }
   }
   return { ips, imag, dim };
 }

@@ -62,6 +62,7 @@ import {
 } from "./ccsd.js";
 import { transformERIToMO } from "./mp2.js";
 import { eigGeneral } from "../manybody/dense-eig-general.js";
+import { davidson } from "../manybody/davidson.js";
 
 export interface EAEOMCCSDResult {
   /** Electron affinities (Hartree), sorted ascending. Negative values
@@ -77,6 +78,14 @@ export interface EAEOMCCSDResult {
 export interface EAEOMCCSDOpts {
   readonly nRoots?: number;
   readonly imagTol?: number;
+  /** Frozen-core spatial orbitals. Restricts the occupied i index in
+   *  R_2[i, a, b] (1h2p satellites) to ≥ 2·nFrozenCore. R_1[a] is
+   *  unaffected — frozen-core only constrains occupied indices. */
+  readonly nFrozenCore?: number;
+  /** Use block Davidson instead of the dense Hessenberg-QR. */
+  readonly useDavidson?: boolean;
+  readonly davidsonTol?: number;
+  readonly davidsonMaxIter?: number;
 }
 
 export function runEAEOMCCSD(
@@ -195,47 +204,102 @@ export function runEAEOMCCSD(
   }
 
   // ── Build packed (R_1 + antisym R_2) basis. ────────────────
+  // Frozen-core: R_2[i, a, b] is zero for frozen i; restrict the
+  // packed-doubles enumeration to i ∈ [nFrozenSO, NOCC). R_1 is
+  // untouched (no occupied index).
+  const nFrozenCore = opts.nFrozenCore ?? 0;
+  const nFrozenSO = 2 * nFrozenCore;
+  if (nFrozenSO < 0 || nFrozenSO >= NOCC) {
+    throw new Error(
+      `runEAEOMCCSD: nFrozenCore=${nFrozenCore} leaves no active occupied orbitals ` +
+      `(NOCC=${NOCC}, would freeze ${nFrozenSO})`,
+    );
+  }
   const abPairs: { a: number; b: number }[] = [];
   for (let a = 1; a < NVIRT; a++)
     for (let b = 0; b < a; b++) abPairs.push({ a, b });
   const nAB = abPairs.length;
+  const nActiveOcc = NOCC - nFrozenSO;
   const nS = NVIRT;
-  const dim = nS + NOCC * nAB;
-  const M = new Float64Array(dim * dim);
+  const dim = nS + nActiveOcc * nAB;
   const R_1 = new Float64Array(NVIRT);
   const R_2 = new Float64Array(NOCC * NVIRT * NVIRT);
+  const imagTol = opts.imagTol ?? 1e-6;
 
-  for (let k = 0; k < dim; k++) {
+  function unpackInto(v: Float64Array): void {
     R_1.fill(0);
     R_2.fill(0);
-    if (k < nS) {
-      R_1[k] = 1;
-    } else {
-      const d = k - nS;
-      const i = Math.floor(d / nAB);
-      const pair = abPairs[d - i * nAB]!;
-      // r_2 antisym in (a, b): r[i, a, b] = 1, r[i, b, a] = -1.
-      R_2[(i * NVIRT + pair.a) * NVIRT + pair.b] = 1;
-      R_2[(i * NVIRT + pair.b) * NVIRT + pair.a] = -1;
-    }
-    const { s1, s2 } = sigma(R_1, R_2);
-    for (let row = 0; row < nS; row++) M[row * dim + k] = s1[row]!;
-    for (let d = 0; d < NOCC * nAB; d++) {
-      const i = Math.floor(d / nAB);
-      const pair = abPairs[d - i * nAB]!;
-      M[(nS + d) * dim + k] = s2[(i * NVIRT + pair.a) * NVIRT + pair.b]!;
+    for (let row = 0; row < nS; row++) R_1[row] = v[row]!;
+    for (let d = 0; d < nActiveOcc * nAB; d++) {
+      const iActive = Math.floor(d / nAB);
+      const i = nFrozenSO + iActive;
+      const pair = abPairs[d - iActive * nAB]!;
+      const val = v[nS + d]!;
+      R_2[(i * NVIRT + pair.a) * NVIRT + pair.b] = val;
+      R_2[(i * NVIRT + pair.b) * NVIRT + pair.a] = -val;
     }
   }
+  function packFrom(s1: Float64Array, s2: Float64Array): Float64Array {
+    const out = new Float64Array(dim);
+    for (let row = 0; row < nS; row++) out[row] = s1[row]!;
+    for (let d = 0; d < nActiveOcc * nAB; d++) {
+      const iActive = Math.floor(d / nAB);
+      const i = nFrozenSO + iActive;
+      const pair = abPairs[d - iActive * nAB]!;
+      out[nS + d] = s2[(i * NVIRT + pair.a) * NVIRT + pair.b]!;
+    }
+    return out;
+  }
 
-  // ── Diagonalize. ω is the attached-state energy (>0 unbound,
-  //    <0 bound). EA = −ω: positive when virtual binds, negative
-  //    when unbound (no real anion).
-  const eig = eigGeneral(M, dim);
-  const imagTol = opts.imagTol ?? 1e-6;
-  const eaList: Array<{ ea: number; im: number }> = [];
-  for (let k = 0; k < dim; k++) {
-    if (Math.abs(eig.imag[k]!) < imagTol) {
-      eaList.push({ ea: -eig.real[k]!, im: eig.imag[k]! });
+  let eaList: Array<{ ea: number; im: number }>;
+
+  if (opts.useDavidson) {
+    // ── Davidson path. ──────────────────────────────────────────
+    // Diagonal preconditioner: ε_a for R_1 (Koopmans attached-state energy);
+    // -ε_i + ε_a + ε_b for R_2 (1h2p satellite gap).
+    const diagonal = new Float64Array(dim);
+    for (let row = 0; row < nS; row++) diagonal[row] = eps[row + VO]!;
+    for (let d = 0; d < nActiveOcc * nAB; d++) {
+      const iActive = Math.floor(d / nAB);
+      const i = nFrozenSO + iActive;
+      const pair = abPairs[d - iActive * nAB]!;
+      diagonal[nS + d] = -eps[i]! + eps[pair.a + VO]! + eps[pair.b + VO]!;
+    }
+    const matvec = (v: Float64Array): Float64Array => {
+      unpackInto(v);
+      const { s1, s2 } = sigma(R_1, R_2);
+      return packFrom(s1, s2);
+    };
+    const nRoots = Math.min(opts.nRoots ?? 10, dim);
+    const dav = davidson(dim, matvec, diagonal, {
+      k: nRoots,
+      tol: opts.davidsonTol ?? 1e-7,
+      maxIter: opts.davidsonMaxIter ?? 200,
+      // EA filter: real eigenvalues (negation handled below).
+      filter: (_re, im) => Math.abs(im) < imagTol,
+    });
+    eaList = [];
+    for (let k = 0; k < nRoots; k++) {
+      eaList.push({ ea: -dav.energies[k]!, im: dav.imag[k]! });
+    }
+  } else {
+    // ── Dense path. ─────────────────────────────────────────────
+    const M = new Float64Array(dim * dim);
+    const ek = new Float64Array(dim);
+    for (let k = 0; k < dim; k++) {
+      ek.fill(0);
+      ek[k] = 1;
+      unpackInto(ek);
+      const { s1, s2 } = sigma(R_1, R_2);
+      const col = packFrom(s1, s2);
+      for (let row = 0; row < dim; row++) M[row * dim + k] = col[row]!;
+    }
+    const eig = eigGeneral(M, dim);
+    eaList = [];
+    for (let k = 0; k < dim; k++) {
+      if (Math.abs(eig.imag[k]!) < imagTol) {
+        eaList.push({ ea: -eig.real[k]!, im: eig.imag[k]! });
+      }
     }
   }
   // Sort descending in EA: largest EA = most-bound attached state = most
