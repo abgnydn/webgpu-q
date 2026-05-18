@@ -72,6 +72,7 @@ import {
 import { transformERIToMO } from "./mp2.js";
 import { dipole_cg } from "./integrals-cg.js";
 import { eigGeneralWithVectors } from "../manybody/dense-eig-general.js";
+import { davidson } from "../manybody/davidson.js";
 
 export interface EOMCCSDResult {
   /** Excitation energies (Hartree), sorted ascending. Includes spin-orbital
@@ -117,6 +118,17 @@ export interface EOMCCSDOpts {
   readonly nRoots?: number;
   /** Tolerance for considering an eigenvalue real. Default 1e-6 Ha. */
   readonly imagTol?: number;
+  /** Use the iterative Davidson eigensolver (subspace) instead of the
+   *  dense Hessenberg-QR path. Default false (dense). Davidson scales
+   *  as O(N · k · m) instead of O(N³) and is essential for systems
+   *  with dim ≳ 1000 (e.g. CH₂O / HCN at STO-3G where dense takes
+   *  15-30 min on M2 Pro). For small systems (dim ≲ 100) the dense
+   *  path is faster + builds the full spectrum at once. */
+  readonly useDavidson?: boolean;
+  /** Davidson convergence tolerance on residual norm. Default 1e-7. */
+  readonly davidsonTol?: number;
+  /** Davidson max outer iterations. Default 200. */
+  readonly davidsonMaxIter?: number;
 }
 
 /**
@@ -370,7 +382,7 @@ export function runEOMCCSD(
     return { s1, s2 };
   }
 
-  // ── Build dense H̄ matrix on packed (singles + antisym doubles) basis. ──
+  // ── Packed (singles + antisym doubles) basis layout. ─────────
   // Packed singles: index = i * NVIRT + a.
   // Packed doubles: enumerate (i, j) with i > j  and  (a, b) with a > b.
   const ijPairs: Array<{ i: number; j: number }> = [];
@@ -383,59 +395,123 @@ export function runEOMCCSD(
   const nAB = abPairs.length;
   const nS = NOCC * NVIRT;
   const dim = nS + nIJ * nAB;
-  const M = new Float64Array(dim * dim);
+  const imagTol = opts.imagTol ?? 1e-6;
+
+  // Pack/unpack helpers (shared by dense and Davidson paths).
   const R_1 = new Float64Array(NOCC * NVIRT);
   const R_2 = new Float64Array(NOCC * NOCC * NVIRT * NVIRT);
-
-  for (let k = 0; k < dim; k++) {
+  function unpackInto(v: Float64Array): void {
     R_1.fill(0);
     R_2.fill(0);
-    if (k < nS) {
-      R_1[k] = 1;
-    } else {
-      const d = k - nS;
-      const ij = ijPairs[Math.floor(d / nAB)]!;
-      const ab = abPairs[d - Math.floor(d / nAB) * nAB]!;
-      const i = ij.i, j = ij.j, a = ab.i, b = ab.j;     // i > j, a > b
-      R_2[((i * NOCC + j) * NVIRT + a) * NVIRT + b] = 1;
-      R_2[((j * NOCC + i) * NVIRT + a) * NVIRT + b] = -1;
-      R_2[((i * NOCC + j) * NVIRT + b) * NVIRT + a] = -1;
-      R_2[((j * NOCC + i) * NVIRT + b) * NVIRT + a] = 1;
-    }
-    const { s1, s2 } = sigma(R_1, R_2);
-    // Project σ output onto packed basis (row = output direction, col = k).
-    for (let row = 0; row < nS; row++) M[row * dim + k] = s1[row]!;
+    for (let row = 0; row < nS; row++) R_1[row] = v[row]!;
     for (let d = 0; d < nIJ * nAB; d++) {
       const ij = ijPairs[Math.floor(d / nAB)]!;
       const ab = abPairs[d - Math.floor(d / nAB) * nAB]!;
       const i = ij.i, j = ij.j, a = ab.i, b = ab.j;
-      M[(nS + d) * dim + k] = s2[((i * NOCC + j) * NVIRT + a) * NVIRT + b]!;
+      const val = v[nS + d]!;
+      R_2[((i * NOCC + j) * NVIRT + a) * NVIRT + b] = val;
+      R_2[((j * NOCC + i) * NVIRT + a) * NVIRT + b] = -val;
+      R_2[((i * NOCC + j) * NVIRT + b) * NVIRT + a] = -val;
+      R_2[((j * NOCC + i) * NVIRT + b) * NVIRT + a] = val;
     }
   }
-
-  // ── Diagonalize with eigenvectors. ────────────────────────────
-  const eig = eigGeneralWithVectors(M, dim);
-
-  // Filter to real-positive eigenvalues + sort ascending. Carry the
-  // eigenvector column index alongside the eigenvalue for re-packing.
-  const imagTol = opts.imagTol ?? 1e-6;
-  const positives: Array<{ re: number; im: number; col: number }> = [];
-  for (let k = 0; k < dim; k++) {
-    if (Math.abs(eig.imag[k]!) < imagTol && eig.real[k]! > 1e-8) {
-      positives.push({ re: eig.real[k]!, im: eig.imag[k]!, col: k });
+  function packFrom(s1: Float64Array, s2: Float64Array): Float64Array {
+    const out = new Float64Array(dim);
+    for (let row = 0; row < nS; row++) out[row] = s1[row]!;
+    for (let d = 0; d < nIJ * nAB; d++) {
+      const ij = ijPairs[Math.floor(d / nAB)]!;
+      const ab = abPairs[d - Math.floor(d / nAB) * nAB]!;
+      const i = ij.i, j = ij.j, a = ab.i, b = ab.j;
+      out[nS + d] = s2[((i * NOCC + j) * NVIRT + a) * NVIRT + b]!;
     }
+    return out;
   }
-  positives.sort((a, b) => a.re - b.re);
-  const nRoots = Math.min(opts.nRoots ?? positives.length, positives.length);
-  const energies = new Float64Array(nRoots);
-  const imag = new Float64Array(nRoots);
-  const amplitudes = new Float64Array(nRoots * dim);
-  for (let k = 0; k < nRoots; k++) {
-    energies[k] = positives[k]!.re;
-    imag[k] = positives[k]!.im;
-    const srcCol = positives[k]!.col;
-    for (let row = 0; row < dim; row++) {
-      amplitudes[k * dim + row] = eig.vectors[srcCol * dim + row]!;
+
+  let nRoots: number;
+  let energies: Float64Array;
+  let imag: Float64Array;
+  let amplitudes: Float64Array;
+
+  if (opts.useDavidson) {
+    // ── Davidson path: O(N · k · m) instead of O(N³). ───────────
+    // Build the M diagonal from orbital-energy gaps (Koopmans approximation).
+    // This is the standard Davidson-Liu preconditioner for EOM-CCSD; the
+    // higher-order F_ae / F_mi corrections shift the diagonal by chemistry-
+    // scale terms (~0.01 Ha) but don't change preconditioning behavior.
+    const diagonal = new Float64Array(dim);
+    for (let i = 0; i < NOCC; i++) {
+      for (let a = 0; a < NVIRT; a++) {
+        diagonal[i * NVIRT + a] = eps[a + VO]! - eps[i]!;
+      }
+    }
+    for (let d = 0; d < nIJ * nAB; d++) {
+      const ij = ijPairs[Math.floor(d / nAB)]!;
+      const ab = abPairs[d - Math.floor(d / nAB) * nAB]!;
+      const i = ij.i, j = ij.j, a = ab.i, b = ab.j;
+      diagonal[nS + d] = eps[a + VO]! + eps[b + VO]! - eps[i]! - eps[j]!;
+    }
+
+    const matvec = (v: Float64Array): Float64Array => {
+      unpackInto(v);
+      const { s1, s2 } = sigma(R_1, R_2);
+      return packFrom(s1, s2);
+    };
+
+    nRoots = Math.min(opts.nRoots ?? 10, dim);
+    const dav = davidson(dim, matvec, diagonal, {
+      k: nRoots,
+      tol: opts.davidsonTol ?? 1e-7,
+      maxIter: opts.davidsonMaxIter ?? 200,
+      filter: (re, im) => Math.abs(im) < imagTol && re > 1e-8,
+    });
+
+    energies = dav.energies;
+    imag = dav.imag;
+    amplitudes = new Float64Array(nRoots * dim);
+    for (let k = 0; k < nRoots; k++) {
+      for (let row = 0; row < dim; row++) {
+        amplitudes[k * dim + row] = dav.vectors[k * dim + row]!;
+      }
+    }
+  } else {
+    // ── Dense path: build M column by column, then Hessenberg-QR. ──
+    const M = new Float64Array(dim * dim);
+    const ek = new Float64Array(dim);
+    for (let k = 0; k < dim; k++) {
+      ek.fill(0);
+      ek[k] = 1;
+      unpackInto(ek);
+      const { s1, s2 } = sigma(R_1, R_2);
+      // Project σ output onto packed basis (row = output direction, col = k).
+      for (let row = 0; row < nS; row++) M[row * dim + k] = s1[row]!;
+      for (let d = 0; d < nIJ * nAB; d++) {
+        const ij = ijPairs[Math.floor(d / nAB)]!;
+        const ab = abPairs[d - Math.floor(d / nAB) * nAB]!;
+        const i = ij.i, j = ij.j, a = ab.i, b = ab.j;
+        M[(nS + d) * dim + k] = s2[((i * NOCC + j) * NVIRT + a) * NVIRT + b]!;
+      }
+    }
+    const eig = eigGeneralWithVectors(M, dim);
+
+    // Filter to real-positive eigenvalues + sort ascending.
+    const positives: Array<{ re: number; im: number; col: number }> = [];
+    for (let k = 0; k < dim; k++) {
+      if (Math.abs(eig.imag[k]!) < imagTol && eig.real[k]! > 1e-8) {
+        positives.push({ re: eig.real[k]!, im: eig.imag[k]!, col: k });
+      }
+    }
+    positives.sort((a, b) => a.re - b.re);
+    nRoots = Math.min(opts.nRoots ?? positives.length, positives.length);
+    energies = new Float64Array(nRoots);
+    imag = new Float64Array(nRoots);
+    amplitudes = new Float64Array(nRoots * dim);
+    for (let k = 0; k < nRoots; k++) {
+      energies[k] = positives[k]!.re;
+      imag[k] = positives[k]!.im;
+      const srcCol = positives[k]!.col;
+      for (let row = 0; row < dim; row++) {
+        amplitudes[k * dim + row] = eig.vectors[srcCol * dim + row]!;
+      }
     }
   }
 
