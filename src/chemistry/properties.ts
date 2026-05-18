@@ -136,6 +136,49 @@ export function mullikenCharges(
   return charges;
 }
 
+/**
+ * Mulliken atomic spin populations from a UHF / UCCSD density pair.
+ * Returns the per-atom z-component magnetization in units of e:
+ *
+ *   ⟨Ŝ_z⟩_A = ½ Σ_{μ ∈ A} [(M·S)_μμ]
+ *
+ * where M = D_α − D_β is the spin density in the AO basis. Positive
+ * spin population indicates net α-electron density on the atom;
+ * negative indicates net β. For a clean doublet on a single atom,
+ * the sum over all atoms is +½ × 2 = 1 (the unpaired electron's
+ * contribution to ⟨Ŝ_z⟩ in units of ℏ).
+ *
+ * Conventions match the Mulliken-charge function above — same
+ * basis-set sensitivity caveats apply.
+ */
+export function mullikenSpinPopulations(
+  integrals: MolecularIntegrals,
+  D_alpha: Float64Array,
+  D_beta: Float64Array,
+  shellAtomIdx: readonly number[],
+): Float64Array {
+  const n = integrals.n;
+  const S = integrals.S_AO;
+  const nAtoms = integrals.nuclei.length;
+  if (shellAtomIdx.length !== n) {
+    throw new Error(
+      `mullikenSpinPopulations: shellAtomIdx length ${shellAtomIdx.length} ≠ n ${n}`,
+    );
+  }
+  const spin = new Float64Array(nAtoms);
+  for (let mu = 0; mu < n; mu++) {
+    let pop = 0;
+    for (let nu = 0; nu < n; nu++) {
+      const M = D_alpha[mu * n + nu]! - D_beta[mu * n + nu]!;
+      pop += M * S[nu * n + mu]!;
+    }
+    // ½·(M·S) is the per-AO α-β population difference; sum into the
+    // atom's spin population.
+    spin[shellAtomIdx[mu]!]! += 0.5 * pop;
+  }
+  return spin;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Wiberg-Mayer bond orders (Mayer 1983, "Charge, bond order,
 // and valence in the AB initio SCF theory", Chem. Phys. Lett.
