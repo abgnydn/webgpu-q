@@ -34,7 +34,7 @@
 
 import type { MolecularIntegrals } from "./cg-molecular.js";
 import type { UHFResult } from "./uhf-scf.js";
-import { type CCSDOpts, type CCSDResult, ccsdIterate } from "./ccsd.js";
+import { type CCSDOpts, type CCSDResult, ccsdIterate, ccsdDiagnostics } from "./ccsd.js";
 
 export interface UCCSDResult extends CCSDResult {
   readonly nAlpha: number;
@@ -207,6 +207,7 @@ export function runUCCSD(
     }
   }
   const s2Approx = uhf.s2 + s2T2Correction;
+  const diag = ccsdDiagnostics(core.T1, NOCC, NVIRT);
 
   return {
     correlationEnergy: core.correlationEnergy,
@@ -216,6 +217,8 @@ export function runUCCSD(
     history: core.history,
     iter: core.iter,
     converged: core.converged,
+    t1Diagnostic: diag.t1,
+    d1Diagnostic: diag.d1,
     nAlpha,
     nBeta,
     s2Reference: uhf.s2,

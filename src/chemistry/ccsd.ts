@@ -63,6 +63,18 @@ export interface CCSDResult {
   readonly iter: number;
   /** True if energy converged to within tol. */
   readonly converged: boolean;
+  /** T1 diagnostic (Lee, Taylor 1989): ‖T1‖_F / √(2·n_electrons).
+   *  Heuristic flag for multi-reference character — CCSD becomes
+   *  unreliable when t1Diagnostic > 0.02 (closed-shell) or > 0.05
+   *  (open-shell). Values < 0.01 indicate confidently single-reference. */
+  readonly t1Diagnostic: number;
+  /** D1 diagnostic (Janssen, Nielsen 1998): largest singular value
+   *  of T1 reshaped as an (n_occ × n_virt) matrix. More sensitive
+   *  than the Lee T1 diagnostic to isolated bad orbitals — picks
+   *  up cases where total ‖T1‖_F is OK but a single (i, a) amplitude
+   *  is large. Multi-reference threshold ≈ 0.05; consult Janssen &
+   *  Nielsen 1998 for sector-specific bars. */
+  readonly d1Diagnostic: number;
 }
 
 export interface CCSDOpts {
@@ -107,6 +119,7 @@ export function runCCSD(
   for (let P = 0; P < NSO; P++) eps[P] = hf.orbitalEnergies[P >> 1]!;
 
   const core = ccsdIterate(eri, eps, NOCC, NVIRT, NSO, nFrozenSO, opts);
+  const diag = ccsdDiagnostics(core.T1, NOCC, NVIRT);
   return {
     correlationEnergy: core.correlationEnergy,
     totalEnergy: hf.energy + core.correlationEnergy,
@@ -115,7 +128,73 @@ export function runCCSD(
     history: core.history,
     iter: core.iter,
     converged: core.converged,
+    t1Diagnostic: diag.t1,
+    d1Diagnostic: diag.d1,
   };
+}
+
+/** Compute T1-based wavefunction-quality diagnostics for a CCSD
+ *  amplitude tensor. T1 here is the spin-orbital amplitudes
+ *  T1[i * NVIRT + a] with i ∈ [0, NOCC), a ∈ [0, NVIRT).
+ *
+ *  - t1 (Lee, Taylor 1989): ‖T1‖_F / √(N_e), with N_e the number
+ *    of correlated electrons (NOCC spin-orbitals).
+ *  - d1 (Janssen, Nielsen 1998): largest singular value of T1
+ *    reshaped as the (n_occ × n_virt) matrix.
+ *
+ *  Both are heuristic diagnostics — flags, not error bars. The
+ *  textbook bars (Lee-Taylor): t1 < 0.02 ≈ confidently single-ref;
+ *  0.02 < t1 < 0.04 ≈ borderline; t1 > 0.05 ≈ trust at your own risk.
+ *  D1 is roughly 2-3× more sensitive than the Lee diagnostic. */
+export function ccsdDiagnostics(
+  T1: Float64Array, NOCC: number, NVIRT: number,
+): { t1: number; d1: number } {
+  // T1 Frobenius norm.
+  let norm2 = 0;
+  for (let k = 0; k < T1.length; k++) norm2 += T1[k]! * T1[k]!;
+  const t1 = Math.sqrt(norm2) / Math.sqrt(NOCC);
+
+  // D1: largest singular value of T1 reshaped as (NOCC × NVIRT).
+  // For our small dimensions, computing σ_max via power iteration
+  // on T1^T · T1 (NVIRT × NVIRT) is cheap and avoids a full SVD.
+  // σ_max(T1) = √(largest eigenvalue of T1^T · T1).
+  const TtT = new Float64Array(NVIRT * NVIRT);
+  for (let a = 0; a < NVIRT; a++) {
+    for (let b = 0; b < NVIRT; b++) {
+      let s = 0;
+      for (let i = 0; i < NOCC; i++) s += T1[i * NVIRT + a]! * T1[i * NVIRT + b]!;
+      TtT[a * NVIRT + b] = s;
+    }
+  }
+  // Power iteration: 50 iters is plenty for a small matrix.
+  let v = new Float64Array(NVIRT);
+  for (let k = 0; k < NVIRT; k++) v[k] = 1 / Math.sqrt(NVIRT);
+  let lambda = 0;
+  for (let iter = 0; iter < 50; iter++) {
+    const Av = new Float64Array(NVIRT);
+    for (let a = 0; a < NVIRT; a++) {
+      let s = 0;
+      for (let b = 0; b < NVIRT; b++) s += TtT[a * NVIRT + b]! * v[b]!;
+      Av[a] = s;
+    }
+    let n2 = 0;
+    for (let k = 0; k < NVIRT; k++) n2 += Av[k]! * Av[k]!;
+    const n = Math.sqrt(n2);
+    if (n < 1e-30) { lambda = 0; break; }
+    for (let k = 0; k < NVIRT; k++) Av[k]! /= n;
+    // Rayleigh quotient on the normalized vector.
+    let newLam = 0;
+    for (let a = 0; a < NVIRT; a++) {
+      let s = 0;
+      for (let b = 0; b < NVIRT; b++) s += TtT[a * NVIRT + b]! * Av[b]!;
+      newLam += Av[a]! * s;
+    }
+    if (Math.abs(newLam - lambda) < 1e-12) { lambda = newLam; break; }
+    lambda = newLam;
+    v = Av;
+  }
+  const d1 = Math.sqrt(Math.max(0, lambda));
+  return { t1, d1 };
 }
 
 /**
@@ -146,7 +225,7 @@ export function ccsdIterate(
    */
   frozenOccSO: number | ReadonlySet<number>,
   opts: CCSDOpts,
-): Omit<CCSDResult, "totalEnergy"> {
+): Omit<CCSDResult, "totalEnergy" | "t1Diagnostic" | "d1Diagnostic"> {
   // Normalize to a Set for downstream uniform handling.
   const frozenSet: ReadonlySet<number> = typeof frozenOccSO === "number"
     ? new Set(Array.from({ length: frozenOccSO }, (_, i) => i))
