@@ -51,29 +51,45 @@ export interface CPHFPolarizabilityResult {
 }
 
 /**
- * Analytical static dipole polarizability via CPHF. Closed-shell
- * RHF only. Returns the 3×3 α tensor + isotropic average.
+ * Shared CPHF building blocks: (A + B), (A − B) orbital Hessians on
+ * the OV space, dipole OV matrix elements, dimensions. Used by both
+ * `cphfPolarizability` (static, needs only A+B) and the TDHF
+ * frequency-dependent path (needs both A+B and A−B).
+ *
+ * Spin-summed RHF singlet response in chemist notation:
+ *   (A + B)_{ai,bj} = (ε_a − ε_i) δ + 4(ai|bj) − (ab|ij) − (aj|bi)
+ *   (A − B)_{ai,bj} = (ε_a − ε_i) δ − (ab|ij) + (aj|bi)
  */
-export function cphfPolarizability(
+export interface CPHFHessians {
+  readonly ApB: Float64Array;
+  readonly AmB: Float64Array;
+  /** Dipole OV elements, indexed [axis][i·nVirt + a]. */
+  readonly muOV: readonly [Float64Array, Float64Array, Float64Array];
+  readonly dim: number;
+  readonly nOcc: number;
+  readonly nVirt: number;
+}
+
+export function buildCPHFHessians(
   hf: HFResult,
   integrals: MolecularIntegrals,
   shells: readonly CGShell[],
-): CPHFPolarizabilityResult {
+): CPHFHessians {
   const n = integrals.n;
   const nOcc = hf.nOccupied;
   const nVirt = n - nOcc;
   if (nVirt === 0) {
-    throw new Error("cphfPolarizability: empty virtual space");
+    throw new Error("buildCPHFHessians: empty virtual space");
   }
   const dim = nOcc * nVirt;
 
-  // ── Build the (A + B) orbital Hessian on OV space. ─────────
   const eri_MO = transformERIToMO(integrals.eri_AO, hf.C_MO, n);
   const eri = (p: number, q: number, r: number, s: number): number =>
     eri_MO[((p * n + q) * n + r) * n + s]!;
   const eps = hf.orbitalEnergies;
 
   const ApB = new Float64Array(dim * dim);
+  const AmB = new Float64Array(dim * dim);
   for (let i = 0; i < nOcc; i++) {
     for (let a = 0; a < nVirt; a++) {
       const aMO = nOcc + a;
@@ -84,16 +100,17 @@ export function cphfPolarizability(
           const bMO = nOcc + b;
           const col = j * nVirt + b;
           const diag = (i === j && a === b) ? eOrb : 0;
-          const t1 = 4 * eri(i, aMO, j, bMO);   // 4·(ai|bj)
-          const t2 = eri(aMO, bMO, i, j);       // (ab|ij)
-          const t3 = eri(aMO, j, bMO, i);       // (aj|bi)
-          ApB[row + col] = diag + t1 - t2 - t3;
+          const coul = eri(i, aMO, j, bMO);     // (ai|bj)
+          const exA  = eri(aMO, bMO, i, j);     // (ab|ij)
+          const exB  = eri(aMO, j, bMO, i);     // (aj|bi)
+          ApB[row + col] = diag + 4 * coul - exA - exB;
+          AmB[row + col] = diag - exA + exB;
         }
       }
     }
   }
 
-  // ── Build dipole AO matrices (3 × n × n). ──────────────────
+  // Dipole AO matrices.
   const muAO: [Float64Array, Float64Array, Float64Array] = [
     new Float64Array(n * n), new Float64Array(n * n), new Float64Array(n * n),
   ];
@@ -106,8 +123,7 @@ export function cphfPolarizability(
       }
     }
   }
-
-  // ── Transform to MO, extract OV block (n_occ × n_virt). ──
+  // Transform to MO, extract OV block.
   const muOV: [Float64Array, Float64Array, Float64Array] = [
     new Float64Array(dim), new Float64Array(dim), new Float64Array(dim),
   ];
@@ -127,6 +143,19 @@ export function cphfPolarizability(
       }
     }
   }
+  return { ApB, AmB, muOV, dim, nOcc, nVirt };
+}
+
+/**
+ * Analytical static dipole polarizability via CPHF. Closed-shell
+ * RHF only. Returns the 3×3 α tensor + isotropic average.
+ */
+export function cphfPolarizability(
+  hf: HFResult,
+  integrals: MolecularIntegrals,
+  shells: readonly CGShell[],
+): CPHFPolarizabilityResult {
+  const { ApB, muOV, dim } = buildCPHFHessians(hf, integrals, shells);
 
   // ── Solve (A + B) · X^μ = F^μ via Gauss-Jordan (augmented). ──
   // The Gauss-Jordan elimination handles all 3 RHS simultaneously
