@@ -9,33 +9,35 @@
 // the result matches `runCCSDT` on the corresponding RHF reference
 // to numerical precision — the basis-independent (T) eigenvalue.
 //
-// Frozen-core: not yet wired here. UCCSD's all-α-first SO ordering
-// makes the "frozen indices ≥ nFrozenSO" gate in `ccsdtFromSO`
-// incorrect. The CCSD T-amplitudes were already zeroed at the
-// proper frozen indices via UCCSD's frozenOccSet construction, so
-// running with nFrozenSO=0 here still gives a frozen-core-style
-// result — but the i, j, k loops sweep the frozen indices too,
-// wasting work. A follow-up will refactor `ccsdtFromSO` to accept
-// an explicit frozen-occupied set.
+// Frozen-core: wired through the non-contiguous `frozenOccSO`
+// parameter on `ccsdtFromSO` (refactored 2026-05). Freezing the
+// lowest `nFrozenCore` spatial cores in UCCSD's all-α-first SO
+// ordering means skipping α-SOs [0, nFrozenCore) AND β-SOs
+// [nAlpha, nAlpha + nFrozenCore). Same nFrozenCore should typically
+// be passed to both `runUCCSD` and `runUCCSDT`; T1/T2 are zero at
+// the matching SO positions either way.
 // ─────────────────────────────────────────────────────────────
 
 import type { MolecularIntegrals } from "./cg-molecular.js";
 import type { UHFResult } from "./uhf-scf.js";
 import type { UCCSDResult } from "./uccsd.js";
 import { transformERIBlock } from "./uccsd.js";
-import { ccsdtFromSO, type CCSDTResult } from "./ccsd-t.js";
+import { ccsdtFromSO, type CCSDTResult, type CCSDTOpts } from "./ccsd-t.js";
 
 export function runUCCSDT(
   uccsd: UCCSDResult,
   uhf: UHFResult,
   integrals: MolecularIntegrals,
+  opts: CCSDTOpts = {},
 ): CCSDTResult {
   const tStart = performance.now();
   const n = integrals.n;
   const NSO = 2 * n;
   const NOCC = uhf.nAlpha + uhf.nBeta;
   const NVIRT = NSO - NOCC;
-  if (NOCC < 3 || NVIRT < 3) {
+  const nFrozenCore = opts.nFrozenCore ?? 0;
+  // After freezing both spins, active occupied SOs = NOCC − 2·nFrozenCore.
+  if (NOCC - 2 * nFrozenCore < 3 || NVIRT < 3) {
     return { tripleCorrection: 0, totalEnergy: uccsd.totalEnergy, seconds: 0 };
   }
 
@@ -103,11 +105,16 @@ export function runUCCSDT(
       : uhf.orbitalEnergiesBeta[p]!;
   }
 
-  // ── (T) sum on UCCSD amplitudes. nFrozenSO = 0 — UCCSD's
-  // frozen-core (if any) is already baked into T1/T2 = 0 at the
-  // frozen SO positions, so the (T) sum just contributes zero
-  // at those indices.
-  const E_T = ccsdtFromSO(eri, eps, uccsd.T1, uccsd.T2, NOCC, NVIRT, 0);
+  // ── Build the non-contiguous frozen occupied-SO set for UCCSD's
+  // "all-α-occ first, then all-β-occ" ordering. Freezing the lowest
+  // `nFrozenCore` spatials → freeze α-SOs [0, nFrozenCore) AND
+  // β-SOs [nAlpha, nAlpha + nFrozenCore).
+  const frozenOccSO = new Set<number>();
+  for (let s = 0; s < nFrozenCore; s++) {
+    frozenOccSO.add(s);
+    frozenOccSO.add(uhf.nAlpha + s);
+  }
+  const E_T = ccsdtFromSO(eri, eps, uccsd.T1, uccsd.T2, NOCC, NVIRT, frozenOccSO);
 
   return {
     tripleCorrection: E_T,

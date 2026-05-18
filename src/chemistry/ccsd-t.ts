@@ -93,7 +93,11 @@ export function runCCSDT(
   const eri = buildSpinOrbitalERI(eri_MO, n);
   const eps = new Float64Array(NSO);
   for (let P = 0; P < NSO; P++) eps[P] = hf.orbitalEnergies[P >> 1]!;
-  const E_T = ccsdtFromSO(eri, eps, ccsd.T1, ccsd.T2, NOCC, NVIRT, nFrozenSO);
+  // RHF interleaved SO ordering: frozen spatials [0, nFrozenCore) map to
+  // frozen SOs [0, 2·nFrozenCore) — a contiguous range.
+  const frozenOccSO = new Set<number>();
+  for (let P = 0; P < nFrozenSO; P++) frozenOccSO.add(P);
+  const E_T = ccsdtFromSO(eri, eps, ccsd.T1, ccsd.T2, NOCC, NVIRT, frozenOccSO);
   return {
     tripleCorrection: E_T,
     totalEnergy: ccsd.totalEnergy + E_T,
@@ -108,11 +112,14 @@ export function runCCSDT(
  * ERI tensor + eps. Used by `runCCSDT` (closed-shell, P = 2p+σ
  * interleaved) and `runUCCSDT` (open-shell, all-α-occ first).
  *
- * Frozen-core: `nFrozenSO` skips occupied indices [0, nFrozenSO).
- * Correct for contiguous-frozen SO orderings (RHF interleaved).
- * For non-contiguous frozen sets (UCCSD all-α-first), pass 0 here
- * and frozen-core is supplied through the upstream pipeline (T1/T2
- * are already zero at frozen indices by `zeroCoreAmplitudes`).
+ * Frozen-core: `frozenOccSO` is the set of occupied SO indices to
+ * skip in the i/j/k outer loops. RHF interleaved → contiguous
+ * [0, 2·nFrozenCore). UCCSD all-α-first → non-contiguous
+ * {α-spatial-s, β-spatial-s for s ∈ [0, nFrozenCore)} =
+ * {0, 1, ..., nFrozenCore−1, nAlpha, ..., nAlpha + nFrozenCore − 1}.
+ * Outside of these loops the contraction sums over all e ∈ [0, NVIRT)
+ * and m ∈ [0, NOCC); T1/T2 already zero at frozen indices, so
+ * those contributions vanish without an explicit skip.
  */
 export function ccsdtFromSO(
   eri: Float64Array,
@@ -121,7 +128,7 @@ export function ccsdtFromSO(
   T2: Float64Array,
   NOCC: number,
   NVIRT: number,
-  nFrozenSO: number,
+  frozenOccSO: ReadonlySet<number>,
 ): number {
   const NSO = NOCC + NVIRT;
 
@@ -164,11 +171,14 @@ export function ccsdtFromSO(
   };
 
   let E_T = 0;
-  for (let i = nFrozenSO; i < NOCC; i++) {
+  for (let i = 0; i < NOCC; i++) {
+    if (frozenOccSO.has(i)) continue;
     const ei = eps[i]!;
-    for (let j = nFrozenSO; j < NOCC; j++) {
+    for (let j = 0; j < NOCC; j++) {
+      if (frozenOccSO.has(j)) continue;
       const ej = eps[j]!;
-      for (let k = nFrozenSO; k < NOCC; k++) {
+      for (let k = 0; k < NOCC; k++) {
+        if (frozenOccSO.has(k)) continue;
         const ek = eps[k]!;
         for (let a = 0; a < NVIRT; a++) {
           const ea = eps[a + NOCC]!;

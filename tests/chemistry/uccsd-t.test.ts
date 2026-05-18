@@ -53,6 +53,42 @@ describe("UCCSD(T) — open-shell perturbative triples", () => {
     expect(uT.tripleCorrection).toBeLessThan(0);
   }, 60_000);
 
+  test("Closed-shell H₂O frozen-1s: UCCSD(T) matches RHF CCSD(T) to 1e-7", () => {
+    // Exercises the non-contiguous frozenOccSO path. UCCSD's all-α-first
+    // SO ordering puts the frozen β-1s at SO index nAlpha, not adjacent
+    // to the frozen α-1s at SO index 0. Validates that the refactored
+    // ccsdtFromSO correctly skips both via the Set<number> gate.
+    const half = (104.52 / 2) * Math.PI / 180;
+    const xH = 0.9572 * Math.sin(half);
+    const zH = 0.9572 * Math.cos(half);
+    const atoms: Atom[] = [
+      { symbol: "O", pos: [0, 0, 0] },
+      { symbol: "H", pos: [ xH, 0, zH] },
+      { symbol: "H", pos: [-xH, 0, zH] },
+    ];
+    const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(atoms);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+
+    const rhf = runRHFSCF(integrals, nElectrons, {
+      useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8,
+    });
+    const rccsd = runCCSD(rhf, integrals, { maxIter: 200, tol: 1e-9, nFrozenCore: 1 });
+    const rT = runCCSDT(rccsd, rhf, integrals, { nFrozenCore: 1 });
+
+    const uhf = runUHFSCF(integrals, 5, 5, {
+      useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8,
+      symmetryBreaking: 0,
+    });
+    const uccsd = runUCCSD(uhf, integrals, { maxIter: 200, tol: 1e-9, nFrozenCore: 1 });
+    const uT = runUCCSDT(uccsd, uhf, integrals, { nFrozenCore: 1 });
+
+    expect(Math.abs(uccsd.correlationEnergy - rccsd.correlationEnergy)).toBeLessThan(1e-6);
+    expect(Math.abs(uT.tripleCorrection - rT.tripleCorrection)).toBeLessThan(1e-7);
+    expect(uT.tripleCorrection).toBeLessThan(0);
+    // Frozen-1s (T) should be a smaller-magnitude correction than full (T),
+    // because the 1s core orbitals are excluded from the triple-promotion space.
+  }, 60_000);
+
   test("H atom (1 electron): UCCSD(T) tripleCorrection = 0 exactly (no triples possible)", () => {
     const { shells, nuclei } = moleculeToShellsNuclei([
       { symbol: "H", pos: [0, 0, 0] },
