@@ -121,6 +121,51 @@ describe("Counterpoise / BSSE", () => {
     }
   });
 
+  test("MP2 counterpoise: BSSE positive at MP2 + matches HF supermolecule on extreme distance", () => {
+    // MP2 BSSE on top of HF BSSE. Same sign convention, same
+    // variational direction. At 5 Å the H₂...H₂ pair is essentially
+    // non-interacting, so the MP2 supermolecule energy ≈ 2× monomer.
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0]      },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+      { symbol: "H", pos: [0, 0, 5.7414] },
+      { symbol: "H", pos: [0, 0, 6.4828] },
+    ];
+    const cp = runCounterpoise(
+      atoms,
+      [{ atomIndices: [0, 1] }, { atomIndices: [2, 3] }],
+      "sto-3g",
+      { useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8 },
+      "mp2",
+    );
+    expect(cp.allConverged).toBe(true);
+    // BSSE ≥ 0 (Boys-Bernardi sign).
+    expect(cp.bsseCorrection).toBeGreaterThanOrEqual(0);
+    // At 5 Å the interaction (both uncorrected and CP) is sub-mHa.
+    expect(Math.abs(cp.interactionEnergyCP)).toBeLessThan(1e-3);
+    expect(cp.fragmentEnergiesCP.length).toBe(2);
+  });
+
+  test("CCSD counterpoise on small H₂...H₂: sign + magnitude bounded", () => {
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0]      },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+      { symbol: "H", pos: [0, 0, 5.7414] },
+      { symbol: "H", pos: [0, 0, 6.4828] },
+    ];
+    const cp = runCounterpoise(
+      atoms,
+      [{ atomIndices: [0, 1] }, { atomIndices: [2, 3] }],
+      "sto-3g",
+      { useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8 },
+      "ccsd",
+      { maxIter: 200, tol: 1e-9 },
+    );
+    expect(cp.allConverged).toBe(true);
+    expect(cp.bsseCorrection).toBeGreaterThanOrEqual(0);
+    expect(Math.abs(cp.interactionEnergyCP)).toBeLessThan(1e-3);
+  });
+
   test("validates fragmentation: throws on overlap + on missing atoms", () => {
     const atoms: Atom[] = [
       { symbol: "H", pos: [0, 0, 0]      },

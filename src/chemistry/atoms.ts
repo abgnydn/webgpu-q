@@ -28,7 +28,12 @@ import {
   CCPVDZ_F_1S, CCPVDZ_F_2S, CCPVDZ_F_2S_P,
   CCPVDZ_F_2P, CCPVDZ_F_2P_P, CCPVDZ_F_3D,
   AUG_CCPVDZ_H_DIFFUSE_S, AUG_CCPVDZ_H_DIFFUSE_P,
+  AUG_CCPVDZ_LI_DIFFUSE_S, AUG_CCPVDZ_LI_DIFFUSE_P, AUG_CCPVDZ_LI_DIFFUSE_D,
+  AUG_CCPVDZ_BE_DIFFUSE_S, AUG_CCPVDZ_BE_DIFFUSE_P, AUG_CCPVDZ_BE_DIFFUSE_D,
+  AUG_CCPVDZ_C_DIFFUSE_S,  AUG_CCPVDZ_C_DIFFUSE_P,  AUG_CCPVDZ_C_DIFFUSE_D,
+  AUG_CCPVDZ_N_DIFFUSE_S,  AUG_CCPVDZ_N_DIFFUSE_P,  AUG_CCPVDZ_N_DIFFUSE_D,
   AUG_CCPVDZ_O_DIFFUSE_S, AUG_CCPVDZ_O_DIFFUSE_P, AUG_CCPVDZ_O_DIFFUSE_D,
+  AUG_CCPVDZ_F_DIFFUSE_S,  AUG_CCPVDZ_F_DIFFUSE_P,  AUG_CCPVDZ_F_DIFFUSE_D,
 } from "./integrals.js";
 import { type CGShell, makeCGShell } from "./integrals-cg.js";
 import { type Nucleus } from "./cg-molecular.js";
@@ -208,10 +213,25 @@ function atomShellsCcPvdz(symbol: AtomSymbol, pos: readonly [number, number, num
 
 /**
  * Augmentation-only shells for aug-cc-pVDZ — one diffuse function per
- * angular momentum class, appended to the existing cc-pVDZ shell list.
- * Currently supports H (s + p diffuse) and O (s + p + d diffuse).
+ * angular momentum class (s, p, d), appended to the existing cc-pVDZ
+ * shell list. H + first-row coverage (H, Li, Be, C, N, O, F).
  */
 function atomShellsAugDiffuse(symbol: AtomSymbol, pos: readonly [number, number, number]): CGShell[] {
+  type ShellData = { readonly alpha: readonly number[]; readonly c: readonly number[] };
+  function heavyDiffuse(sym: string, s: ShellData, p: ShellData, d: ShellData): CGShell[] {
+    return [
+      makeCGShell(s, pos, [0, 0, 0], `${sym}:aug-s`),
+      makeCGShell(p, pos, [1, 0, 0], `${sym}:aug-p_x`),
+      makeCGShell(p, pos, [0, 1, 0], `${sym}:aug-p_y`),
+      makeCGShell(p, pos, [0, 0, 1], `${sym}:aug-p_z`),
+      makeCGShell(d, pos, [2, 0, 0], `${sym}:aug-d_xx`),
+      makeCGShell(d, pos, [0, 2, 0], `${sym}:aug-d_yy`),
+      makeCGShell(d, pos, [0, 0, 2], `${sym}:aug-d_zz`),
+      makeCGShell(d, pos, [1, 1, 0], `${sym}:aug-d_xy`),
+      makeCGShell(d, pos, [1, 0, 1], `${sym}:aug-d_xz`),
+      makeCGShell(d, pos, [0, 1, 1], `${sym}:aug-d_yz`),
+    ];
+  }
   switch (symbol) {
     case "H":
       return [
@@ -220,21 +240,12 @@ function atomShellsAugDiffuse(symbol: AtomSymbol, pos: readonly [number, number,
         makeCGShell(AUG_CCPVDZ_H_DIFFUSE_P, pos, [0, 1, 0], "H:aug-p_y"),
         makeCGShell(AUG_CCPVDZ_H_DIFFUSE_P, pos, [0, 0, 1], "H:aug-p_z"),
       ];
-    case "O":
-      return [
-        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_S, pos, [0, 0, 0], "O:aug-s"),
-        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_P, pos, [1, 0, 0], "O:aug-p_x"),
-        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_P, pos, [0, 1, 0], "O:aug-p_y"),
-        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_P, pos, [0, 0, 1], "O:aug-p_z"),
-        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_D, pos, [2, 0, 0], "O:aug-d_xx"),
-        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_D, pos, [0, 2, 0], "O:aug-d_yy"),
-        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_D, pos, [0, 0, 2], "O:aug-d_zz"),
-        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_D, pos, [1, 1, 0], "O:aug-d_xy"),
-        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_D, pos, [1, 0, 1], "O:aug-d_xz"),
-        makeCGShell(AUG_CCPVDZ_O_DIFFUSE_D, pos, [0, 1, 1], "O:aug-d_yz"),
-      ];
-    default:
-      throw new Error(`atomShells(aug-cc-pVDZ): atom '${symbol}' not yet supported (only H and O wired).`);
+    case "Li": return heavyDiffuse("Li", AUG_CCPVDZ_LI_DIFFUSE_S, AUG_CCPVDZ_LI_DIFFUSE_P, AUG_CCPVDZ_LI_DIFFUSE_D);
+    case "Be": return heavyDiffuse("Be", AUG_CCPVDZ_BE_DIFFUSE_S, AUG_CCPVDZ_BE_DIFFUSE_P, AUG_CCPVDZ_BE_DIFFUSE_D);
+    case "C":  return heavyDiffuse("C",  AUG_CCPVDZ_C_DIFFUSE_S,  AUG_CCPVDZ_C_DIFFUSE_P,  AUG_CCPVDZ_C_DIFFUSE_D);
+    case "N":  return heavyDiffuse("N",  AUG_CCPVDZ_N_DIFFUSE_S,  AUG_CCPVDZ_N_DIFFUSE_P,  AUG_CCPVDZ_N_DIFFUSE_D);
+    case "O":  return heavyDiffuse("O",  AUG_CCPVDZ_O_DIFFUSE_S,  AUG_CCPVDZ_O_DIFFUSE_P,  AUG_CCPVDZ_O_DIFFUSE_D);
+    case "F":  return heavyDiffuse("F",  AUG_CCPVDZ_F_DIFFUSE_S,  AUG_CCPVDZ_F_DIFFUSE_P,  AUG_CCPVDZ_F_DIFFUSE_D);
   }
 }
 

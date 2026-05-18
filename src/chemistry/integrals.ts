@@ -230,6 +230,25 @@ export const AUG_CCPVDZ_O_DIFFUSE_D = {
   c: [1.0] as const,
 };
 
+// aug-cc-pVDZ diffuse functions for Li, Be, C, N, F.
+// One diffuse primitive per angular momentum class (s, p, d).
+// EMSL Basis Set Exchange, retrieved 2026-05-18.
+export const AUG_CCPVDZ_LI_DIFFUSE_S = { alpha: [0.0072930] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_LI_DIFFUSE_P = { alpha: [0.0074000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_LI_DIFFUSE_D = { alpha: [0.0950000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_BE_DIFFUSE_S = { alpha: [0.0207000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_BE_DIFFUSE_P = { alpha: [0.0142000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_BE_DIFFUSE_D = { alpha: [0.0722000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_C_DIFFUSE_S  = { alpha: [0.0469000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_C_DIFFUSE_P  = { alpha: [0.0404100] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_C_DIFFUSE_D  = { alpha: [0.1510000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_N_DIFFUSE_S  = { alpha: [0.0576000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_N_DIFFUSE_P  = { alpha: [0.0491000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_N_DIFFUSE_D  = { alpha: [0.2300000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_F_DIFFUSE_S  = { alpha: [0.1076000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_F_DIFFUSE_P  = { alpha: [0.0832000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_F_DIFFUSE_D  = { alpha: [0.5000000] as const, c: [1.0] as const };
+
 /** STO-3G 2s contraction for lithium — the *s component* of the L-shell.
  *  Coefficients can be negative to produce the 2s radial node and to
  *  enforce orthogonality with 1s after Löwdin orthogonalization.

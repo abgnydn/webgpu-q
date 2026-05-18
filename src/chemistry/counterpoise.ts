@@ -50,6 +50,10 @@ import type { Atom, BasisName } from "./atoms.js";
 import { moleculeToShellsNuclei } from "./atoms.js";
 import { computeMolecularIntegrals } from "./cg-molecular.js";
 import { runRHFSCF, type HFOpts } from "./hf-scf.js";
+import { runMP2 } from "./mp2.js";
+import { runCCSD, type CCSDOpts } from "./ccsd.js";
+
+export type CounterpoiseMethod = "hf" | "mp2" | "ccsd";
 
 export interface CounterpoiseFragment {
   /** Indices into the `atoms` array that belong to this fragment. */
@@ -82,17 +86,25 @@ export interface CounterpoiseResult {
 
 /**
  * Run the Boys-Bernardi counterpoise correction on a closed-shell
- * supermolecule partitioned into fragments. Performs (1 + 2·N) HF
- * runs where N is the number of fragments:
+ * supermolecule partitioned into fragments. Performs (1 + 2·N)
+ * single-point energy calculations where N is the number of
+ * fragments:
  *   1× E(AB) on the full supermolecule
  *   N× E(fragment in dimer basis) — fragment real, others ghost
  *   N× E(fragment bare) — fragment real, others absent
+ *
+ * `method` controls the energy at each step: "hf" (default) runs
+ * RHF; "mp2" runs HF + MP2 and returns the total energy
+ * (E_HF + E_corr_MP2); "ccsd" runs HF + CCSD and returns
+ * (E_HF + E_corr_CCSD).
  */
 export function runCounterpoise(
   atoms: readonly Atom[],
   fragments: readonly CounterpoiseFragment[],
   basis: BasisName = "sto-3g",
   hfOpts: HFOpts = {},
+  method: CounterpoiseMethod = "hf",
+  ccsdOpts: CCSDOpts = {},
 ): CounterpoiseResult {
   // ── Validate fragmentation: every atom in exactly one fragment. ──
   const claimed = new Array<boolean>(atoms.length).fill(false);
@@ -115,11 +127,27 @@ export function runCounterpoise(
 
   let allConverged = true;
 
-  // ── Supermolecule HF. ──
-  const superSh = moleculeToShellsNuclei(atoms, basis);
-  const superInt = computeMolecularIntegrals(superSh.shells, superSh.nuclei);
-  const superHF = runRHFSCF(superInt, superSh.nElectrons, hfOpts);
-  if (!superHF.converged) allConverged = false;
+  /** Run HF (and optionally MP2 or CCSD) on a set of atoms and
+   *  return the method-appropriate total energy (E_HF + correlation
+   *  if applicable). Sets allConverged = false on any failure. */
+  function singlePoint(atomsIn: readonly Atom[]): number {
+    const sh = moleculeToShellsNuclei(atomsIn, basis);
+    const integ = computeMolecularIntegrals(sh.shells, sh.nuclei);
+    const hf = runRHFSCF(integ, sh.nElectrons, hfOpts);
+    if (!hf.converged) allConverged = false;
+    if (method === "hf") return hf.energy;
+    if (method === "mp2") {
+      const mp2 = runMP2(hf, integ);
+      return hf.energy + mp2.correlationEnergy;
+    }
+    // method === "ccsd"
+    const ccsd = runCCSD(hf, integ, ccsdOpts);
+    if (!ccsd.converged) allConverged = false;
+    return hf.energy + ccsd.correlationEnergy;
+  }
+
+  // ── Supermolecule. ──
+  const superEnergy = singlePoint(atoms);
 
   // ── Per-fragment runs. ──
   const fragmentEnergiesCP: number[] = [];
@@ -133,19 +161,9 @@ export function runCounterpoise(
     const dimerBasisAtoms: Atom[] = atoms.map((a, i) =>
       fragmentSet.has(i) ? a : { ...a, ghost: true },
     );
-    const cpSh = moleculeToShellsNuclei(dimerBasisAtoms, basis);
-    const cpInt = computeMolecularIntegrals(cpSh.shells, cpSh.nuclei);
-    const cpHF = runRHFSCF(cpInt, cpSh.nElectrons, hfOpts);
-    if (!cpHF.converged) allConverged = false;
-    fragmentEnergiesCP.push(cpHF.energy);
-
+    fragmentEnergiesCP.push(singlePoint(dimerBasisAtoms));
     // b) Fragment in bare monomer basis: only this fragment's atoms exist.
-    const bareAtoms = atoms.filter((_, i) => fragmentSet.has(i));
-    const bareSh = moleculeToShellsNuclei(bareAtoms, basis);
-    const bareInt = computeMolecularIntegrals(bareSh.shells, bareSh.nuclei);
-    const bareHF = runRHFSCF(bareInt, bareSh.nElectrons, hfOpts);
-    if (!bareHF.converged) allConverged = false;
-    fragmentEnergiesBare.push(bareHF.energy);
+    fragmentEnergiesBare.push(singlePoint(atoms.filter((_, i) => fragmentSet.has(i))));
   }
 
   let sumCP = 0;
@@ -154,13 +172,15 @@ export function runCounterpoise(
     sumCP += fragmentEnergiesCP[k]!;
     sumBare += fragmentEnergiesBare[k]!;
   }
-  const interactionEnergy = superHF.energy - sumBare;
-  const interactionEnergyCP = superHF.energy - sumCP;
-  // BSSE = ΔE_CP − ΔE = Σ (E_bare − E_CP). Variationally ≥ 0.
+  const interactionEnergy = superEnergy - sumBare;
+  const interactionEnergyCP = superEnergy - sumCP;
+  // BSSE = ΔE_CP − ΔE = Σ (E_bare − E_CP). Variationally ≥ 0 for HF;
+  // for MP2/CCSD the same sign holds asymptotically (variational bound
+  // on E_HF dominates the small post-HF correction).
   const bsseCorrection = interactionEnergyCP - interactionEnergy;
 
   return {
-    supermoleculeEnergy: superHF.energy,
+    supermoleculeEnergy: superEnergy,
     fragmentEnergiesCP,
     fragmentEnergiesBare,
     interactionEnergy,
