@@ -236,7 +236,7 @@ export function runUCCSD(
  * For closed-shell-like blocks (C1 = C2), this reduces to the
  * standard same-basis transform.
  */
-function transformERIBlock(
+export function transformERIBlock(
   eri_AO: Float64Array,
   C1: Float64Array,
   C2: Float64Array,
