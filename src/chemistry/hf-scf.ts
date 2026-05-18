@@ -84,6 +84,24 @@ export interface HFOpts {
    */
   readonly damping?: number;
   /**
+   * Virtual-orbital level shift (Hartree). When > 0, adds
+   * `levelShift · P_v` to the orthogonal-basis Fock matrix each
+   * iteration, where P_v = Σ_{p ≥ nOcc} c'_p · c'_p^T is the
+   * virtual projector built from the PREVIOUS iteration's
+   * orthogonal-basis eigenvectors. This artificially raises
+   * virtual orbital energies, widening the HOMO-LUMO gap and
+   * stabilizing convergence for stretched bonds and other
+   * near-degenerate cases that the bare Roothaan-Hall / DIIS
+   * loop fails on.
+   *
+   * Typical values: 0.1-1.0 Ha. The shift is removed from the
+   * returned virtual orbital energies post-convergence, so the
+   * reported `orbitalEnergies` are the physical Koopmans values.
+   *
+   * Composes with DIIS and damping. Default 0 (no shift).
+   */
+  readonly levelShift?: number;
+  /**
    * Use density-fitting (Cholesky-decomposed ERI) for the Fock J + K
    * build. `true` → use default Cholesky threshold 1e-10 (machine
    * precision); number → use as threshold; DFResult → reuse a
@@ -120,6 +138,7 @@ export function runRHFSCF(
   const useDIIS = opts.useDIIS ?? true;
   const diisMaxHistory = opts.diisHistory ?? 8;
   const damping = opts.damping ?? 0.5;
+  const levelShift = opts.levelShift ?? 0;
 
   const { S_AO, h_AO, eri_AO, X, Vnn } = integrals;
 
@@ -138,7 +157,10 @@ export function runRHFSCF(
 
   // ── Initial guess: diagonalize core h to get starting C ──
   const hPrime = transformSymmetric(h_AO, X, n);
-  let { C_MO, eps } = solveFock(hPrime, X, n);
+  const initial = solveFock(hPrime, X, n);
+  let C_MO = initial.C_MO;
+  let eps = initial.eps;
+  let cPrimePrev: Float64Array = initial.cPrime;
   let D = densityFromC(C_MO, nOcc, n);
   let E_old = Infinity;
   const history: number[] = [];
@@ -200,9 +222,29 @@ export function runRHFSCF(
 
     // ── F' = X^T F_use X, diagonalize → new C, eps ─────────
     const FPrime = transformSymmetric(F_use, X, n);
+
+    // ── Optional virtual-orbital level shift ──────────────
+    // F'_lifted = F' + levelShift · Σ_{p ≥ nOcc} c'_p ⊗ c'_p^T
+    // Using the PREVIOUS iteration's c'_v as the virtual subspace.
+    // Raises virtual orbital eigenvalues by `levelShift`, stabilizing
+    // occupation for stretched-bond / near-degenerate cases.
+    if (levelShift > 0) {
+      for (let p = nOcc; p < n; p++) {
+        for (let i = 0; i < n; i++) {
+          const cpi = cPrimePrev[p * n + i]!;
+          if (cpi === 0) continue;
+          const shifted_cpi = levelShift * cpi;
+          for (let j = 0; j < n; j++) {
+            FPrime[i * n + j]! += shifted_cpi * cPrimePrev[p * n + j]!;
+          }
+        }
+      }
+    }
+
     const sol = solveFock(FPrime, X, n);
     C_MO = sol.C_MO;
     eps = sol.eps;
+    cPrimePrev = sol.cPrime;
 
     // ── New density ────────────────────────────────────────
     const D_new = densityFromC(C_MO, nOcc, n);
@@ -230,6 +272,18 @@ export function runRHFSCF(
       break;
     }
     E_old = E;
+  }
+
+  // ── Strip level-shift from reported virtual eigenvalues. ──
+  // The lifted Fock matrix's virtual eigenvalues are eps_true + shift.
+  // At convergence the eigenvectors are correct (the shift only changed
+  // eigenvalues, not eigenvectors), so removing the shift restores the
+  // physical Koopmans IPs / EAs. Energies don't depend on eps and stay
+  // correct as-is (E_HF = ½·tr[D(h+F)] + Vnn).
+  if (levelShift > 0) {
+    const epsOut = new Float64Array(eps);
+    for (let i = nOcc; i < n; i++) epsOut[i]! -= levelShift;
+    eps = epsOut;
   }
 
   return {
@@ -276,6 +330,9 @@ function transformSymmetric(M: Float64Array, X: Float64Array, n: number): Float6
 function solveFock(FPrime: Float64Array, X: Float64Array, n: number): {
   C_MO: Float64Array;
   eps: Float64Array;
+  /** Orthogonal-basis eigenvectors, column-major: cPrime[c * n + k]
+   *  is the k-th component of the c-th eigenvector. C_MO = X · cPrime. */
+  cPrime: Float64Array;
 } {
   const eig = eigsymmetric(FPrime, n);
   const C_MO = new Float64Array(n * n);
@@ -288,7 +345,7 @@ function solveFock(FPrime: Float64Array, X: Float64Array, n: number): {
       C_MO[r * n + c] = s;
     }
   }
-  return { C_MO, eps: eig.values };
+  return { C_MO, eps: eig.values, cPrime: eig.vectors };
 }
 
 /** D[μ, ν] = 2 Σ_{i=0}^{nOcc-1} C[μ, i] C[ν, i]. */
