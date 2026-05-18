@@ -63,7 +63,8 @@ export function runUCCSD(
   if (NOCC === 0 || NVIRT === 0) {
     throw new Error(`runUCCSD: trivial system (NOCC=${NOCC}, NVIRT=${NVIRT})`);
   }
-  const nFrozenSO = 2 * (opts.nFrozenCore ?? 0);
+  const nFrozenCore = opts.nFrozenCore ?? 0;
+  const nFrozenSO = 2 * nFrozenCore;
   if (nFrozenSO < 0 || nFrozenSO >= NOCC) {
     throw new Error(
       `runUCCSD: nFrozenCore=${opts.nFrozenCore} leaves no active occupied orbitals ` +
@@ -148,7 +149,19 @@ export function runUCCSD(
   }
 
   // ── Run the shared CCSD iteration core. ──────────────────
-  const core = ccsdIterate(eri, eps, NOCC, NVIRT, NSO, nFrozenSO, opts);
+  // ── Build the frozen occupied-SO set for UCCSD's "all-α-occ
+  //    first, then all-β-occ" ordering. Freezing the lowest
+  //    `nFrozenCore` spatials means freezing α-SOs [0, nFrozenCore)
+  //    AND β-SOs [nAlpha, nAlpha + nFrozenCore). This is NOT a
+  //    contiguous SO range (audit 2026-05; see
+  //    `tests/chemistry/frozen-core-audit.test.ts`).
+  const frozenOccSet = new Set<number>();
+  for (let s = 0; s < nFrozenCore; s++) {
+    frozenOccSet.add(s);              // α-spatial-s
+    frozenOccSet.add(nAlpha + s);     // β-spatial-s
+  }
+
+  const core = ccsdIterate(eri, eps, NOCC, NVIRT, NSO, frozenOccSet, opts);
   return {
     correlationEnergy: core.correlationEnergy,
     totalEnergy: uhf.energy + core.correlationEnergy,

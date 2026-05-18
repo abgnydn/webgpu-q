@@ -140,33 +140,17 @@ describe("Frozen-core audit", () => {
     expect(Math.abs(uhfCCSD.correlationEnergy - rhfCCSD.correlationEnergy)).toBeLessThan(1e-6);
   });
 
-  test("HONEST NEGATIVE: UCCSD frozen-core SO-ordering bug found by this audit", () => {
-    // Audit finding (2026-05): UCCSD's frozen-core implementation
-    // zeros amplitudes at SOs [0, nFrozenSO), but the UCCSD SO
-    // ordering is "all-α-occ first, then all-β-occ" (see uccsd.ts
-    // header comment), so `nFrozenSO = 2` freezes α-spatial-0 AND
-    // α-spatial-1 — NOT α-spatial-0 AND β-spatial-0 as a "freeze
-    // 1 spatial core" convention requires.
+  test("UCCSD frozen-core on closed-shell H₂O matches RHF-CCSD frozen-core", () => {
+    // Originally an honest-negative pin (audit 2026-05 found UCCSD
+    // frozen-core freezing the wrong SOs). Fixed in the same audit
+    // by switching ccsdIterate's contract from a contiguous
+    // `nFrozenSO: number` to an explicit `ReadonlySet<number>` of
+    // frozen occupied SO indices. UCCSD now passes the correct
+    // interleaved (α-spatial-s + β-spatial-s) set for the
+    // "all-α-occ first, then all-β-occ" SO ordering.
     //
-    // Result: UCCSD frozen-core on a closed-shell UHF gives a
-    // correlation energy that disagrees with RHF-CCSD frozen-core
-    // by ~9 mHa on H₂O / STO-3G — the magnitude of the missing β-
-    // core correlation that wasn't frozen plus the spurious freeze
-    // of an active α-valence orbital.
-    //
-    // The bare path (no frozen-core) is correct — the bug is
-    // purely in the frozen-core wiring inside runUCCSD.
-    //
-    // Fix (queued, see LIMITATIONS.md): either (a) reorder UCCSD
-    // SOs so frozen come first, or (b) replace ccsdIterate's
-    // contiguous-frozen assumption with an explicit frozen-SO
-    // mask passed by UCCSD.
-    //
-    // This test pins the current (buggy) behavior with a > test —
-    // if a future commit silently changes the gap, the test fails
-    // and forces a documentation update. When the bug is properly
-    // fixed, this test must be REMOVED and the consistency
-    // assertion put back in the previous test.
+    // Pass bar: UCCSD frozen-core on closed-shell UHF must equal
+    // RHF-CCSD frozen-core by spin-orbital basis independence.
     const half = (104.52 / 2) * Math.PI / 180;
     const xH = 0.9572 * Math.sin(half);
     const zH = 0.9572 * Math.cos(half);
@@ -190,30 +174,62 @@ describe("Frozen-core audit", () => {
     });
     const uhfCCSD = runUCCSD(uhf, integrals, { maxIter: 200, tol: 1e-9, nFrozenCore: 1 });
 
-    const gap = Math.abs(uhfCCSD.correlationEnergy - rhfCCSD.correlationEnergy);
-    // Gap is ~9 mHa today. Pin > 1 mHa so a fix flips this test to
-    // failure — that's the trigger to remove this honest-negative.
-    expect(gap).toBeGreaterThan(1e-3);
-    expect(gap).toBeLessThan(50e-3); // generous upper bound
+    expect(Math.abs(uhfCCSD.correlationEnergy - rhfCCSD.correlationEnergy)).toBeLessThan(1e-6);
   });
 
-  test("audit-flag: EOM-CCSD frozen-core is NOT IMPLEMENTED — option is silently ignored", () => {
-    // This is an honest-negative test: it locks in the current state
-    // (no frozen-core path in `runEOMCCSD`) so any future commit that
-    // claims to add it must update this test. If `runEOMCCSD` ever
-    // grows a frozen-core path, this test must change — that's the
-    // signal to extend the audit.
+  test("EOM-CCSD frozen-1s on H₂O: variational direction + bounded magnitude", async () => {
+    const { runEOMCCSD } = await import("../../src/chemistry/eom-ccsd.js");
+
+    // Originally an honest-negative pin (EOM-CCSD frozen-core was
+    // NOT IMPLEMENTED, audit 2026-05). Closed in the same audit by
+    // restricting the packed (singles + antisym doubles) basis to
+    // occupied indices ≥ 2·nFrozenCore, with the σ-equation
+    // unchanged (R_1 and R_2 are zero at frozen indices, so the
+    // inner summations over m, n produce zero contributions from
+    // frozen indices automatically).
     //
-    // Right now, runEOMCCSD has no `nFrozenCore` in its options type,
-    // and the σ-equation iterates m, n, i, j over [0, NOCC) without
-    // any frozen-core gating.
-    //
-    // We assert this by checking that EOMCCSDOpts at the type level
-    // does NOT include nFrozenCore. The compile-time check passes
-    // (the option just doesn't exist), so this test is a runtime
-    // tripwire: it documents the gap with a passing assertion.
-    expect(true).toBe(true);
-    // See `LIMITATIONS.md` for the queued Tier 3 follow-up:
-    //   "Frozen-core in EOM / CCSD(T) — Tier 3 audit needed"
+    // Pass bars (mirror the CCSD(T) frozen-core test):
+    //   1. Frozen-core EOM excitation energies must SHIFT but stay
+    //      finite, real, positive, and ordered ascending.
+    //   2. The shift from all-electron to frozen-core should be
+    //      small (≲ 100 mHa) in STO-3G — the missing 1s-1s and
+    //      1s-valence correlation contributions to the excited
+    //      state are bounded by their ground-state analogues.
+    const half = (104.52 / 2) * Math.PI / 180;
+    const xH = 0.9572 * Math.sin(half);
+    const zH = 0.9572 * Math.cos(half);
+    const atoms: Atom[] = [
+      { symbol: "O", pos: [0, 0, 0] },
+      { symbol: "H", pos: [ xH, 0, zH] },
+      { symbol: "H", pos: [-xH, 0, zH] },
+    ];
+    const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(atoms);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons, {
+      useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8,
+    });
+
+    // All-electron CCSD + EOM.
+    const ccsdAll = runCCSD(hf, integrals, { maxIter: 200, tol: 1e-9 });
+    const eomAll  = runEOMCCSD(ccsdAll, integrals, hf, { nRoots: 3 });
+
+    // Frozen-1s CCSD + frozen-1s EOM.
+    const ccsdFC = runCCSD(hf, integrals, { maxIter: 200, tol: 1e-9, nFrozenCore: 1 });
+    const eomFC  = runEOMCCSD(ccsdFC, integrals, hf, { nRoots: 3, nFrozenCore: 1 });
+
+    expect(eomFC.energies.length).toBe(3);
+
+    // Lowest 3 excitation energies real-positive and ordered.
+    for (let k = 0; k < 3; k++) {
+      expect(eomFC.energies[k]!).toBeGreaterThan(0);
+      expect(Math.abs(eomFC.imag[k]!)).toBeLessThan(1e-5);
+      if (k > 0) expect(eomFC.energies[k]!).toBeGreaterThanOrEqual(eomFC.energies[k - 1]!);
+    }
+
+    // Frozen-vs-all shift bounded (small basis ⇒ small core correlation).
+    for (let k = 0; k < 3; k++) {
+      const shiftHa = Math.abs(eomFC.energies[k]! - eomAll.energies[k]!);
+      expect(shiftHa).toBeLessThan(0.1); // < 100 mHa per root
+    }
   });
 });

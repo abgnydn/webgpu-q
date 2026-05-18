@@ -129,6 +129,17 @@ export interface EOMCCSDOpts {
   readonly davidsonTol?: number;
   /** Davidson max outer iterations. Default 200. */
   readonly davidsonMaxIter?: number;
+  /** Number of frozen-core spatial orbitals — restricts the packed
+   *  (singles + antisym doubles) basis to occupied indices ≥
+   *  `2 · nFrozenCore` (SO indexing, P = 2p + σ). For closed-shell
+   *  systems this freezes α + β of the lowest `nFrozenCore` spatials.
+   *
+   *  Should match the `nFrozenCore` passed to `runCCSD`. The σ-equation
+   *  internals are unchanged — R_1 and R_2 are zero at frozen indices
+   *  by construction, so frozen-index contributions to the inner
+   *  summations vanish. The frozen σ output entries are computed but
+   *  discarded from the packed basis. */
+  readonly nFrozenCore?: number;
 }
 
 /**
@@ -383,17 +394,32 @@ export function runEOMCCSD(
   }
 
   // ── Packed (singles + antisym doubles) basis layout. ─────────
-  // Packed singles: index = i * NVIRT + a.
-  // Packed doubles: enumerate (i, j) with i > j  and  (a, b) with a > b.
+  // Frozen-core: restrict occupied indices to [nFrozenSO, NOCC).
+  // Packed singles: enumerate (i, a) with i ∈ [nFrozenSO, NOCC),
+  //   a ∈ [0, NVIRT). Packed index = (i - nFrozenSO) * NVIRT + a.
+  // Packed doubles: enumerate (i, j) with NOCC > i > j ≥ nFrozenSO,
+  //   (a, b) with a > b ≥ 0. The frozen indices have R_1 / R_2 = 0
+  //   by construction, so the σ-equation's inner summations over
+  //   m, n ∈ [0, NOCC) naturally produce zero contributions from
+  //   frozen indices without modifying σ itself.
+  const nFrozenCore = opts.nFrozenCore ?? 0;
+  const nFrozenSO = 2 * nFrozenCore;
+  if (nFrozenSO < 0 || nFrozenSO >= NOCC) {
+    throw new Error(
+      `runEOMCCSD: nFrozenCore=${nFrozenCore} leaves no active occupied orbitals ` +
+      `(NOCC=${NOCC} spin-orbitals, would freeze ${nFrozenSO})`,
+    );
+  }
   const ijPairs: Array<{ i: number; j: number }> = [];
-  for (let i = 1; i < NOCC; i++)
-    for (let j = 0; j < i; j++) ijPairs.push({ i, j });
+  for (let i = nFrozenSO + 1; i < NOCC; i++)
+    for (let j = nFrozenSO; j < i; j++) ijPairs.push({ i, j });
   const abPairs: Array<{ i: number; j: number }> = [];
   for (let a = 1; a < NVIRT; a++)
     for (let b = 0; b < a; b++) abPairs.push({ i: a, j: b });
   const nIJ = ijPairs.length;
   const nAB = abPairs.length;
-  const nS = NOCC * NVIRT;
+  const nActiveOcc = NOCC - nFrozenSO;
+  const nS = nActiveOcc * NVIRT;
   const dim = nS + nIJ * nAB;
   const imagTol = opts.imagTol ?? 1e-6;
 
@@ -401,9 +427,16 @@ export function runEOMCCSD(
   const R_1 = new Float64Array(NOCC * NVIRT);
   const R_2 = new Float64Array(NOCC * NOCC * NVIRT * NVIRT);
   function unpackInto(v: Float64Array): void {
-    R_1.fill(0);
+    R_1.fill(0);  // frozen-i entries stay zero
     R_2.fill(0);
-    for (let row = 0; row < nS; row++) R_1[row] = v[row]!;
+    // Singles: row → (i = nFrozenSO + row/NVIRT, a = row % NVIRT)
+    for (let row = 0; row < nS; row++) {
+      const i = nFrozenSO + Math.floor(row / NVIRT);
+      const a = row % NVIRT;
+      R_1[i * NVIRT + a] = v[row]!;
+    }
+    // Doubles: ij pairs already restricted to non-frozen, so all
+    // R_2 entries assigned here have non-frozen i, j.
     for (let d = 0; d < nIJ * nAB; d++) {
       const ij = ijPairs[Math.floor(d / nAB)]!;
       const ab = abPairs[d - Math.floor(d / nAB) * nAB]!;
@@ -417,7 +450,12 @@ export function runEOMCCSD(
   }
   function packFrom(s1: Float64Array, s2: Float64Array): Float64Array {
     const out = new Float64Array(dim);
-    for (let row = 0; row < nS; row++) out[row] = s1[row]!;
+    // Singles: skip frozen rows; pack only non-frozen (i, a).
+    for (let row = 0; row < nS; row++) {
+      const i = nFrozenSO + Math.floor(row / NVIRT);
+      const a = row % NVIRT;
+      out[row] = s1[i * NVIRT + a]!;
+    }
     for (let d = 0; d < nIJ * nAB; d++) {
       const ij = ijPairs[Math.floor(d / nAB)]!;
       const ab = abPairs[d - Math.floor(d / nAB) * nAB]!;
@@ -439,10 +477,11 @@ export function runEOMCCSD(
     // higher-order F_ae / F_mi corrections shift the diagonal by chemistry-
     // scale terms (~0.01 Ha) but don't change preconditioning behavior.
     const diagonal = new Float64Array(dim);
-    for (let i = 0; i < NOCC; i++) {
-      for (let a = 0; a < NVIRT; a++) {
-        diagonal[i * NVIRT + a] = eps[a + VO]! - eps[i]!;
-      }
+    // Singles diagonal: only non-frozen (i, a) pairs in the packed basis.
+    for (let row = 0; row < nS; row++) {
+      const i = nFrozenSO + Math.floor(row / NVIRT);
+      const a = row % NVIRT;
+      diagonal[row] = eps[a + VO]! - eps[i]!;
     }
     for (let d = 0; d < nIJ * nAB; d++) {
       const ij = ijPairs[Math.floor(d / nAB)]!;
@@ -475,6 +514,10 @@ export function runEOMCCSD(
     }
   } else {
     // ── Dense path: build M column by column, then Hessenberg-QR. ──
+    // Use packFrom() to project σ output → packed basis so the
+    // frozen-core layout (singles row k ↦ s1[(nFrozenSO + k/NVIRT)·NVIRT + k%NVIRT])
+    // is honored. With nFrozenCore=0 this reduces to the plain
+    // s1[row] mapping, no behavioral change vs the pre-frozen-core path.
     const M = new Float64Array(dim * dim);
     const ek = new Float64Array(dim);
     for (let k = 0; k < dim; k++) {
@@ -482,14 +525,8 @@ export function runEOMCCSD(
       ek[k] = 1;
       unpackInto(ek);
       const { s1, s2 } = sigma(R_1, R_2);
-      // Project σ output onto packed basis (row = output direction, col = k).
-      for (let row = 0; row < nS; row++) M[row * dim + k] = s1[row]!;
-      for (let d = 0; d < nIJ * nAB; d++) {
-        const ij = ijPairs[Math.floor(d / nAB)]!;
-        const ab = abPairs[d - Math.floor(d / nAB) * nAB]!;
-        const i = ij.i, j = ij.j, a = ab.i, b = ab.j;
-        M[(nS + d) * dim + k] = s2[((i * NOCC + j) * NVIRT + a) * NVIRT + b]!;
-      }
+      const col = packFrom(s1, s2);
+      for (let row = 0; row < dim; row++) M[row * dim + k] = col[row]!;
     }
     const eig = eigGeneralWithVectors(M, dim);
 

@@ -135,9 +135,22 @@ export function ccsdIterate(
   NOCC: number,
   NVIRT: number,
   NSO: number,
-  nFrozenSO: number,
+  /** Frozen occupied SO indices. Accepts either:
+   *   - `number`: legacy contiguous-frozen — freezes SOs [0, nFrozen)
+   *     in the interleaved RHF SO ordering (P = 2p + σ).
+   *   - `ReadonlySet<number>`: explicit set — required for UCCSD,
+   *     where the SO ordering is "all-α-occ first, then all-β-occ"
+   *     and freezing α+β of the lowest k spatials is NOT a
+   *     contiguous SO range. Pass `new Set([α-SOs of frozen
+   *     spatials, β-SOs of frozen spatials])`.
+   */
+  frozenOccSO: number | ReadonlySet<number>,
   opts: CCSDOpts,
 ): Omit<CCSDResult, "totalEnergy"> {
+  // Normalize to a Set for downstream uniform handling.
+  const frozenSet: ReadonlySet<number> = typeof frozenOccSO === "number"
+    ? new Set(Array.from({ length: frozenOccSO }, (_, i) => i))
+    : frozenOccSO;
   // Energy denominators.
   const D_ia = new Float64Array(NOCC * NVIRT);
   for (let i = 0; i < NOCC; i++) {
@@ -175,7 +188,7 @@ export function ccsdIterate(
   // block. The CC residual machinery preserves zeros when the input
   // amplitudes are zero (every term either pairs with or excites out
   // of the core), so re-zeroing each iter keeps the core inactive.
-  zeroCoreAmplitudes(T1, T2, nFrozenSO, NOCC, NVIRT);
+  zeroCoreAmplitudes(T1, T2, frozenSet, NOCC, NVIRT);
 
   const maxIter = opts.maxIter ?? 100;
   const tol = opts.tol ?? 1e-9;
@@ -222,7 +235,7 @@ export function ccsdIterate(
         }
       }
     }
-    zeroCoreAmplitudes(T1, T2, nFrozenSO, NOCC, NVIRT);
+    zeroCoreAmplitudes(T1, T2, frozenSet, NOCC, NVIRT);
 
     E_corr = computeECorr(T1, T2, eri, NOCC, NVIRT, NSO);
     history.push(E_corr);
@@ -290,15 +303,15 @@ function oovv(eri: Float64Array, NSO: number, NOCC: number,
  */
 function zeroCoreAmplitudes(
   T1: Float64Array, T2: Float64Array,
-  nFrozenSO: number, NOCC: number, NVIRT: number,
+  frozenSet: ReadonlySet<number>, NOCC: number, NVIRT: number,
 ): void {
-  if (nFrozenSO === 0) return;
-  for (let i = 0; i < nFrozenSO; i++) {
+  if (frozenSet.size === 0) return;
+  for (const i of frozenSet) {
     for (let a = 0; a < NVIRT; a++) T1[i * NVIRT + a] = 0;
   }
   for (let i = 0; i < NOCC; i++) {
     for (let j = 0; j < NOCC; j++) {
-      if (i >= nFrozenSO && j >= nFrozenSO) continue;
+      if (!frozenSet.has(i) && !frozenSet.has(j)) continue;
       const base = ((i * NOCC + j) * NVIRT) * NVIRT;
       for (let k = 0; k < NVIRT * NVIRT; k++) T2[base + k] = 0;
     }
