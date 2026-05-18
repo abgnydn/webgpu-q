@@ -241,6 +241,218 @@ export const STO3G_LI_2S = {
   c: [-0.09996723, 0.39951283, 0.70011547] as const,
 };
 
+// ── STO-3G for Fluorine ───────────────────────────────────────
+// EMSL Basis Set Exchange STO-3G, retrieved 2026-05-18.
+// Same L-shell pattern as C/N/O (3 primitives for 1s, 3 shared
+// primitives for the 2s/2p L-shell).
+export const STO3G_F_1S = {
+  alpha: [166.6791340, 30.3608120, 8.2168207] as const,
+  c: [0.15432897, 0.53532814, 0.44463454] as const,
+};
+export const STO3G_F_2S = {
+  alpha: [6.4648032, 1.5022812, 0.4885885] as const,
+  c: [-0.09996723, 0.39951283, 0.70011547] as const,
+};
+export const STO3G_F_2P = {
+  alpha: [6.4648032, 1.5022812, 0.4885885] as const,
+  c: [0.15591627, 0.60768372, 0.39195739] as const,
+};
+
+// ── cc-pVDZ for Lithium ──────────────────────────────────────
+// EMSL ccPVDZ for Li (9s,4p,1d) → [3s,2p,1d]. Retrieved 2026-05-18.
+export const CCPVDZ_LI_1S = {
+  alpha: [
+    1469.0000, 220.5000, 50.2600, 14.2400,
+    4.5810, 1.5800, 0.5640, 0.0734500,
+  ] as const,
+  c: [
+    0.000766, 0.005892, 0.029671, 0.109180,
+    0.282789, 0.453123, 0.274774, 0.009751,
+  ] as const,
+};
+export const CCPVDZ_LI_2S = {
+  alpha: [
+    1469.0000, 220.5000, 50.2600, 14.2400,
+    4.5810, 1.5800, 0.5640, 0.0734500,
+  ] as const,
+  c: [
+    -0.000120, -0.000923, -0.004689, -0.017682,
+    -0.048902, -0.096009, -0.136380, 0.575102,
+  ] as const,
+};
+export const CCPVDZ_LI_2S_P = {
+  alpha: [0.0285000] as const,
+  c: [1.0] as const,
+};
+export const CCPVDZ_LI_2P = {
+  alpha: [1.5340, 0.2749, 0.073620] as const,
+  c: [0.022270, 0.111705, 0.240315] as const,
+};
+export const CCPVDZ_LI_2P_P = {
+  alpha: [0.024030] as const,
+  c: [1.0] as const,
+};
+export const CCPVDZ_LI_3D = {
+  alpha: [0.1239] as const,
+  c: [1.0] as const,
+};
+
+// ── cc-pVDZ for Beryllium ─────────────────────────────────────
+// EMSL ccPVDZ for Be (9s,4p,1d) → [3s,2p,1d]. Retrieved 2026-05-18.
+export const CCPVDZ_BE_1S = {
+  alpha: [
+    2940.0000, 441.2000, 100.5000, 28.4300,
+    9.1690, 3.1960, 1.1590, 0.1811,
+  ] as const,
+  c: [
+    0.000680, 0.005236, 0.026600, 0.099990,
+    0.269700, 0.451400, 0.295000, 0.012580,
+  ] as const,
+};
+export const CCPVDZ_BE_2S = {
+  alpha: [
+    2940.0000, 441.2000, 100.5000, 28.4300,
+    9.1690, 3.1960, 1.1590, 0.1811,
+  ] as const,
+  c: [
+    -0.000123, -0.000966, -0.004831, -0.019330,
+    -0.054030, -0.113300, -0.146200, 0.539200,
+  ] as const,
+};
+export const CCPVDZ_BE_2S_P = {
+  alpha: [0.0589000] as const,
+  c: [1.0] as const,
+};
+export const CCPVDZ_BE_2P = {
+  alpha: [3.6190, 0.7110, 0.1951] as const,
+  c: [0.029110, 0.169650, 0.487810] as const,
+};
+export const CCPVDZ_BE_2P_P = {
+  alpha: [0.060180] as const,
+  c: [1.0] as const,
+};
+export const CCPVDZ_BE_3D = {
+  alpha: [0.2380] as const,
+  c: [1.0] as const,
+};
+
+// ── cc-pVDZ for Carbon ────────────────────────────────────────
+// EMSL ccPVDZ for C (9s,4p,1d) → [3s,2p,1d]. Retrieved 2026-05-18.
+export const CCPVDZ_C_1S = {
+  alpha: [
+    6665.0000, 1000.0000, 228.0000, 64.7100,
+    21.0600, 7.4950, 2.7970, 0.5215,
+  ] as const,
+  c: [
+    0.000692, 0.005329, 0.027077, 0.101718,
+    0.274740, 0.448564, 0.285074, 0.015204,
+  ] as const,
+};
+export const CCPVDZ_C_2S = {
+  alpha: [
+    6665.0000, 1000.0000, 228.0000, 64.7100,
+    21.0600, 7.4950, 2.7970, 0.5215,
+  ] as const,
+  c: [
+    -0.000146, -0.001154, -0.005725, -0.023312,
+    -0.063955, -0.149981, -0.127262, 0.544529,
+  ] as const,
+};
+export const CCPVDZ_C_2S_P = {
+  alpha: [0.1596] as const,
+  c: [1.0] as const,
+};
+export const CCPVDZ_C_2P = {
+  alpha: [9.4390, 2.0020, 0.5456] as const,
+  c: [0.038109, 0.209480, 0.508557] as const,
+};
+export const CCPVDZ_C_2P_P = {
+  alpha: [0.1517] as const,
+  c: [1.0] as const,
+};
+export const CCPVDZ_C_3D = {
+  alpha: [0.5500] as const,
+  c: [1.0] as const,
+};
+
+// ── cc-pVDZ for Nitrogen ──────────────────────────────────────
+// EMSL ccPVDZ for N (9s,4p,1d) → [3s,2p,1d]. Retrieved 2026-05-18.
+export const CCPVDZ_N_1S = {
+  alpha: [
+    9046.0000, 1357.0000, 309.3000, 87.7300,
+    28.5600, 10.2100, 3.8380, 0.7466,
+  ] as const,
+  c: [
+    0.000700, 0.005389, 0.027406, 0.103207,
+    0.278722, 0.448581, 0.278238, 0.015440,
+  ] as const,
+};
+export const CCPVDZ_N_2S = {
+  alpha: [
+    9046.0000, 1357.0000, 309.3000, 87.7300,
+    28.5600, 10.2100, 3.8380, 0.7466,
+  ] as const,
+  c: [
+    -0.000153, -0.001208, -0.005992, -0.024544,
+    -0.067459, -0.158078, -0.121831, 0.549003,
+  ] as const,
+};
+export const CCPVDZ_N_2S_P = {
+  alpha: [0.2248] as const,
+  c: [1.0] as const,
+};
+export const CCPVDZ_N_2P = {
+  alpha: [13.5500, 2.9170, 0.7973] as const,
+  c: [0.039919, 0.217169, 0.510319] as const,
+};
+export const CCPVDZ_N_2P_P = {
+  alpha: [0.2185] as const,
+  c: [1.0] as const,
+};
+export const CCPVDZ_N_3D = {
+  alpha: [0.8170] as const,
+  c: [1.0] as const,
+};
+
+// ── cc-pVDZ for Fluorine ──────────────────────────────────────
+// EMSL ccPVDZ for F (9s,4p,1d) → [3s,2p,1d]. Retrieved 2026-05-18.
+export const CCPVDZ_F_1S = {
+  alpha: [
+    14710.0000, 2207.0000, 502.8000, 142.6000,
+    46.4700, 16.7000, 6.3560, 1.3160,
+  ] as const,
+  c: [
+    0.000721, 0.005553, 0.028267, 0.106444,
+    0.286814, 0.448641, 0.264761, 0.015333,
+  ] as const,
+};
+export const CCPVDZ_F_2S = {
+  alpha: [
+    14710.0000, 2207.0000, 502.8000, 142.6000,
+    46.4700, 16.7000, 6.3560, 1.3160,
+  ] as const,
+  c: [
+    -0.000165, -0.001308, -0.006495, -0.026691,
+    -0.073690, -0.170776, -0.112327, 0.562814,
+  ] as const,
+};
+export const CCPVDZ_F_2S_P = {
+  alpha: [0.3897] as const,
+  c: [1.0] as const,
+};
+export const CCPVDZ_F_2P = {
+  alpha: [22.6700, 4.9770, 1.3470] as const,
+  c: [0.044878, 0.235718, 0.508521] as const,
+};
+export const CCPVDZ_F_2P_P = {
+  alpha: [0.3471] as const,
+  c: [1.0] as const,
+};
+export const CCPVDZ_F_3D = {
+  alpha: [1.6400] as const,
+  c: [1.0] as const,
+};
+
 // ── Generic shell type + multi-shell integrals ───────────────
 //
 // A Shell is a contracted s-Gaussian: a center plus a list of

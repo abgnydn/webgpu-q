@@ -79,6 +79,7 @@ const ATOMIC_MASS: Readonly<Record<AtomSymbol, number>> = {
   C:  12.0,
   N:  14.0030740048,
   O:  15.99491461956,
+  F:  18.998403163,
 };
 
 export interface ThermochemistryOpts {

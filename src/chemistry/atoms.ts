@@ -13,16 +13,27 @@ import {
   STO3G_C_1S, STO3G_C_2S, STO3G_C_2P,
   STO3G_N_1S, STO3G_N_2S, STO3G_N_2P,
   STO3G_O_1S, STO3G_O_2S, STO3G_O_2P,
+  STO3G_F_1S, STO3G_F_2S, STO3G_F_2P,
   CCPVDZ_H_1S, CCPVDZ_H_2S, CCPVDZ_H_2P,
+  CCPVDZ_LI_1S, CCPVDZ_LI_2S, CCPVDZ_LI_2S_P,
+  CCPVDZ_LI_2P, CCPVDZ_LI_2P_P, CCPVDZ_LI_3D,
+  CCPVDZ_BE_1S, CCPVDZ_BE_2S, CCPVDZ_BE_2S_P,
+  CCPVDZ_BE_2P, CCPVDZ_BE_2P_P, CCPVDZ_BE_3D,
+  CCPVDZ_C_1S, CCPVDZ_C_2S, CCPVDZ_C_2S_P,
+  CCPVDZ_C_2P, CCPVDZ_C_2P_P, CCPVDZ_C_3D,
+  CCPVDZ_N_1S, CCPVDZ_N_2S, CCPVDZ_N_2S_P,
+  CCPVDZ_N_2P, CCPVDZ_N_2P_P, CCPVDZ_N_3D,
   CCPVDZ_O_1S, CCPVDZ_O_2S, CCPVDZ_O_2S_P,
   CCPVDZ_O_2P, CCPVDZ_O_2P_P, CCPVDZ_O_3D,
+  CCPVDZ_F_1S, CCPVDZ_F_2S, CCPVDZ_F_2S_P,
+  CCPVDZ_F_2P, CCPVDZ_F_2P_P, CCPVDZ_F_3D,
   AUG_CCPVDZ_H_DIFFUSE_S, AUG_CCPVDZ_H_DIFFUSE_P,
   AUG_CCPVDZ_O_DIFFUSE_S, AUG_CCPVDZ_O_DIFFUSE_P, AUG_CCPVDZ_O_DIFFUSE_D,
 } from "./integrals.js";
 import { type CGShell, makeCGShell } from "./integrals-cg.js";
 import { type Nucleus } from "./cg-molecular.js";
 
-export type AtomSymbol = "H" | "Li" | "Be" | "C" | "N" | "O";
+export type AtomSymbol = "H" | "Li" | "Be" | "C" | "N" | "O" | "F";
 export type BasisName = "sto-3g" | "cc-pvdz" | "aug-cc-pvdz";
 
 const ANGSTROM_TO_BOHR = 1 / 0.529177210903;
@@ -35,12 +46,12 @@ export interface Atom {
 
 /** Atomic number for each supported atom. */
 export const Z_FOR: Readonly<Record<AtomSymbol, number>> = {
-  H: 1, Li: 3, Be: 4, C: 6, N: 7, O: 8,
+  H: 1, Li: 3, Be: 4, C: 6, N: 7, O: 8, F: 9,
 };
 
 /** Number of electrons in the neutral atom. */
 export const N_ELECTRONS_FOR: Readonly<Record<AtomSymbol, number>> = {
-  H: 1, Li: 3, Be: 4, C: 6, N: 7, O: 8,
+  H: 1, Li: 3, Be: 4, C: 6, N: 7, O: 8, F: 9,
 };
 
 /**
@@ -54,7 +65,7 @@ export const N_ELECTRONS_FOR: Readonly<Record<AtomSymbol, number>> = {
  * comparative calculation cares about).
  */
 export const FROZEN_CORE_FOR: Readonly<Record<AtomSymbol, number>> = {
-  H: 0, Li: 1, Be: 1, C: 1, N: 1, O: 1,
+  H: 0, Li: 1, Be: 1, C: 1, N: 1, O: 1, F: 1,
 };
 
 /** Default frozen-core count for a molecule (sum of per-atom 1s cores). */
@@ -129,11 +140,47 @@ export function atomShells(
         makeCGShell(STO3G_O_2P, pos_bohr, [0, 1, 0], "O:2p_y"),
         makeCGShell(STO3G_O_2P, pos_bohr, [0, 0, 1], "O:2p_z"),
       ];
+    case "F":
+      return [
+        makeCGShell(STO3G_F_1S, pos_bohr, [0, 0, 0], "F:1s"),
+        makeCGShell(STO3G_F_2S, pos_bohr, [0, 0, 0], "F:2s"),
+        makeCGShell(STO3G_F_2P, pos_bohr, [1, 0, 0], "F:2p_x"),
+        makeCGShell(STO3G_F_2P, pos_bohr, [0, 1, 0], "F:2p_y"),
+        makeCGShell(STO3G_F_2P, pos_bohr, [0, 0, 1], "F:2p_z"),
+      ];
   }
 }
 
-/** cc-pVDZ shells. Currently supports H and O — the minimum needed for water. */
+/** cc-pVDZ shells. H + first-row (Li, Be, C, N, O, F). */
 function atomShellsCcPvdz(symbol: AtomSymbol, pos: readonly [number, number, number]): CGShell[] {
+  /** Build the 14-function cc-pVDZ heavy-atom shell stack
+   *  (3s + 2p + 1d → 1+1+1+3+3+6 = 15 Cartesian d functions actually).
+   *  Same layout that's been validated against PySCF on H₂O. */
+  type ShellData = { readonly alpha: readonly number[]; readonly c: readonly number[] };
+  function heavyShells(
+    sym: string,
+    s1: ShellData, s2: ShellData, s2p: ShellData,
+    p1: ShellData, p2: ShellData, d1: ShellData,
+  ): CGShell[] {
+    return [
+      makeCGShell(s1,  pos, [0, 0, 0], `${sym}:1s`),
+      makeCGShell(s2,  pos, [0, 0, 0], `${sym}:2s`),
+      makeCGShell(s2p, pos, [0, 0, 0], `${sym}:2s'`),
+      makeCGShell(p1,  pos, [1, 0, 0], `${sym}:2p_x`),
+      makeCGShell(p1,  pos, [0, 1, 0], `${sym}:2p_y`),
+      makeCGShell(p1,  pos, [0, 0, 1], `${sym}:2p_z`),
+      makeCGShell(p2,  pos, [1, 0, 0], `${sym}:2p'_x`),
+      makeCGShell(p2,  pos, [0, 1, 0], `${sym}:2p'_y`),
+      makeCGShell(p2,  pos, [0, 0, 1], `${sym}:2p'_z`),
+      // 6 Cartesian d functions: xx, yy, zz, xy, xz, yz.
+      makeCGShell(d1, pos, [2, 0, 0], `${sym}:3d_xx`),
+      makeCGShell(d1, pos, [0, 2, 0], `${sym}:3d_yy`),
+      makeCGShell(d1, pos, [0, 0, 2], `${sym}:3d_zz`),
+      makeCGShell(d1, pos, [1, 1, 0], `${sym}:3d_xy`),
+      makeCGShell(d1, pos, [1, 0, 1], `${sym}:3d_xz`),
+      makeCGShell(d1, pos, [0, 1, 1], `${sym}:3d_yz`),
+    ];
+  }
   switch (symbol) {
     case "H":
       return [
@@ -143,27 +190,12 @@ function atomShellsCcPvdz(symbol: AtomSymbol, pos: readonly [number, number, num
         makeCGShell(CCPVDZ_H_2P, pos, [0, 1, 0], "H:2p_y"),
         makeCGShell(CCPVDZ_H_2P, pos, [0, 0, 1], "H:2p_z"),
       ];
-    case "O":
-      return [
-        makeCGShell(CCPVDZ_O_1S,   pos, [0, 0, 0], "O:1s"),
-        makeCGShell(CCPVDZ_O_2S,   pos, [0, 0, 0], "O:2s"),
-        makeCGShell(CCPVDZ_O_2S_P, pos, [0, 0, 0], "O:2s'"),
-        makeCGShell(CCPVDZ_O_2P,   pos, [1, 0, 0], "O:2p_x"),
-        makeCGShell(CCPVDZ_O_2P,   pos, [0, 1, 0], "O:2p_y"),
-        makeCGShell(CCPVDZ_O_2P,   pos, [0, 0, 1], "O:2p_z"),
-        makeCGShell(CCPVDZ_O_2P_P, pos, [1, 0, 0], "O:2p'_x"),
-        makeCGShell(CCPVDZ_O_2P_P, pos, [0, 1, 0], "O:2p'_y"),
-        makeCGShell(CCPVDZ_O_2P_P, pos, [0, 0, 1], "O:2p'_z"),
-        // 6 Cartesian d functions: xx, yy, zz, xy, xz, yz.
-        makeCGShell(CCPVDZ_O_3D, pos, [2, 0, 0], "O:3d_xx"),
-        makeCGShell(CCPVDZ_O_3D, pos, [0, 2, 0], "O:3d_yy"),
-        makeCGShell(CCPVDZ_O_3D, pos, [0, 0, 2], "O:3d_zz"),
-        makeCGShell(CCPVDZ_O_3D, pos, [1, 1, 0], "O:3d_xy"),
-        makeCGShell(CCPVDZ_O_3D, pos, [1, 0, 1], "O:3d_xz"),
-        makeCGShell(CCPVDZ_O_3D, pos, [0, 1, 1], "O:3d_yz"),
-      ];
-    default:
-      throw new Error(`atomShells(cc-pVDZ): atom '${symbol}' not yet supported (only H and O wired in Phase E v2).`);
+    case "Li": return heavyShells("Li", CCPVDZ_LI_1S, CCPVDZ_LI_2S, CCPVDZ_LI_2S_P, CCPVDZ_LI_2P, CCPVDZ_LI_2P_P, CCPVDZ_LI_3D);
+    case "Be": return heavyShells("Be", CCPVDZ_BE_1S, CCPVDZ_BE_2S, CCPVDZ_BE_2S_P, CCPVDZ_BE_2P, CCPVDZ_BE_2P_P, CCPVDZ_BE_3D);
+    case "C":  return heavyShells("C",  CCPVDZ_C_1S,  CCPVDZ_C_2S,  CCPVDZ_C_2S_P,  CCPVDZ_C_2P,  CCPVDZ_C_2P_P,  CCPVDZ_C_3D);
+    case "N":  return heavyShells("N",  CCPVDZ_N_1S,  CCPVDZ_N_2S,  CCPVDZ_N_2S_P,  CCPVDZ_N_2P,  CCPVDZ_N_2P_P,  CCPVDZ_N_3D);
+    case "O":  return heavyShells("O",  CCPVDZ_O_1S,  CCPVDZ_O_2S,  CCPVDZ_O_2S_P,  CCPVDZ_O_2P,  CCPVDZ_O_2P_P,  CCPVDZ_O_3D);
+    case "F":  return heavyShells("F",  CCPVDZ_F_1S,  CCPVDZ_F_2S,  CCPVDZ_F_2S_P,  CCPVDZ_F_2P,  CCPVDZ_F_2P_P,  CCPVDZ_F_3D);
   }
 }
 

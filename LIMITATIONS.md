@@ -45,14 +45,22 @@ reviewer or chemist would discover anyway.
 
 | basis | atoms wired |
 |---|---|
-| STO-3G | H, Li, Be, C, N, O |
+| STO-3G | H, Li, Be, C, N, O, F |
 | 6-31G* | H, C, N, O (spot-checked) |
-| **cc-pVDZ** | **H, O only** (Phase E v2 limit; everything else throws) |
-| **aug-cc-pVDZ** | **H, O only** |
+| **cc-pVDZ** | **H, Li, Be, C, N, O, F** (full first-row coverage — Tier 3 shipped 2026-05) |
+| aug-cc-pVDZ | H, O only (diffuse tables for Li/Be/C/N/F not yet wired) |
 
-Tier 3 follow-up: port the EMSL Basis Set Exchange tables for Li, Be,
-C, N, F into cc-pVDZ / aug-cc-pVDZ so LiH / BeH₂ / CH₄ / formaldehyde
-become first-class cc-pVDZ targets.
+LiH / BeH₂ / CH₄ / NH₃ / HF now first-class cc-pVDZ targets.
+Verified by `tests/chemistry/ccpvdz-firstrow.test.ts` — each
+molecule's cc-pVDZ HF energy converges and lies variationally
+below its STO-3G counterpart. Tolerance is ~10 mHa vs PySCF 2.13.0
+reference values (loose, because the test is verifying basis
+wiring not SCF precision; the existing H₂O cc-pVDZ tests cover
+the precision case to 35 µHa).
+
+Aug-cc-pVDZ diffuse functions for Li, Be, C, N, F → ~30 minutes
+each from the same EMSL source, queued as a follow-up if needed
+for anions or excited-state work on those systems.
 
 ---
 
