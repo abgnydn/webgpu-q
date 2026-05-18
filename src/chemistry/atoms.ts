@@ -42,6 +42,13 @@ export interface Atom {
   readonly symbol: AtomSymbol;
   /** Position in Ångströms (will be converted to Bohr). */
   readonly pos: readonly [number, number, number];
+  /** If true, this atom contributes its basis functions to the calculation
+   *  but **no nuclear charge** (Z=0) and **no electrons**. Used by
+   *  Boys-Bernardi counterpoise correction to compute a fragment's energy
+   *  in the full dimer basis — the "ghost" augments the AO space without
+   *  changing the molecular Hamiltonian's nuclear / electron count.
+   *  Default false. */
+  readonly ghost?: boolean;
 }
 
 /** Atomic number for each supported atom. */
@@ -258,8 +265,14 @@ export function moleculeToShellsNuclei(
     const newShells = atomShells(a.symbol, pos_bohr, basis);
     shells.push(...newShells);
     for (let s = 0; s < newShells.length; s++) shellAtomIdx.push(ai);
-    nuclei.push({ Z: Z_FOR[a.symbol], pos: pos_bohr });
-    nElectrons += N_ELECTRONS_FOR[a.symbol];
+    // Ghost atoms contribute their AO basis but no nuclear charge and
+    // no electrons (Boys-Bernardi counterpoise). Push a Z=0 nucleus
+    // entry so the per-atom index stays aligned with shellAtomIdx but
+    // V_ne contributions from this site vanish, and V_nn pair terms
+    // involving a ghost are zero.
+    const isGhost = a.ghost === true;
+    nuclei.push({ Z: isGhost ? 0 : Z_FOR[a.symbol], pos: pos_bohr });
+    if (!isGhost) nElectrons += N_ELECTRONS_FOR[a.symbol];
   }
   return { shells, nuclei, nElectrons, shellAtomIdx };
 }
