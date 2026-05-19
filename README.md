@@ -263,8 +263,9 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 | Polarizability α(iω) | imaginary-axis response for Casimir-Polder |
 | C₆ van-der-Waals coefficients | Casimir-Polder integral; HF/UHF/DFT references |
 | Hyperpolarizability β | 3D finite-field stencil |
-| Mulliken populations | spin-density resolved |
-| Wiberg / Mayer bond orders | + free valences (closed + open shell) |
+| Mulliken populations | charges + spin-density resolved |
+| Wiberg / Mayer bond orders | + atomic valences (closed + open shell) |
+| Natural orbital occupations | NOON, multi-reference diagnostic |
 | Harmonic ω | mass-weighted Hessian by finite diff |
 | IR intensities | dμ/dQ along normal modes |
 | Raman activities | Placzek invariants from α(Q) |
@@ -274,6 +275,7 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 | Molden orbital export | Cartesian Gaussian basis, Jmol/Avogadro/Multiwfn |
 | Gaussian Cube export | density + MO isosurfaces, VMD/Jmol/Multiwfn |
 | QCSchema JSON export | MolSSI standard, QCEngine/QCFractal/cclib consumable |
+| XYZ format I/O | parse / emit standard geometry files |
 
 </details>
 
@@ -285,10 +287,10 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 |---|---|
 | BFGS geom-opt | analytical HF + DFT gradients |
 | Lebedev angular grids | 2.6× point reduction at better accuracy |
-| STO-3G | every system end-to-end validated |
+| STO-3G | H, He, Li, Be, C, N, O, F (full second row) |
 | 6-31G* | available |
-| cc-pVDZ | CCSD(T) on H₂O in 5 s (GPU) |
-| aug-cc-pVDZ | diffuse functions wired |
+| cc-pVDZ | H, He, Li, Be, C, N, O, F; CCSD(T) on H₂O in 5 s (GPU) |
+| aug-cc-pVDZ | H, He, Li, Be, C, N, O, F (diffuse functions wired) |
 | Spherical-d | sphd shell (Tier 1 bundle) |
 | f / g / h orbitals | Cartesian integrals + transform |
 | Schwarz integral screening | 8-fold canonical loop |
