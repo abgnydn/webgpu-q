@@ -120,6 +120,61 @@ export interface DispersionD2Result {
   readonly s6: number;
 }
 
+/**
+ * Analytical Cartesian gradient of the D2 dispersion energy:
+ *   ∂E_disp/∂R_A = Σ_{B≠A} ∂E_AB/∂R_AB · (R_A − R_B) / R_AB
+ *
+ * with E_AB = −s6·C6_AB·f_damp(R)/R^6 and
+ *   ∂E_AB/∂R = E_AB · [(1 − f_damp)·d/R_R^AB  −  6/R]
+ *
+ * Output: 3·n_atoms Float64Array, layout `[Ax, Ay, Az, Bx, ...]` —
+ * matches the existing HF/DFT gradient convention. Ghost atoms get
+ * zero contribution.
+ */
+export function dispersionD2Gradient(
+  atoms: readonly Atom[],
+  opts: DispersionD2Opts = {},
+): Float64Array {
+  const s6 = opts.s6 ?? (opts.functional ? (D2_S6[opts.functional] ?? 1.0) : 1.0);
+  const d = opts.d ?? D2_DAMPING_D;
+  const grad = new Float64Array(atoms.length * 3);
+
+  for (let A = 0; A < atoms.length; A++) {
+    const aA = atoms[A]!;
+    if (aA.ghost) continue;
+    const C6A = C6_AU[aA.symbol];
+    const RRA = R_R_BOHR[aA.symbol];
+    for (let B = 0; B < atoms.length; B++) {
+      if (B === A) continue;
+      const aB = atoms[B]!;
+      if (aB.ghost) continue;
+      const C6B = C6_AU[aB.symbol];
+      const RRB = R_R_BOHR[aB.symbol];
+
+      const dx = (aA.pos[0] - aB.pos[0]) * ANGSTROM_TO_BOHR;
+      const dy = (aA.pos[1] - aB.pos[1]) * ANGSTROM_TO_BOHR;
+      const dz = (aA.pos[2] - aB.pos[2]) * ANGSTROM_TO_BOHR;
+      const R = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (R < 1e-8) continue;
+
+      const C6_AB = Math.sqrt(C6A * C6B);
+      const RR_AB = RRA + RRB;
+      const expArg = -d * (R / RR_AB - 1);
+      const expVal = Math.exp(expArg);
+      const fDamp = 1 / (1 + expVal);
+      const E_AB = -s6 * C6_AB * fDamp / Math.pow(R, 6);
+      // dE/dR (chain rule on f_damp + 1/R^6)
+      const dEdR = E_AB * ((1 - fDamp) * d / RR_AB - 6 / R);
+      // Project onto Cartesian via (R_A − R_B)/R unit vector.
+      const inv = dEdR / R;
+      grad[A * 3 + 0]! += inv * dx;
+      grad[A * 3 + 1]! += inv * dy;
+      grad[A * 3 + 2]! += inv * dz;
+    }
+  }
+  return grad;
+}
+
 export function dispersionD2(
   atoms: readonly Atom[],
   opts: DispersionD2Opts = {},

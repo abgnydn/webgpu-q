@@ -9,7 +9,7 @@
 //   6. Ghost atoms contribute zero.
 
 import { describe, expect, test } from "vitest";
-import { dispersionD2 } from "../../src/chemistry/dispersion-d2.js";
+import { dispersionD2, dispersionD2Gradient } from "../../src/chemistry/dispersion-d2.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
 describe("Grimme D2 dispersion correction", () => {
@@ -111,5 +111,64 @@ describe("Grimme D2 dispersion correction", () => {
     ];
     const r = dispersionD2(atoms, { functional: "blyp", s6: 2.0 });
     expect(r.s6).toBe(2.0);   // override wins
+  });
+
+  test("Analytical gradient matches central finite-difference (He-He at 3 Å)", () => {
+    const baseAtoms: Atom[] = [
+      { symbol: "He", pos: [0, 0, 0] },
+      { symbol: "He", pos: [0, 0, 3.0] },
+    ];
+    const opts = { functional: "b3lyp5" as const };
+    const grad = dispersionD2Gradient(baseAtoms, opts);
+
+    // Central FD: ∂E/∂R_A^x ≈ (E(R+h) − E(R−h)) / (2h).
+    // Step in Å (Atom.pos convention).
+    const h = 1e-4;
+    for (let A = 0; A < 2; A++) {
+      for (let axis = 0; axis < 3; axis++) {
+        const plusAtoms = baseAtoms.map((a, i) => {
+          if (i !== A) return a;
+          const pos = [a.pos[0], a.pos[1], a.pos[2]] as [number, number, number];
+          pos[axis] += h;
+          return { ...a, pos };
+        });
+        const minusAtoms = baseAtoms.map((a, i) => {
+          if (i !== A) return a;
+          const pos = [a.pos[0], a.pos[1], a.pos[2]] as [number, number, number];
+          pos[axis] -= h;
+          return { ...a, pos };
+        });
+        const ePlus  = dispersionD2(plusAtoms,  opts).energy;
+        const eMinus = dispersionD2(minusAtoms, opts).energy;
+        // FD is wrt Å (input pos), but grad is wrt bohr. Convert:
+        // dE/dR_Å = dE/dR_bohr · (Bohr/Å)  → multiply grad by 1.8897 to compare in Å.
+        const ANG2BOHR = 1.8897261245650618;
+        const fdHa_per_A = (ePlus - eMinus) / (2 * h);
+        const fdHa_per_Bohr = fdHa_per_A / ANG2BOHR;
+        const analytic = grad[A * 3 + axis]!;
+        expect(Math.abs(analytic - fdHa_per_Bohr)).toBeLessThan(1e-6);
+      }
+    }
+  });
+
+  test("Gradient translational invariance: Σ_A ∇_A E = 0", () => {
+    const atoms: Atom[] = [
+      { symbol: "C", pos: [0, 0, 0] },
+      { symbol: "H", pos: [1.0, 0, 0] },
+      { symbol: "H", pos: [0, 1.0, 0] },
+      { symbol: "H", pos: [0, 0, 1.0] },
+      { symbol: "H", pos: [-1.0, 0, 0] },
+    ];
+    const grad = dispersionD2Gradient(atoms, { functional: "blyp" });
+    let sumX = 0, sumY = 0, sumZ = 0;
+    for (let A = 0; A < atoms.length; A++) {
+      sumX += grad[A * 3 + 0]!;
+      sumY += grad[A * 3 + 1]!;
+      sumZ += grad[A * 3 + 2]!;
+    }
+    // Sum of gradients should be zero (translational invariance of E_disp).
+    expect(Math.abs(sumX)).toBeLessThan(1e-14);
+    expect(Math.abs(sumY)).toBeLessThan(1e-14);
+    expect(Math.abs(sumZ)).toBeLessThan(1e-14);
   });
 });
