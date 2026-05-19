@@ -72,6 +72,17 @@ export interface RKSOpts {
   readonly damping?: number;
   /** Numerical-grid options (radial, angular). Defaults in grid.ts. */
   readonly grid?: GridOpts;
+  /**
+   * Virtual-orbital level shift (Hartree). When > 0, adds
+   * `levelShift · P_v` to the orthogonal-basis Fock matrix each
+   * iteration, where P_v projects onto the previous virtual
+   * subspace. Raises virtual-orbital eigenvalues, stabilizing
+   * occupation across stretched-bond / near-degenerate KS problems
+   * where the HOMO-LUMO gap is small. Strip on return so
+   * Koopmans IPs / EAs from `orbitalEnergies` remain physical.
+   * Default 0 (no shift).
+   */
+  readonly levelShift?: number;
 }
 
 /**
@@ -107,6 +118,7 @@ export function runRKSDFT(
   const useDIIS = opts.useDIIS ?? true;
   const diisMaxHistory = opts.diisHistory ?? 8;
   const damping = opts.damping ?? 0.5;
+  const levelShift = opts.levelShift ?? 0;
 
   const { S_AO, h_AO, eri_AO, X, Vnn } = integrals;
 
@@ -136,7 +148,10 @@ export function runRKSDFT(
 
   // ── Initial guess: diagonalize core h ──────────────────────
   const hPrime = transformSymmetric(h_AO, X, n);
-  let { C_MO, eps } = solveFock(hPrime, X, n);
+  const initial = solveFock(hPrime, X, n);
+  let C_MO = initial.C_MO;
+  let eps = initial.eps;
+  let cPrimePrev = initial.cPrime;
   let D = densityFromC(C_MO, nOcc, n);
   let E_old = Infinity;
   let E_xc_last = 0;
@@ -233,9 +248,29 @@ export function runRKSDFT(
 
     // ── Diagonalize → new C, eps, D ────────────────────────
     const FPrime = transformSymmetric(F_use, X, n);
+
+    // ── Optional virtual-orbital level shift ──────────────
+    // F'_lifted = F' + levelShift · Σ_{p ≥ nOcc} c'_p ⊗ c'_p^T
+    // Using the PREVIOUS iteration's c'_v as the virtual subspace.
+    // Raises virtual KS eigenvalues by `levelShift`, stabilizing
+    // occupation for stretched-bond / near-degenerate cases.
+    if (levelShift > 0) {
+      for (let p = nOcc; p < n; p++) {
+        for (let i = 0; i < n; i++) {
+          const cpi = cPrimePrev[p * n + i]!;
+          if (cpi === 0) continue;
+          const shifted_cpi = levelShift * cpi;
+          for (let j = 0; j < n; j++) {
+            FPrime[i * n + j]! += shifted_cpi * cPrimePrev[p * n + j]!;
+          }
+        }
+      }
+    }
+
     const sol = solveFock(FPrime, X, n);
     C_MO = sol.C_MO;
     eps = sol.eps;
+    cPrimePrev = sol.cPrime;
     const D_new = densityFromC(C_MO, nOcc, n);
 
     let dNorm = 0;
@@ -257,6 +292,18 @@ export function runRKSDFT(
       break;
     }
     E_old = E;
+  }
+
+  // ── Strip level-shift from reported virtual eigenvalues. ──
+  // The lifted F's virtual eigenvalues are eps_true + shift. At
+  // convergence the eigenvectors are correct (the shift only changed
+  // eigenvalues, not eigenvectors), so removing the shift restores
+  // the physical Koopmans IPs / EAs. Energies are field-functional
+  // expressions of D and don't depend on eps, so they stay correct.
+  if (levelShift > 0) {
+    const epsOut = new Float64Array(eps);
+    for (let i = nOcc; i < n; i++) epsOut[i]! -= levelShift;
+    eps = epsOut;
   }
 
   return {
@@ -296,7 +343,13 @@ function transformSymmetric(M: Float64Array, X: Float64Array, n: number): Float6
   return out;
 }
 
-function solveFock(FPrime: Float64Array, X: Float64Array, n: number): { C_MO: Float64Array; eps: Float64Array } {
+function solveFock(FPrime: Float64Array, X: Float64Array, n: number): {
+  C_MO: Float64Array;
+  /** Orthogonal-basis eigenvectors, column-major: cPrime[c * n + k]
+   *  is the k-th component of the c-th eigenvector. C_MO = X · cPrime. */
+  cPrime: Float64Array;
+  eps: Float64Array;
+} {
   const eig = eigsymmetric(FPrime, n);
   const C_MO = new Float64Array(n * n);
   for (let r = 0; r < n; r++) {
@@ -306,7 +359,7 @@ function solveFock(FPrime: Float64Array, X: Float64Array, n: number): { C_MO: Fl
       C_MO[r * n + c] = s;
     }
   }
-  return { C_MO, eps: eig.values };
+  return { C_MO, cPrime: eig.vectors, eps: eig.values };
 }
 
 function densityFromC(C: Float64Array, nOcc: number, n: number): Float64Array {
