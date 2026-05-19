@@ -157,6 +157,31 @@ export const CCPVDZ_H_2P = {
   c: [1.0] as const,
 };
 
+// ── Helium cc-pVDZ ───────────────────────────────────────────
+// 2 s-shells + 1 p-shell (EMSL Basis Set Exchange — Dunning 1989).
+// He cc-pVDZ has 5 basis functions: 1s, 2s, 2p_{x,y,z}.
+export const CCPVDZ_HE_1S = {
+  alpha: [38.3600000, 5.7700000, 1.2400000] as const,
+  c: [0.0238090, 0.1548910, 0.4699870] as const,
+};
+export const CCPVDZ_HE_2S = {
+  alpha: [0.2976000] as const,
+  c: [1.0] as const,
+};
+export const CCPVDZ_HE_2P = {
+  alpha: [1.2750000] as const,
+  c: [1.0] as const,
+};
+
+// ── Helium aug-cc-pVDZ diffuse ───────────────────────────────
+// One diffuse s + one diffuse p (EMSL).
+export const AUG_CCPVDZ_HE_DIFFUSE_S = {
+  alpha: [0.0713000] as const, c: [1.0] as const,
+};
+export const AUG_CCPVDZ_HE_DIFFUSE_P = {
+  alpha: [0.3300000] as const, c: [1.0] as const,
+};
+
 // ── Oxygen cc-pVDZ ────────────────────────────────────────────
 // 3 s-shells + 2 p-shells + 1 d-shell. Coefficients are the
 // "general contraction" form: a single block of primitives with

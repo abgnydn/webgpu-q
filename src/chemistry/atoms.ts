@@ -15,6 +15,7 @@ import {
   STO3G_O_1S, STO3G_O_2S, STO3G_O_2P,
   STO3G_F_1S, STO3G_F_2S, STO3G_F_2P,
   CCPVDZ_H_1S, CCPVDZ_H_2S, CCPVDZ_H_2P,
+  CCPVDZ_HE_1S, CCPVDZ_HE_2S, CCPVDZ_HE_2P,
   CCPVDZ_LI_1S, CCPVDZ_LI_2S, CCPVDZ_LI_2S_P,
   CCPVDZ_LI_2P, CCPVDZ_LI_2P_P, CCPVDZ_LI_3D,
   CCPVDZ_BE_1S, CCPVDZ_BE_2S, CCPVDZ_BE_2S_P,
@@ -28,6 +29,7 @@ import {
   CCPVDZ_F_1S, CCPVDZ_F_2S, CCPVDZ_F_2S_P,
   CCPVDZ_F_2P, CCPVDZ_F_2P_P, CCPVDZ_F_3D,
   AUG_CCPVDZ_H_DIFFUSE_S, AUG_CCPVDZ_H_DIFFUSE_P,
+  AUG_CCPVDZ_HE_DIFFUSE_S, AUG_CCPVDZ_HE_DIFFUSE_P,
   AUG_CCPVDZ_LI_DIFFUSE_S, AUG_CCPVDZ_LI_DIFFUSE_P, AUG_CCPVDZ_LI_DIFFUSE_D,
   AUG_CCPVDZ_BE_DIFFUSE_S, AUG_CCPVDZ_BE_DIFFUSE_P, AUG_CCPVDZ_BE_DIFFUSE_D,
   AUG_CCPVDZ_C_DIFFUSE_S,  AUG_CCPVDZ_C_DIFFUSE_P,  AUG_CCPVDZ_C_DIFFUSE_D,
@@ -211,7 +213,13 @@ function atomShellsCcPvdz(symbol: AtomSymbol, pos: readonly [number, number, num
     case "O":  return heavyShells("O",  CCPVDZ_O_1S,  CCPVDZ_O_2S,  CCPVDZ_O_2S_P,  CCPVDZ_O_2P,  CCPVDZ_O_2P_P,  CCPVDZ_O_3D);
     case "F":  return heavyShells("F",  CCPVDZ_F_1S,  CCPVDZ_F_2S,  CCPVDZ_F_2S_P,  CCPVDZ_F_2P,  CCPVDZ_F_2P_P,  CCPVDZ_F_3D);
     case "He":
-      throw new Error(`atomShellsCcPvdz: He is only supported in STO-3G; use basis "sto-3g" or add EMSL cc-pVDZ He data`);
+      return [
+        makeCGShell(CCPVDZ_HE_1S, pos, [0, 0, 0], "He:1s"),
+        makeCGShell(CCPVDZ_HE_2S, pos, [0, 0, 0], "He:2s"),
+        makeCGShell(CCPVDZ_HE_2P, pos, [1, 0, 0], "He:2p_x"),
+        makeCGShell(CCPVDZ_HE_2P, pos, [0, 1, 0], "He:2p_y"),
+        makeCGShell(CCPVDZ_HE_2P, pos, [0, 0, 1], "He:2p_z"),
+      ];
   }
 }
 
@@ -251,7 +259,12 @@ function atomShellsAugDiffuse(symbol: AtomSymbol, pos: readonly [number, number,
     case "O":  return heavyDiffuse("O",  AUG_CCPVDZ_O_DIFFUSE_S,  AUG_CCPVDZ_O_DIFFUSE_P,  AUG_CCPVDZ_O_DIFFUSE_D);
     case "F":  return heavyDiffuse("F",  AUG_CCPVDZ_F_DIFFUSE_S,  AUG_CCPVDZ_F_DIFFUSE_P,  AUG_CCPVDZ_F_DIFFUSE_D);
     case "He":
-      throw new Error(`atomShellsAugDiffuse: He is only supported in STO-3G; use basis "sto-3g" or add EMSL aug-cc-pVDZ He data`);
+      return [
+        makeCGShell(AUG_CCPVDZ_HE_DIFFUSE_S, pos, [0, 0, 0], "He:aug-s"),
+        makeCGShell(AUG_CCPVDZ_HE_DIFFUSE_P, pos, [1, 0, 0], "He:aug-p_x"),
+        makeCGShell(AUG_CCPVDZ_HE_DIFFUSE_P, pos, [0, 1, 0], "He:aug-p_y"),
+        makeCGShell(AUG_CCPVDZ_HE_DIFFUSE_P, pos, [0, 0, 1], "He:aug-p_z"),
+      ];
   }
 }
 
