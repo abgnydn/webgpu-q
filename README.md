@@ -236,14 +236,16 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 
 | method | notes |
 |---|---|
-| CCSD (RHF) | Stanton-Bartlett, antisym spin-orbital |
+| CCSD (RHF) | Stanton-Bartlett, antisym spin-orbital + frozen-core |
 | UCCSD (UHF) | shared `ccsdIterate` core, 3-block ERI |
-| CCSD(T) CPU | per-triple, FCI-validated ≤ 0.25 mHa |
+| CCSD(T) CPU | per-triple, FCI-validated ≤ 0.25 mHa, frozen-core via Set |
 | **CCSD(T) GPU** | **39.3× on H₂O cc-pVDZ**, f32→f64 reduce |
-| EE-EOM-CCSD | Stanton-Bartlett σ + stage-32c diagonal patch |
+| UCCSD(T) | open-shell perturbative triples, frozen-core via Set |
+| EE-EOM-CCSD | Stanton-Bartlett σ + stage-32c diagonal patch, Davidson |
 | IP-EOM-CCSD | R₁ exact (brute-force); R₂ open |
 | EA-EOM-CCSD | R₁ + R₂ patched to exact (stage 32e) |
-| CIS · TDA · TDDFT (Casida) | full functional ladder, triplet via spin-pol |
+| CIS · TDA · TDDFT (Casida) | full functional ladder, triplet via spin-pol, Davidson |
+| Counterpoise / BSSE | HF + MP2 + CCSD + UHF + UCCSD via ghost atoms |
 | Oscillator strengths | f = (2/3)·ω·|μ|², R₁·μ AO→MO transform |
 | Spin classifier | singlet/triplet/spin-flip weight per root |
 
@@ -256,16 +258,20 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 | property | notes |
 |---|---|
 | Dipole μ | AO→MO transform, RHF + post-HF densities |
-| Polarizability α | finite field, 3-axis |
+| Polarizability α(0) | finite field + analytical CPHF (RHF + UHF) |
+| Polarizability α(ω) | TDHF + TDDFT + open-shell UHF-TDHF response |
+| Polarizability α(iω) | imaginary-axis response for Casimir-Polder |
+| C₆ van-der-Waals coefficients | Casimir-Polder integral; HF/UHF/DFT references |
 | Hyperpolarizability β | 3D finite-field stencil |
 | Mulliken populations | spin-density resolved |
-| Wiberg / Mayer bond orders | + free valences |
+| Wiberg / Mayer bond orders | + free valences (closed + open shell) |
 | Harmonic ω | mass-weighted Hessian by finite diff |
 | IR intensities | dμ/dQ along normal modes |
 | Raman activities | Placzek invariants from α(Q) |
 | Thermo (Sackur-Tetrode + RR + HO) | H₂O entropy 45.06 vs expt 45.1 |
 | Koopmans / ΔSCF / EOM IPs | H₂O: 10.65 / 8.36 / **12.03** eV (expt 12.62) |
 | Koopmans / EOM EAs | H₂O: −16.48 / **−16.37** eV |
+| Molden orbital export | Cartesian Gaussian basis, Jmol/Avogadro/Multiwfn |
 
 </details>
 
