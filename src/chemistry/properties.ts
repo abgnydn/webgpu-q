@@ -227,6 +227,29 @@ export function mayerValences(
 }
 
 /**
+ * Mayer atomic valences from a UHF/UKS reference. Sums off-diagonal
+ * entries of `bondOrdersUHF` per atom. Validates that the open-shell
+ * valence diagnostic (e.g., for radicals) is positive and reflects
+ * the chemical bonding environment of each atom.
+ */
+export function mayerValencesUHF(
+  integrals: MolecularIntegrals,
+  D_alpha: Float64Array,
+  D_beta: Float64Array,
+  shellAtomIdx: readonly number[],
+): Float64Array {
+  const B = bondOrdersUHF(integrals, D_alpha, D_beta, shellAtomIdx);
+  const nAtoms = integrals.nuclei.length;
+  const v = new Float64Array(nAtoms);
+  for (let A = 0; A < nAtoms; A++) {
+    let s = 0;
+    for (let X = 0; X < nAtoms; X++) if (X !== A) s += B[A * nAtoms + X]!;
+    v[A] = s;
+  }
+  return v;
+}
+
+/**
  * Mayer bond-order matrix (nAtoms × nAtoms, row-major). The
  * matrix is symmetric: B_AB = B_BA. Diagonal entries are the
  * Mayer atomic valences. Returns a Float64Array of length

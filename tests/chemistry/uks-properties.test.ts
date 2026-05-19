@@ -18,7 +18,7 @@ import { moleculeToShellsNuclei, type Atom, type AtomSymbol } from "../../src/ch
 import { runUKSDFT } from "../../src/chemistry/dft/uks-scf.js";
 import {
   dipoleMoment, dipoleMagnitude, AU_TO_DEBYE,
-  mullikenSpinPopulations, bondOrdersUHF,
+  mullikenSpinPopulations, bondOrdersUHF, mayerValencesUHF,
 } from "../../src/chemistry/properties.js";
 import { naturalOrbitalOccupations } from "../../src/chemistry/natural-orbitals.js";
 
@@ -68,6 +68,13 @@ describe("UKS-DFT properties (dipole, Mulliken, Mayer, NOON)", () => {
     // bondOrders is row-major (nAtoms × nAtoms).
     expect(bondOrders[0 * 3 + 1]!).toBeGreaterThan(0.5);   // O-H1
     expect(bondOrders[0 * 3 + 2]!).toBeGreaterThan(0.5);   // O-H2
+
+    // Mayer atomic valences: O ≈ 2 (two bonds), H ≈ 1.
+    const valences = mayerValencesUHF(integrals, uks.D_alpha, uks.D_beta, shellAtomIdx);
+    expect(valences[0]!).toBeGreaterThan(1.5);   // O
+    expect(valences[0]!).toBeLessThan(2.5);
+    expect(valences[1]!).toBeGreaterThan(0.5);   // H
+    expect(valences[1]!).toBeLessThan(1.3);
 
     // NOON on D_total: 5 strongly occupied, 2 strongly virtual for closed-shell.
     const noon = naturalOrbitalOccupations(D_total, integrals.S_AO);
