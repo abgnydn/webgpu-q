@@ -233,9 +233,12 @@ export function runUKSDFT(
       F_beta[i]  = h_AO[i]! + J[i]! + VxcB[i]!;
     }
     if (Ka && Kb && hfMix > 0) {
+      // UHF/UKS Fock: F_σ = h + J(D_total) + V_xc^σ − hfMix·K(D_σ).
+      // No factor of 0.5 (vs the closed-shell RKS convention which has
+      // 0.5·K(D_RKS) because D_RKS = 2·D_α). Matches UHF in uhf-scf.ts.
       for (let i = 0; i < n * n; i++) {
-        F_alpha[i]! -= 0.5 * hfMix * Ka[i]!;
-        F_beta[i]!  -= 0.5 * hfMix * Kb[i]!;
+        F_alpha[i]! -= hfMix * Ka[i]!;
+        F_beta[i]!  -= hfMix * Kb[i]!;
       }
     }
 
@@ -249,7 +252,9 @@ export function runUKSDFT(
       if (Kb) EkB += D_beta[i]!  * Kb[i]!;
     }
     for (let p = 0; p < nGrid; p++) Exc += grid.w[p]! * epsXc[p]! * (rhoUp[p]! + rhoDn[p]!);
-    const Ehfx = -0.5 * hfMix * (EkA + EkB);    // hybrid HF-exchange total
+    // UHF/UKS hybrid HF-exchange energy: ½·Σ_σ Tr(D_σ·K(D_σ)) × hfMix,
+    // with a leading minus sign for the exchange (lowers the energy).
+    const Ehfx = -0.5 * hfMix * (EkA + EkB);
     const E = EoneA + EoneB + 0.5 * EjT + Exc + Ehfx + Vnn;
     history.push(E);
     E_xc_last = Exc + Ehfx;

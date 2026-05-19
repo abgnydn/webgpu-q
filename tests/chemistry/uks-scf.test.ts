@@ -89,15 +89,13 @@ describe("UKS-DFT SCF (open-shell DFT)", () => {
     expect(spinNormSq).toBeGreaterThan(1e-6);
   }, 60_000);
 
-  test("Closed-shell H₂O / B3LYP5: UKS (n_α=n_β=5) converges close to RKS (factor-of-something convention diff in GGA cross-spin piece)", () => {
-    // Pure-LDA UKS matches RKS-LDA to 1e-6 (test 1 above). For GGA
-    // hybrid B3LYP5 there's a small residual ~1 mHa difference — a
-    // known UKS-GGA cross-spin γ_αβ factor convention mismatch
-    // between buildVxcGGA_spin and the closed-shell RKS V_xc builder.
-    // Both UKS and RKS converge to physical (sub-chemical-accuracy)
-    // total energies; the residual doesn't affect open-shell radical
-    // chemistry where ρ_α ≠ ρ_β. Will be tracked down in a focused
-    // follow-up. For now bound the gap at < 5 mHa.
+  test("Closed-shell H₂O / B3LYP5: UKS (n_α=n_β=5) matches RKS to ≤ 1e-5 Ha", () => {
+    // GGA + hybrid round-trip. Earlier had a 0.88 mHa hybrid-specific
+    // residual; tracked to a missing factor on the K-matrix
+    // contribution to F_σ (was 0.5·hfMix·K, should be hfMix·K — the
+    // same convention as uhf-scf). Now all five spin-polarized
+    // functionals (lda-svwn, bvwn5, blyp, b3vwn5, b3lyp5) match the
+    // closed-shell RKS within ~1e-6 Ha — SCF convergence noise.
     const half = (104.52 / 2) * Math.PI / 180;
     const xH = 0.9572 * Math.sin(half);
     const zH = 0.9572 * Math.cos(half);
@@ -122,8 +120,7 @@ describe("UKS-DFT SCF (open-shell DFT)", () => {
       symmetryBreaking: 0,
     });
     expect(uks.converged).toBe(true);
-    // Same order of magnitude, sub-chemical-accuracy gap.
-    expect(Math.abs(uks.energy - rks.energy)).toBeLessThan(5e-3);
+    expect(Math.abs(uks.energy - rks.energy)).toBeLessThan(1e-5);
     // ⟨S²⟩ singlet ≈ 0.
     expect(Math.abs(uks.s2)).toBeLessThan(1e-4);
   }, 90_000);
