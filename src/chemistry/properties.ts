@@ -105,6 +105,22 @@ export function dipoleMagnitude(mu: readonly [number, number, number]): number {
  *   returned by `moleculeToShellsNuclei`. Required to attribute
  *   AO populations to atoms.
  */
+/**
+ * Mulliken charges from a UHF / UKS / UCCSD density pair. Sums
+ * D_alpha + D_beta into a total density and delegates to
+ * `mullikenCharges`. Charge = Z_A − population_A.
+ */
+export function mullikenChargesUHF(
+  integrals: MolecularIntegrals,
+  D_alpha: Float64Array,
+  D_beta: Float64Array,
+  shellAtomIdx: readonly number[],
+): Float64Array {
+  const D_total = new Float64Array(D_alpha.length);
+  for (let i = 0; i < D_alpha.length; i++) D_total[i] = D_alpha[i]! + D_beta[i]!;
+  return mullikenCharges(integrals, D_total, shellAtomIdx);
+}
+
 export function mullikenCharges(
   integrals: MolecularIntegrals,
   P: Float64Array,

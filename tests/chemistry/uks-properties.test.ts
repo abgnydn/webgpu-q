@@ -18,7 +18,7 @@ import { moleculeToShellsNuclei, type Atom, type AtomSymbol } from "../../src/ch
 import { runUKSDFT } from "../../src/chemistry/dft/uks-scf.js";
 import {
   dipoleMoment, dipoleMagnitude, AU_TO_DEBYE,
-  mullikenSpinPopulations, bondOrdersUHF, mayerValencesUHF,
+  mullikenSpinPopulations, bondOrdersUHF, mayerValencesUHF, mullikenChargesUHF,
 } from "../../src/chemistry/properties.js";
 import { naturalOrbitalOccupations } from "../../src/chemistry/natural-orbitals.js";
 
@@ -75,6 +75,15 @@ describe("UKS-DFT properties (dipole, Mulliken, Mayer, NOON)", () => {
     expect(valences[0]!).toBeLessThan(2.5);
     expect(valences[1]!).toBeGreaterThan(0.5);   // H
     expect(valences[1]!).toBeLessThan(1.3);
+
+    // Mulliken charges UHF: charges sum to 0 (neutral); O slightly negative.
+    const charges = mullikenChargesUHF(integrals, uks.D_alpha, uks.D_beta, shellAtomIdx);
+    let sumQ = 0;
+    for (let A = 0; A < 3; A++) sumQ += charges[A]!;
+    expect(Math.abs(sumQ)).toBeLessThan(1e-9);    // neutral molecule
+    expect(charges[0]!).toBeLessThan(0);          // O carries negative
+    expect(charges[1]!).toBeGreaterThan(0);       // H carries positive
+    expect(charges[2]!).toBeGreaterThan(0);
 
     // NOON on D_total: 5 strongly occupied, 2 strongly virtual for closed-shell.
     const noon = naturalOrbitalOccupations(D_total, integrals.S_AO);
