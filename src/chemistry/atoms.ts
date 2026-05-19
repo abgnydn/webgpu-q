@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import {
-  STO3G_H_1S,
+  STO3G_H_1S, STO3G_HE_1S,
   STO3G_LI_1S, STO3G_LI_2S,
   STO3G_BE_1S, STO3G_BE_2S, STO3G_BE_2P,
   STO3G_C_1S, STO3G_C_2S, STO3G_C_2P,
@@ -38,7 +38,7 @@ import {
 import { type CGShell, makeCGShell } from "./integrals-cg.js";
 import { type Nucleus } from "./cg-molecular.js";
 
-export type AtomSymbol = "H" | "Li" | "Be" | "C" | "N" | "O" | "F";
+export type AtomSymbol = "H" | "He" | "Li" | "Be" | "C" | "N" | "O" | "F";
 export type BasisName = "sto-3g" | "cc-pvdz" | "aug-cc-pvdz";
 
 const ANGSTROM_TO_BOHR = 1 / 0.529177210903;
@@ -58,12 +58,12 @@ export interface Atom {
 
 /** Atomic number for each supported atom. */
 export const Z_FOR: Readonly<Record<AtomSymbol, number>> = {
-  H: 1, Li: 3, Be: 4, C: 6, N: 7, O: 8, F: 9,
+  H: 1, He: 2, Li: 3, Be: 4, C: 6, N: 7, O: 8, F: 9,
 };
 
 /** Number of electrons in the neutral atom. */
 export const N_ELECTRONS_FOR: Readonly<Record<AtomSymbol, number>> = {
-  H: 1, Li: 3, Be: 4, C: 6, N: 7, O: 8, F: 9,
+  H: 1, He: 2, Li: 3, Be: 4, C: 6, N: 7, O: 8, F: 9,
 };
 
 /**
@@ -77,7 +77,7 @@ export const N_ELECTRONS_FOR: Readonly<Record<AtomSymbol, number>> = {
  * comparative calculation cares about).
  */
 export const FROZEN_CORE_FOR: Readonly<Record<AtomSymbol, number>> = {
-  H: 0, Li: 1, Be: 1, C: 1, N: 1, O: 1, F: 1,
+  H: 0, He: 0, Li: 1, Be: 1, C: 1, N: 1, O: 1, F: 1,
 };
 
 /** Default frozen-core count for a molecule (sum of per-atom 1s cores). */
@@ -115,6 +115,8 @@ export function atomShells(
   switch (symbol) {
     case "H":
       return [makeCGShell(STO3G_H_1S, pos_bohr, [0, 0, 0], "H:1s")];
+    case "He":
+      return [makeCGShell(STO3G_HE_1S, pos_bohr, [0, 0, 0], "He:1s")];
     case "Li":
       return [
         makeCGShell(STO3G_LI_1S, pos_bohr, [0, 0, 0], "Li:1s"),
@@ -208,6 +210,8 @@ function atomShellsCcPvdz(symbol: AtomSymbol, pos: readonly [number, number, num
     case "N":  return heavyShells("N",  CCPVDZ_N_1S,  CCPVDZ_N_2S,  CCPVDZ_N_2S_P,  CCPVDZ_N_2P,  CCPVDZ_N_2P_P,  CCPVDZ_N_3D);
     case "O":  return heavyShells("O",  CCPVDZ_O_1S,  CCPVDZ_O_2S,  CCPVDZ_O_2S_P,  CCPVDZ_O_2P,  CCPVDZ_O_2P_P,  CCPVDZ_O_3D);
     case "F":  return heavyShells("F",  CCPVDZ_F_1S,  CCPVDZ_F_2S,  CCPVDZ_F_2S_P,  CCPVDZ_F_2P,  CCPVDZ_F_2P_P,  CCPVDZ_F_3D);
+    case "He":
+      throw new Error(`atomShellsCcPvdz: He is only supported in STO-3G; use basis "sto-3g" or add EMSL cc-pVDZ He data`);
   }
 }
 
@@ -246,6 +250,8 @@ function atomShellsAugDiffuse(symbol: AtomSymbol, pos: readonly [number, number,
     case "N":  return heavyDiffuse("N",  AUG_CCPVDZ_N_DIFFUSE_S,  AUG_CCPVDZ_N_DIFFUSE_P,  AUG_CCPVDZ_N_DIFFUSE_D);
     case "O":  return heavyDiffuse("O",  AUG_CCPVDZ_O_DIFFUSE_S,  AUG_CCPVDZ_O_DIFFUSE_P,  AUG_CCPVDZ_O_DIFFUSE_D);
     case "F":  return heavyDiffuse("F",  AUG_CCPVDZ_F_DIFFUSE_S,  AUG_CCPVDZ_F_DIFFUSE_P,  AUG_CCPVDZ_F_DIFFUSE_D);
+    case "He":
+      throw new Error(`atomShellsAugDiffuse: He is only supported in STO-3G; use basis "sto-3g" or add EMSL aug-cc-pVDZ He data`);
   }
 }
 

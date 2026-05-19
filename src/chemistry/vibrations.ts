@@ -51,6 +51,7 @@ const E2_PER_AMU_TO_KM_PER_MOL = 974.864;
  *  theoretical reference frequencies. */
 const ATOMIC_MASS: Readonly<Record<AtomSymbol, number>> = {
   H:  1.00782503207,
+  He: 4.002603254,
   Li: 7.0160034366,
   Be: 9.012183065,
   C:  12.0,

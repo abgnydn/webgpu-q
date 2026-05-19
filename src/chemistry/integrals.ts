@@ -27,6 +27,14 @@ export const STO3G_H_1S = {
   c: [0.15432897, 0.53532814, 0.44463454] as const,
 };
 
+/** STO-3G 1s contraction for helium. From EMSL Basis Set Exchange
+ *  (Hehre, Stewart, Pople 1969). Closed-shell Z = 2; orbital tighter
+ *  than H 1s by roughly factor 2 in exponent. */
+export const STO3G_HE_1S = {
+  alpha: [6.36242139, 1.15892300, 0.31364979] as const,
+  c: [0.15432897, 0.53532814, 0.44463454] as const,
+};
+
 /** STO-3G 1s contraction for lithium. Tighter exponents than H 1s
  *  (Z = 3 vs Z = 1 → orbital pulled in toward the nucleus). */
 export const STO3G_LI_1S = {

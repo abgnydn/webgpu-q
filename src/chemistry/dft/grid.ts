@@ -264,6 +264,7 @@ function beckeStep(mu: number): number {
 const BECKE_XI: Partial<Record<AtomSymbol, number>> = {
   H:  0.5,    // tighter than the default (Becke recommends ξ_H = 0.35;
               // 0.5 is a compromise that handles diatomic H₂ better)
+  He: 0.35,   // Bragg-Slater radius for He
   Li: 1.45,
   Be: 1.05,
   C:  0.65,

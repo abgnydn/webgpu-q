@@ -74,6 +74,7 @@ const N_AVOGADRO       = 6.02214076e23;
 
 const ATOMIC_MASS: Readonly<Record<AtomSymbol, number>> = {
   H:  1.00782503207,
+  He: 4.002603254,
   Li: 7.0160034366,
   Be: 9.012183065,
   C:  12.0,
