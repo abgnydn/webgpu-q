@@ -37,17 +37,43 @@ export interface UHFCPHFPolarizabilityResult {
   readonly isotropic: number;
 }
 
-export function uhfCphfPolarizability(
+/**
+ * Shared UHF CPHF building blocks: 4-spin-block (A+B) and (A−B)
+ * orbital Hessians on the combined (α-OV + β-OV) space, dipole OV
+ * matrix elements (per spin block in the same packed layout), and
+ * dimensions. Used by `uhfCphfPolarizability` (static, needs A+B
+ * only) and `uhfTdhfPolarizability` (frequency-dependent, needs
+ * both A+B and A−B).
+ *
+ * Spin-resolved orbital Hessian (singlet-conserving response):
+ *   (A + B)^σσ_{ai,bj} = (ε_a^σ − ε_i^σ) δ + 2(ai|bj)_σσ
+ *                        − (ab|ij)_σσ − (aj|bi)_σσ
+ *   (A + B)^σσ'_{ai,bj} = 2(ai|bj)_σσ'      (σ ≠ σ', no exchange)
+ *   (A − B)^σσ_{ai,bj} = (ε_a^σ − ε_i^σ) δ − (ab|ij)_σσ + (aj|bi)_σσ
+ *   (A − B)^σσ'_{ai,bj} = 0                  (cross-spin A and B
+ *                                            blocks are equal,
+ *                                            cancel in A−B)
+ */
+export interface UHFCPHFHessians {
+  readonly ApB: Float64Array;
+  readonly AmB: Float64Array;
+  readonly muOV: readonly [Float64Array, Float64Array, Float64Array];
+  readonly dim: number;
+  readonly dimA: number;
+  readonly dimB: number;
+}
+
+export function buildUHFCPHFHessians(
   uhf: UHFResult,
   integrals: MolecularIntegrals,
   shells: readonly CGShell[],
-): UHFCPHFPolarizabilityResult {
+): UHFCPHFHessians {
   const n = integrals.n;
   const { nAlpha, nBeta, C_alpha, C_beta, orbitalEnergiesAlpha, orbitalEnergiesBeta } = uhf;
   const nVirtA = n - nAlpha;
   const nVirtB = n - nBeta;
   if (nVirtA === 0 && nVirtB === 0) {
-    throw new Error("uhfCphfPolarizability: empty virtual space (both spins)");
+    throw new Error("buildUHFCPHFHessians: empty virtual space (both spins)");
   }
   const dimA = nAlpha * nVirtA;
   const dimB = nBeta  * nVirtB;
@@ -72,10 +98,14 @@ export function uhfCphfPolarizability(
   const e_BB = (p: number, q: number, r: number, s: number): number =>
     eri_BB[((p * n + q) * n + r) * n + s]!;
 
-  // ── Build (A+B) on the combined (α-OV + β-OV) space.
+  // ── Build (A+B) and (A−B) on the combined (α-OV + β-OV) space.
   // Indexing convention: row k ∈ [0, dimA) is α-OV pair (i_α, a_α)
   // with i = k / nVirtA, a = k % nVirtA. Rows [dimA, dim) are β-OV.
+  // Same-spin same-direction (αα or ββ) carry both Coulomb (in A+B
+  // only) and exchange (in both A+B and A−B); cross-spin (αβ or βα)
+  // is Coulomb-only and lives in A+B only.
   const ApB = new Float64Array(dim * dim);
+  const AmB = new Float64Array(dim * dim);
 
   // αα block.
   for (let i = 0; i < nAlpha; i++) {
@@ -88,16 +118,16 @@ export function uhfCphfPolarizability(
           const bMO = nAlpha + b;
           const col = j * nVirtA + b;
           const diag = (i === j && a === b) ? eOrb : 0;
-          // (A+B)^αα = ε-diag + 2(ai|bj)_αα − (ab|ij)_αα − (aj|bi)_αα
-          const t1 = 2 * e_AA(i, aMO, j, bMO);
-          const t2 = e_AA(aMO, bMO, i, j);
-          const t3 = e_AA(aMO, j, bMO, i);
-          ApB[row + col] = diag + t1 - t2 - t3;
+          const coul = e_AA(i, aMO, j, bMO);
+          const exA  = e_AA(aMO, bMO, i, j);   // (ab|ij)_αα
+          const exB  = e_AA(aMO, j, bMO, i);   // (aj|bi)_αα
+          ApB[row + col] = diag + 2 * coul - exA - exB;
+          AmB[row + col] = diag             - exA + exB;
         }
       }
     }
   }
-  // αβ block (no exchange).
+  // αβ block (no exchange — A and B are equal, cancel in A−B).
   for (let i = 0; i < nAlpha; i++) {
     for (let a = 0; a < nVirtA; a++) {
       const aMO = nAlpha + a;
@@ -107,6 +137,7 @@ export function uhfCphfPolarizability(
           const bMO = nBeta + b;
           const col = dimA + j * nVirtB + b;
           ApB[row + col] = 2 * e_AB(i, aMO, j, bMO);
+          // AmB cross-spin block is zero (already zero-initialized).
         }
       }
     }
@@ -136,10 +167,11 @@ export function uhfCphfPolarizability(
           const bMO = nBeta + b;
           const col = dimA + j * nVirtB + b;
           const diag = (i === j && a === b) ? eOrb : 0;
-          const t1 = 2 * e_BB(i, aMO, j, bMO);
-          const t2 = e_BB(aMO, bMO, i, j);
-          const t3 = e_BB(aMO, j, bMO, i);
-          ApB[row + col] = diag + t1 - t2 - t3;
+          const coul = e_BB(i, aMO, j, bMO);
+          const exA  = e_BB(aMO, bMO, i, j);
+          const exB  = e_BB(aMO, j, bMO, i);
+          ApB[row + col] = diag + 2 * coul - exA - exB;
+          AmB[row + col] = diag             - exA + exB;
         }
       }
     }
@@ -195,15 +227,25 @@ export function uhfCphfPolarizability(
     }
   }
 
+  return { ApB, AmB, muOV, dim, dimA, dimB };
+}
+
+export function uhfCphfPolarizability(
+  uhf: UHFResult,
+  integrals: MolecularIntegrals,
+  shells: readonly CGShell[],
+): UHFCPHFPolarizabilityResult {
+  const { ApB, muOV, dim } = buildUHFCPHFHessians(uhf, integrals, shells);
+
   // ── Solve (A+B) X = F via Gauss-Jordan with augmented 3-RHS block. ──
-  const aug = new Float64Array(dim * (dim + 3));
-  for (let i = 0; i < dim; i++) {
-    for (let j = 0; j < dim; j++) aug[i * (dim + 3) + j] = ApB[i * dim + j]!;
-    aug[i * (dim + 3) + dim + 0] = muOV[0][i]!;
-    aug[i * (dim + 3) + dim + 1] = muOV[1][i]!;
-    aug[i * (dim + 3) + dim + 2] = muOV[2][i]!;
-  }
   const stride = dim + 3;
+  const aug = new Float64Array(dim * stride);
+  for (let i = 0; i < dim; i++) {
+    for (let j = 0; j < dim; j++) aug[i * stride + j] = ApB[i * dim + j]!;
+    aug[i * stride + dim + 0] = muOV[0][i]!;
+    aug[i * stride + dim + 1] = muOV[1][i]!;
+    aug[i * stride + dim + 2] = muOV[2][i]!;
+  }
   for (let p = 0; p < dim; p++) {
     let maxRow = p, maxVal = Math.abs(aug[p * stride + p]!);
     for (let r = p + 1; r < dim; r++) {
@@ -237,10 +279,6 @@ export function uhfCphfPolarizability(
     X[1][i] = aug[i * stride + dim + 1]!;
     X[2][i] = aug[i * stride + dim + 2]!;
   }
-
-  // ── α_μν = 2 · Σ_aiσ X^μ_σ_ai · F^ν_σ_ai (factor 2 from
-  //    response-derivative convention; no spin-sum factor because
-  //    α + β sectors each contribute independently to the sum).
   const alpha = new Float64Array(9);
   for (let x = 0; x < 3; x++) {
     for (let y = 0; y < 3; y++) {
@@ -250,12 +288,9 @@ export function uhfCphfPolarizability(
       alpha[x * 3 + y] = 2 * s;
     }
   }
-  // Symmetrize.
   for (let x = 0; x < 3; x++) {
     for (let y = x + 1; y < 3; y++) {
-      const a_xy = alpha[x * 3 + y]!;
-      const a_yx = alpha[y * 3 + x]!;
-      const avg = 0.5 * (a_xy + a_yx);
+      const avg = 0.5 * (alpha[x * 3 + y]! + alpha[y * 3 + x]!);
       alpha[x * 3 + y] = avg;
       alpha[y * 3 + x] = avg;
     }
