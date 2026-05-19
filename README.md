@@ -220,10 +220,10 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 
 | method | notes |
 |---|---|
-| RHF SCF | DIIS, frozen-core, spherical-d, f/g/h |
-| UHF SCF | open-shell, stacked α+β DIIS, ⟨S²⟩ check |
-| LDA · BVWN5 · BLYP | Becke molecular grid, Lebedev angular |
-| B3VWN5 · B3LYP5 | hybrid functionals, exact-exchange mixing |
+| RHF SCF | DIIS, frozen-core, spherical-d, f/g/h, level-shift |
+| UHF SCF | open-shell, stacked α+β DIIS, ⟨S²⟩ check, level-shift |
+| RKS-DFT (LDA, GGA, hybrid) | LDA · BVWN5 · BLYP · B3VWN5 · B3LYP5; Becke grid, Lebedev |
+| UKS-DFT (LDA, GGA, hybrid) | full functional ladder, spin-polarized XC kernel, ⟨S²⟩ |
 | MP2 · DF-MP2 | spin-orbital + B-tensor reformulation |
 | Cholesky DF (CD-DF) | rank-3 B-tensor, threshold-controlled |
 | HF / DFT analytical ∇ | Pulay 1969, 8-fold ERI loop, Schwarz screening |
@@ -272,6 +272,8 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 | Koopmans / ΔSCF / EOM IPs | H₂O: 10.65 / 8.36 / **12.03** eV (expt 12.62) |
 | Koopmans / EOM EAs | H₂O: −16.48 / **−16.37** eV |
 | Molden orbital export | Cartesian Gaussian basis, Jmol/Avogadro/Multiwfn |
+| Gaussian Cube export | density + MO isosurfaces, VMD/Jmol/Multiwfn |
+| QCSchema JSON export | MolSSI standard, QCEngine/QCFractal/cclib consumable |
 
 </details>
 

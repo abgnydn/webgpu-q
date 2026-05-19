@@ -151,6 +151,24 @@ DFT level-shift 2/2; counterpoise 11/11; UCCSD(T) 3/3. Closed-shell
   one-electron magnetic dipole / angular-momentum integrals (not
   currently exposed in `integrals-cg.ts`). Substantial.
 
+**Addendum (2026-05-19 continued):** Closed the rest of the day's queue.
+- UKS-DFT SCF shipped (LDA + GGA + B3-hybrid, full functional ladder).
+  Tracked down a 0.88 mHa B3-hybrid factor bug via per-functional
+  probe: F_σ K-matrix prefactor was 0.5·hfMix (correct for RKS where
+  D_RKS = 2·D_α), should be hfMix for UKS where K(D_σ) sees only one
+  spin's density. After fix, all five spin-polarized functionals
+  match closed-shell RKS to ≤ 1e-5 Ha.
+- Interop: Molden + Cube + QCSchema export all shipped. Molden for
+  orbital plotting, Cube for density / MO isosurfaces, QCSchema as
+  MolSSI-standard structured artifact (QCEngine / QCFractal /
+  QCArchive / cclib consumable). Today's exports cover ~80% of the
+  property-import surface for downstream tooling.
+- SCF matrix complete: {RHF, UHF, RKS, UKS} all converge and
+  cross-validate against each other in closed-shell limit.
+- Polarizability matrix: 11/12 cells (only UKS-TDDFT response still
+  open). UKS static α via UKS-CPHF is a 2-hour follow-up; UKS α(ω)
+  via UKS-TDDFT response is a 3-hour follow-up.
+
 ## Session marker: 2026-05-13 — EOM-CCSD σ_1 sign-flip closed
 
 **TL;DR:** The multi-electron singlet bug E35 surfaced (2.57 eV gap vs
