@@ -100,7 +100,7 @@ describe("Molden-format export", () => {
     const atoms: Atom[] = [
       { symbol: "H", pos: [0, 0, 0] },
     ];
-    const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(atoms);
+    const { shells, nuclei } = moleculeToShellsNuclei(atoms);
     const integrals = computeMolecularIntegrals(shells, nuclei);
     const hf = runRHFSCF(integrals, 2, {});  // 2 electrons works for H⁻ but doesn't matter — we won't call hf
 

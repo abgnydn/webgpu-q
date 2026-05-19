@@ -375,7 +375,7 @@ function densityFromC(C: Float64Array, nOcc: number, n: number): Float64Array {
 }
 
 /** Pure Coulomb J — no exchange (DFT separates J and v_xc). */
-function buildJ(D: Float64Array, eri_AO: Float64Array, n: number): Float64Array {
+export function buildJ(D: Float64Array, eri_AO: Float64Array, n: number): Float64Array {
   const J = new Float64Array(n * n);
   for (let mu = 0; mu < n; mu++) {
     for (let nu = 0; nu < n; nu++) {
@@ -394,7 +394,7 @@ function buildJ(D: Float64Array, eri_AO: Float64Array, n: number): Float64Array 
 }
 
 /** HF exchange K[μν] = Σ_{λσ} D_{λσ} (μλ|νσ) — needed for hybrid functionals. */
-function buildK(D: Float64Array, eri_AO: Float64Array, n: number): Float64Array {
+export function buildK(D: Float64Array, eri_AO: Float64Array, n: number): Float64Array {
   const K = new Float64Array(n * n);
   for (let mu = 0; mu < n; mu++) {
     for (let nu = 0; nu < n; nu++) {
@@ -416,7 +416,7 @@ function buildK(D: Float64Array, eri_AO: Float64Array, n: number): Float64Array 
  * LDA V_xc:  V[μν] = Σ_p w_p · v_ρ(ρ_p) · φ_μ(r_p) φ_ν(r_p).
  * Cost O(n² · nGrid). Standard hot loop.
  */
-function buildVxcLDA(
+export function buildVxcLDA(
   vRho: Float64Array,
   basis: { phi: Float64Array; n: number; nGrid: number },
   weights: Float64Array,
