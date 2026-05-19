@@ -132,10 +132,11 @@ interface TDABuildResult {
 
 /**
  * Build the singlet A (and optionally B) Casida matrices on top
- * of an HF or KS reference. Shared by `runTDA` (A only) and
- * `runTDDFT` (A + B).
+ * of an HF or KS reference. Shared by `runTDA` (A only),
+ * `runTDDFT` (A + B), and `tddftPolarizability` (A + B for the
+ * frequency-dependent response solve).
  */
-function buildTDABlocks(
+export function buildTDABlocks(
   integrals: MolecularIntegrals,
   hf: HFLike,
   opts: TDAOpts,
