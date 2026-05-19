@@ -50,14 +50,22 @@ import type { Atom, BasisName } from "./atoms.js";
 import { moleculeToShellsNuclei } from "./atoms.js";
 import { computeMolecularIntegrals } from "./cg-molecular.js";
 import { runRHFSCF, type HFOpts } from "./hf-scf.js";
+import { runUHFSCF, type UHFOpts } from "./uhf-scf.js";
 import { runMP2 } from "./mp2.js";
 import { runCCSD, type CCSDOpts } from "./ccsd.js";
+import { runUCCSD } from "./uccsd.js";
 
-export type CounterpoiseMethod = "hf" | "mp2" | "ccsd";
+export type CounterpoiseMethod = "hf" | "mp2" | "ccsd" | "uhf" | "uccsd";
 
 export interface CounterpoiseFragment {
   /** Indices into the `atoms` array that belong to this fragment. */
   readonly atomIndices: readonly number[];
+  /** For open-shell methods ("uhf", "uccsd"): explicit (n_α, n_β)
+   *  for this fragment. Required iff `method` is open-shell. The
+   *  supermolecule spin is the sum across fragments. For closed-shell
+   *  methods this field is ignored.
+   */
+  readonly spin?: { readonly nAlpha: number; readonly nBeta: number };
 }
 
 export interface CounterpoiseResult {
@@ -105,6 +113,7 @@ export function runCounterpoise(
   hfOpts: HFOpts = {},
   method: CounterpoiseMethod = "hf",
   ccsdOpts: CCSDOpts = {},
+  uhfOpts: UHFOpts = {},
 ): CounterpoiseResult {
   // ── Validate fragmentation: every atom in exactly one fragment. ──
   const claimed = new Array<boolean>(atoms.length).fill(false);
@@ -125,14 +134,62 @@ export function runCounterpoise(
     }
   }
 
+  const isOpenShell = method === "uhf" || method === "uccsd";
+
+  // ── For open-shell methods, validate per-fragment spin and sum
+  //    to get the supermolecule (n_α, n_β). ─────────────────────
+  let superAlpha = 0, superBeta = 0;
+  if (isOpenShell) {
+    for (let k = 0; k < fragments.length; k++) {
+      const sp = fragments[k]!.spin;
+      if (!sp) {
+        throw new Error(
+          `runCounterpoise: method "${method}" requires fragments[${k}].spin = {nAlpha, nBeta}.`,
+        );
+      }
+      if (sp.nAlpha < 0 || sp.nBeta < 0 || !Number.isInteger(sp.nAlpha) || !Number.isInteger(sp.nBeta)) {
+        throw new Error(
+          `runCounterpoise: fragments[${k}].spin must be non-negative integers, got (${sp.nAlpha}, ${sp.nBeta}).`,
+        );
+      }
+      superAlpha += sp.nAlpha;
+      superBeta += sp.nBeta;
+    }
+  }
+
   let allConverged = true;
 
-  /** Run HF (and optionally MP2 or CCSD) on a set of atoms and
-   *  return the method-appropriate total energy (E_HF + correlation
-   *  if applicable). Sets allConverged = false on any failure. */
-  function singlePoint(atomsIn: readonly Atom[]): number {
+  /** Run the chosen method on a set of atoms and return the total
+   *  energy (E_HF [+ correlation] for closed-shell; E_UHF [+ UCCSD]
+   *  for open-shell). For open-shell methods, `nAlpha` / `nBeta`
+   *  override the auto-computed neutral closed-shell count.
+   *  Sets allConverged = false on any failure. */
+  function singlePoint(
+    atomsIn: readonly Atom[],
+    nAlpha?: number,
+    nBeta?: number,
+  ): number {
     const sh = moleculeToShellsNuclei(atomsIn, basis);
     const integ = computeMolecularIntegrals(sh.shells, sh.nuclei);
+
+    if (isOpenShell) {
+      if (nAlpha === undefined || nBeta === undefined) {
+        throw new Error(`runCounterpoise: open-shell singlePoint requires explicit (nAlpha, nBeta)`);
+      }
+      const uhf = runUHFSCF(integ, nAlpha, nBeta, uhfOpts);
+      if (!uhf.converged) allConverged = false;
+      if (method === "uhf") return uhf.energy;
+      // method === "uccsd". UCCSD with 0 occupied SOs (trivial fragment
+      // = no electrons left) or NVIRT_per_spin = 0 has no correlation;
+      // runUCCSD throws on those degenerate cases. Skip in that case.
+      const totalOcc = uhf.nAlpha + uhf.nBeta;
+      const totalVirt = 2 * integ.n - totalOcc;
+      if (totalOcc === 0 || totalVirt === 0) return uhf.energy;
+      const uccsd = runUCCSD(uhf, integ, ccsdOpts);
+      if (!uccsd.converged) allConverged = false;
+      return uhf.energy + uccsd.correlationEnergy;
+    }
+
     const hf = runRHFSCF(integ, sh.nElectrons, hfOpts);
     if (!hf.converged) allConverged = false;
     if (method === "hf") return hf.energy;
@@ -147,7 +204,9 @@ export function runCounterpoise(
   }
 
   // ── Supermolecule. ──
-  const superEnergy = singlePoint(atoms);
+  const superEnergy = isOpenShell
+    ? singlePoint(atoms, superAlpha, superBeta)
+    : singlePoint(atoms);
 
   // ── Per-fragment runs. ──
   const fragmentEnergiesCP: number[] = [];
@@ -155,15 +214,17 @@ export function runCounterpoise(
 
   for (const f of fragments) {
     const fragmentSet = new Set(f.atomIndices);
+    const nA = f.spin?.nAlpha;
+    const nB = f.spin?.nBeta;
     // a) Fragment in dimer basis: all atoms present, but only this
     //    fragment's atoms keep their nuclei + electrons. Others are
     //    ghosts (Z=0, no electrons, basis functions present).
     const dimerBasisAtoms: Atom[] = atoms.map((a, i) =>
       fragmentSet.has(i) ? a : { ...a, ghost: true },
     );
-    fragmentEnergiesCP.push(singlePoint(dimerBasisAtoms));
+    fragmentEnergiesCP.push(singlePoint(dimerBasisAtoms, nA, nB));
     // b) Fragment in bare monomer basis: only this fragment's atoms exist.
-    fragmentEnergiesBare.push(singlePoint(atoms.filter((_, i) => fragmentSet.has(i))));
+    fragmentEnergiesBare.push(singlePoint(atoms.filter((_, i) => fragmentSet.has(i)), nA, nB));
   }
 
   let sumCP = 0;

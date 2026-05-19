@@ -191,3 +191,108 @@ describe("Counterpoise / BSSE", () => {
     )).toThrow(/out of range/);
   });
 });
+
+describe("Counterpoise / BSSE — open-shell (UHF / UCCSD)", () => {
+  test("H + H at 5 Å, both α-spin (triplet): UHF BSSE ≈ 0 at long separation", () => {
+    // Two H atoms with parallel spins at 5 Å. STO-3G UHF should give
+    // ΔE ≈ 0 (no interaction) and BSSE ≈ 0 (each H atom has the same
+    // 1-orbital basis whether the ghost is there or not — STO-3G H has
+    // only 1 basis function per atom, no extra orbitals to "borrow").
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0, 0, 5.0] },
+    ];
+    const cp = runCounterpoise(
+      atoms,
+      [
+        { atomIndices: [0], spin: { nAlpha: 1, nBeta: 0 } },
+        { atomIndices: [1], spin: { nAlpha: 1, nBeta: 0 } },
+      ],
+      "sto-3g",
+      {},        // hfOpts (unused for uhf)
+      "uhf",
+      {},        // ccsdOpts (unused)
+      { useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8 },
+    );
+    expect(cp.allConverged).toBe(true);
+    // Each H atom STO-3G UHF: ε = -0.466582 Ha. Σ = -0.933164.
+    expect(Math.abs(cp.fragmentEnergiesBare[0]! - (-0.466582))).toBeLessThan(1e-4);
+    expect(Math.abs(cp.fragmentEnergiesBare[1]! - (-0.466582))).toBeLessThan(1e-4);
+    // Long-range non-interacting interaction.
+    expect(Math.abs(cp.interactionEnergy)).toBeLessThan(1e-3);
+    // BSSE positive (variational) and tiny for this minimal-basis case.
+    expect(cp.bsseCorrection).toBeGreaterThanOrEqual(0);
+    expect(cp.bsseCorrection).toBeLessThan(5e-4);
+  });
+
+  test("Li atom + H atom at 5 Å (Li doublet + H doublet → triplet supermolecule): UHF gives finite ΔE and ΔE_CP", () => {
+    // Li atom = doublet (1s² 2s¹), nα=2, nβ=1.
+    // H atom α-spin (nα=1, nβ=0) → supermolecule (nα=3, nβ=1) — triplet.
+    const atoms: Atom[] = [
+      { symbol: "Li", pos: [0, 0, 0] },
+      { symbol: "H",  pos: [0, 0, 5.0] },
+    ];
+    const cp = runCounterpoise(
+      atoms,
+      [
+        { atomIndices: [0], spin: { nAlpha: 2, nBeta: 1 } },
+        { atomIndices: [1], spin: { nAlpha: 1, nBeta: 0 } },
+      ],
+      "sto-3g",
+      {},
+      "uhf",
+      {},
+      { useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8 },
+    );
+    expect(cp.allConverged).toBe(true);
+    // Both interaction energies real, finite.
+    expect(Number.isFinite(cp.interactionEnergy)).toBe(true);
+    expect(Number.isFinite(cp.interactionEnergyCP)).toBe(true);
+    // BSSE non-negative (variational).
+    expect(cp.bsseCorrection).toBeGreaterThanOrEqual(-1e-10);
+  });
+
+  test("UCCSD method: H₂ (singlet) + H (α-doublet) → doublet supermolecule completes without throwing", () => {
+    // Mixed closed-shell + open-shell fragments. H₂ fragment is treated
+    // via UHF with nα=nβ=1 (collapses to RHF); H atom α-spin via UHF with
+    // (1, 0). Each fragment then runs UCCSD on top of its UHF.
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0]      },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+      { symbol: "H", pos: [0, 0, 5.0]    },  // 4.3 Å gap
+    ];
+    const cp = runCounterpoise(
+      atoms,
+      [
+        { atomIndices: [0, 1], spin: { nAlpha: 1, nBeta: 1 } },
+        { atomIndices: [2],    spin: { nAlpha: 1, nBeta: 0 } },
+      ],
+      "sto-3g",
+      {},
+      "uccsd",
+      { maxIter: 100, tol: 1e-8 },
+      { useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8 },
+    );
+    expect(cp.allConverged).toBe(true);
+    expect(Number.isFinite(cp.interactionEnergy)).toBe(true);
+    expect(Number.isFinite(cp.interactionEnergyCP)).toBe(true);
+    // BSSE non-negative.
+    expect(cp.bsseCorrection).toBeGreaterThanOrEqual(-1e-10);
+  });
+
+  test("UHF method without per-fragment spin throws", () => {
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0, 0, 5.0] },
+    ];
+    expect(() =>
+      runCounterpoise(
+        atoms,
+        [{ atomIndices: [0] }, { atomIndices: [1] }],
+        "sto-3g",
+        {},
+        "uhf",
+      ),
+    ).toThrow(/requires fragments\[0\]\.spin/);
+  });
+});
