@@ -38,10 +38,14 @@ import { type MolecularIntegrals } from "../cg-molecular.js";
 import { eigsymmetric } from "../../manybody/dense-eig.js";
 import { molecularGrid, type GridOpts, type MolecularGrid } from "./grid.js";
 import {
-  evalBasisOnGrid, evalDensityOnGrid,
-  type BasisValuesOnGrid,
+  evalBasisOnGrid, evalBasisGradOnGrid,
+  evalDensityOnGrid, evalDensityAndGradient,
+  type BasisValuesOnGrid, type BasisGradientsOnGrid,
 } from "./density.js";
-import { evalXC_LSDA } from "./functional-spin.js";
+import {
+  evalXC_LSDA, evalXC_GGA_spin,
+  hasSpinPolarizedForm, type SpinFunctionalKind,
+} from "./functional-spin.js";
 import { hfExchangeMixOf, type FunctionalKind } from "./functional.js";
 import { buildJ, buildK, buildVxcLDA } from "./rks-scf.js";
 import type { AtomSymbol } from "../atoms.js";
@@ -102,13 +106,14 @@ export function runUKSDFT(
     throw new Error(`runUKSDFT: too many electrons (nα=${nAlpha}, nβ=${nBeta}, n=${n})`);
   }
   const functional: FunctionalKind = opts.functional ?? "lda-svwn";
-  if (functional !== "lda-svwn") {
+  if (!hasSpinPolarizedForm(functional)) {
     throw new Error(
-      `runUKSDFT: only "lda-svwn" supported in this stage (got "${functional}"). ` +
-      `GGA UKS (BVWN5/BLYP/B3VWN5/B3LYP5) is a queued follow-up.`,
+      `runUKSDFT: functional "${functional}" has no spin-polarized form. ` +
+      `Supported: lda-svwn, bvwn5, b3vwn5, blyp, b3lyp5.`,
     );
   }
-  const hfMix = hfExchangeMixOf(functional);     // 0 for pure LDA
+  const isGGA = functional !== "lda-svwn";
+  const hfMix = hfExchangeMixOf(functional);
   const maxIter = opts.maxIter ?? 100;
   const eTol = opts.energyTol ?? 1e-7;
   const rTol = opts.residualTol ?? 1e-5;
@@ -120,9 +125,12 @@ export function runUKSDFT(
 
   const { S_AO, h_AO, eri_AO, X, Vnn } = integrals;
 
-  // ── Molecular grid + basis values. ─────────────────────────
+  // ── Molecular grid + basis values (+ gradients for GGA). ──
   const grid: MolecularGrid = molecularGrid(integrals.nuclei, nucleiSymbols, opts.grid ?? {});
   const basis: BasisValuesOnGrid = evalBasisOnGrid(integrals.shells, grid);
+  const basisGrad: BasisGradientsOnGrid | null = isGGA
+    ? evalBasisGradOnGrid(integrals.shells, grid)
+    : null;
   const nGrid = grid.x.length;
 
   // ── Initial α / β guess from core h with α-spin perturbation. ──
@@ -156,6 +164,9 @@ export function runUKSDFT(
   const epsXc = new Float64Array(nGrid);
   const vRhoUp = new Float64Array(nGrid);
   const vRhoDn = new Float64Array(nGrid);
+  const vGammaUU = isGGA ? new Float64Array(nGrid) : null;
+  const vGammaUD = isGGA ? new Float64Array(nGrid) : null;
+  const vGammaDD = isGGA ? new Float64Array(nGrid) : null;
 
   for (iter = 1; iter <= maxIter; iter++) {
     const D_total = new Float64Array(n * n);
@@ -165,16 +176,54 @@ export function runUKSDFT(
     const Ka = hfMix > 0 ? buildK(D_alpha, eri_AO, n) : null;
     const Kb = hfMix > 0 ? buildK(D_beta,  eri_AO, n) : null;
 
-    // Spin-resolved density on grid.
-    const rhoUp = evalDensityOnGrid(D_alpha, basis);
-    const rhoDn = evalDensityOnGrid(D_beta,  basis);
+    // Spin-resolved density (+ gradients for GGA) on grid.
+    let rhoUp: Float64Array;
+    let rhoDn: Float64Array;
+    let gradXa: Float64Array | null = null, gradYa: Float64Array | null = null, gradZa: Float64Array | null = null;
+    let gradXb: Float64Array | null = null, gradYb: Float64Array | null = null, gradZb: Float64Array | null = null;
+    let gammaUU: Float64Array | null = null;
+    let gammaUD: Float64Array | null = null;
+    let gammaDD: Float64Array | null = null;
+    if (isGGA && basisGrad) {
+      const a = evalDensityAndGradient(D_alpha, basis, basisGrad);
+      const b = evalDensityAndGradient(D_beta,  basis, basisGrad);
+      rhoUp = a.rho; rhoDn = b.rho;
+      gradXa = a.gradX; gradYa = a.gradY; gradZa = a.gradZ;
+      gradXb = b.gradX; gradYb = b.gradY; gradZb = b.gradZ;
+      gammaUU = a.gamma; gammaDD = b.gamma;
+      gammaUD = new Float64Array(nGrid);
+      for (let p = 0; p < nGrid; p++) {
+        gammaUD[p] = gradXa[p]! * gradXb[p]! + gradYa[p]! * gradYb[p]! + gradZa[p]! * gradZb[p]!;
+      }
+    } else {
+      rhoUp = evalDensityOnGrid(D_alpha, basis);
+      rhoDn = evalDensityOnGrid(D_beta,  basis);
+    }
 
-    // ── Spin-polarized LDA-SVWN5 functional evaluation. ───────
-    evalXC_LSDA(rhoUp, rhoDn, epsXc, vRhoUp, vRhoDn);
-
-    // Spin-resolved V_xc AO matrices via the same LDA builder.
-    const VxcA = buildVxcLDA(vRhoUp, basis, grid.w);
-    const VxcB = buildVxcLDA(vRhoDn, basis, grid.w);
+    // ── Spin-polarized functional evaluation. ─────────────────
+    let VxcA: Float64Array;
+    let VxcB: Float64Array;
+    if (isGGA && basisGrad && vGammaUU && vGammaUD && vGammaDD
+        && gammaUU && gammaUD && gammaDD
+        && gradXa && gradYa && gradZa && gradXb && gradYb && gradZb) {
+      evalXC_GGA_spin(functional as SpinFunctionalKind, rhoUp, rhoDn,
+        gammaUU, gammaUD, gammaDD,
+        { epsXc, vRhoUp, vRhoDn, vGammaUU, vGammaUD, vGammaDD });
+      VxcA = buildVxcGGA_spin(
+        vRhoUp, vGammaUU, vGammaUD,
+        gradXa, gradYa, gradZa, gradXb, gradYb, gradZb,
+        basis, basisGrad, grid.w,
+      );
+      VxcB = buildVxcGGA_spin(
+        vRhoDn, vGammaDD, vGammaUD,
+        gradXb, gradYb, gradZb, gradXa, gradYa, gradZa,
+        basis, basisGrad, grid.w,
+      );
+    } else {
+      evalXC_LSDA(rhoUp, rhoDn, epsXc, vRhoUp, vRhoDn);
+      VxcA = buildVxcLDA(vRhoUp, basis, grid.w);
+      VxcB = buildVxcLDA(vRhoDn, basis, grid.w);
+    }
 
     // ── Fock_σ = h + J + V_xc^σ − ½·hfMix·K_σ ─────────────────
     const F_alpha = new Float64Array(n * n);
@@ -341,6 +390,70 @@ export function runUKSDFT(
     history,
     nGridPoints: nGrid,
   };
+}
+
+/**
+ * Spin-resolved GGA V_xc builder. For spin σ, the AO Fock contribution
+ * is:
+ *
+ *   V_xc^σ[μν] = Σ_p w_p {
+ *               v_ρ^σ φ_μ φ_ν
+ *             + 2 v_γ^σσ ∇ρ_σ · ∇(φ_μ φ_ν)
+ *             +   v_γ^σσ' ∇ρ_σ' · ∇(φ_μ φ_ν)
+ *           }
+ *
+ * `gXs` / `gYs` / `gZs` are ∇ρ for the SAME spin σ; the other set is
+ * for the opposite spin (cross-spin γ_αβ term).
+ */
+function buildVxcGGA_spin(
+  vRho: Float64Array,
+  vGammaSame: Float64Array,
+  vGammaCross: Float64Array,
+  gXs: Float64Array, gYs: Float64Array, gZs: Float64Array,
+  gXo: Float64Array, gYo: Float64Array, gZo: Float64Array,
+  basis: BasisValuesOnGrid,
+  basisGrad: BasisGradientsOnGrid,
+  weights: Float64Array,
+): Float64Array {
+  const { phi, n, nGrid } = basis;
+  const { phix, phiy, phiz } = basisGrad;
+  const V = new Float64Array(n * n);
+  const dotS = new Float64Array(n);
+  const dotO = new Float64Array(n);
+  for (let p = 0; p < nGrid; p++) {
+    const w = weights[p]!;
+    const cRho = w * vRho[p]!;
+    const cSame  = 2 * w * vGammaSame[p]!;
+    const cCross =     w * vGammaCross[p]!;
+    if (cRho === 0 && cSame === 0 && cCross === 0) continue;
+    const off = p * n;
+    const sx = gXs[p]!, sy = gYs[p]!, sz = gZs[p]!;
+    const ox = gXo[p]!, oy = gYo[p]!, oz = gZo[p]!;
+    for (let mu = 0; mu < n; mu++) {
+      dotS[mu] = sx * phix[off + mu]! + sy * phiy[off + mu]! + sz * phiz[off + mu]!;
+      dotO[mu] = ox * phix[off + mu]! + oy * phiy[off + mu]! + oz * phiz[off + mu]!;
+    }
+    for (let mu = 0; mu < n; mu++) {
+      const phimu = phi[off + mu]!;
+      const dmuS = dotS[mu]!;
+      const dmuO = dotO[mu]!;
+      // The combination ∇φ_μ contributes via dmuS, dmuO; the φ_μ·∇φ_ν part is
+      // handled in the symmetric inner loop.
+      const aMu = cRho * phimu + cSame * dmuS + cCross * dmuO;
+      for (let nu = 0; nu <= mu; nu++) {
+        const phinu = phi[off + nu]!;
+        const dnuS = dotS[nu]!;
+        const dnuO = dotO[nu]!;
+        V[mu * n + nu]! += aMu * phinu + (cSame * dnuS + cCross * dnuO) * phimu;
+      }
+    }
+  }
+  for (let mu = 0; mu < n; mu++) {
+    for (let nu = 0; nu < mu; nu++) {
+      V[nu * n + mu] = V[mu * n + nu]!;
+    }
+  }
+  return V;
 }
 
 // ─────────────────────────────────────────────────────────────
