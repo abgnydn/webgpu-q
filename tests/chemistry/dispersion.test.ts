@@ -14,8 +14,9 @@ import { describe, expect, test } from "vitest";
 import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
 import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
+import { runUHFSCF } from "../../src/chemistry/uhf-scf.js";
 import { tdhfPolarizability, tdhfPolarizabilityImag } from "../../src/chemistry/tdhf.js";
-import { c6Coefficient } from "../../src/chemistry/dispersion.js";
+import { c6Coefficient, c6CoefficientGeneral } from "../../src/chemistry/dispersion.js";
 
 function buildH2() {
   const atoms: Atom[] = [
@@ -97,6 +98,50 @@ describe("C₆ dispersion via Casimir-Polder integral of α(iω)", () => {
     expect(beh2_self.c6).toBeGreaterThan(h2_self.c6);
     expect(beh2_self.c6).toBeGreaterThan(0);
   });
+
+  test("Closed-shell-via-UHF: C₆(RHF route) = C₆(UHF route on n_α=n_β H₂)", () => {
+    // Build H₂ once with RHF and once with UHF (n_α=n_β=1, no symmetry
+    // breaking). Confirm c6CoefficientGeneral routes both consistently
+    // — UHF α(iω) on closed-shell H₂ collapses to RHF α(iω) per the
+    // uhf-tdhf.test.ts closed-shell-limit test, so C₆ must match.
+    const h2 = buildH2();
+    const uhf_h2 = runUHFSCF(h2.integrals, 1, 1, {
+      useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8,
+      symmetryBreaking: 0,
+    });
+    const rhfC6 = c6CoefficientGeneral(
+      { kind: "rhf", hf: h2.hf, integrals: h2.integrals, shells: h2.shells },
+      { kind: "rhf", hf: h2.hf, integrals: h2.integrals, shells: h2.shells },
+    ).c6;
+    const uhfC6 = c6CoefficientGeneral(
+      { kind: "uhf", uhf: uhf_h2, integrals: h2.integrals, shells: h2.shells },
+      { kind: "uhf", uhf: uhf_h2, integrals: h2.integrals, shells: h2.shells },
+    ).c6;
+    expect(Math.abs(uhfC6 - rhfC6) / rhfC6).toBeLessThan(1e-6);
+  });
+
+  test("Open-shell radical C₆: H↑ atom self-dispersion via UHF is finite and positive", () => {
+    // H atom STO-3G UHF: nα=1, nβ=0. α-virtual = 0 (only 1 AO), so
+    // α(0) = 0 and C₆ = 0. Use cc-pVDZ which gives Li ~ 2p virtual.
+    const { shells, nuclei } = moleculeToShellsNuclei(
+      [{ symbol: "Li", pos: [0, 0, 0] }],
+      "cc-pvdz",
+    );
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const uhf = runUHFSCF(integrals, 2, 1, {
+      maxIter: 200, energyTol: 1e-10, densityTol: 1e-8,
+    });
+    expect(uhf.converged).toBe(true);
+    const r = c6CoefficientGeneral(
+      { kind: "uhf", uhf, integrals, shells },
+      { kind: "uhf", uhf, integrals, shells },
+    );
+    expect(Number.isFinite(r.c6)).toBe(true);
+    expect(r.c6).toBeGreaterThan(0);
+    // Literature: Li-Li C₆ ≈ 1390 a.u. (experiment / CCSD-F12).
+    // TDHF/cc-pVDZ underestimates significantly (no diffuse, no
+    // correlation in α). Just bound it as positive & finite.
+  }, 60_000);
 
   test("Quadrature convergence: N = 8 / 16 / 32 agree to ≤ 2%", () => {
     const h2 = buildH2();

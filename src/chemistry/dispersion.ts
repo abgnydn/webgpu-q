@@ -42,8 +42,38 @@
 
 import type { MolecularIntegrals } from "./cg-molecular.js";
 import type { HFResult } from "./hf-scf.js";
+import type { UHFResult } from "./uhf-scf.js";
 import type { CGShell } from "./integrals-cg.js";
 import { tdhfPolarizabilityImag } from "./tdhf.js";
+import { uhfTdhfPolarizabilityImag } from "./uhf-tdhf.js";
+
+/**
+ * Source of imaginary-axis α(iω) for one fragment: either an RHF
+ * (closed-shell) or UHF (open-shell / radical) reference. The
+ * discriminator selects between `tdhfPolarizabilityImag` and
+ * `uhfTdhfPolarizabilityImag`. Lets a single C₆ entry point handle
+ * all four (RHF-RHF, RHF-UHF, UHF-RHF, UHF-UHF) combinations.
+ */
+export type AlphaImagSource =
+  | {
+      readonly kind: "rhf";
+      readonly hf: HFResult;
+      readonly integrals: MolecularIntegrals;
+      readonly shells: readonly CGShell[];
+    }
+  | {
+      readonly kind: "uhf";
+      readonly uhf: UHFResult;
+      readonly integrals: MolecularIntegrals;
+      readonly shells: readonly CGShell[];
+    };
+
+function isotropicAlphaImag(source: AlphaImagSource, omega: number): number {
+  if (source.kind === "rhf") {
+    return tdhfPolarizabilityImag(source.hf, source.integrals, source.shells, omega).isotropic;
+  }
+  return uhfTdhfPolarizabilityImag(source.uhf, source.integrals, source.shells, omega).isotropic;
+}
 
 export interface C6Opts {
   /** Number of Gauss-Legendre quadrature points (default 16). */
@@ -72,7 +102,8 @@ export interface C6Result {
  * Compute the leading isotropic C₆ van-der-Waals coefficient between
  * two closed-shell systems A and B from their TDHF dynamic
  * polarizabilities at imaginary frequency. A and B can be the same
- * molecule (self-dispersion, C₆^AA).
+ * molecule (self-dispersion, C₆^AA). For radical or mixed systems
+ * use `c6CoefficientGeneral` instead.
  */
 export function c6Coefficient(
   hfA: HFResult,
@@ -83,9 +114,30 @@ export function c6Coefficient(
   shellsB: readonly CGShell[],
   opts: C6Opts = {},
 ): C6Result {
+  return c6CoefficientGeneral(
+    { kind: "rhf", hf: hfA, integrals: integralsA, shells: shellsA },
+    { kind: "rhf", hf: hfB, integrals: integralsB, shells: shellsB },
+    opts,
+  );
+}
+
+/**
+ * Compute C₆(A, B) between any pair of references, closed- or open-
+ * shell. Each side is described by an `AlphaImagSource` discriminated
+ * union ("rhf" or "uhf"). Same molecule on both sides (object-identity
+ * equality on the source) triggers the α-cached fast path so each
+ * quadrature node evaluates α(iω) only once.
+ */
+export function c6CoefficientGeneral(
+  srcA: AlphaImagSource,
+  srcB: AlphaImagSource,
+  opts: C6Opts = {},
+): C6Result {
   const n = opts.quadraturePoints ?? 16;
   const omega0 = opts.omegaScale ?? 0.5;
   const { nodes: u, weights: w } = gaussLegendre(n);
+
+  const sameSource = sourcesIdentical(srcA, srcB);
 
   let c6 = 0;
   const nodeRecords: Array<{
@@ -103,10 +155,8 @@ export function c6Coefficient(
     const omega = omega0 * (1 + ui) / denom;
     const jacobian = 2 * omega0 / (denom * denom);
 
-    const aA = tdhfPolarizabilityImag(hfA, integralsA, shellsA, omega).isotropic;
-    const aB = (hfA === hfB && integralsA === integralsB && shellsA === shellsB)
-      ? aA
-      : tdhfPolarizabilityImag(hfB, integralsB, shellsB, omega).isotropic;
+    const aA = isotropicAlphaImag(srcA, omega);
+    const aB = sameSource ? aA : isotropicAlphaImag(srcB, omega);
 
     const integrand = aA * aB;
     const contribution = wi * jacobian * integrand;
@@ -117,6 +167,14 @@ export function c6Coefficient(
   for (const r of nodeRecords) r.contribution *= 3 / Math.PI;
 
   return { c6, quadraturePoints: n, omegaScale: omega0, nodes: nodeRecords };
+}
+
+function sourcesIdentical(a: AlphaImagSource, b: AlphaImagSource): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.integrals !== b.integrals || a.shells !== b.shells) return false;
+  if (a.kind === "rhf" && b.kind === "rhf") return a.hf === b.hf;
+  if (a.kind === "uhf" && b.kind === "uhf") return a.uhf === b.uhf;
+  return false;
 }
 
 /**
