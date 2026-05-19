@@ -70,9 +70,55 @@ export function tdhfPolarizability(
   omega: number,
 ): TDHFPolarizabilityResult {
   const { ApB, AmB, muOV, dim } = buildCPHFHessians(hf, integrals, shells);
+  // Real ω → subtract ω² from diagonal. M = (A−B)(A+B) − ω²·I.
+  const alpha = solveRPAResponse(ApB, AmB, muOV, dim, -omega * omega, omega);
+  const isotropic = (alpha[0]! + alpha[4]! + alpha[8]!) / 3;
+  return { alpha, isotropic, omega };
+}
 
-  // ── M = (A − B) · (A + B) − ω² · I ─────────────────────────
-  // Plain O(dim³) matrix product. Result is non-symmetric in general.
+/**
+ * Analytical dipole polarizability at IMAGINARY frequency, α(iω).
+ *
+ * Same RPA response equation as `tdhfPolarizability` but with
+ * (iω)² = −ω² so the diagonal-shift sign flips:
+ *   [(A−B)(A+B) + ω²·I] X = (A−B)·F^μ
+ *
+ * M is strictly positive-definite (for stable RHF reference) so
+ * the solve is well-conditioned at every ω > 0 — no poles on the
+ * imaginary axis. α(iω) is real, positive, and decreases monotonically
+ * from α(0) at ω = 0 to 0 as ω → ∞.
+ *
+ * Primary use: Casimir-Polder integrand for C₆ dispersion coefficients
+ * (`c6Coefficient` in `dispersion.ts`).
+ */
+export function tdhfPolarizabilityImag(
+  hf: HFResult,
+  integrals: MolecularIntegrals,
+  shells: readonly CGShell[],
+  omega: number,
+): TDHFPolarizabilityResult {
+  const { ApB, AmB, muOV, dim } = buildCPHFHessians(hf, integrals, shells);
+  // Imaginary ω → add ω² to diagonal. M = (A−B)(A+B) + ω²·I.
+  const alpha = solveRPAResponse(ApB, AmB, muOV, dim, +omega * omega, omega);
+  const isotropic = (alpha[0]! + alpha[4]! + alpha[8]!) / 3;
+  return { alpha, isotropic, omega };
+}
+
+/**
+ * Internal: build M = (A−B)·(A+B) + omegaSquaredTerm·I, solve the
+ * 3-RHS linear system M·X = (A−B)·F, and contract the 3×3 α tensor.
+ * `omegaSquaredTerm` is −ω² for real frequencies, +ω² for imaginary.
+ * `omegaForDiagnostic` is the bare ω (for error messages only).
+ */
+function solveRPAResponse(
+  ApB: Float64Array,
+  AmB: Float64Array,
+  muOV: readonly [Float64Array, Float64Array, Float64Array],
+  dim: number,
+  omegaSquaredTerm: number,
+  omegaForDiagnostic: number,
+): Float64Array {
+  // M = (A − B) · (A + B) + omegaSquaredTerm · I.
   const M = new Float64Array(dim * dim);
   for (let r = 0; r < dim; r++) {
     for (let c = 0; c < dim; c++) {
@@ -82,10 +128,9 @@ export function tdhfPolarizability(
       }
       M[r * dim + c] = s;
     }
-    M[r * dim + r]! -= omega * omega;
+    M[r * dim + r]! += omegaSquaredTerm;
   }
-
-  // ── RHS_μ = (A − B) · F^μ ──────────────────────────────────
+  // RHS_μ = (A − B) · F^μ.
   const RHS: [Float64Array, Float64Array, Float64Array] = [
     new Float64Array(dim), new Float64Array(dim), new Float64Array(dim),
   ];
@@ -98,8 +143,7 @@ export function tdhfPolarizability(
       out[r] = s;
     }
   }
-
-  // ── Augmented Gauss-Jordan: solve M·X = RHS (3 RHS combined). ──
+  // Augmented Gauss-Jordan (3 RHS).
   const stride = dim + 3;
   const aug = new Float64Array(dim * stride);
   for (let i = 0; i < dim; i++) {
@@ -116,8 +160,9 @@ export function tdhfPolarizability(
     }
     if (maxVal < 1e-14) {
       throw new Error(
-        `tdhfPolarizability: M singular at pivot ${p}, ω=${omega}. ` +
-        `Possibly too close to an RPA pole — reduce |ω|.`,
+        `tdhfResponse: M singular at pivot ${p}, ω=${omegaForDiagnostic}. ` +
+        `For real ω: possibly too close to an RPA pole — reduce |ω|. ` +
+        `For imaginary ω: unexpected — RHF reference may be unstable.`,
       );
     }
     if (maxRow !== p) {
@@ -146,8 +191,7 @@ export function tdhfPolarizability(
     X[1][i] = aug[i * stride + dim + 1]!;
     X[2][i] = aug[i * stride + dim + 2]!;
   }
-
-  // ── α(ω)_μν = 4 · Σ X^μ · F^ν, symmetrize. ─────────────────
+  // α_μν = 4 · Σ X^μ · F^ν, then symmetrize.
   const alpha = new Float64Array(9);
   for (let x = 0; x < 3; x++) {
     const Xx = X[x]!;
@@ -165,6 +209,5 @@ export function tdhfPolarizability(
       alpha[y * 3 + x] = avg;
     }
   }
-  const isotropic = (alpha[0]! + alpha[4]! + alpha[8]!) / 3;
-  return { alpha, isotropic, omega };
+  return alpha;
 }
