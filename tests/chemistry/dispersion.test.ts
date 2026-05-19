@@ -16,6 +16,7 @@ import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js"
 import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
 import { runUHFSCF } from "../../src/chemistry/uhf-scf.js";
 import { runRKSDFT } from "../../src/chemistry/dft/rks-scf.js";
+import { runUKSDFT } from "../../src/chemistry/dft/uks-scf.js";
 import { tdhfPolarizability, tdhfPolarizabilityImag } from "../../src/chemistry/tdhf.js";
 import { c6Coefficient, c6CoefficientGeneral } from "../../src/chemistry/dispersion.js";
 import type { AtomSymbol } from "../../src/chemistry/atoms.js";
@@ -121,6 +122,30 @@ describe("C₆ dispersion via Casimir-Polder integral of α(iω)", () => {
     ).c6;
     expect(Math.abs(uhfC6 - rhfC6) / rhfC6).toBeLessThan(1e-6);
   });
+
+  test("UKS-LSDA C₆: Li doublet cc-pVDZ self-dispersion finite + positive", () => {
+    // Closes the {RHF, UHF, RKS, UKS} × C₆ matrix.
+    const { shells, nuclei } = moleculeToShellsNuclei([
+      { symbol: "Li", pos: [0, 0, 0] },
+    ], "cc-pvdz");
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const uks = runUKSDFT(integrals, 2, 1, ["Li"], {
+      functional: "lda-svwn",
+      maxIter: 200, energyTol: 1e-9, residualTol: 1e-7,
+    });
+    const r = c6CoefficientGeneral(
+      {
+        kind: "uks", uks, integrals, shells,
+        functional: "lda-svwn", nucleiSymbols: ["Li"],
+      },
+      {
+        kind: "uks", uks, integrals, shells,
+        functional: "lda-svwn", nucleiSymbols: ["Li"],
+      },
+    );
+    expect(Number.isFinite(r.c6)).toBe(true);
+    expect(r.c6).toBeGreaterThan(0);
+  }, 60_000);
 
   test("Open-shell radical C₆: H↑ atom self-dispersion via UHF is finite and positive", () => {
     // H atom STO-3G UHF: nα=1, nβ=0. α-virtual = 0 (only 1 AO), so

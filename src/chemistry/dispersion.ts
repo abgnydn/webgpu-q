@@ -43,12 +43,16 @@
 import type { MolecularIntegrals } from "./cg-molecular.js";
 import type { HFResult } from "./hf-scf.js";
 import type { UHFResult } from "./uhf-scf.js";
+import type { UKSResult } from "./dft/uks-scf.js";
 import type { HFLike } from "./cis.js";
 import type { CGShell } from "./integrals-cg.js";
+import type { AtomSymbol } from "./atoms.js";
+import type { FunctionalKind } from "./dft/functional.js";
 import type { TDAOpts } from "./tda-dft.js";
 import { tdhfPolarizabilityImag } from "./tdhf.js";
 import { uhfTdhfPolarizabilityImag } from "./uhf-tdhf.js";
 import { tddftPolarizabilityImag } from "./tddft-response.js";
+import { uksTddftPolarizabilityImag } from "./uks-tdhf.js";
 
 /**
  * Source of imaginary-axis α(iω) for one fragment. Discriminator
@@ -78,6 +82,14 @@ export type AlphaImagSource =
       readonly integrals: MolecularIntegrals;
       readonly shells: readonly CGShell[];
       readonly opts: TDAOpts;
+    }
+  | {
+      readonly kind: "uks";
+      readonly uks: UKSResult;
+      readonly integrals: MolecularIntegrals;
+      readonly shells: readonly CGShell[];
+      readonly functional: FunctionalKind;       // currently must be "lda-svwn"
+      readonly nucleiSymbols: readonly AtomSymbol[];
     };
 
 function isotropicAlphaImag(source: AlphaImagSource, omega: number): number {
@@ -87,7 +99,12 @@ function isotropicAlphaImag(source: AlphaImagSource, omega: number): number {
   if (source.kind === "uhf") {
     return uhfTdhfPolarizabilityImag(source.uhf, source.integrals, source.shells, omega).isotropic;
   }
-  return tddftPolarizabilityImag(source.integrals, source.ks, source.shells, source.opts, omega).isotropic;
+  if (source.kind === "rks") {
+    return tddftPolarizabilityImag(source.integrals, source.ks, source.shells, source.opts, omega).isotropic;
+  }
+  // kind === "uks"
+  return uksTddftPolarizabilityImag(source.uks, source.integrals, source.shells, omega,
+    { functional: source.functional, nucleiSymbols: source.nucleiSymbols }).isotropic;
 }
 
 export interface C6Opts {
@@ -190,6 +207,8 @@ function sourcesIdentical(a: AlphaImagSource, b: AlphaImagSource): boolean {
   if (a.kind === "rhf" && b.kind === "rhf") return a.hf === b.hf;
   if (a.kind === "uhf" && b.kind === "uhf") return a.uhf === b.uhf;
   if (a.kind === "rks" && b.kind === "rks") return a.ks === b.ks && a.opts === b.opts;
+  if (a.kind === "uks" && b.kind === "uks") return a.uks === b.uks
+    && a.functional === b.functional && a.nucleiSymbols === b.nucleiSymbols;
   return false;
 }
 
