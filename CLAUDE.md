@@ -99,6 +99,58 @@ highest-leverage demonstration.
 
 ---
 
+## Session marker: 2026-05-19 — full polarizability / dispersion stack
+
+**TL;DR:** Closed-shell + open-shell, HF + DFT, static + dynamic
+polarizability all shipped — plus C₆ via Casimir-Polder. The
+{RHF, UHF, RKS-DFT} × {static α, α(ω), α(iω), C₆} matrix is now
+11/12 cells filled (only UKS-DFT remains).
+
+**New modules** (commits 16f937c → d3964c9 over today):
+- `src/chemistry/tdhf.ts` — closed-shell TDHF α(ω) via the symmetric
+  RPA equation [(A−B)(A+B) − ω²·I] X = (A−B)·F. Companion
+  `tdhfPolarizabilityImag` for α(iω). Refactored `cphf.ts` to share
+  `buildCPHFHessians({ApB, AmB, muOV, dim, nOcc, nVirt})`.
+- `src/chemistry/uhf-tdhf.ts` — open-shell mirror on UHF's 4-spin-
+  block (A±B). Refactored `uhf-cphf.ts` to share
+  `buildUHFCPHFHessians`. Closed-shell limit (n_α=n_β) matches RHF
+  TDHF α(ω) to 1e-7 at non-zero ω.
+- `src/chemistry/tddft-response.ts` — DFT response α(ω) and α(iω)
+  using the existing `buildTDABlocks` (newly exported) with the XC
+  kernel embedded in A and B. method="hf" reproduces tdhf to 1e-7.
+- `src/chemistry/dispersion.ts` — Casimir-Polder C₆ via
+  `c6Coefficient` (closed-shell) and `c6CoefficientGeneral(srcA,
+  srcB)` taking an `AlphaImagSource` union with kinds "rhf", "uhf",
+  "rks". Gauss-Legendre quadrature with Golub-Welsch Jacobi-tridiag
+  eigensolver for the nodes (16 default, convergent to 2% from 8 → 32).
+
+**Other Tier 3 closes today:**
+- UCCSD(T) frozen-core via non-contiguous `frozenOccSO: ReadonlySet<number>`
+  (closes the explicit TODO in `uccsd-t.ts` header).
+- Open-shell counterpoise (UHF / UCCSD) via per-fragment
+  `spin: {nAlpha, nBeta}` field on `CounterpoiseFragment`.
+- DFT SCF level-shift via `RKSOpts.levelShift` (mirror of `HFOpts.levelShift`).
+- aug-cc-pVDZ first-row coverage (Li/Be/C/N/F diffuse functions were
+  wired earlier; LIMITATIONS line refreshed).
+
+**Validation:** All polarizability / dispersion tests green:
+26/26 in {cphf, tdhf, uhf-cphf, uhf-tdhf, dispersion, tddft-response, cis};
+DFT level-shift 2/2; counterpoise 11/11; UCCSD(T) 3/3. Closed-shell
+↔ open-shell ↔ DFT cross-checks pass at 1e-7 per tensor element.
+
+**What's left in this thematic family:**
+- UKS-DFT SCF (open-shell DFT) — would close the only remaining
+  {reference} × {response} matrix cell. Requires spin-polarized
+  J/K assembly + spin-polarized XC integration (functional-spin.ts
+  already has the kernels). ~2-3 hours.
+- Z-vector for MP2 / CCSD analytical gradients — different family
+  (energy derivatives, not response properties) but the same
+  CPHF orbital Hessian machinery becomes the response-equation
+  solver. ~3 hours.
+- NMR shielding via CPHF on magnetic perturbation — needs the
+  one-electron magnetic dipole / angular-momentum integrals (not
+  currently exposed in `integrals-cg.ts`). Substantial.
+
 ## Session marker: 2026-05-13 — EOM-CCSD σ_1 sign-flip closed
 
 **TL;DR:** The multi-electron singlet bug E35 surfaced (2.57 eV gap vs
