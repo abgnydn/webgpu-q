@@ -15,8 +15,10 @@ import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
 import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
 import { runUHFSCF } from "../../src/chemistry/uhf-scf.js";
+import { runRKSDFT } from "../../src/chemistry/dft/rks-scf.js";
 import { tdhfPolarizability, tdhfPolarizabilityImag } from "../../src/chemistry/tdhf.js";
 import { c6Coefficient, c6CoefficientGeneral } from "../../src/chemistry/dispersion.js";
+import type { AtomSymbol } from "../../src/chemistry/atoms.js";
 
 function buildH2() {
   const atoms: Atom[] = [
@@ -141,6 +143,40 @@ describe("C₆ dispersion via Casimir-Polder integral of α(iω)", () => {
     // Literature: Li-Li C₆ ≈ 1390 a.u. (experiment / CCSD-F12).
     // TDHF/cc-pVDZ underestimates significantly (no diffuse, no
     // correlation in α). Just bound it as positive & finite.
+  }, 60_000);
+
+  test("DFT C₆: H₂-H₂ via B3LYP5 is finite, positive, and same order of magnitude as RHF C₆", () => {
+    // DFT generally gives different α(0) than HF (correlation in both
+    // reference and XC kernel); whether DFT > HF or DFT < HF depends
+    // on functional + basis. On H₂ STO-3G the ordering happens to
+    // come out DFT < HF slightly (no polarization functions to engage
+    // the XC kernel benefit). What matters here is that the DFT route
+    // runs cleanly and returns a physically reasonable C₆.
+    const h2 = buildH2();
+    const nucleiSymbols: AtomSymbol[] = ["H", "H"];
+    const ks = runRKSDFT(h2.integrals, 2, nucleiSymbols, {
+      functional: "b3lyp5",
+      useDIIS: true, maxIter: 200, energyTol: 1e-8, residualTol: 1e-6,
+    });
+    expect(ks.converged).toBe(true);
+
+    const opts = { method: "b3lyp5" as const, spin: "singlet" as const, nucleiSymbols };
+    const dftC6 = c6CoefficientGeneral(
+      { kind: "rks", ks, integrals: h2.integrals, shells: h2.shells, opts },
+      { kind: "rks", ks, integrals: h2.integrals, shells: h2.shells, opts },
+    ).c6;
+    const rhfC6 = c6Coefficient(
+      h2.hf, h2.integrals, h2.shells,
+      h2.hf, h2.integrals, h2.shells,
+    ).c6;
+
+    expect(Number.isFinite(dftC6)).toBe(true);
+    expect(dftC6).toBeGreaterThan(0);
+    // Same order of magnitude (within a factor of ~3): DFT and HF
+    // both undershoot literature CBS C₆ ≈ 12 a.u. due to the minimal
+    // STO-3G basis, but neither pathology blows up.
+    expect(dftC6 / rhfC6).toBeGreaterThan(1 / 3);
+    expect(dftC6 / rhfC6).toBeLessThan(3);
   }, 60_000);
 
   test("Quadrature convergence: N = 8 / 16 / 32 agree to ≤ 2%", () => {

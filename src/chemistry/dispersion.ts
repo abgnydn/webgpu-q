@@ -43,16 +43,21 @@
 import type { MolecularIntegrals } from "./cg-molecular.js";
 import type { HFResult } from "./hf-scf.js";
 import type { UHFResult } from "./uhf-scf.js";
+import type { HFLike } from "./cis.js";
 import type { CGShell } from "./integrals-cg.js";
+import type { TDAOpts } from "./tda-dft.js";
 import { tdhfPolarizabilityImag } from "./tdhf.js";
 import { uhfTdhfPolarizabilityImag } from "./uhf-tdhf.js";
+import { tddftPolarizabilityImag } from "./tddft-response.js";
 
 /**
- * Source of imaginary-axis α(iω) for one fragment: either an RHF
- * (closed-shell) or UHF (open-shell / radical) reference. The
- * discriminator selects between `tdhfPolarizabilityImag` and
- * `uhfTdhfPolarizabilityImag`. Lets a single C₆ entry point handle
- * all four (RHF-RHF, RHF-UHF, UHF-RHF, UHF-UHF) combinations.
+ * Source of imaginary-axis α(iω) for one fragment. Discriminator
+ * picks the right α(iω) routine:
+ *   - "rhf" → `tdhfPolarizabilityImag` (HF reference)
+ *   - "uhf" → `uhfTdhfPolarizabilityImag` (open-shell UHF reference)
+ *   - "rks" → `tddftPolarizabilityImag` (closed-shell DFT/KS reference
+ *     with XC kernel in the response — substantially better C₆ values
+ *     than HF, since correlation enters both reference and kernel).
  */
 export type AlphaImagSource =
   | {
@@ -66,13 +71,23 @@ export type AlphaImagSource =
       readonly uhf: UHFResult;
       readonly integrals: MolecularIntegrals;
       readonly shells: readonly CGShell[];
+    }
+  | {
+      readonly kind: "rks";
+      readonly ks: HFLike;
+      readonly integrals: MolecularIntegrals;
+      readonly shells: readonly CGShell[];
+      readonly opts: TDAOpts;
     };
 
 function isotropicAlphaImag(source: AlphaImagSource, omega: number): number {
   if (source.kind === "rhf") {
     return tdhfPolarizabilityImag(source.hf, source.integrals, source.shells, omega).isotropic;
   }
-  return uhfTdhfPolarizabilityImag(source.uhf, source.integrals, source.shells, omega).isotropic;
+  if (source.kind === "uhf") {
+    return uhfTdhfPolarizabilityImag(source.uhf, source.integrals, source.shells, omega).isotropic;
+  }
+  return tddftPolarizabilityImag(source.integrals, source.ks, source.shells, source.opts, omega).isotropic;
 }
 
 export interface C6Opts {
@@ -174,6 +189,7 @@ function sourcesIdentical(a: AlphaImagSource, b: AlphaImagSource): boolean {
   if (a.integrals !== b.integrals || a.shells !== b.shells) return false;
   if (a.kind === "rhf" && b.kind === "rhf") return a.hf === b.hf;
   if (a.kind === "uhf" && b.kind === "uhf") return a.uhf === b.uhf;
+  if (a.kind === "rks" && b.kind === "rks") return a.ks === b.ks && a.opts === b.opts;
   return false;
 }
 

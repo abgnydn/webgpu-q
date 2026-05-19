@@ -70,6 +70,46 @@ export function tddftPolarizability(
   opts: TDAOpts,
   omega: number,
 ): TDDFTPolarizabilityResult {
+  const alpha = solveTDDFTResponse(integrals, hf, shells, opts, -omega * omega, omega);
+  const isotropic = (alpha[0]! + alpha[4]! + alpha[8]!) / 3;
+  return { alpha, isotropic, omega };
+}
+
+/**
+ * Analytical α(iω) at IMAGINARY frequency via TDDFT linear response.
+ * Diagonal-shift sign flips from −ω² → +ω², so M is strictly PSD —
+ * no TDDFT poles on the imaginary axis, well-conditioned for all
+ * ω > 0. α(iω) decreases monotonically from α(0) to 0 as ω → ∞.
+ *
+ * Primary use: DFT Casimir-Polder C₆ via `c6CoefficientGeneral`
+ * with an `{ kind: "rks", ks, integrals, shells, opts }` source.
+ */
+export function tddftPolarizabilityImag(
+  integrals: MolecularIntegrals,
+  hf: HFLike,
+  shells: readonly CGShell[],
+  opts: TDAOpts,
+  omega: number,
+): TDDFTPolarizabilityResult {
+  const alpha = solveTDDFTResponse(integrals, hf, shells, opts, +omega * omega, omega);
+  const isotropic = (alpha[0]! + alpha[4]! + alpha[8]!) / 3;
+  return { alpha, isotropic, omega };
+}
+
+/**
+ * Internal: build (A+B), (A−B), muOV from buildTDABlocks + dipole
+ * integrals, then form M = (A−B)(A+B) + omegaSquaredTerm·I, solve
+ * the 3-RHS system M·X = (A−B)·F via Gauss-Jordan, contract α tensor
+ * with the RHF closed-shell convention (factor 4).
+ */
+function solveTDDFTResponse(
+  integrals: MolecularIntegrals,
+  hf: HFLike,
+  shells: readonly CGShell[],
+  opts: TDAOpts,
+  omegaSquaredTerm: number,
+  omegaForDiagnostic: number,
+): Float64Array {
   // ── Build A and B from the existing TDA-DFT machinery. ─────
   const blocks = buildTDABlocks(integrals, hf, opts, /*buildB=*/true);
   const { A, B, nOcc, nVirt } = blocks;
@@ -130,7 +170,7 @@ export function tddftPolarizability(
       }
       M[r * dim + c] = s;
     }
-    M[r * dim + r]! -= omega * omega;
+    M[r * dim + r]! += omegaSquaredTerm;
   }
   // ── RHS_μ = (A − B) · F^μ.
   const RHS: [Float64Array, Float64Array, Float64Array] = [
@@ -162,8 +202,9 @@ export function tddftPolarizability(
     }
     if (maxVal < 1e-14) {
       throw new Error(
-        `tddftPolarizability: M singular at pivot ${p}, ω=${omega}. ` +
-        `Possibly too close to a TDDFT pole — reduce |ω|.`,
+        `tddftResponse: M singular at pivot ${p}, ω=${omegaForDiagnostic}. ` +
+        `For real ω: too close to a TDDFT pole. ` +
+        `For imaginary ω: unexpected — KS reference may be unstable.`,
       );
     }
     if (maxRow !== p) {
@@ -211,6 +252,5 @@ export function tddftPolarizability(
       alpha[y * 3 + x] = avg;
     }
   }
-  const isotropic = (alpha[0]! + alpha[4]! + alpha[8]!) / 3;
-  return { alpha, isotropic, omega };
+  return alpha;
 }
