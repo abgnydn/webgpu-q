@@ -9,7 +9,7 @@
 //   6. Ghost atoms contribute zero.
 
 import { describe, expect, test } from "vitest";
-import { dispersionD2, dispersionD2Gradient } from "../../src/chemistry/dispersion-d2.js";
+import { dispersionD2, dispersionD2Gradient, dispersionCorrectedEnergy } from "../../src/chemistry/dispersion-d2.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
 describe("Grimme D2 dispersion correction", () => {
@@ -129,13 +129,13 @@ describe("Grimme D2 dispersion correction", () => {
         const plusAtoms = baseAtoms.map((a, i) => {
           if (i !== A) return a;
           const pos = [a.pos[0], a.pos[1], a.pos[2]] as [number, number, number];
-          pos[axis] += h;
+          pos[axis]! += h;
           return { ...a, pos };
         });
         const minusAtoms = baseAtoms.map((a, i) => {
           if (i !== A) return a;
           const pos = [a.pos[0], a.pos[1], a.pos[2]] as [number, number, number];
-          pos[axis] -= h;
+          pos[axis]! -= h;
           return { ...a, pos };
         });
         const ePlus  = dispersionD2(plusAtoms,  opts).energy;
@@ -149,6 +149,21 @@ describe("Grimme D2 dispersion correction", () => {
         expect(Math.abs(analytic - fdHa_per_Bohr)).toBeLessThan(1e-6);
       }
     }
+  });
+
+  test("dispersionCorrectedEnergy adds D2 to a synthetic SCF energy", () => {
+    const atoms: Atom[] = [
+      { symbol: "C", pos: [0, 0, 0] },
+      { symbol: "C", pos: [0, 0, 4.0] },
+    ];
+    const syntheticSCF = -75.50;
+    const r = dispersionCorrectedEnergy(syntheticSCF, atoms, { functional: "b3lyp5" });
+    const d2 = dispersionD2(atoms, { functional: "b3lyp5" });
+    expect(r.scfEnergy).toBe(syntheticSCF);
+    expect(r.dispersionEnergy).toBeCloseTo(d2.energy, 14);
+    expect(r.totalEnergy).toBeCloseTo(syntheticSCF + d2.energy, 14);
+    expect(r.totalEnergy).toBeLessThan(syntheticSCF);   // dispersion stabilizes
+    expect(r.s6).toBe(1.05);
   });
 
   test("Gradient translational invariance: Σ_A ∇_A E = 0", () => {

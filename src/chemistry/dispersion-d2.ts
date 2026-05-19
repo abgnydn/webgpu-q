@@ -97,6 +97,29 @@ const D2_S6: Partial<Record<FunctionalKind, number>> = {
   "b3lyp5": 1.05,
 };
 
+/**
+ * Convenience: add D2 dispersion correction to an existing SCF total
+ * energy. Returns the energy decomposition for inspection / reporting.
+ */
+export function dispersionCorrectedEnergy(
+  scfEnergy: number,
+  atoms: readonly Atom[],
+  opts: DispersionD2Opts = {},
+): {
+  readonly scfEnergy: number;
+  readonly dispersionEnergy: number;
+  readonly totalEnergy: number;
+  readonly s6: number;
+} {
+  const d2 = dispersionD2(atoms, opts);
+  return {
+    scfEnergy,
+    dispersionEnergy: d2.energy,
+    totalEnergy: scfEnergy + d2.energy,
+    s6: d2.s6,
+  };
+}
+
 export interface DispersionD2Opts {
   /** Functional that picked the s6 scaling (see Grimme 2006 Table II). */
   readonly functional?: FunctionalKind;
