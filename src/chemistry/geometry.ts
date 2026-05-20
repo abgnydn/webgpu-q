@@ -651,6 +651,53 @@ export function findBonds(
   return bonds;
 }
 
+export interface LewisBond {
+  readonly i: number;
+  readonly j: number;
+  /** Multiplicity: 1 (single), 2 (double), 3 (triple). */
+  readonly multiplicity: 1 | 2 | 3;
+  /** Original Mayer bond order. */
+  readonly bondOrder: number;
+}
+
+/**
+ * Infer a Lewis-style bond list from a Mayer bond-order matrix.
+ * Each bond order is rounded to the nearest integer multiplicity
+ * (1 = single, 2 = double, 3 = triple) using the standard chemistry
+ * cutoffs:
+ *
+ *   BO < 0.4        → ignored (not a bond)
+ *   0.4 ≤ BO < 1.5  → single bond
+ *   1.5 ≤ BO < 2.5  → double bond
+ *   2.5 ≤ BO        → triple bond
+ *
+ * Useful for: producing chemistry-textbook visualizations from
+ * Mayer bond orders (e.g., "C₂H₄ has a C=C double bond"), generating
+ * SMILES-like outputs, validating chemical-bonding expectations.
+ */
+export function lewisStructure(
+  bondOrders: Float64Array,
+  nAtoms: number,
+  cutoff: number = 0.4,
+): LewisBond[] {
+  if (bondOrders.length !== nAtoms * nAtoms) {
+    throw new Error(`lewisStructure: bondOrders length ${bondOrders.length} ≠ nAtoms² = ${nAtoms * nAtoms}`);
+  }
+  const bonds: LewisBond[] = [];
+  for (let i = 0; i < nAtoms; i++) {
+    for (let j = i + 1; j < nAtoms; j++) {
+      const bo = bondOrders[i * nAtoms + j]!;
+      if (bo < cutoff) continue;
+      let multiplicity: 1 | 2 | 3;
+      if (bo < 1.5) multiplicity = 1;
+      else if (bo < 2.5) multiplicity = 2;
+      else multiplicity = 3;
+      bonds.push({ i, j, multiplicity, bondOrder: bo });
+    }
+  }
+  return bonds;
+}
+
 /**
  * Test molecule planarity by fitting a plane through the heavy atoms
  * (or all atoms if no heavy atoms present) and returning the RMS

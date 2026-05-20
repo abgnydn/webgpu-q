@@ -6,7 +6,7 @@ import {
   centerOfMass, totalMass, principalMomentsOfInertia, rotationalConstants,
   translateMolecule, rotateMolecule, standardOrientation,
   rmsd, rmsdAligned, molecularGraph, coordinationNumbers, distanceMatrix,
-  molecularFormula, planarity,
+  molecularFormula, planarity, lewisStructure,
 } from "../../src/chemistry/geometry.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
@@ -292,6 +292,31 @@ describe("Geometry utilities", () => {
       expect(cn[i]).toBeGreaterThan(0.7); // H sees ~1 neighbor (C)
       expect(cn[i]).toBeLessThan(1.3);
     }
+  });
+
+  test("lewisStructure: bond orders → multiplicities (single/double/triple)", () => {
+    // Hand-crafted bond order matrix for a 4-atom fake molecule:
+    // 0-1: single (BO=0.95), 1-2: double (BO=1.9), 2-3: triple (BO=2.8),
+    // 0-3: no bond (BO=0.2).
+    const N = 4;
+    const bo = new Float64Array(N * N);
+    bo[0 * N + 1] = 0.95; bo[1 * N + 0] = 0.95;
+    bo[1 * N + 2] = 1.9;  bo[2 * N + 1] = 1.9;
+    bo[2 * N + 3] = 2.8;  bo[3 * N + 2] = 2.8;
+    bo[0 * N + 3] = 0.2;  bo[3 * N + 0] = 0.2;
+    const bonds = lewisStructure(bo, N);
+    expect(bonds.length).toBe(3);
+    expect(bonds[0]).toEqual({ i: 0, j: 1, multiplicity: 1, bondOrder: 0.95 });
+    expect(bonds[1]).toEqual({ i: 1, j: 2, multiplicity: 2, bondOrder: 1.9 });
+    expect(bonds[2]).toEqual({ i: 2, j: 3, multiplicity: 3, bondOrder: 2.8 });
+  });
+
+  test("lewisStructure: cutoff parameter filters weak bonds", () => {
+    const N = 2;
+    const bo = new Float64Array(N * N);
+    bo[0 * N + 1] = 0.3; bo[1 * N + 0] = 0.3;
+    expect(lewisStructure(bo, N).length).toBe(0);             // default cutoff 0.4
+    expect(lewisStructure(bo, N, 0.2).length).toBe(1);         // lower cutoff
   });
 
   test("planarity: H₂O is planar (3 heavy/all atoms in a plane)", () => {
