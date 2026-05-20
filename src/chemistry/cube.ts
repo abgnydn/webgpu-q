@@ -69,6 +69,45 @@ export function densityCube(
 }
 
 /**
+ * Convenience wrapper for the most common MO plot: HOMO (highest
+ * occupied molecular orbital). Closed-shell or open-shell α-set.
+ */
+export function homoCube(
+  shells: readonly CGShell[],
+  C_MO: Float64Array,
+  nOccupied: number,
+  atoms: readonly Atom[],
+  opts: CubeOpts = {},
+): string {
+  if (nOccupied < 1) throw new Error(`homoCube: nOccupied=${nOccupied}, no HOMO`);
+  return moCube(shells, C_MO, nOccupied - 1, atoms, {
+    title: opts.title ?? `HOMO (orbital ${nOccupied - 1})`,
+    ...opts,
+  });
+}
+
+/**
+ * Convenience wrapper for LUMO (lowest unoccupied MO). Throws if
+ * the basis has no virtuals (n_occupied = n_basis).
+ */
+export function lumoCube(
+  shells: readonly CGShell[],
+  C_MO: Float64Array,
+  nOccupied: number,
+  nBasis: number,
+  atoms: readonly Atom[],
+  opts: CubeOpts = {},
+): string {
+  if (nOccupied >= nBasis) {
+    throw new Error(`lumoCube: no virtual orbital (nOccupied=${nOccupied}, nBasis=${nBasis})`);
+  }
+  return moCube(shells, C_MO, nOccupied, atoms, {
+    title: opts.title ?? `LUMO (orbital ${nOccupied})`,
+    ...opts,
+  });
+}
+
+/**
  * Build a Cube-file string sampling the spin density
  * ρ_α(r) − ρ_β(r) on a regular grid. Useful for visualizing
  * UHF / UKS / UCCSD radical spin distributions — positive lobes

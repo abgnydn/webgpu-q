@@ -15,7 +15,7 @@ import { describe, expect, test } from "vitest";
 import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
 import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
-import { densityCube, moCube, spinDensityCube } from "../../src/chemistry/cube.js";
+import { densityCube, moCube, spinDensityCube, homoCube, lumoCube } from "../../src/chemistry/cube.js";
 import { runUHFSCF } from "../../src/chemistry/uhf-scf.js";
 
 describe("Gaussian Cube export", () => {
@@ -121,6 +121,38 @@ describe("Gaussian Cube export", () => {
     // (else the variable would be dead).
     expect(hasNegative).toBe(false);
   }, 60_000);
+
+  test("H₂O homoCube + lumoCube: title includes 'HOMO' / 'LUMO'", () => {
+    const half = (104.52 / 2) * Math.PI / 180;
+    const xH = 0.9572 * Math.sin(half);
+    const zH = 0.9572 * Math.cos(half);
+    const atoms: Atom[] = [
+      { symbol: "O", pos: [0, 0, 0] },
+      { symbol: "H", pos: [ xH, 0, zH] },
+      { symbol: "H", pos: [-xH, 0, zH] },
+    ];
+    const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(atoms);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons, {
+      useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8,
+    });
+
+    const homo = homoCube(shells, hf.C_MO, hf.nOccupied, atoms, {
+      padding: 4.0, stepSize: 0.5,
+    });
+    expect(homo.split("\n")[0]).toContain("HOMO");
+
+    const lumo = lumoCube(shells, hf.C_MO, hf.nOccupied, integrals.n, atoms, {
+      padding: 4.0, stepSize: 0.5,
+    });
+    expect(lumo.split("\n")[0]).toContain("LUMO");
+  });
+
+  test("homoCube throws on n_occ = 0; lumoCube throws on full occupation", () => {
+    const dummyC = new Float64Array(1);
+    expect(() => homoCube([], dummyC, 0, [], {})).toThrow(/no HOMO/);
+    expect(() => lumoCube([], dummyC, 5, 5, [], {})).toThrow(/no virtual/);
+  });
 
   test("Li doublet spin density Cube: ∫(ρ_α − ρ_β) dV ≈ +1 (one unpaired α electron)", () => {
     const atoms: Atom[] = [{ symbol: "Li", pos: [0, 0, 0] }];
