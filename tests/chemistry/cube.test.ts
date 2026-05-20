@@ -15,7 +15,8 @@ import { describe, expect, test } from "vitest";
 import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
 import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
-import { densityCube, moCube } from "../../src/chemistry/cube.js";
+import { densityCube, moCube, spinDensityCube } from "../../src/chemistry/cube.js";
+import { runUHFSCF } from "../../src/chemistry/uhf-scf.js";
 
 describe("Gaussian Cube export", () => {
   test("H₂ HF/STO-3G: density cube has correct structure and integrates ≈ 2 e⁻", () => {
@@ -119,5 +120,39 @@ describe("Gaussian Cube export", () => {
     // For H₂ σ_g, ensure the test logically references the sign check
     // (else the variable would be dead).
     expect(hasNegative).toBe(false);
+  }, 60_000);
+
+  test("Li doublet spin density Cube: ∫(ρ_α − ρ_β) dV ≈ +1 (one unpaired α electron)", () => {
+    const atoms: Atom[] = [{ symbol: "Li", pos: [0, 0, 0] }];
+    const { shells, nuclei } = moleculeToShellsNuclei(atoms);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const uhf = runUHFSCF(integrals, 2, 1, {
+      useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8,
+    });
+    const text = spinDensityCube(shells, uhf.D_alpha, uhf.D_beta, atoms,
+      { padding: 6.0, stepSize: 0.4 });
+    const lines = text.trim().split("\n");
+    expect(lines[0]!).toContain("Spin density");
+    // Parse and integrate.
+    const Nx = Number(lines[3]!.trim().split(/\s+/)[0]);
+    const Ny = Number(lines[4]!.trim().split(/\s+/)[0]);
+    const Nz = Number(lines[5]!.trim().split(/\s+/)[0]);
+    const dV = 0.4 ** 3;
+    const values: number[] = [];
+    for (let i = 7; i < lines.length; i++) {
+      const toks = lines[i]!.trim().split(/\s+/).filter((t) => t.length > 0);
+      for (const t of toks) {
+        const v = Number(t);
+        if (!Number.isNaN(v)) values.push(v);
+      }
+    }
+    expect(values.length).toBe(Nx * Ny * Nz);
+    let integral = 0;
+    for (const v of values) integral += v * dV;
+    // Total spin = n_α − n_β = 1. Integration with 0.4-bohr step
+    // captures most of the SOMO density; box-truncation drops some
+    // tail, so expect ~0.8–1.1.
+    expect(integral).toBeGreaterThan(0.7);
+    expect(integral).toBeLessThan(1.2);
   }, 60_000);
 });

@@ -69,6 +69,34 @@ export function densityCube(
 }
 
 /**
+ * Build a Cube-file string sampling the spin density
+ * ρ_α(r) − ρ_β(r) on a regular grid. Useful for visualizing
+ * UHF / UKS / UCCSD radical spin distributions — positive lobes
+ * show α-density excess (typical for the SOMO of a radical),
+ * negative lobes show β excess (spin polarization). Viewers
+ * commonly render both signs at different colors.
+ */
+export function spinDensityCube(
+  shells: readonly CGShell[],
+  D_alpha: Float64Array,
+  D_beta: Float64Array,
+  atoms: readonly Atom[],
+  opts: CubeOpts = {},
+): string {
+  if (D_alpha.length !== D_beta.length) {
+    throw new Error(`spinDensityCube: D_alpha (${D_alpha.length}) / D_beta (${D_beta.length}) length mismatch`);
+  }
+  const spinD = new Float64Array(D_alpha.length);
+  for (let i = 0; i < spinD.length; i++) spinD[i] = D_alpha[i]! - D_beta[i]!;
+  return buildCube(
+    shells, atoms, opts,
+    (r: readonly [number, number, number]) => evalDensityAtPoint(spinD, shells, r),
+    opts.title ?? `Spin density (rho_alpha − rho_beta)`,
+    "spin-density",
+  );
+}
+
+/**
  * Build a Cube-file string sampling a single MO amplitude
  * φ_p(r) = Σ_μ C_MO[μ, p] · φ_μ(r) on a regular cubic grid.
  *
