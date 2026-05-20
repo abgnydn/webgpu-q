@@ -4,6 +4,7 @@ import { describe, expect, test } from "vitest";
 import {
   bondLength, bondAngle, dihedralAngle, findBonds,
   centerOfMass, totalMass, principalMomentsOfInertia, rotationalConstants,
+  translateMolecule, rotateMolecule, standardOrientation,
 } from "../../src/chemistry/geometry.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
@@ -138,6 +139,50 @@ describe("Geometry utilities", () => {
     expect(r.B_cm1).toBeGreaterThan(r.C_cm1);
     // GHz conversion: 1 cm⁻¹ = 29.98 GHz.
     expect(r.A_GHz / r.A_cm1).toBeCloseTo(29.9792458, 5);
+  });
+
+  test("Translate molecule: bond lengths preserved", () => {
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0]      },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+    ];
+    const moved = translateMolecule(atoms, [10, -5, 2]);
+    expect(moved[0]!.pos[0]).toBe(10);
+    expect(moved[1]!.pos[2]).toBeCloseTo(2.7414, 6);
+    expect(bondLength(moved, 0, 1)).toBeCloseTo(0.7414, 6);
+  });
+
+  test("Rotate molecule (90° about z): x → y, y → -x", () => {
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [1, 0, 0] },
+      { symbol: "H", pos: [0, 1, 0] },
+    ];
+    // R_z(90°) = [[0,-1,0],[1,0,0],[0,0,1]]
+    const Rz90 = [0, -1, 0, 1, 0, 0, 0, 0, 1];
+    const rotated = rotateMolecule(atoms, Rz90);
+    expect(rotated[0]!.pos[0]).toBeCloseTo(0, 10);
+    expect(rotated[0]!.pos[1]).toBeCloseTo(1, 10);
+    expect(rotated[1]!.pos[0]).toBeCloseTo(-1, 10);
+    expect(rotated[1]!.pos[1]).toBeCloseTo(0, 10);
+  });
+
+  test("Standard orientation: H₂O has COM at origin", () => {
+    const half = (104.52 / 2) * Math.PI / 180;
+    const xH = 0.9572 * Math.sin(half);
+    const zH = 0.9572 * Math.cos(half);
+    const atoms: Atom[] = [
+      { symbol: "O", pos: [5, 5, 5] },       // offset from origin
+      { symbol: "H", pos: [5 + xH, 5, 5 + zH] },
+      { symbol: "H", pos: [5 - xH, 5, 5 + zH] },
+    ];
+    const std = standardOrientation(atoms);
+    const com = centerOfMass(std);
+    expect(Math.abs(com[0])).toBeLessThan(1e-10);
+    expect(Math.abs(com[1])).toBeLessThan(1e-10);
+    expect(Math.abs(com[2])).toBeLessThan(1e-10);
+    // Bond lengths preserved.
+    expect(bondLength(std, 0, 1)).toBeCloseTo(0.9572, 6);
+    expect(bondAngle(std, 1, 0, 2)).toBeCloseTo(104.52, 4);
   });
 
   test("Principal moments of inertia: H₂O has 3 non-zero moments (nonlinear)", () => {

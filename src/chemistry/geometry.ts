@@ -411,6 +411,70 @@ function symmetric3x3Eig(
 }
 
 /**
+ * Translate all atoms by a vector (in Å). Returns a new array;
+ * original atoms unchanged.
+ */
+export function translateMolecule(
+  atoms: readonly Atom[],
+  vector: readonly [number, number, number],
+): Atom[] {
+  return atoms.map((a) => ({
+    ...a,
+    pos: [
+      a.pos[0] + vector[0],
+      a.pos[1] + vector[1],
+      a.pos[2] + vector[2],
+    ] as [number, number, number],
+  }));
+}
+
+/**
+ * Rotate all atoms by a 3×3 rotation matrix (row-major). Returns a
+ * new array. Matrix should be orthogonal for a pure rotation (det=+1);
+ * negative determinant would flip chirality.
+ */
+export function rotateMolecule(
+  atoms: readonly Atom[],
+  matrix: readonly number[],   // row-major 9-element 3×3
+): Atom[] {
+  if (matrix.length !== 9) {
+    throw new Error(`rotateMolecule: matrix must be 9 elements (row-major 3×3), got ${matrix.length}`);
+  }
+  return atoms.map((a) => {
+    const x = a.pos[0], y = a.pos[1], z = a.pos[2];
+    return {
+      ...a,
+      pos: [
+        matrix[0]! * x + matrix[1]! * y + matrix[2]! * z,
+        matrix[3]! * x + matrix[4]! * y + matrix[5]! * z,
+        matrix[6]! * x + matrix[7]! * y + matrix[8]! * z,
+      ] as [number, number, number],
+    };
+  });
+}
+
+/**
+ * Standard orientation: translate so center of mass is at origin,
+ * then rotate so principal axes align with x, y, z (I_a along x,
+ * I_b along y, I_c along z). Same convention as Gaussian's
+ * "Standard orientation". Useful for comparing geometries.
+ */
+export function standardOrientation(atoms: readonly Atom[]): Atom[] {
+  const com = centerOfMass(atoms);
+  const centered = translateMolecule(atoms, [-com[0], -com[1], -com[2]]);
+  const { axes } = principalMomentsOfInertia(centered);
+  // Build rotation matrix R whose ROWS are the principal axes.
+  // Then for each atom: r' = R · r maps from old coords to new where
+  // axis I_a (col 0 of inertia eigenvectors) becomes the x-axis.
+  const matrix = [
+    axes[0]![0], axes[0]![1], axes[0]![2],
+    axes[1]![0], axes[1]![1], axes[1]![2],
+    axes[2]![0], axes[2]![1], axes[2]![2],
+  ];
+  return rotateMolecule(centered, matrix);
+}
+
+/**
  * Detect bonds by pairwise distances using covalent-radii cutoff:
  *   d_ij < (R_cov_i + R_cov_j) · scale + tolerance
  *
