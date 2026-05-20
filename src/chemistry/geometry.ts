@@ -212,3 +212,72 @@ export function bondAngle(atoms: readonly Atom[], i: number, j: number, k: numbe
   const nb = Math.sqrt(bx * bx + by * by + bz * bz);
   return Math.acos(dot / (na * nb)) * 180 / Math.PI;
 }
+
+/**
+ * Dihedral (torsion) angle i—j—k—l in degrees.
+ * Standard sign convention: positive for clockwise rotation looking
+ * from j → k. Returns ∈ [−180, +180]. Returns NaN on degenerate
+ * geometries (collinear consecutive triplets).
+ */
+export function dihedralAngle(
+  atoms: readonly Atom[], i: number, j: number, k: number, l: number,
+): number {
+  const a = atoms[i]!; const b = atoms[j]!; const c = atoms[k]!; const d = atoms[l]!;
+  const b1x = b.pos[0]-a.pos[0], b1y = b.pos[1]-a.pos[1], b1z = b.pos[2]-a.pos[2];
+  const b2x = c.pos[0]-b.pos[0], b2y = c.pos[1]-b.pos[1], b2z = c.pos[2]-b.pos[2];
+  const b3x = d.pos[0]-c.pos[0], b3y = d.pos[1]-c.pos[1], b3z = d.pos[2]-c.pos[2];
+  const n1x = b1y*b2z - b1z*b2y, n1y = b1z*b2x - b1x*b2z, n1z = b1x*b2y - b1y*b2x;
+  const n2x = b2y*b3z - b2z*b3y, n2y = b2z*b3x - b2x*b3z, n2z = b2x*b3y - b2y*b3x;
+  const n1n = Math.sqrt(n1x*n1x + n1y*n1y + n1z*n1z);
+  const n2n = Math.sqrt(n2x*n2x + n2y*n2y + n2z*n2z);
+  if (n1n < 1e-12 || n2n < 1e-12) return Number.NaN;
+  const cosAng = (n1x*n2x + n1y*n2y + n1z*n2z) / (n1n * n2n);
+  const b2n = Math.sqrt(b2x*b2x + b2y*b2y + b2z*b2z);
+  const mx = (n1y*b2z - n1z*b2y) / b2n;
+  const my = (n1z*b2x - n1x*b2z) / b2n;
+  const mz = (n1x*b2y - n1y*b2x) / b2n;
+  const sinAng = (mx*n2x + my*n2y + mz*n2z) / n2n;
+  return Math.atan2(sinAng, cosAng) * 180 / Math.PI;
+}
+
+/** Covalent radii in Å (Pyykkö & Atsumi 2009). Tuned for ordinary
+ *  single-bond detection in organic chemistry. */
+const COVALENT_RADIUS_ANGSTROM: Readonly<Record<string, number>> = {
+  H:  0.32, He: 0.46,
+  Li: 1.33, Be: 1.02,
+  C:  0.75, N:  0.71, O:  0.63, F:  0.64,
+};
+
+export interface Bond {
+  readonly i: number;
+  readonly j: number;
+  /** Distance in Å. */
+  readonly length: number;
+}
+
+/**
+ * Detect bonds by pairwise distances using covalent-radii cutoff:
+ *   d_ij < (R_cov_i + R_cov_j) · scale + tolerance
+ *
+ * Defaults (`scale = 1.2`, `tolerance = 0.4`) handle single, double,
+ * triple bonds and weakly-bonded fragments. Returns unique pairs
+ * (i < j), sorted by i then j.
+ */
+export function findBonds(
+  atoms: readonly Atom[],
+  opts: { readonly scale?: number; readonly tolerance?: number } = {},
+): Bond[] {
+  const scale = opts.scale ?? 1.2;
+  const tol = opts.tolerance ?? 0.4;
+  const bonds: Bond[] = [];
+  for (let i = 0; i < atoms.length; i++) {
+    const ri = COVALENT_RADIUS_ANGSTROM[atoms[i]!.symbol] ?? 1.0;
+    for (let j = i + 1; j < atoms.length; j++) {
+      const rj = COVALENT_RADIUS_ANGSTROM[atoms[j]!.symbol] ?? 1.0;
+      const cutoff = (ri + rj) * scale + tol;
+      const length = bondLength(atoms, i, j);
+      if (length < cutoff) bonds.push({ i, j, length });
+    }
+  }
+  return bonds;
+}
