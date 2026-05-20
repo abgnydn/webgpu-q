@@ -255,6 +255,161 @@ export interface Bond {
   readonly length: number;
 }
 
+/** Atomic masses in atomic mass units (amu). Most-abundant isotope. */
+const ATOMIC_MASS: Readonly<Record<string, number>> = {
+  H:  1.00782503207, He: 4.002603254,
+  Li: 7.0160034366,  Be: 9.012183065,
+  C: 12.0,            N: 14.0030740048,
+  O: 15.99491461956,  F: 18.998403163,
+};
+
+/** Total mass of a molecule in amu. */
+export function totalMass(atoms: readonly Atom[]): number {
+  let m = 0;
+  for (const a of atoms) m += ATOMIC_MASS[a.symbol] ?? 0;
+  return m;
+}
+
+/**
+ * Center of mass of a molecule in Å (using same units as atom.pos).
+ */
+export function centerOfMass(atoms: readonly Atom[]): [number, number, number] {
+  let mx = 0, my = 0, mz = 0, mtot = 0;
+  for (const a of atoms) {
+    const m = ATOMIC_MASS[a.symbol] ?? 0;
+    mx += m * a.pos[0];
+    my += m * a.pos[1];
+    mz += m * a.pos[2];
+    mtot += m;
+  }
+  if (mtot < 1e-12) throw new Error("centerOfMass: zero total mass");
+  return [mx / mtot, my / mtot, mz / mtot];
+}
+
+/**
+ * Principal moments of inertia (amu·Å²), sorted I_a ≤ I_b ≤ I_c.
+ * Returns the three principal axes as 3-vectors (columns of the
+ * eigenvector matrix of the inertia tensor in the COM frame).
+ */
+export function principalMomentsOfInertia(atoms: readonly Atom[]): {
+  readonly Ia: number;
+  readonly Ib: number;
+  readonly Ic: number;
+  readonly axes: readonly [
+    readonly [number, number, number],
+    readonly [number, number, number],
+    readonly [number, number, number],
+  ];
+} {
+  const [cx, cy, cz] = centerOfMass(atoms);
+  // Inertia tensor in COM frame, amu·Å².
+  let Ixx = 0, Iyy = 0, Izz = 0, Ixy = 0, Ixz = 0, Iyz = 0;
+  for (const a of atoms) {
+    const m = ATOMIC_MASS[a.symbol] ?? 0;
+    const x = a.pos[0] - cx, y = a.pos[1] - cy, z = a.pos[2] - cz;
+    Ixx += m * (y * y + z * z);
+    Iyy += m * (x * x + z * z);
+    Izz += m * (x * x + y * y);
+    Ixy -= m * x * y;
+    Ixz -= m * x * z;
+    Iyz -= m * y * z;
+  }
+  // 3×3 symmetric eigendecomposition via analytic Jacobi.
+  const { eigenvalues, eigenvectors } = symmetric3x3Eig(
+    Ixx, Iyy, Izz, Ixy, Ixz, Iyz,
+  );
+  // Sort ascending.
+  const idx = [0, 1, 2].sort((a, b) => eigenvalues[a]! - eigenvalues[b]!);
+  return {
+    Ia: eigenvalues[idx[0]!]!,
+    Ib: eigenvalues[idx[1]!]!,
+    Ic: eigenvalues[idx[2]!]!,
+    axes: [
+      eigenvectors[idx[0]!] as readonly [number, number, number],
+      eigenvectors[idx[1]!] as readonly [number, number, number],
+      eigenvectors[idx[2]!] as readonly [number, number, number],
+    ],
+  };
+}
+
+/**
+ * Rotational constants A ≥ B ≥ C, in cm⁻¹ and GHz. Computed from
+ * principal moments of inertia: B = h / (8π²·I·c) in cm⁻¹.
+ *
+ * Returns NaN for an axis whose moment of inertia is zero (linear
+ * molecule along that axis — the rotational constant diverges).
+ */
+export function rotationalConstants(atoms: readonly Atom[]): {
+  readonly A_cm1: number; readonly B_cm1: number; readonly C_cm1: number;
+  readonly A_GHz: number; readonly B_GHz: number; readonly C_GHz: number;
+} {
+  const { Ia, Ib, Ic } = principalMomentsOfInertia(atoms);
+  // h / (8π² c) in cm⁻¹ · amu · Å² units:
+  //   B [cm⁻¹] = 16.857629205 / I [amu·Å²]   (NIST 2018)
+  const FACTOR_CM1 = 16.857629205;
+  const TO_GHZ = 29.9792458;   // 1 cm⁻¹ = 29.979 GHz
+  const A = Ia > 1e-12 ? FACTOR_CM1 / Ia : Number.NaN;
+  const B = Ib > 1e-12 ? FACTOR_CM1 / Ib : Number.NaN;
+  const C = Ic > 1e-12 ? FACTOR_CM1 / Ic : Number.NaN;
+  // A ≥ B ≥ C (smallest I gives largest rotational constant).
+  return {
+    A_cm1: A, B_cm1: B, C_cm1: C,
+    A_GHz: A * TO_GHZ, B_GHz: B * TO_GHZ, C_GHz: C * TO_GHZ,
+  };
+}
+
+/** Analytic 3×3 symmetric eigendecomposition via 6 Jacobi sweeps.
+ *  Returns eigenvalues + column eigenvectors. */
+function symmetric3x3Eig(
+  xx: number, yy: number, zz: number,
+  xy: number, xz: number, yz: number,
+): { eigenvalues: [number, number, number]; eigenvectors: [readonly number[], readonly number[], readonly number[]] } {
+  // Pack into 3×3 row-major.
+  const A = [
+    [xx, xy, xz],
+    [xy, yy, yz],
+    [xz, yz, zz],
+  ];
+  // Eigenvectors as columns of V, initialized to identity.
+  const V = [[1,0,0],[0,1,0],[0,0,1]];
+  for (let sweep = 0; sweep < 50; sweep++) {
+    // Find largest off-diagonal.
+    let p = 0, q = 1, maxAbs = Math.abs(A[0]![1]!);
+    if (Math.abs(A[0]![2]!) > maxAbs) { p = 0; q = 2; maxAbs = Math.abs(A[0]![2]!); }
+    if (Math.abs(A[1]![2]!) > maxAbs) { p = 1; q = 2; maxAbs = Math.abs(A[1]![2]!); }
+    if (maxAbs < 1e-14) break;
+    const App = A[p]![p]!, Aqq = A[q]![q]!, Apq = A[p]![q]!;
+    const tau = (Aqq - App) / (2 * Apq);
+    const t = (tau >= 0 ? 1 : -1) / (Math.abs(tau) + Math.sqrt(1 + tau * tau));
+    const c = 1 / Math.sqrt(1 + t * t);
+    const s = t * c;
+    A[p]![p] = App - t * Apq;
+    A[q]![q] = Aqq + t * Apq;
+    A[p]![q] = 0; A[q]![p] = 0;
+    for (let r = 0; r < 3; r++) {
+      if (r === p || r === q) continue;
+      const Arp = A[r]![p]!, Arq = A[r]![q]!;
+      A[r]![p] = c * Arp - s * Arq;
+      A[p]![r] = A[r]![p]!;
+      A[r]![q] = s * Arp + c * Arq;
+      A[q]![r] = A[r]![q]!;
+    }
+    for (let r = 0; r < 3; r++) {
+      const Vrp = V[r]![p]!, Vrq = V[r]![q]!;
+      V[r]![p] = c * Vrp - s * Vrq;
+      V[r]![q] = s * Vrp + c * Vrq;
+    }
+  }
+  return {
+    eigenvalues: [A[0]![0]!, A[1]![1]!, A[2]![2]!],
+    eigenvectors: [
+      [V[0]![0]!, V[1]![0]!, V[2]![0]!] as const,
+      [V[0]![1]!, V[1]![1]!, V[2]![1]!] as const,
+      [V[0]![2]!, V[1]![2]!, V[2]![2]!] as const,
+    ],
+  };
+}
+
 /**
  * Detect bonds by pairwise distances using covalent-radii cutoff:
  *   d_ij < (R_cov_i + R_cov_j) · scale + tolerance
