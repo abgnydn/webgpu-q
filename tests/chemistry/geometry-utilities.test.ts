@@ -5,6 +5,7 @@ import {
   bondLength, bondAngle, dihedralAngle, findBonds,
   centerOfMass, totalMass, principalMomentsOfInertia, rotationalConstants,
   translateMolecule, rotateMolecule, standardOrientation,
+  rmsd, rmsdAligned,
 } from "../../src/chemistry/geometry.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
@@ -164,6 +165,45 @@ describe("Geometry utilities", () => {
     expect(rotated[0]!.pos[1]).toBeCloseTo(1, 10);
     expect(rotated[1]!.pos[0]).toBeCloseTo(-1, 10);
     expect(rotated[1]!.pos[1]).toBeCloseTo(0, 10);
+  });
+
+  test("RMSD: identical geometries → 0", () => {
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+    ];
+    expect(rmsd(atoms, atoms)).toBeCloseTo(0, 14);
+  });
+
+  test("RMSD: 1 Å shift on 1 atom → RMSD = √(1/2) ≈ 0.707", () => {
+    const atoms1: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0, 0, 1] },
+    ];
+    const atoms2: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0, 0, 2] },        // shifted by 1 Å
+    ];
+    // RMSD = √((0² + 1²) / 2) = √0.5
+    expect(rmsd(atoms1, atoms2)).toBeCloseTo(Math.sqrt(0.5), 10);
+  });
+
+  test("rmsdAligned: same molecule in different orientation → aligned RMSD ≈ 0", () => {
+    const half = (104.52 / 2) * Math.PI / 180;
+    const xH = 0.9572 * Math.sin(half);
+    const zH = 0.9572 * Math.cos(half);
+    const atoms1: Atom[] = [
+      { symbol: "O", pos: [0, 0, 0] },
+      { symbol: "H", pos: [ xH, 0, zH] },
+      { symbol: "H", pos: [-xH, 0, zH] },
+    ];
+    // Same H₂O rotated 90° about x and translated.
+    const Rx90 = [1, 0, 0, 0, 0, -1, 0, 1, 0];
+    const rotated = rotateMolecule(atoms1, Rx90);
+    const translated = translateMolecule(rotated, [3, -2, 1]);
+
+    const result = rmsdAligned(atoms1, translated);
+    expect(result.rmsd).toBeLessThan(1e-9);     // exact match after alignment
   });
 
   test("Standard orientation: H₂O has COM at origin", () => {

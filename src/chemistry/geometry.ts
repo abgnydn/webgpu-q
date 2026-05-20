@@ -411,6 +411,156 @@ function symmetric3x3Eig(
 }
 
 /**
+ * Root-mean-square deviation between two geometries WITHOUT alignment.
+ *   RMSD = sqrt[ (1/N) · Σ_i |r1_i − r2_i|² ]
+ *
+ * Both arrays must have the same length and atom ordering. Returns
+ * RMSD in Å.
+ */
+export function rmsd(atoms1: readonly Atom[], atoms2: readonly Atom[]): number {
+  if (atoms1.length !== atoms2.length) {
+    throw new Error(`rmsd: length mismatch ${atoms1.length} vs ${atoms2.length}`);
+  }
+  let sum = 0;
+  for (let i = 0; i < atoms1.length; i++) {
+    const a = atoms1[i]!.pos;
+    const b = atoms2[i]!.pos;
+    const dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
+    sum += dx * dx + dy * dy + dz * dz;
+  }
+  return Math.sqrt(sum / atoms1.length);
+}
+
+/**
+ * RMSD between two geometries AFTER optimal Kabsch alignment
+ * (translation + rotation, no chirality flip). Both arrays must
+ * have the same length and atom ordering. Returns:
+ *   - rmsd (Å) after alignment
+ *   - aligned: atoms2 after optimal rotation onto atoms1
+ *
+ * Kabsch algorithm: SVD of cross-covariance matrix gives optimal
+ * rotation. Det check ensures we don't flip chirality.
+ */
+export function rmsdAligned(
+  atoms1: readonly Atom[],
+  atoms2: readonly Atom[],
+): {
+  readonly rmsd: number;
+  readonly aligned: Atom[];
+} {
+  if (atoms1.length !== atoms2.length) {
+    throw new Error(`rmsdAligned: length mismatch ${atoms1.length} vs ${atoms2.length}`);
+  }
+  const n = atoms1.length;
+  // Step 1: center both geometries on their respective centroids.
+  let c1x = 0, c1y = 0, c1z = 0;
+  let c2x = 0, c2y = 0, c2z = 0;
+  for (let i = 0; i < n; i++) {
+    c1x += atoms1[i]!.pos[0]; c1y += atoms1[i]!.pos[1]; c1z += atoms1[i]!.pos[2];
+    c2x += atoms2[i]!.pos[0]; c2y += atoms2[i]!.pos[1]; c2z += atoms2[i]!.pos[2];
+  }
+  c1x /= n; c1y /= n; c1z /= n;
+  c2x /= n; c2y /= n; c2z /= n;
+  // Step 2: build the cross-covariance matrix H = P2^T · P1 where P_i is centered.
+  // Hij = Σ_k (atoms2[k] - c2)_i · (atoms1[k] - c1)_j   (3x3 row-major)
+  const H = new Float64Array(9);
+  for (let k = 0; k < n; k++) {
+    const p2 = [atoms2[k]!.pos[0] - c2x, atoms2[k]!.pos[1] - c2y, atoms2[k]!.pos[2] - c2z];
+    const p1 = [atoms1[k]!.pos[0] - c1x, atoms1[k]!.pos[1] - c1y, atoms1[k]!.pos[2] - c1z];
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        H[i * 3 + j]! += p2[i]! * p1[j]!;
+      }
+    }
+  }
+  // Step 3: SVD H = U·Σ·V^T via the eigendecomposition of H^T·H (V) and
+  // H·H^T (U). Then R = V·U^T.
+  // For 3×3, this is feasible analytically. We'll do it by computing
+  // V from the eigenvectors of H^T·H, then U = H·V·Σ⁻¹ on the
+  // nonzero singular values.
+  const HtH = matmul3T(H, H);   // H^T · H
+  const eig = symmetric3x3Eig(HtH[0]!, HtH[4]!, HtH[8]!, HtH[1]!, HtH[2]!, HtH[5]!);
+  // Singular values (sorted descending).
+  const sigma2 = [eig.eigenvalues[0]!, eig.eigenvalues[1]!, eig.eigenvalues[2]!];
+  const idx = [0, 1, 2].sort((a, b) => sigma2[b]! - sigma2[a]!);
+  const V_cols = idx.map((i) => eig.eigenvectors[i]);
+  // U_cols[i] = H · V_cols[i] / σ_i (skipping σ=0).
+  const sigma = sigma2.map((s) => Math.sqrt(Math.max(s, 0)));
+  const sigSorted = idx.map((i) => sigma[i]!);
+  const U_cols: number[][] = [];
+  for (let k = 0; k < 3; k++) {
+    const v = V_cols[k]!;
+    const s = sigSorted[k]!;
+    if (s > 1e-10) {
+      U_cols.push([
+        H[0]! * v[0]! + H[1]! * v[1]! + H[2]! * v[2]!,
+        H[3]! * v[0]! + H[4]! * v[1]! + H[5]! * v[2]!,
+        H[6]! * v[0]! + H[7]! * v[1]! + H[8]! * v[2]!,
+      ].map((x) => x / s));
+    } else {
+      // Degenerate singular value; orthonormalize against earlier U cols.
+      // Use cross product to get a perpendicular vector.
+      const u0 = U_cols[0] ?? [1, 0, 0];
+      const u1 = U_cols[1] ?? [0, 1, 0];
+      U_cols.push([
+        u0[1]! * u1[2]! - u0[2]! * u1[1]!,
+        u0[2]! * u1[0]! - u0[0]! * u1[2]!,
+        u0[0]! * u1[1]! - u0[1]! * u1[0]!,
+      ]);
+    }
+  }
+  // Det check: R = V · diag(1, 1, det(U·V^T)) · U^T to avoid chirality flip.
+  // Compute det(U) and det(V).
+  const detU = det3(U_cols[0]!, U_cols[1]!, U_cols[2]!);
+  const detV = det3(V_cols[0]! as number[], V_cols[1]! as number[], V_cols[2]! as number[]);
+  const sign = detU * detV;
+  // R = V · diag(1, 1, sign) · U^T
+  const R = new Float64Array(9);
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      let s = 0;
+      for (let k = 0; k < 3; k++) {
+        const lambda = k === 2 ? sign : 1;
+        s += V_cols[k]![i]! * lambda * U_cols[k]![j]!;
+      }
+      R[i * 3 + j] = s;
+    }
+  }
+  // Apply: aligned = R · (atoms2 − c2) + c1.
+  const aligned: Atom[] = atoms2.map((a) => {
+    const x = a.pos[0] - c2x, y = a.pos[1] - c2y, z = a.pos[2] - c2z;
+    return {
+      ...a,
+      pos: [
+        R[0]! * x + R[1]! * y + R[2]! * z + c1x,
+        R[3]! * x + R[4]! * y + R[5]! * z + c1y,
+        R[6]! * x + R[7]! * y + R[8]! * z + c1z,
+      ] as [number, number, number],
+    };
+  });
+  return { rmsd: rmsd(atoms1, aligned), aligned };
+}
+
+function matmul3T(A: Float64Array, B: Float64Array): Float64Array {
+  // Returns A^T · B (row-major).
+  const out = new Float64Array(9);
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      let s = 0;
+      for (let k = 0; k < 3; k++) s += A[k * 3 + i]! * B[k * 3 + j]!;
+      out[i * 3 + j] = s;
+    }
+  }
+  return out;
+}
+
+function det3(a: readonly number[], b: readonly number[], c: readonly number[]): number {
+  return a[0]! * (b[1]! * c[2]! - b[2]! * c[1]!)
+       - a[1]! * (b[0]! * c[2]! - b[2]! * c[0]!)
+       + a[2]! * (b[0]! * c[1]! - b[1]! * c[0]!);
+}
+
+/**
  * Translate all atoms by a vector (in Å). Returns a new array;
  * original atoms unchanged.
  */
