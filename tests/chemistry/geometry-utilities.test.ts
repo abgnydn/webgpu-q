@@ -5,7 +5,7 @@ import {
   bondLength, bondAngle, dihedralAngle, findBonds,
   centerOfMass, totalMass, principalMomentsOfInertia, rotationalConstants,
   translateMolecule, rotateMolecule, standardOrientation,
-  rmsd, rmsdAligned, molecularGraph, coordinationNumbers,
+  rmsd, rmsdAligned, molecularGraph, coordinationNumbers, distanceMatrix,
 } from "../../src/chemistry/geometry.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
@@ -291,6 +291,28 @@ describe("Geometry utilities", () => {
       expect(cn[i]).toBeGreaterThan(0.7); // H sees ~1 neighbor (C)
       expect(cn[i]).toBeLessThan(1.3);
     }
+  });
+
+  test("distanceMatrix on H₂O: symmetric, zero diagonal, correct pairs", () => {
+    const half = (104.52 / 2) * Math.PI / 180;
+    const xH = 0.9572 * Math.sin(half);
+    const zH = 0.9572 * Math.cos(half);
+    const atoms: Atom[] = [
+      { symbol: "O", pos: [0, 0, 0] },
+      { symbol: "H", pos: [ xH, 0, zH] },
+      { symbol: "H", pos: [-xH, 0, zH] },
+    ];
+    const M = distanceMatrix(atoms);
+    expect(M.length).toBe(9);
+    // Diagonal zero.
+    expect(M[0]).toBe(0); expect(M[4]).toBe(0); expect(M[8]).toBe(0);
+    // Symmetric.
+    expect(M[1]).toBe(M[3]);   // (0,1) = (1,0)
+    expect(M[2]).toBe(M[6]);   // (0,2) = (2,0)
+    expect(M[5]).toBe(M[7]);   // (1,2) = (2,1)
+    // Values.
+    expect(M[1]).toBeCloseTo(0.9572, 6);   // O-H1
+    expect(M[5]).toBeCloseTo(2 * xH, 6);    // H1-H2
   });
 
   test("coordinationNumbers on isolated atoms: CN ≈ 0", () => {

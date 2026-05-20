@@ -652,6 +652,25 @@ export function findBonds(
 }
 
 /**
+ * Pairwise Euclidean distance matrix. Returns N × N row-major
+ * Float64Array with M[i, j] = |R_i − R_j| in Å (same unit as
+ * Atom.pos). Diagonal is exactly 0. Useful primitive for geometry
+ * analysis, ML feature extraction, distance-based clustering.
+ */
+export function distanceMatrix(atoms: readonly Atom[]): Float64Array {
+  const n = atoms.length;
+  const M = new Float64Array(n * n);
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const d = bondLength(atoms, i, j);
+      M[i * n + j] = d;
+      M[j * n + i] = d;
+    }
+  }
+  return M;
+}
+
+/**
  * Smooth coordination number CN_A for every atom, using the Grimme
  * D3 damping function (Grimme JCP 132, 154104, 2010):
  *
