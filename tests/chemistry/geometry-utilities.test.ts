@@ -7,6 +7,7 @@ import {
   translateMolecule, rotateMolecule, standardOrientation,
   rmsd, rmsdAligned, molecularGraph, coordinationNumbers, distanceMatrix,
   molecularFormula, planarity, lewisStructure, extractFragments, shortestPath,
+  compareMolecules,
 } from "../../src/chemistry/geometry.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
@@ -292,6 +293,59 @@ describe("Geometry utilities", () => {
       expect(cn[i]).toBeGreaterThan(0.7); // H sees ~1 neighbor (C)
       expect(cn[i]).toBeLessThan(1.3);
     }
+  });
+
+  test("compareMolecules: same H₂O rotated → equivalent", () => {
+    const half = (104.52 / 2) * Math.PI / 180;
+    const xH = 0.9572 * Math.sin(half);
+    const zH = 0.9572 * Math.cos(half);
+    const atoms: Atom[] = [
+      { symbol: "O", pos: [0, 0, 0] },
+      { symbol: "H", pos: [ xH, 0, zH] },
+      { symbol: "H", pos: [-xH, 0, zH] },
+    ];
+    // Rotated 90° about x.
+    const Rx90 = [1, 0, 0, 0, 0, -1, 0, 1, 0];
+    const rotated = rotateMolecule(atoms, Rx90);
+    const r = compareMolecules(atoms, rotated);
+    expect(r.isEquivalent).toBe(true);
+    expect(r.sameFormula).toBe(true);
+    expect(r.sameBondCount).toBe(true);
+    expect(r.rmsd!).toBeLessThan(1e-9);
+  });
+
+  test("compareMolecules: H₂O vs CH₄ → not equivalent (formula + atom count differ)", () => {
+    const h2o: Atom[] = [
+      { symbol: "O", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0.95, 0, 0] },
+      { symbol: "H", pos: [-0.95, 0, 0] },
+    ];
+    const ch4: Atom[] = [
+      { symbol: "C", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0.6, 0.6, 0.6] },
+      { symbol: "H", pos: [-0.6, -0.6, 0.6] },
+      { symbol: "H", pos: [0.6, -0.6, -0.6] },
+      { symbol: "H", pos: [-0.6, 0.6, -0.6] },
+    ];
+    const r = compareMolecules(h2o, ch4);
+    expect(r.isEquivalent).toBe(false);
+    expect(r.sameFormula).toBe(false);
+    expect(r.sameAtomCount).toBe(false);
+    expect(r.notes.length).toBeGreaterThan(0);
+  });
+
+  test("compareMolecules: same molecule slightly displaced → equivalent within tolerance", () => {
+    const a: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+    ];
+    // Slight perturbation of one atom (~0.005 Å).
+    const b: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0, 0, 0.7464] },
+    ];
+    expect(compareMolecules(a, b, { rmsdTolerance: 0.05 }).isEquivalent).toBe(true);
+    expect(compareMolecules(a, b, { rmsdTolerance: 1e-5 }).isEquivalent).toBe(false);
   });
 
   test("shortestPath in H₂O: O to H is 1 bond; H to H is 2 bonds (through O)", () => {

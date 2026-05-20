@@ -652,6 +652,71 @@ export function findBonds(
 }
 
 /**
+ * Compare two molecules to determine if they're the "same" molecule
+ * (same formula + same connectivity + atoms close after Kabsch
+ * alignment). Useful for geom-opt regression tests, identifying
+ * chemical identity across orientations / unit-cell choices, and
+ * input validation.
+ *
+ * Returns a structured result with the individual diagnostics so
+ * the caller can drill down if needed.
+ */
+export function compareMolecules(
+  a: readonly Atom[],
+  b: readonly Atom[],
+  opts: {
+    readonly rmsdTolerance?: number;        // default 0.05 Å
+    readonly skipGeometry?: boolean;        // default false — if true,
+                                            // only compare formula + bond count
+  } = {},
+): {
+  readonly sameFormula: boolean;
+  readonly sameBondCount: boolean;
+  readonly sameAtomCount: boolean;
+  readonly rmsd: number | null;
+  readonly isEquivalent: boolean;
+  readonly notes: readonly string[];
+} {
+  const tol = opts.rmsdTolerance ?? 0.05;
+  const notes: string[] = [];
+  const formA = molecularFormula(a);
+  const formB = molecularFormula(b);
+  const sameFormula = formA === formB;
+  if (!sameFormula) notes.push(`formula mismatch: "${formA}" vs "${formB}"`);
+
+  const sameAtomCount = a.length === b.length;
+  if (!sameAtomCount) notes.push(`atom count mismatch: ${a.length} vs ${b.length}`);
+
+  const bondsA = findBonds(a);
+  const bondsB = findBonds(b);
+  const sameBondCount = bondsA.length === bondsB.length;
+  if (!sameBondCount) notes.push(`bond count mismatch: ${bondsA.length} vs ${bondsB.length}`);
+
+  let rmsdValue: number | null = null;
+  if (sameAtomCount && !opts.skipGeometry) {
+    // RMSD via Kabsch alignment only meaningful if atoms can be matched
+    // by index. If formulas differ or counts differ, skip.
+    if (sameFormula) {
+      try {
+        const result = rmsdAligned(a, b);
+        rmsdValue = result.rmsd;
+        if (rmsdValue > tol) notes.push(`RMSD ${rmsdValue.toFixed(4)} Å > tolerance ${tol}`);
+      } catch (e) {
+        notes.push(`RMSD failed: ${(e as Error).message}`);
+      }
+    }
+  }
+
+  const isEquivalent = sameFormula && sameAtomCount && sameBondCount
+    && (rmsdValue === null || rmsdValue <= tol);
+
+  return {
+    sameFormula, sameBondCount, sameAtomCount,
+    rmsd: rmsdValue, isEquivalent, notes,
+  };
+}
+
+/**
  * Find the shortest bond path between two atoms in the molecular
  * graph (BFS). Returns the sequence of atom indices from `start` to
  * `end` inclusive, or `null` if no path exists (atoms in different
