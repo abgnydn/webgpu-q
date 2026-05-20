@@ -5,7 +5,7 @@ import {
   bondLength, bondAngle, dihedralAngle, findBonds,
   centerOfMass, totalMass, principalMomentsOfInertia, rotationalConstants,
   translateMolecule, rotateMolecule, standardOrientation,
-  rmsd, rmsdAligned, molecularGraph,
+  rmsd, rmsdAligned, molecularGraph, coordinationNumbers,
 } from "../../src/chemistry/geometry.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
@@ -272,6 +272,35 @@ describe("Geometry utilities", () => {
     expect(g.connectedComponents.length).toBe(2);
     expect(g.connectedComponents[0]).toEqual([0, 1]);
     expect(g.connectedComponents[1]).toEqual([2, 3]);
+  });
+
+  test("coordinationNumbers on CH₄: C has CN ≈ 4, each H has CN ≈ 1", () => {
+    const r = 1.0870;
+    const s = r / Math.sqrt(3);
+    const atoms: Atom[] = [
+      { symbol: "C", pos: [0, 0, 0] },
+      { symbol: "H", pos: [ s,  s,  s] },
+      { symbol: "H", pos: [-s, -s,  s] },
+      { symbol: "H", pos: [ s, -s, -s] },
+      { symbol: "H", pos: [-s,  s, -s] },
+    ];
+    const cn = coordinationNumbers(atoms);
+    expect(cn[0]).toBeGreaterThan(3.5);   // C should see ~4 neighbors
+    expect(cn[0]).toBeLessThan(4.5);
+    for (let i = 1; i <= 4; i++) {
+      expect(cn[i]).toBeGreaterThan(0.7); // H sees ~1 neighbor (C)
+      expect(cn[i]).toBeLessThan(1.3);
+    }
+  });
+
+  test("coordinationNumbers on isolated atoms: CN ≈ 0", () => {
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0]   },
+      { symbol: "H", pos: [0, 0, 10]  },
+    ];
+    const cn = coordinationNumbers(atoms);
+    expect(cn[0]).toBeLessThan(0.01);
+    expect(cn[1]).toBeLessThan(0.01);
   });
 
   test("molecularGraph adjacency is sorted per atom", () => {

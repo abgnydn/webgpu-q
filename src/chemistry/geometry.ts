@@ -651,6 +651,42 @@ export function findBonds(
   return bonds;
 }
 
+/**
+ * Smooth coordination number CN_A for every atom, using the Grimme
+ * D3 damping function (Grimme JCP 132, 154104, 2010):
+ *
+ *   CN_A = Σ_{B ≠ A} 1 / (1 + exp(−k₁·(k₂·R_cov^AB/R_AB − 1)))
+ *
+ * with k₁ = 16 (steepness), k₂ = 4/3 (Grimme scaling). The k₂ factor
+ * pushes the sigmoid crossover well above the bond distance so that
+ * actual bonds get CN ≈ 1 contribution and longer non-bonded pairs
+ * fade smoothly to 0.
+ *
+ * Used by DFT-D3 to interpolate atomic C6 from reference values
+ * tabulated at integer coordination numbers. Returns Float64Array of
+ * length n_atoms.
+ */
+export function coordinationNumbers(atoms: readonly Atom[]): Float64Array {
+  const k1 = 16;
+  const k2 = 4 / 3;
+  const cn = new Float64Array(atoms.length);
+  for (let A = 0; A < atoms.length; A++) {
+    const rA = COVALENT_RADIUS_ANGSTROM[atoms[A]!.symbol] ?? 1.0;
+    let sum = 0;
+    for (let B = 0; B < atoms.length; B++) {
+      if (B === A) continue;
+      const rB = COVALENT_RADIUS_ANGSTROM[atoms[B]!.symbol] ?? 1.0;
+      const R = bondLength(atoms, A, B);
+      if (R < 1e-12) continue;
+      const rR = rA + rB;
+      const arg = -k1 * (k2 * rR / R - 1);
+      sum += 1 / (1 + Math.exp(arg));
+    }
+    cn[A] = sum;
+  }
+  return cn;
+}
+
 export interface MolecularGraph {
   /** adjacency[i] = sorted array of atom indices bonded to atom i. */
   readonly adjacency: readonly (readonly number[])[];
