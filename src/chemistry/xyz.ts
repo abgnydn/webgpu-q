@@ -96,6 +96,67 @@ export function toXYZ(atoms: readonly Atom[], comment = ""): string {
   return lines.join("\n") + "\n";
 }
 
+export interface TrajectoryFrame {
+  readonly atoms: readonly Atom[];
+  /** Optional energy in Hartree (or any unit; written verbatim on
+   *  the comment line as "E = <value>"). */
+  readonly energy?: number;
+  /** Optional comment string for this frame. If both `comment` and
+   *  `energy` are given, energy is appended to comment with " | ". */
+  readonly comment?: string;
+}
+
+/**
+ * Emit a multi-frame XYZ trajectory string. Each frame is a full
+ * XYZ block back-to-back, the standard convention readable by
+ * VMD / Avogadro / OVITO / Jmol's trajectory viewer.
+ *
+ * Useful for visualizing geom-opt convergence, NEB / IRC reaction
+ * paths, MD trajectories.
+ */
+export function toMultiFrameXYZ(frames: readonly TrajectoryFrame[]): string {
+  let out = "";
+  for (let i = 0; i < frames.length; i++) {
+    const f = frames[i]!;
+    let comment = f.comment ?? `frame ${i + 1}`;
+    if (f.energy !== undefined) {
+      comment += ` | E = ${f.energy.toFixed(10)} Ha`;
+    }
+    out += toXYZ(f.atoms, comment);
+  }
+  return out;
+}
+
+/**
+ * Parse a multi-frame XYZ string into frames. Same format as
+ * `toMultiFrameXYZ` produces; tolerates extra blank trailing lines.
+ */
+export function parseMultiFrameXYZ(text: string): TrajectoryFrame[] {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const frames: TrajectoryFrame[] = [];
+  let pos = 0;
+  while (pos < lines.length) {
+    // Skip blank lines between frames.
+    while (pos < lines.length && lines[pos]!.trim() === "") pos++;
+    if (pos >= lines.length) break;
+    const nAtomsRaw = lines[pos]!.trim();
+    const nAtoms = parseInt(nAtomsRaw, 10);
+    if (!Number.isInteger(nAtoms) || nAtoms <= 0) {
+      throw new Error(`parseMultiFrameXYZ: expected N_atoms at line ${pos + 1}, got "${nAtomsRaw}"`);
+    }
+    // Reconstruct a single-frame XYZ block.
+    const block = lines.slice(pos, pos + 2 + nAtoms).join("\n");
+    const single = parseXYZ(block);
+    // Parse "E = <value> Ha" from the comment if present.
+    let energy: number | undefined;
+    const match = single.comment.match(/E\s*=\s*(-?\d+\.?\d*)/);
+    if (match) energy = parseFloat(match[1]!);
+    frames.push({ atoms: single.atoms, energy, comment: single.comment });
+    pos += 2 + nAtoms;
+  }
+  return frames;
+}
+
 // ─────────────────────────────────────────────────────────────
 
 function resolveSymbol(token: string, lineNo: number): AtomSymbol {

@@ -1,7 +1,7 @@
 // XYZ parser / emitter tests.
 
 import { describe, expect, test } from "vitest";
-import { parseXYZ, toXYZ } from "../../src/chemistry/xyz.js";
+import { parseXYZ, toXYZ, toMultiFrameXYZ, parseMultiFrameXYZ } from "../../src/chemistry/xyz.js";
 
 describe("XYZ format", () => {
   test("Parse standard H₂O XYZ", () => {
@@ -80,5 +80,44 @@ gold not in table
 79 0 0 0
 `;
     expect(() => parseXYZ(text)).toThrow(/atomic number 79/);
+  });
+
+  test("Multi-frame trajectory round-trip: 3 frames with energies", () => {
+    const frames = [
+      { atoms: [{ symbol: "H" as const, pos: [0, 0, 0] as [number, number, number] }],
+        energy: -0.5 },
+      { atoms: [{ symbol: "H" as const, pos: [0, 0, 0.01] as [number, number, number] }],
+        energy: -0.4999 },
+      { atoms: [{ symbol: "H" as const, pos: [0, 0, 0.02] as [number, number, number] }],
+        energy: -0.49998 },
+    ];
+    const text = toMultiFrameXYZ(frames);
+    const parsed = parseMultiFrameXYZ(text);
+    expect(parsed.length).toBe(3);
+    for (let i = 0; i < 3; i++) {
+      expect(parsed[i]!.atoms.length).toBe(1);
+      expect(parsed[i]!.atoms[0]!.symbol).toBe("H");
+      expect(parsed[i]!.atoms[0]!.pos[2]).toBeCloseTo(frames[i]!.atoms[0]!.pos[2]!, 6);
+      expect(parsed[i]!.energy).toBeCloseTo(frames[i]!.energy, 6);
+    }
+  });
+
+  test("Multi-frame XYZ produces concatenated standard XYZ blocks", () => {
+    const frames = [
+      { atoms: [
+        { symbol: "H" as const, pos: [0, 0, 0] as [number, number, number] },
+        { symbol: "O" as const, pos: [0, 0, 1] as [number, number, number] },
+      ] },
+      { atoms: [
+        { symbol: "H" as const, pos: [0, 0, 0.1] as [number, number, number] },
+        { symbol: "O" as const, pos: [0, 0, 1.1] as [number, number, number] },
+      ] },
+    ];
+    const text = toMultiFrameXYZ(frames);
+    const lines = text.trim().split("\n");
+    // Frame 1: 2 + 2 lines = 4. Frame 2: another 4. Total 8.
+    expect(lines.length).toBe(8);
+    expect(lines[0]).toBe("2");
+    expect(lines[4]).toBe("2");        // second N_atoms header
   });
 });
