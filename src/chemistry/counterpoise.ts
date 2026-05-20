@@ -54,8 +54,12 @@ import { runUHFSCF, type UHFOpts } from "./uhf-scf.js";
 import { runMP2 } from "./mp2.js";
 import { runCCSD, type CCSDOpts } from "./ccsd.js";
 import { runUCCSD } from "./uccsd.js";
+import { runRKSDFT, type RKSOpts } from "./dft/rks-scf.js";
+import { runUKSDFT, type UKSOpts } from "./dft/uks-scf.js";
+import type { FunctionalKind } from "./dft/functional.js";
+import { dispersionD2, type DispersionD2Opts } from "./dispersion-d2.js";
 
-export type CounterpoiseMethod = "hf" | "mp2" | "ccsd" | "uhf" | "uccsd";
+export type CounterpoiseMethod = "hf" | "mp2" | "ccsd" | "uhf" | "uccsd" | "rks" | "uks";
 
 export interface CounterpoiseFragment {
   /** Indices into the `atoms` array that belong to this fragment. */
@@ -106,6 +110,22 @@ export interface CounterpoiseResult {
  * (E_HF + E_corr_MP2); "ccsd" runs HF + CCSD and returns
  * (E_HF + E_corr_CCSD).
  */
+export interface CounterpoiseDFTOpts {
+  /** Functional for "rks" / "uks" methods. */
+  readonly functional?: FunctionalKind;
+  /** RKS-SCF options (timing, DIIS, level-shift). */
+  readonly rks?: RKSOpts;
+  /** UKS-SCF options. */
+  readonly uks?: UKSOpts;
+}
+
+export interface CounterpoiseDispersionOpts {
+  /** If true, add Grimme D2 dispersion to every single-point. The
+   *  same s6 / functional / damping options as `dispersionD2`. */
+  readonly addD2?: boolean;
+  readonly d2Opts?: DispersionD2Opts;
+}
+
 export function runCounterpoise(
   atoms: readonly Atom[],
   fragments: readonly CounterpoiseFragment[],
@@ -114,6 +134,8 @@ export function runCounterpoise(
   method: CounterpoiseMethod = "hf",
   ccsdOpts: CCSDOpts = {},
   uhfOpts: UHFOpts = {},
+  dftOpts: CounterpoiseDFTOpts = {},
+  dispOpts: CounterpoiseDispersionOpts = {},
 ): CounterpoiseResult {
   // ── Validate fragmentation: every atom in exactly one fragment. ──
   const claimed = new Array<boolean>(atoms.length).fill(false);
@@ -134,7 +156,11 @@ export function runCounterpoise(
     }
   }
 
-  const isOpenShell = method === "uhf" || method === "uccsd";
+  const isOpenShell = method === "uhf" || method === "uccsd" || method === "uks";
+  const isDFT = method === "rks" || method === "uks";
+  if (isDFT && !dftOpts.functional) {
+    throw new Error(`runCounterpoise: method "${method}" requires dftOpts.functional`);
+  }
 
   // ── For open-shell methods, validate per-fragment spin and sum
   //    to get the supermolecule (n_α, n_β). ─────────────────────
@@ -172,35 +198,70 @@ export function runCounterpoise(
     const sh = moleculeToShellsNuclei(atomsIn, basis);
     const integ = computeMolecularIntegrals(sh.shells, sh.nuclei);
 
-    if (isOpenShell) {
+    // Derive nucleiSymbols from atoms for DFT methods. Ghost atoms
+    // contribute basis functions but no nuclear charge; their symbol
+    // is still needed for the Becke grid.
+    const nucleiSymbols = atomsIn.map((a) => a.symbol);
+
+    let baseEnergy: number;
+    if (method === "rks") {
+      const ks = runRKSDFT(integ, sh.nElectrons, nucleiSymbols, {
+        functional: dftOpts.functional!,
+        ...(dftOpts.rks ?? {}),
+      });
+      if (!ks.converged) allConverged = false;
+      baseEnergy = ks.energy;
+    } else if (method === "uks") {
+      if (nAlpha === undefined || nBeta === undefined) {
+        throw new Error(`runCounterpoise: uks singlePoint requires explicit (nAlpha, nBeta)`);
+      }
+      const uks = runUKSDFT(integ, nAlpha, nBeta, nucleiSymbols, {
+        functional: dftOpts.functional!,
+        ...(dftOpts.uks ?? {}),
+      });
+      if (!uks.converged) allConverged = false;
+      baseEnergy = uks.energy;
+    } else if (isOpenShell) {
       if (nAlpha === undefined || nBeta === undefined) {
         throw new Error(`runCounterpoise: open-shell singlePoint requires explicit (nAlpha, nBeta)`);
       }
       const uhf = runUHFSCF(integ, nAlpha, nBeta, uhfOpts);
       if (!uhf.converged) allConverged = false;
-      if (method === "uhf") return uhf.energy;
-      // method === "uccsd". UCCSD with 0 occupied SOs (trivial fragment
-      // = no electrons left) or NVIRT_per_spin = 0 has no correlation;
-      // runUCCSD throws on those degenerate cases. Skip in that case.
-      const totalOcc = uhf.nAlpha + uhf.nBeta;
-      const totalVirt = 2 * integ.n - totalOcc;
-      if (totalOcc === 0 || totalVirt === 0) return uhf.energy;
-      const uccsd = runUCCSD(uhf, integ, ccsdOpts);
-      if (!uccsd.converged) allConverged = false;
-      return uhf.energy + uccsd.correlationEnergy;
+      if (method === "uhf") {
+        baseEnergy = uhf.energy;
+      } else {
+        // method === "uccsd"
+        const totalOcc = uhf.nAlpha + uhf.nBeta;
+        const totalVirt = 2 * integ.n - totalOcc;
+        if (totalOcc === 0 || totalVirt === 0) {
+          baseEnergy = uhf.energy;
+        } else {
+          const uccsd = runUCCSD(uhf, integ, ccsdOpts);
+          if (!uccsd.converged) allConverged = false;
+          baseEnergy = uhf.energy + uccsd.correlationEnergy;
+        }
+      }
+    } else {
+      const hf = runRHFSCF(integ, sh.nElectrons, hfOpts);
+      if (!hf.converged) allConverged = false;
+      if (method === "hf") {
+        baseEnergy = hf.energy;
+      } else if (method === "mp2") {
+        const mp2 = runMP2(hf, integ);
+        baseEnergy = hf.energy + mp2.correlationEnergy;
+      } else {
+        // method === "ccsd"
+        const ccsd = runCCSD(hf, integ, ccsdOpts);
+        if (!ccsd.converged) allConverged = false;
+        baseEnergy = hf.energy + ccsd.correlationEnergy;
+      }
     }
 
-    const hf = runRHFSCF(integ, sh.nElectrons, hfOpts);
-    if (!hf.converged) allConverged = false;
-    if (method === "hf") return hf.energy;
-    if (method === "mp2") {
-      const mp2 = runMP2(hf, integ);
-      return hf.energy + mp2.correlationEnergy;
+    if (dispOpts.addD2) {
+      const d2 = dispersionD2(atomsIn, dispOpts.d2Opts ?? {});
+      return baseEnergy + d2.energy;
     }
-    // method === "ccsd"
-    const ccsd = runCCSD(hf, integ, ccsdOpts);
-    if (!ccsd.converged) allConverged = false;
-    return hf.energy + ccsd.correlationEnergy;
+    return baseEnergy;
   }
 
   // ── Supermolecule. ──

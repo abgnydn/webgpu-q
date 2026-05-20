@@ -280,6 +280,80 @@ describe("Counterpoise / BSSE — open-shell (UHF / UCCSD)", () => {
     expect(cp.bsseCorrection).toBeGreaterThanOrEqual(-1e-10);
   });
 
+  test("RKS-LDA H₂...H₂ at 3 Å: counterpoise BSSE small + non-negative", () => {
+    // DFT-counterpoise on H₂ dimer. STO-3G LDA exchange-correlation
+    // adds a small attractive contribution; BSSE is the artificial
+    // stabilization from borrowed basis functions.
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0]      },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+      { symbol: "H", pos: [0, 0, 3.7414] },
+      { symbol: "H", pos: [0, 0, 4.4828] },
+    ];
+    const cp = runCounterpoise(
+      atoms,
+      [{ atomIndices: [0, 1] }, { atomIndices: [2, 3] }],
+      "sto-3g",
+      {},     // hfOpts (unused)
+      "rks",
+      {},     // ccsdOpts (unused)
+      {},     // uhfOpts (unused)
+      { functional: "lda-svwn", rks: { useDIIS: true, maxIter: 200, energyTol: 1e-8 } },
+    );
+    expect(cp.allConverged).toBe(true);
+    expect(Number.isFinite(cp.interactionEnergy)).toBe(true);
+    expect(cp.bsseCorrection).toBeGreaterThanOrEqual(-1e-10);
+  }, 60_000);
+
+  test("RKS-LDA + D2: counterpoise integrates dispersion + DFT cleanly", () => {
+    // The end-to-end DFT-D2 BSSE workflow: each fragment / supermolecule
+    // single-point gets its DFT energy + D2 dispersion. D2 is
+    // distance-dependent, so the supermolecule and fragments-in-bare-basis
+    // differ. Validate the workflow produces finite, sensible values.
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0]      },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+      { symbol: "H", pos: [0, 0, 3.7414] },
+      { symbol: "H", pos: [0, 0, 4.4828] },
+    ];
+    const cp = runCounterpoise(
+      atoms,
+      [{ atomIndices: [0, 1] }, { atomIndices: [2, 3] }],
+      "sto-3g",
+      {},
+      "rks",
+      {},
+      {},
+      { functional: "blyp", rks: { useDIIS: true, maxIter: 200, energyTol: 1e-8 } },
+      { addD2: true, d2Opts: { functional: "blyp" } },
+    );
+    expect(cp.allConverged).toBe(true);
+    expect(Number.isFinite(cp.interactionEnergy)).toBe(true);
+    expect(Number.isFinite(cp.interactionEnergyCP)).toBe(true);
+    expect(cp.bsseCorrection).toBeGreaterThanOrEqual(-1e-10);
+    // STO-3G H₂-H₂ at 3 Å is dominated by exchange repulsion; D2
+    // adds an attractive correction but doesn't fully overcome
+    // the basis-incompleteness repulsion (you need larger basis for
+    // that). Both interaction energies should still be sub-mHa.
+    expect(Math.abs(cp.interactionEnergy)).toBeLessThan(1e-3);
+  }, 60_000);
+
+  test("RKS missing functional throws clearly", () => {
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0, 0, 5.0] },
+    ];
+    expect(() =>
+      runCounterpoise(
+        atoms,
+        [{ atomIndices: [0] }, { atomIndices: [1] }],
+        "sto-3g",
+        {},
+        "rks",
+      ),
+    ).toThrow(/requires dftOpts.functional/);
+  });
+
   test("UHF method without per-fragment spin throws", () => {
     const atoms: Atom[] = [
       { symbol: "H", pos: [0, 0, 0] },
