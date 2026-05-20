@@ -6,7 +6,7 @@ import {
   centerOfMass, totalMass, principalMomentsOfInertia, rotationalConstants,
   translateMolecule, rotateMolecule, standardOrientation,
   rmsd, rmsdAligned, molecularGraph, coordinationNumbers, distanceMatrix,
-  molecularFormula, planarity, lewisStructure, extractFragments,
+  molecularFormula, planarity, lewisStructure, extractFragments, shortestPath,
 } from "../../src/chemistry/geometry.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
@@ -292,6 +292,34 @@ describe("Geometry utilities", () => {
       expect(cn[i]).toBeGreaterThan(0.7); // H sees ~1 neighbor (C)
       expect(cn[i]).toBeLessThan(1.3);
     }
+  });
+
+  test("shortestPath in H₂O: O to H is 1 bond; H to H is 2 bonds (through O)", () => {
+    const half = (104.52 / 2) * Math.PI / 180;
+    const xH = 0.9572 * Math.sin(half);
+    const zH = 0.9572 * Math.cos(half);
+    const atoms: Atom[] = [
+      { symbol: "O", pos: [0, 0, 0] },
+      { symbol: "H", pos: [ xH, 0, zH] },
+      { symbol: "H", pos: [-xH, 0, zH] },
+    ];
+    expect(shortestPath(atoms, 0, 1)).toEqual([0, 1]);   // O → H1
+    expect(shortestPath(atoms, 1, 2)).toEqual([1, 0, 2]); // H1 → O → H2
+    // start === end → singleton path.
+    expect(shortestPath(atoms, 0, 0)).toEqual([0]);
+  });
+
+  test("shortestPath returns null for disconnected fragments", () => {
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0]      },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+      { symbol: "H", pos: [0, 0, 5.0]    },     // separate H₂
+      { symbol: "H", pos: [0, 0, 5.7414] },
+    ];
+    // Atoms 0 and 2 are in different fragments.
+    expect(shortestPath(atoms, 0, 2)).toBeNull();
+    // Within-fragment path works.
+    expect(shortestPath(atoms, 0, 1)).toEqual([0, 1]);
   });
 
   test("extractFragments: H₂ + H₂ dimer → 2 fragments of 2 atoms each", () => {

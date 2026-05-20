@@ -652,6 +652,51 @@ export function findBonds(
 }
 
 /**
+ * Find the shortest bond path between two atoms in the molecular
+ * graph (BFS). Returns the sequence of atom indices from `start` to
+ * `end` inclusive, or `null` if no path exists (atoms in different
+ * connected components).
+ *
+ * Useful for: bond-path analysis ("how many bonds between these two
+ * atoms?"), identifying the longest chain in a molecule, defining
+ * dihedral atoms from a bond.
+ */
+export function shortestPath(
+  atoms: readonly Atom[],
+  start: number,
+  end: number,
+  opts: { readonly scale?: number; readonly tolerance?: number } = {},
+): number[] | null {
+  if (start === end) return [start];
+  const graph = molecularGraph(atoms, opts);
+  const n = atoms.length;
+  if (start < 0 || start >= n || end < 0 || end >= n) {
+    throw new Error(`shortestPath: index out of range (${start}, ${end}) for ${n} atoms`);
+  }
+  const visited = new Array(n).fill(false);
+  const parent = new Array(n).fill(-1);
+  const queue: number[] = [start];
+  visited[start] = true;
+  while (queue.length > 0) {
+    const node = queue.shift()!;
+    if (node === end) {
+      // Reconstruct path.
+      const path: number[] = [];
+      for (let cur = end; cur !== -1; cur = parent[cur]) path.unshift(cur);
+      return path;
+    }
+    for (const nbr of graph.adjacency[node]!) {
+      if (!visited[nbr]) {
+        visited[nbr] = true;
+        parent[nbr] = node;
+        queue.push(nbr);
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Extract each connected fragment as its own subset of atoms.
  * Useful for splitting a multi-molecule input (e.g., a solute +
  * solvent system) into the individual molecules.
