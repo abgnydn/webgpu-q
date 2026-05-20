@@ -650,3 +650,69 @@ export function findBonds(
   }
   return bonds;
 }
+
+export interface MolecularGraph {
+  /** adjacency[i] = sorted array of atom indices bonded to atom i. */
+  readonly adjacency: readonly (readonly number[])[];
+  /** Degree (number of bonds) of each atom. */
+  readonly degree: readonly number[];
+  /** Connected components — each entry is a sorted list of atom indices
+   *  in that component. Isolated atoms appear as singleton arrays. */
+  readonly connectedComponents: readonly (readonly number[])[];
+  /** Total number of bonds detected. */
+  readonly nBonds: number;
+}
+
+/**
+ * Build a molecular graph from a list of atoms. Uses `findBonds` for
+ * connectivity, then derives adjacency, atomic degree, and the list
+ * of connected components via BFS.
+ *
+ * Useful for: identifying separate fragments in a counterpoise BSSE
+ * calculation, picking the largest molecular subgraph, validating
+ * connectivity expectations after geom-opt.
+ */
+export function molecularGraph(
+  atoms: readonly Atom[],
+  opts: { readonly scale?: number; readonly tolerance?: number } = {},
+): MolecularGraph {
+  const n = atoms.length;
+  const bonds = findBonds(atoms, opts);
+
+  const adj: number[][] = Array.from({ length: n }, () => []);
+  for (const b of bonds) {
+    adj[b.i]!.push(b.j);
+    adj[b.j]!.push(b.i);
+  }
+  for (const a of adj) a.sort((x, y) => x - y);
+
+  const degree = adj.map((a) => a.length);
+
+  const visited = new Array(n).fill(false);
+  const components: number[][] = [];
+  for (let start = 0; start < n; start++) {
+    if (visited[start]) continue;
+    const queue: number[] = [start];
+    const comp: number[] = [];
+    visited[start] = true;
+    while (queue.length > 0) {
+      const node = queue.shift()!;
+      comp.push(node);
+      for (const nbr of adj[node]!) {
+        if (!visited[nbr]) {
+          visited[nbr] = true;
+          queue.push(nbr);
+        }
+      }
+    }
+    comp.sort((x, y) => x - y);
+    components.push(comp);
+  }
+
+  return {
+    adjacency: adj,
+    degree,
+    connectedComponents: components,
+    nBonds: bonds.length,
+  };
+}

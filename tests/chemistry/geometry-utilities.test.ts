@@ -5,7 +5,7 @@ import {
   bondLength, bondAngle, dihedralAngle, findBonds,
   centerOfMass, totalMass, principalMomentsOfInertia, rotationalConstants,
   translateMolecule, rotateMolecule, standardOrientation,
-  rmsd, rmsdAligned,
+  rmsd, rmsdAligned, molecularGraph,
 } from "../../src/chemistry/geometry.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
@@ -240,5 +240,50 @@ describe("Geometry utilities", () => {
     expect(Ic).toBeGreaterThan(Ib);
     // I_c ≈ I_a + I_b (planar molecule identity).
     expect(Math.abs(Ic - Ia - Ib)).toBeLessThan(1e-6);
+  });
+
+  test("molecularGraph on CH₄: 1 component, 4 bonds, C has degree 4", () => {
+    const r = 1.0870;
+    const s = r / Math.sqrt(3);
+    const atoms: Atom[] = [
+      { symbol: "C", pos: [0, 0, 0] },
+      { symbol: "H", pos: [ s,  s,  s] },
+      { symbol: "H", pos: [-s, -s,  s] },
+      { symbol: "H", pos: [ s, -s, -s] },
+      { symbol: "H", pos: [-s,  s, -s] },
+    ];
+    const g = molecularGraph(atoms);
+    expect(g.nBonds).toBe(4);
+    expect(g.degree[0]).toBe(4);    // C is bonded to all 4 H
+    for (let i = 1; i <= 4; i++) expect(g.degree[i]).toBe(1);  // each H bonded only to C
+    expect(g.connectedComponents.length).toBe(1);
+    expect(g.connectedComponents[0]).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  test("molecularGraph on two separated H₂: 2 components", () => {
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0]      },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+      { symbol: "H", pos: [0, 0, 5.0]    },
+      { symbol: "H", pos: [0, 0, 5.7414] },
+    ];
+    const g = molecularGraph(atoms);
+    expect(g.nBonds).toBe(2);
+    expect(g.connectedComponents.length).toBe(2);
+    expect(g.connectedComponents[0]).toEqual([0, 1]);
+    expect(g.connectedComponents[1]).toEqual([2, 3]);
+  });
+
+  test("molecularGraph adjacency is sorted per atom", () => {
+    // H₂O: O bonded to both H1 and H2.
+    const atoms: Atom[] = [
+      { symbol: "O", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0.95, 0, 0] },
+      { symbol: "H", pos: [-0.95, 0, 0] },
+    ];
+    const g = molecularGraph(atoms);
+    expect(g.adjacency[0]).toEqual([1, 2]);   // O bonded to H1, H2 (sorted)
+    expect(g.adjacency[1]).toEqual([0]);
+    expect(g.adjacency[2]).toEqual([0]);
   });
 });
