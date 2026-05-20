@@ -263,9 +263,24 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 | Polarizability α(iω) | imaginary-axis response for Casimir-Polder |
 | C₆ van-der-Waals coefficients | Casimir-Polder integral; HF/UHF/DFT references |
 | Hyperpolarizability β | 3D finite-field stencil |
-| Mulliken populations | charges + spin-density resolved |
-| Wiberg / Mayer bond orders | + atomic valences (closed + open shell) |
+| Mulliken populations | charges + spin-density resolved (closed + open shell) |
+| Wiberg / Mayer bond orders | + atomic valences, Lewis-multiplicity inference |
 | Natural orbital occupations | NOON, multi-reference diagnostic |
+| D2 dispersion correction | Grimme JCC 2006, energy + analytical gradient |
+| Multireference verdict | T1/D1/⟨S²⟩/NOON aggregator with cutoff flags |
+| TRK sum rule | oscillator-strength conservation check |
+| Foster-Boys / Pipek-Mezey | orbital localization (Boys 1960 + PM 1989) |
+| Energy decomposition | one-electron + Coulomb + exchange + V_nn breakdown |
+| Coordination numbers | smooth Grimme D3 CN for chemistry-aware features |
+| Coulomb matrix descriptor | permutation-invariant ML feature |
+| Molecular formula / graph | Hill convention, adjacency, connected components |
+| RMSD + Kabsch alignment | optimal rotation between geometries |
+| Standard orientation | COM + principal-axes alignment |
+| Rotational constants | A/B/C in cm⁻¹ and GHz |
+| Multi-frame XYZ trajectory | for geom-opt / NEB visualization |
+| Pre-built molecule library | h2o, ch4, nh3, beh2, hf, etc. |
+| `quickReport(atoms)` | one-call full property report |
+| `uvVisSpectrum(atoms)` | atoms → excitations + broadened spectrum + peaks |
 | Harmonic ω | mass-weighted Hessian by finite diff |
 | IR intensities | dμ/dQ along normal modes |
 | Raman activities | Placzek invariants from α(Q) |
