@@ -6,7 +6,7 @@ import {
   centerOfMass, totalMass, principalMomentsOfInertia, rotationalConstants,
   translateMolecule, rotateMolecule, standardOrientation,
   rmsd, rmsdAligned, molecularGraph, coordinationNumbers, distanceMatrix,
-  molecularFormula, planarity, lewisStructure,
+  molecularFormula, planarity, lewisStructure, extractFragments,
 } from "../../src/chemistry/geometry.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
@@ -292,6 +292,35 @@ describe("Geometry utilities", () => {
       expect(cn[i]).toBeGreaterThan(0.7); // H sees ~1 neighbor (C)
       expect(cn[i]).toBeLessThan(1.3);
     }
+  });
+
+  test("extractFragments: H₂ + H₂ dimer → 2 fragments of 2 atoms each", () => {
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0]      },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+      { symbol: "H", pos: [0, 0, 5.0]    },
+      { symbol: "H", pos: [0, 0, 5.7414] },
+    ];
+    const { fragments, fragmentAtomIndices } = extractFragments(atoms);
+    expect(fragments.length).toBe(2);
+    expect(fragments[0]!.length).toBe(2);
+    expect(fragments[1]!.length).toBe(2);
+    expect(fragmentAtomIndices[0]).toEqual([0, 1]);
+    expect(fragmentAtomIndices[1]).toEqual([2, 3]);
+    // Atom symbols preserved.
+    expect(fragments[0]![0]!.symbol).toBe("H");
+    expect(fragments[0]![0]!.pos[2]).toBe(0);
+  });
+
+  test("extractFragments: single connected molecule → 1 fragment", () => {
+    const atoms: Atom[] = [
+      { symbol: "O", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0.95, 0, 0] },
+      { symbol: "H", pos: [-0.95, 0, 0] },
+    ];
+    const { fragments } = extractFragments(atoms);
+    expect(fragments.length).toBe(1);
+    expect(fragments[0]!.length).toBe(3);
   });
 
   test("lewisStructure: bond orders → multiplicities (single/double/triple)", () => {

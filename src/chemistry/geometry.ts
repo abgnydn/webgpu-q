@@ -651,6 +651,34 @@ export function findBonds(
   return bonds;
 }
 
+/**
+ * Extract each connected fragment as its own subset of atoms.
+ * Useful for splitting a multi-molecule input (e.g., a solute +
+ * solvent system) into the individual molecules.
+ *
+ * Returns:
+ *   - `fragments`: array of atom subsets (one per connected component)
+ *   - `fragmentAtomIndices`: per-fragment list of original atom indices
+ *     (useful if the caller needs to map back to the input order)
+ */
+export function extractFragments(
+  atoms: readonly Atom[],
+  opts: { readonly scale?: number; readonly tolerance?: number } = {},
+): {
+  readonly fragments: Atom[][];
+  readonly fragmentAtomIndices: readonly (readonly number[])[];
+} {
+  const graph = molecularGraph(atoms, opts);
+  const fragments: Atom[][] = [];
+  for (const comp of graph.connectedComponents) {
+    fragments.push(comp.map((i) => atoms[i]!));
+  }
+  return {
+    fragments,
+    fragmentAtomIndices: graph.connectedComponents,
+  };
+}
+
 export interface LewisBond {
   readonly i: number;
   readonly j: number;
