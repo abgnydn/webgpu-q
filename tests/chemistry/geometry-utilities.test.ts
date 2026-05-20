@@ -6,7 +6,7 @@ import {
   centerOfMass, totalMass, principalMomentsOfInertia, rotationalConstants,
   translateMolecule, rotateMolecule, standardOrientation,
   rmsd, rmsdAligned, molecularGraph, coordinationNumbers, distanceMatrix,
-  molecularFormula,
+  molecularFormula, planarity,
 } from "../../src/chemistry/geometry.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
@@ -292,6 +292,46 @@ describe("Geometry utilities", () => {
       expect(cn[i]).toBeGreaterThan(0.7); // H sees ~1 neighbor (C)
       expect(cn[i]).toBeLessThan(1.3);
     }
+  });
+
+  test("planarity: H₂O is planar (3 heavy/all atoms in a plane)", () => {
+    const half = (104.52 / 2) * Math.PI / 180;
+    const xH = 0.9572 * Math.sin(half);
+    const zH = 0.9572 * Math.cos(half);
+    const atoms: Atom[] = [
+      { symbol: "O", pos: [0, 0, 0] },
+      { symbol: "H", pos: [ xH, 0, zH] },
+      { symbol: "H", pos: [-xH, 0, zH] },
+    ];
+    // heavyOnly=false to include H atoms (otherwise just 1 atom).
+    const r = planarity(atoms, { heavyOnly: false });
+    expect(r.isPlanar).toBe(true);
+    expect(r.rmsDeviation).toBeLessThan(1e-10);
+  });
+
+  test("planarity: CH₄ is non-planar (tetrahedral)", () => {
+    const r = 1.0870;
+    const s = r / Math.sqrt(3);
+    const atoms: Atom[] = [
+      { symbol: "C", pos: [0, 0, 0] },
+      { symbol: "H", pos: [ s,  s,  s] },
+      { symbol: "H", pos: [-s, -s,  s] },
+      { symbol: "H", pos: [ s, -s, -s] },
+      { symbol: "H", pos: [-s,  s, -s] },
+    ];
+    const res = planarity(atoms, { heavyOnly: false });
+    expect(res.isPlanar).toBe(false);
+    expect(res.rmsDeviation).toBeGreaterThan(0.2);
+  });
+
+  test("planarity: <3 atoms → trivially planar", () => {
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0]      },
+      { symbol: "H", pos: [0, 0, 0.7414] },
+    ];
+    const r = planarity(atoms, { heavyOnly: false });
+    expect(r.isPlanar).toBe(true);
+    expect(r.rmsDeviation).toBe(0);
   });
 
   test("molecularFormula: H₂O = 'H2O', CH₄ = 'CH4', ethanol = 'C2H6O'", () => {

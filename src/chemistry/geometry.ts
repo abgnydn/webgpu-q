@@ -652,6 +652,68 @@ export function findBonds(
 }
 
 /**
+ * Test molecule planarity by fitting a plane through the heavy atoms
+ * (or all atoms if no heavy atoms present) and returning the RMS
+ * out-of-plane distance.
+ *
+ * "Planar" molecules (benzene, ethylene) have RMS deviation ≈ 0;
+ * pyramidal molecules (NH₃) have a few tenths of an Ångström;
+ * non-planar molecules (CH₄) much larger.
+ *
+ * Algorithm: build the centroid-centered covariance matrix Σ_i r_i r_i^T,
+ * find its smallest eigenvalue's eigenvector = plane normal. RMS
+ * distance from plane = √(λ_min / N).
+ *
+ * Returns:
+ *   - rmsDeviation: Å, sqrt(λ_min / N)
+ *   - normal: unit vector perpendicular to best-fit plane
+ *   - isPlanar: rmsDeviation < tolerance (default 0.05 Å)
+ */
+export function planarity(
+  atoms: readonly Atom[],
+  opts: { readonly heavyOnly?: boolean; readonly tolerance?: number } = {},
+): {
+  readonly rmsDeviation: number;
+  readonly normal: readonly [number, number, number];
+  readonly isPlanar: boolean;
+} {
+  const heavyOnly = opts.heavyOnly ?? true;
+  const tolerance = opts.tolerance ?? 0.05;
+  const subset = heavyOnly
+    ? atoms.filter((a) => a.symbol !== "H")
+    : atoms.slice();
+  if (subset.length < 3) {
+    // Fewer than 3 atoms — trivially planar.
+    return { rmsDeviation: 0, normal: [0, 0, 1], isPlanar: true };
+  }
+  // Centroid.
+  let cx = 0, cy = 0, cz = 0;
+  for (const a of subset) {
+    cx += a.pos[0]; cy += a.pos[1]; cz += a.pos[2];
+  }
+  cx /= subset.length; cy /= subset.length; cz /= subset.length;
+  // Covariance matrix.
+  let Sxx = 0, Syy = 0, Szz = 0, Sxy = 0, Sxz = 0, Syz = 0;
+  for (const a of subset) {
+    const x = a.pos[0] - cx, y = a.pos[1] - cy, z = a.pos[2] - cz;
+    Sxx += x * x; Syy += y * y; Szz += z * z;
+    Sxy += x * y; Sxz += x * z; Syz += y * z;
+  }
+  const eig = symmetric3x3Eig(Sxx, Syy, Szz, Sxy, Sxz, Syz);
+  // Smallest eigenvalue's eigenvector = plane normal.
+  const idxMin = [0, 1, 2].reduce((min, i) =>
+    eig.eigenvalues[i]! < eig.eigenvalues[min]! ? i : min, 0);
+  const lambdaMin = Math.max(eig.eigenvalues[idxMin]!, 0);
+  const rmsDeviation = Math.sqrt(lambdaMin / subset.length);
+  const normal = eig.eigenvectors[idxMin] as [number, number, number];
+  return {
+    rmsDeviation,
+    normal: [normal[0], normal[1], normal[2]],
+    isPlanar: rmsDeviation < tolerance,
+  };
+}
+
+/**
  * Hill-convention molecular formula string. Ordering rules:
  *   1. Carbon first (if present), then hydrogen, then other elements
  *      alphabetically.
