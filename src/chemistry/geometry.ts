@@ -652,6 +652,48 @@ export function findBonds(
 }
 
 /**
+ * Hill-convention molecular formula string. Ordering rules:
+ *   1. Carbon first (if present), then hydrogen, then other elements
+ *      alphabetically.
+ *   2. Subscripts show the count (no subscript for count=1 — matches
+ *      IUPAC convention).
+ *
+ * Returns the formula string. For an empty atom list returns "".
+ * Ghost atoms are skipped (they contribute basis but not chemical
+ * identity).
+ *
+ * Examples:
+ *   H₂O   → "H2O"
+ *   CH₄  → "CH4"
+ *   C₂H₆O (ethanol) → "C2H6O"
+ *   NH₃  → "H3N"  (no carbon, so H comes alphabetically after N)
+ */
+export function molecularFormula(atoms: readonly Atom[]): string {
+  const counts: Record<string, number> = {};
+  for (const a of atoms) {
+    if (a.ghost) continue;
+    counts[a.symbol] = (counts[a.symbol] ?? 0) + 1;
+  }
+  const symbols = Object.keys(counts);
+  const hasCarbon = symbols.includes("C");
+  const sorted = symbols.sort((a, b) => {
+    if (hasCarbon) {
+      if (a === "C" && b !== "C") return -1;
+      if (b === "C" && a !== "C") return 1;
+      if (a === "H" && b !== "H" && b !== "C") return -1;
+      if (b === "H" && a !== "H" && a !== "C") return 1;
+    }
+    return a.localeCompare(b);
+  });
+  let result = "";
+  for (const sym of sorted) {
+    const count = counts[sym]!;
+    result += count === 1 ? sym : `${sym}${count}`;
+  }
+  return result;
+}
+
+/**
  * Pairwise Euclidean distance matrix. Returns N × N row-major
  * Float64Array with M[i, j] = |R_i − R_j| in Å (same unit as
  * Atom.pos). Diagonal is exactly 0. Useful primitive for geometry

@@ -6,6 +6,7 @@ import {
   centerOfMass, totalMass, principalMomentsOfInertia, rotationalConstants,
   translateMolecule, rotateMolecule, standardOrientation,
   rmsd, rmsdAligned, molecularGraph, coordinationNumbers, distanceMatrix,
+  molecularFormula,
 } from "../../src/chemistry/geometry.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
@@ -291,6 +292,57 @@ describe("Geometry utilities", () => {
       expect(cn[i]).toBeGreaterThan(0.7); // H sees ~1 neighbor (C)
       expect(cn[i]).toBeLessThan(1.3);
     }
+  });
+
+  test("molecularFormula: H₂O = 'H2O', CH₄ = 'CH4', ethanol = 'C2H6O'", () => {
+    const h2o: Atom[] = [
+      { symbol: "O", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0.95, 0, 0] },
+      { symbol: "H", pos: [-0.95, 0, 0] },
+    ];
+    expect(molecularFormula(h2o)).toBe("H2O");
+
+    const ch4: Atom[] = [
+      { symbol: "C", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0.6, 0.6, 0.6] },
+      { symbol: "H", pos: [-0.6, -0.6, 0.6] },
+      { symbol: "H", pos: [0.6, -0.6, -0.6] },
+      { symbol: "H", pos: [-0.6, 0.6, -0.6] },
+    ];
+    expect(molecularFormula(ch4)).toBe("CH4");
+
+    const ethanol: Atom[] = [
+      { symbol: "C", pos: [0, 0, 0] },
+      { symbol: "C", pos: [1.5, 0, 0] },
+      { symbol: "O", pos: [-1.4, 0, 0] },
+      { symbol: "H", pos: [0, 1, 0] },
+      { symbol: "H", pos: [0, -1, 0] },
+      { symbol: "H", pos: [1.5, 1, 0] },
+      { symbol: "H", pos: [1.5, -1, 0] },
+      { symbol: "H", pos: [2.5, 0, 0] },
+      { symbol: "H", pos: [-2, 0, 0] },
+    ];
+    expect(molecularFormula(ethanol)).toBe("C2H6O");
+  });
+
+  test("molecularFormula: NH₃ uses alphabetical when no carbon", () => {
+    const nh3: Atom[] = [
+      { symbol: "N", pos: [0, 0, 0] },
+      { symbol: "H", pos: [1, 0, 0] },
+      { symbol: "H", pos: [-1, 0, 0] },
+      { symbol: "H", pos: [0, 1, 0] },
+    ];
+    // Hill convention with no carbon: alphabetical → H comes before N.
+    expect(molecularFormula(nh3)).toBe("H3N");
+  });
+
+  test("molecularFormula: ghost atoms skipped", () => {
+    const atoms: Atom[] = [
+      { symbol: "H", pos: [0, 0, 0] },
+      { symbol: "H", pos: [0, 0, 1] },
+      { symbol: "O", pos: [5, 0, 0], ghost: true },
+    ];
+    expect(molecularFormula(atoms)).toBe("H2");
   });
 
   test("distanceMatrix on H₂O: symmetric, zero diagonal, correct pairs", () => {
