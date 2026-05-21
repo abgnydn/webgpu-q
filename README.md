@@ -12,7 +12,7 @@
 
 <br/><br/>
 
-<img alt="version" src="https://img.shields.io/badge/v0.4.1-0ea5e9?style=flat-square&labelColor=0b1224"/>
+<img alt="version" src="https://img.shields.io/badge/v0.5.0-0ea5e9?style=flat-square&labelColor=0b1224"/>
 <img alt="license" src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="tests" src="https://img.shields.io/badge/tests-CI%20green-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="typescript" src="https://img.shields.io/badge/typescript-strict-3178c6?style=flat-square&labelColor=0b1224"/>
@@ -29,7 +29,7 @@
 
 **A research-grade quantum chemistry + many-body physics engine that runs entirely in a browser tab.**
 
-No install. No backend. No CUDA. Open a URL and get HF · UHF · DFT · MP2 · CCSD · CCSD(T) · EOM-CCSD on real molecules — with GPU acceleration via WebGPU.
+No install. No backend. No CUDA. Open a URL and get HF · UHF · DFT (RKS+UKS) · MP2 · CCSD · CCSD(T) · EOM-CCSD · TDDFT α(ω) · C₆ dispersion on real molecules — with GPU acceleration via WebGPU. Molden / Cube / QCSchema / XYZ exports for visualization + interop.
 
 </td>
 </tr>
@@ -157,10 +157,22 @@ npm run test:e2e     # Playwright · headless WebGPU Chromium
 ```
 
 ```ts
-// Computational use — just import the modules
+// Or one-call from molecule to a full property report
+import { molecules, quickReport, uvVisSpectrum, toMoldenString } from "./src/chemistry";
+
+const report  = quickReport(molecules.h2o, { addD2: true, addStaticAlpha: true });
+const uvvis   = uvVisSpectrum(molecules.h2o, { method: "b3lyp5" });
+const molden  = toMoldenString({ atoms: molecules.h2o, /* ... */ });
+// → energy, dipole, charges, bond orders, NOON, ⟨S²⟩, multireference
+//   verdict, static α, D2 dispersion, UV-vis spectrum + peaks, Molden file.
+//   All in a Chrome tab.
+```
+
+```ts
+// Or piece by piece if you want control
 import { runRHFSCF, runMP2, runCCSD, runCCSDT_GPU, runEOMCCSD } from "./src/chemistry";
 
-const hf      = runRHFSCF(integrals);
+const hf      = runRHFSCF(integrals, nElectrons);
 const mp2     = runMP2(hf, integrals);
 const ccsd    = runCCSD(hf, integrals);
 const t       = await runCCSDT_GPU(ccsd, hf, integrals, device);  // 39× on cc-pVDZ
@@ -245,7 +257,7 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 | IP-EOM-CCSD | R₁ exact (brute-force); R₂ open |
 | EA-EOM-CCSD | R₁ + R₂ patched to exact (stage 32e) |
 | CIS · TDA · TDDFT (Casida) | full functional ladder, triplet via spin-pol, Davidson |
-| Counterpoise / BSSE | HF + MP2 + CCSD + UHF + UCCSD via ghost atoms |
+| Counterpoise / BSSE | HF / MP2 / CCSD / UHF / UCCSD / RKS / UKS + optional D2 add-on |
 | Oscillator strengths | f = (2/3)·ω·|μ|², R₁·μ AO→MO transform |
 | Spin classifier | singlet/triplet/spin-flip weight per root |
 
@@ -302,7 +314,7 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 |---|---|
 | BFGS geom-opt | analytical HF + DFT gradients |
 | Lebedev angular grids | 2.6× point reduction at better accuracy |
-| STO-3G | H, He, Li, Be, C, N, O, F (full second row) |
+| STO-3G | H, He, Li, Be, C, N, O, F (full first + second period) |
 | 6-31G* | available |
 | cc-pVDZ | H, He, Li, Be, C, N, O, F; CCSD(T) on H₂O in 5 s (GPU) |
 | aug-cc-pVDZ | H, He, Li, Be, C, N, O, F (diffuse functions wired) |
@@ -343,7 +355,7 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 
 See [`CITATION.cff`](./CITATION.cff). For papers:
 
-> Günaydın, A.B. (2026). _webgpu-q v0.4.1_. https://github.com/abgnydn/webgpu-q
+> Günaydın, A.B. (2026). _webgpu-q v0.5.0_. https://github.com/abgnydn/webgpu-q
 
 A Zenodo DOI will be minted on the next versioned release.
 
@@ -427,8 +439,8 @@ Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@ba
 
 | symbol | value | context |
 |---|---|---|
-| `TESTS` | **546** | vitest unit + integration, all green |
-| `CHEMISTRY_TESTS` | **321** | chemistry subset (1 skipped: opt-in cc-pVDZ CCSD(T)) |
+| `TESTS` | **553** | vitest unit + integration, all green |
+| `CHEMISTRY_TESTS` | **437** | chemistry subset (1 skipped: opt-in cc-pVDZ CCSD(T)) |
 | `E2E_SPECS` | **14** | Playwright headless WebGPU (CCSD(T), EOM, UV-vis, wallclock-vs-PySCF, levels 1/2/3/6, smoke tests) |
 | `CCSD_T_SPEEDUP` | **39.3×** | H₂O · cc-pVDZ · M2 Pro · vs our own CPU |
 | `CCSD_T_GPU_TIME` | **5.05 s** | H₂O · cc-pVDZ · GPU |
@@ -453,7 +465,7 @@ Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@ba
 | `MPS_N_MAX` | **128** | TFIM/Heisenberg, χ ≤ 32, browser |
 | `MPS_CHI_MAX` | **64** | Phase 6 GPU MPS |
 | `H2O_ENTROPY` | **45.06 cal/(mol·K)** | expt 45.1 |
-| `STAGES_SHIPPED` | **24–38, 32b–m** | through v0.4.1 (32k σ_1 sign-fix + migration framework) |
+| `STAGES_SHIPPED` | **through v0.5.0** | polarizability + dispersion matrix end-to-end, UKS-DFT full functional ladder, Molden/Cube/QCSchema/XYZ exports, D2 dispersion + counterpoise, Foster-Boys + Pipek-Mezey localization, NOON + multireference verdict |
 | `LIVE_URL` | **webgpu-q.vercel.app** | production |
 
 </details>

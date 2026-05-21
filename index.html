@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#6ea8ff" />
 
     <title>webgpu-q — quantum simulation in a browser tab</title>
-    <meta name="description" content="WebGPU quantum + chemistry tool in a browser tab: HF + UHF + UCCSD, DFT, MP2, CCSD, CCSD(T) on GPU (39× speedup), EE/IP/EA-EOM-CCSD (PySCF cross-checked, LiH at method precision), density fitting, TDDFT (singlet + triplet), geometry optimization, full IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, IPs + EAs, thermochemistry, statevector + MPS. Browser-native, PySCF + brute-force-EOM-CCSD + experiment validated." />
+    <meta name="description" content="WebGPU quantum + chemistry tool in a browser tab: HF / UHF / RKS-DFT / UKS-DFT (full functional ladder), MP2, CCSD, CCSD(T) on GPU (39× speedup), EE/IP/EA-EOM-CCSD (PySCF cross-checked), density fitting, TDDFT α(ω), Casimir-Polder C₆ van-der-Waals dispersion, Grimme D2 correction, Foster-Boys + Pipek-Mezey orbital localization, geometry optimization, IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, IPs + EAs, thermochemistry. Molden / Cube / QCSchema / XYZ exports. Browser-native, PySCF + experiment validated." />
     <meta name="author" content="Ahmet Baris Gunaydin" />
     <meta name="keywords" content="WebGPU, quantum simulator, MPS, DMRG, kernel fusion, VQE, quantum chemistry, TFIM, phase transition, ITensor, condensed matter, browser, WGSL, TypeScript" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -17,7 +17,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="webgpu-q" />
     <meta property="og:title" content="webgpu-q · quantum simulation in a browser tab" />
-    <meta property="og:description" content="WebGPU quantum + chemistry tool: HF + UHF + UCCSD, DFT, MP2, CCSD, CCSD(T) on GPU (39×), EE/IP/EA-EOM-CCSD (PySCF cross-checked, LiH at method precision), density fitting, TDDFT, full IR + Raman + UV-vis spectra, IPs + EAs, thermochemistry. PySCF + experiment validated. Browser-native, no install." />
+    <meta property="og:description" content="WebGPU quantum + chemistry tool: HF / UHF / RKS-DFT / UKS-DFT, MP2, CCSD, CCSD(T) on GPU (39×), EE/IP/EA-EOM-CCSD (PySCF cross-checked), TDDFT α(ω), Casimir-Polder C₆, D2 dispersion, Foster-Boys + Pipek-Mezey localization, full IR + Raman + UV-vis spectra, IPs + EAs, thermochemistry, Molden / Cube / QCSchema / XYZ exports. PySCF + experiment validated. Browser-native, no install." />
     <meta property="og:url" content="https://webgpu-q.vercel.app/" />
     <meta property="og:image" content="https://webgpu-q.vercel.app/og-image.png" />
     <meta property="og:image:type" content="image/png" />
@@ -29,7 +29,7 @@
     <!-- Twitter / X -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="webgpu-q · quantum simulation in a browser tab" />
-    <meta name="twitter:description" content="HF + UCCSD + DFT + CCSD(T) on GPU (39×) + EE/IP/EA-EOM-CCSD (LiH within method precision) + density fitting + TDDFT + statevector + MPS — all WebGPU, all in a browser tab. PySCF + ITensor + brute-force-EOM validated. No install." />
+    <meta name="twitter:description" content="HF / UHF / RKS / UKS-DFT + CCSD(T) on GPU (39×) + EE/IP/EA-EOM-CCSD + TDDFT α(ω) + C₆ dispersion + D2 + Foster-Boys / Pipek-Mezey localization + Molden / Cube / QCSchema / XYZ exports — all WebGPU, all in a browser tab. PySCF + experiment validated. No install." />
     <meta name="twitter:image" content="https://webgpu-q.vercel.app/og-image.png" />
     <meta name="twitter:image:alt" content="webgpu-q — Quantum simulation, in a browser tab." />
 
@@ -52,7 +52,7 @@
           "applicationCategory": "ScienceApplication",
           "applicationSubCategory": "Quantum Many-Body Simulation",
           "operatingSystem": "Any OS with a WebGPU-capable browser",
-          "description": "A WebGPU quantum + computational-chemistry tool: HF + UHF + UCCSD, DFT (5 functionals), MP2 + Cholesky density fitting, CCSD, CCSD(T) on GPU (39× speedup), EE/IP/EA-EOM-CCSD (PySCF cross-checked, LiH at method precision), CIS / TDA / TDDFT (singlet + triplet), geometry optimization, IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, ionization potentials + electron affinities, thermochemistry, statevector + MPS, kernel fusion. PySCF + libxc + ITensor + experiment validated.",
+          "description": "A WebGPU quantum + computational-chemistry tool: HF + UHF + UCCSD, RKS-DFT + UKS-DFT (full LDA/GGA/hybrid functional ladder), MP2 + Cholesky density fitting, CCSD, CCSD(T) on GPU (39× speedup), EE/IP/EA-EOM-CCSD (PySCF cross-checked), CIS / TDA / TDDFT (singlet + triplet) including frequency-dependent α(ω), Casimir-Polder C₆ van-der-Waals dispersion across all reference types, Grimme D2 dispersion correction with analytical gradient, Foster-Boys + Pipek-Mezey orbital localization, NOON + multireference verdict diagnostics, geometry optimization, IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, ionization potentials + electron affinities, thermochemistry, statevector + MPS, kernel fusion. Molden / Gaussian Cube / QCSchema JSON / multi-frame XYZ exports. PySCF + libxc + ITensor + experiment validated.",
           "url": "https://webgpu-q.vercel.app/",
           "author": {
             "@type": "Person",
@@ -448,18 +448,23 @@
         <em>in a browser tab.</em>
       </h1>
       <p class="lead">
-        Hartree-Fock + UHF + UCCSD (radicals), DFT (5 functionals), MP2,
-        CCSD, <strong>CCSD(T) on GPU (39× speedup on H₂O cc-pVDZ)</strong>,
-        <strong>EE/IP/EA-EOM-CCSD (PySCF cross-checked · LiH at method precision)</strong>,
-        <strong>density fitting (Cholesky-DF for HF + MP2)</strong>,
-        geometry optimization with analytical gradients, full IR + Raman +
-        UV-vis spectra (singlet + triplet), polarizability +
-        hyperpolarizability, ionization potentials + electron affinities,
-        ideal-gas thermochemistry — plus a quantum-many-body playground
-        (statevector, MPS, kernel fusion, phase transitions). All WebGPU,
-        all TypeScript, all cross-validated against PySCF, libxc, ITensor,
-        an internal brute-force EOM-CCSD reference, and gas-phase
-        experimental references.
+        Hartree-Fock + UHF + UCCSD (radicals),
+        <strong>RKS-DFT + UKS-DFT (5 functionals, open + closed shell)</strong>,
+        MP2, CCSD, <strong>CCSD(T) on GPU (39× speedup on H₂O cc-pVDZ)</strong>,
+        <strong>EE/IP/EA-EOM-CCSD (PySCF cross-checked)</strong>, density
+        fitting (Cholesky-DF for HF + MP2), <strong>full polarizability
+        stack — static α + dynamic α(ω) + Casimir-Polder C₆ — across
+        every reference</strong> (RHF/UHF/RKS/UKS), <strong>Grimme D2
+        dispersion with analytical gradient</strong>, geometry
+        optimization, IR + Raman + UV-vis spectra (singlet + triplet),
+        <strong>Foster-Boys + Pipek-Mezey orbital localization</strong>,
+        NOON + multireference verdict + ⟨S²⟩ diagnostics, ionization
+        potentials + electron affinities, ideal-gas thermochemistry,
+        <strong>Molden + Gaussian Cube + QCSchema + XYZ exports</strong>
+        — plus a quantum-many-body playground (statevector, MPS, kernel
+        fusion, phase transitions). All WebGPU, all TypeScript, all
+        cross-validated against PySCF, libxc, ITensor, an internal
+        brute-force EOM-CCSD reference, and gas-phase experimental references.
       </p>
       <div class="ctas">
         <a class="btn primary" href="/viz.html">
@@ -684,13 +689,17 @@
           <div class="num">4</div>
           <div class="body">
             <strong>Quantum chemistry — full stack</strong>
-            <p>HF + <strong>UHF (radicals)</strong>, RKS-DFT (5 functionals —
-              LDA / BVWN5 / BLYP / B3VWN5 / B3LYP5), MP2 + DF-MP2, FCI, CCSD +
-              <strong>UCCSD</strong>, CPU CCSD(T), and a <strong>hand-written WGSL
-              CCSD(T) kernel</strong> (1 thread per occupied (i, j, k) triple, f32→f64
-              reduce). cc-pVDZ CCSD(T) on H₂O in <strong>~5 s on GPU vs ~199 s
-              CPU</strong>; HF matches PySCF to <strong>35 µHa</strong>;
-              <strong>Cholesky density fitting</strong> wired into HF + MP2.</p>
+            <p>HF + <strong>UHF (radicals)</strong>,
+              <strong>RKS-DFT + UKS-DFT</strong> (5 functionals — LDA / BVWN5 /
+              BLYP / B3VWN5 / B3LYP5, closed + open shell), MP2 + DF-MP2, FCI,
+              CCSD + <strong>UCCSD</strong>, CPU CCSD(T) + UCCSD(T), and a
+              <strong>hand-written WGSL CCSD(T) kernel</strong> (1 thread per
+              occupied (i, j, k) triple, f32→f64 reduce). cc-pVDZ CCSD(T) on H₂O in
+              <strong>~5 s on GPU vs ~199 s CPU</strong>; HF matches PySCF to
+              <strong>35 µHa</strong>; <strong>Cholesky density fitting</strong>
+              wired into HF + MP2;
+              <strong>full counterpoise/BSSE across all methods + optional D2
+              dispersion add-on</strong>.</p>
           </div>
         </div>
         <div class="lvl">
@@ -711,13 +720,19 @@
           <div class="body">
             <strong>Spectra, properties, excited states</strong>
             <p><strong>CIS / TDA / TDDFT singlet + triplet</strong> across
-              HF + 5 DFT functionals (Miehlich spin-LYP). <strong>EE-, IP-, and
-              EA-EOM-CCSD</strong> for correlated excited states, ionization
-              potentials, and electron affinities — PySCF cross-checked, LiH
-              singlet at method precision (0.27 eV after the σ_1 sign-fix
-              uncovered by a brute-force Fock-space diagnostic). Oscillator
-              strengths, polarizability α, hyperpolarizability β, Koopmans /
-              ΔSCF / EOM IPs, Mulliken charges, Wiberg-Mayer bond orders.</p>
+              HF + 5 DFT functionals. <strong>EE-, IP-, and EA-EOM-CCSD</strong>
+              for correlated excited states, IPs, EAs — PySCF cross-checked.
+              <strong>Full polarizability stack</strong> — static α via CPHF +
+              dynamic α(ω) via TDHF/TDDFT + α(iω) on imaginary axis +
+              <strong>Casimir-Polder C₆ van-der-Waals dispersion</strong> —
+              across all four reference types (RHF / UHF / RKS / UKS).
+              <strong>Grimme D2 dispersion</strong> (energy + analytical gradient).
+              <strong>Foster-Boys + Pipek-Mezey orbital localization</strong>.
+              Oscillator strengths, hyperpolarizability β, Koopmans / ΔSCF / EOM IPs,
+              Mulliken charges + spin populations, Mayer bond orders + valences,
+              <strong>NOON</strong>, T1 / D1, ⟨S²⟩, <strong>multireference verdict</strong>,
+              TRK sum rule, energy decomposition.
+              <strong>Molden / Gaussian Cube / QCSchema / multi-frame XYZ exports.</strong></p>
           </div>
         </div>
       </div>
