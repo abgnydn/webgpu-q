@@ -66,7 +66,7 @@ No install. No backend. No CUDA. Open a URL and get HF · UHF · DFT (RKS+UKS) �
 
 <div align="center">
 
-<img src="./public/readme-numbers.svg" alt="Key numbers: 546 tests, 39.3× CCSD(T) on GPU, 10⁻⁵ Ha EOM-CCSD vs FCI, 7×10⁻¹⁴ Ha DF-HF, 1.35×10⁻¹¹ GPU↔CPU, 4.18× fusion, F ≥ 0.999999 statevector, N=128 MPS" width="100%"/>
+<img src="./public/readme-numbers.svg" alt="Key numbers: 553 tests, 39.3× CCSD(T) on GPU, 10⁻⁵ Ha EOM-CCSD vs FCI, 7×10⁻¹⁴ Ha DF-HF, 1.35×10⁻¹¹ GPU↔CPU, 4.18× fusion, F ≥ 0.999999 statevector, N=128 MPS" width="100%"/>
 
 </div>
 
