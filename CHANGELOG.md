@@ -5,6 +5,82 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.6.0] — 2026-05-21
+
+The visualization release. Nine commits since v0.5.0 ship a complete
+SVG visualization stack for the chemistry property surface — every
+number the engine emits now has a chart. All viz is rendered as
+inline SVG (no canvas, no client-side libs), wired into
+`/molecule.html`, and validated by unit + e2e tests.
+
+### Added — Chart foundation (`src/viz/chart-base.ts`)
+
+- Shared color palette, frame defaults, linear scales, nice-tick
+  axes, grid helpers, polyline emitter, XML-escape utility — the
+  primitive layer every batch builds on.
+
+### Added — Batch 1: property-surface charts
+
+- `alphaOmegaChart` — α(ω) dispersion curve.
+- `noonChart` — natural-orbital occupation numbers.
+- `uvVisChart` — Gaussian-broadened absorption spectrum + sticks.
+- `energyDecompChart` — SCF + correlation + dispersion stack bar.
+- `c6MatrixChart` — heatmap of pairwise C₆ coefficients.
+- `rotationalCard` — rotational constants A/B/C card.
+
+### Added — Batch 2: molecular structure
+
+- `dispersionD2Chart` — pairwise D2 dispersion bars (top-K).
+- `mullikenChart` — divergent red/cyan charge bars.
+- `moleculeGraph2D` + `moleculeStructure` — projected 2D molecular
+  graph with bond detection, charge / spin overlays, xy/xz/yz axes.
+
+### Added — Batch 3: 2D fields + iteratives
+
+- `contour2DChart` — generic 2D scalar field heatmap (divergent for
+  signed orbitals, sequential for densities, optional iso-contours).
+- `localizedOrbitalGallery` — composite multi-panel SVG for Foster-
+  Boys / Pipek-Mezey LMOs.
+- `convergenceTrace` — log-scale iterative convergence (SCF / DIIS /
+  CCSD / EOM-CCSD / DMRG) with threshold guideline.
+- `basisCoverageChart` — per-atom horizontal stacked bars by s/p/d/f/g
+  shells, with `basisSummary("3s 2p 1d")` helper.
+
+### Added — Batch 4: wired into `/molecule.html`
+
+- New "Structure + basis" card — moleculeStructure + basisCoverageChart
+  in a 2-column grid, with per-atom basis-summary footer derived from
+  the shell list (L = ix+iy+iz).
+- Enhanced "Charges" card — moleculeGraph2D (atoms colored by Mulliken
+  charge) + mullikenChart (divergent bars).
+- Enhanced "UV-vis" card — Gaussian-broadened SVG spectrum (σ = 0.3 eV)
+  alongside the existing canvas stick spectrum.
+
+### Fixed
+
+- `<svg height="auto">` is invalid per the SVG spec — five console
+  warnings on every page load. Switched to `style="height:auto"`, which
+  is valid CSS and keeps the viewBox-driven aspect ratio.
+
+### Tests
+
+- 31 new viz unit tests across `tests/viz/{chemistry-charts,
+  molecule-viz, field-viz}.test.ts`. Cover: chart-foundation rendering,
+  divergent vs sequential colormaps, atom-overlay rendering, log-scale
+  iterations, threshold guidelines, empty-input branches, grid-mismatch
+  errors, basis-summary edge cases.
+- `molecule-smoke.spec.ts` (Playwright) — H₂O HF end-to-end through all
+  cards including the new Structure card. Clean console.
+
+### Docs
+
+- `CLAUDE.md` collapsed from 47.9k → 19.8k chars. The file kept
+  replicating per-stage history against its own advice ("don't replicate
+  git log here"). Trimmed two session markers + the 470-line stage block
+  to a one-pager state summary. Durable guidance (research-grade
+  discipline, architecture invariants, port-don't-re-derive, modern
+  reference standards) is unchanged.
+
 ## [0.5.0] — 2026-05-21
 
 Major release. 89 commits since v0.4.1 — closes the polarizability +
