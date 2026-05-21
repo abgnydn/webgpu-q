@@ -31,6 +31,12 @@ import {
 } from "../chemistry/thermochemistry.js";
 import { ionizationPotential, HA_TO_EV } from "../chemistry/redox.js";
 import type { FunctionalKind } from "../chemistry/dft/functional.js";
+import { moleculeGraph2D, moleculeStructure } from "../viz/molecular-graph-2d.js";
+import { mullikenChart } from "../viz/mulliken-chart.js";
+import { uvVisChart } from "../viz/uv-vis-chart.js";
+import {
+  basisCoverageChart, basisSummary, type AtomBasis,
+} from "../viz/basis-coverage-chart.js";
 
 type Method = "hf" | FunctionalKind;
 
@@ -173,6 +179,7 @@ async function runPipeline(): Promise<void> {
   }
 
   // Pre-create cards in display order.
+  const cardStructure = ensureCard("structure", "Structure + basis");
   const cardEnergy   = ensureCard("energy",   "Energy + geometry");
   const cardSpectra  = ensureCard("spectra",  "IR + Raman");
   const cardUVvis    = ensureCard("uvvis",    "UV-vis (TDA)");
@@ -227,6 +234,7 @@ async function runPipeline(): Promise<void> {
       ctx.C_MO = uhf.C_alpha; ctx.orbitalEnergies = uhf.orbitalEnergiesAlpha;
       ctx.nOccupied = mol.nAlpha!;
     }
+    renderStructureCard(cardStructure, mol, ctx);
     renderEnergyCard(cardEnergy, mol, ctx, method);
     renderChargesCard(cardCharges, mol, ctx);
     renderFieldCardDipole(cardField, ctx);
@@ -440,7 +448,18 @@ function renderChargesCard(body: HTMLElement, mol: MoleculeDef, ctx: Ctx): void 
   const nA = ctx.optAtoms.length;
   const html: string[] = [];
   html.push(`<p class="h-sub">Mulliken charges + Mayer bond orders. Charges sum to molecular charge by trace invariance.</p>`);
-  html.push(`<table class="t"><thead><tr><th>atom</th><th>symbol</th><th class="num">q (e)</th><th class="num">Mayer valence</th></tr></thead><tbody>`);
+  // SVG visualization row: atom diagram with charge overlay + per-atom bar chart.
+  const atomLabels = ctx.optAtoms.map((a, i) => `${a.symbol}${nA > 1 ? i + 1 : ""}`);
+  const chargesArr = Array.from(charges);
+  if (nA >= 1) {
+    html.push(`<div class="grid2" style="margin-top:8px">`);
+    html.push(`<div>${moleculeGraph2D(ctx.optAtoms.map((a) => ({ symbol: a.symbol, pos: a.pos })), {
+      charges: chargesArr, atomLabels, title: `${mol.symbol} · Mulliken overlay`,
+    })}</div>`);
+    html.push(`<div>${mullikenChart(chargesArr, { atomLabels, title: "Per-atom q" })}</div>`);
+    html.push(`</div>`);
+  }
+  html.push(`<table class="t" style="margin-top:14px"><thead><tr><th>atom</th><th>symbol</th><th class="num">q (e)</th><th class="num">Mayer valence</th></tr></thead><tbody>`);
   for (let i = 0; i < nA; i++) {
     html.push(`<tr><td>${i + 1}</td><td>${mol.atoms[i]!.symbol}</td><td class="num">${charges[i]!.toFixed(4)}</td><td class="num">${valences[i]!.toFixed(3)}</td></tr>`);
   }
@@ -454,6 +473,41 @@ function renderChargesCard(body: HTMLElement, mol: MoleculeDef, ctx: Ctx): void 
     }
     html.push(`</tbody></table>`);
   }
+  body.innerHTML = html.join("");
+}
+
+function renderStructureCard(body: HTMLElement, mol: MoleculeDef, ctx: Ctx): void {
+  // Aggregate per-atom shell counts from the shell list. Each shell has L; a
+  // spherical-harmonic shell contributes 2L+1 basis functions.
+  const nA = ctx.optAtoms.length;
+  const perAtomCounts: number[][] = Array.from({ length: nA }, () => [0, 0, 0, 0, 0]);
+  for (let s = 0; s < ctx.integrals.shells.length; s++) {
+    const shell = ctx.integrals.shells[s]!;
+    const atomIdx = ctx.shellAtomIdx[s] ?? 0;
+    const L = shell.angular[0] + shell.angular[1] + shell.angular[2];
+    if (L >= 0 && L < 5) {
+      perAtomCounts[atomIdx]![L] = (perAtomCounts[atomIdx]![L] ?? 0) + 1;
+    }
+  }
+  const atomBases: AtomBasis[] = ctx.optAtoms.map((a, i) => ({
+    symbol: a.symbol, counts: perAtomCounts[i] ?? [],
+  }));
+  const html: string[] = [];
+  html.push(`<p class="h-sub">2D projection of the optimized geometry and the per-atom basis-set composition. Bonds detected by a 1.8 Å covalent cutoff.</p>`);
+  html.push(`<div class="grid2" style="margin-top:8px">`);
+  html.push(`<div>${moleculeStructure(ctx.optAtoms.map((a) => ({ symbol: a.symbol, pos: a.pos })), {
+    title: `${mol.symbol} · ${mol.name}`,
+  })}</div>`);
+  html.push(`<div>${basisCoverageChart(atomBases, {
+    title: `${mol.basis.toUpperCase()} coverage`,
+    subtitle: `${ctx.integrals.n} basis functions · ${ctx.nElectrons} electrons`,
+  })}</div>`);
+  html.push(`</div>`);
+  // Per-atom basis summary as a one-line caption.
+  const perAtomSummary = atomBases
+    .map((a, i) => `${a.symbol}${nA > 1 ? i + 1 : ""}: ${basisSummary(a.counts)}`)
+    .join("   ·   ");
+  html.push(`<p class="h-sub" style="margin-top:8px;font-family:ui-monospace,monospace">${perAtomSummary}</p>`);
   body.innerHTML = html.join("");
 }
 
@@ -500,11 +554,41 @@ function renderUVvisCard(
     html.push(`<div><p class="h-sub">Triplet</p><p class="h-sub">unavailable for this method × spin combo</p></div>`);
   }
   html.push(`</div>`);
-  html.push(`<p class="h-sub" style="margin-top:18px">UV-vis stick spectrum (singlet, oscillator strength)</p><canvas id="canvas-uvvis" class="spec"></canvas>`);
+  html.push(`<p class="h-sub" style="margin-top:18px">UV-vis spectrum — sticks (canvas) and Gaussian-broadened (SVG, σ ≈ 0.3 eV).</p><canvas id="canvas-uvvis" class="spec"></canvas>`);
+  // Gaussian-broadened SVG version next to it.
+  const energiesEv = Array.from(sing.singletEnergies).map((x) => x * HA_TO_EV);
+  const strengths = Array.from(sing.oscillatorStrengths);
+  const peaks = energiesEv.map((e, i) => ({ energy: e, absorption: strengths[i] ?? 0 }));
+  const broadened = gaussianBroaden(energiesEv, strengths, 0.30, 80);
+  html.push(`<div style="margin-top:8px">${uvVisChart(broadened, peaks, {
+    title: "Singlet absorption (TDA)",
+  })}</div>`);
   body.innerHTML = html.join("");
-  const omegaEv = new Float64Array(Array.from(sing.singletEnergies).map((x) => x * HA_TO_EV));
+  const omegaEv = new Float64Array(energiesEv);
   drawSpectrum(document.getElementById("canvas-uvvis") as HTMLCanvasElement,
     omegaEv, sing.oscillatorStrengths, "#ffb56e", "eV");
+}
+
+function gaussianBroaden(
+  energies: readonly number[], strengths: readonly number[],
+  sigma: number, nGrid: number,
+): Array<{ energy: number; absorption: number }> {
+  if (energies.length === 0) return [];
+  const eMin = Math.max(0, Math.min(...energies) - 3 * sigma);
+  const eMax = Math.max(...energies) + 3 * sigma;
+  const step = (eMax - eMin) / Math.max(nGrid - 1, 1);
+  const norm = 1 / (sigma * Math.sqrt(2 * Math.PI));
+  const out: Array<{ energy: number; absorption: number }> = [];
+  for (let i = 0; i < nGrid; i++) {
+    const e = eMin + i * step;
+    let s = 0;
+    for (let k = 0; k < energies.length; k++) {
+      const dx = (e - energies[k]!) / sigma;
+      s += (strengths[k] ?? 0) * norm * Math.exp(-0.5 * dx * dx);
+    }
+    out.push({ energy: e, absorption: s });
+  }
+  return out;
 }
 
 function renderThermoCard(
