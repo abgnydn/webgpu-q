@@ -1,7 +1,7 @@
 {
   "name": "webgpu-q",
-  "version": "0.4.1",
-  "description": "WebGPU quantum many-body + chemistry simulator — statevector, MPS, kernel fusion, HF/UHF/UCCSD/DFT/MP2/CCSD/CCSD(T) (39× GPU), EE/IP/EA-EOM-CCSD (PySCF cross-checked, LiH at method precision), density fitting. Runs in a browser tab.",
+  "version": "0.5.0",
+  "description": "WebGPU quantum many-body + chemistry simulator — RHF/UHF/RKS/UKS DFT, MP2/CCSD/CCSD(T)/EOM-CCSD (39× GPU), full polarizability + dispersion stack (TDHF/TDDFT/UKS-TDDFT/C₆), D2 dispersion, Foster-Boys + Pipek-Mezey localization, Molden/Cube/QCSchema/XYZ export. Runs in a browser tab.",
   "type": "module",
   "license": "MIT",
   "author": {

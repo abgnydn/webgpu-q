@@ -5,6 +5,153 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.5.0] — 2026-05-21
+
+Major release. 89 commits since v0.4.1 — closes the polarizability +
+dispersion matrix end-to-end, lands UKS-DFT (full functional ladder),
+ships D2 dispersion + Casimir-Polder C₆, four interop export formats
+(Molden / Cube / QCSchema / XYZ trajectory), and a comprehensive
+geometry-analysis + properties + diagnostics toolkit. **94 test
+files / 553 tests, all green.**
+
+### Added — Open-shell DFT (UKS) + complete polarizability matrix
+
+- **UKS-DFT SCF** (`src/chemistry/dft/uks-scf.ts`) — full functional
+  ladder (LDA-SVWN5, BVWN5, BLYP, B3VWN5, B3LYP5). Spin-resolved
+  J/K assembly + spin-polarized XC kernel. Closed-shell H₂O matches
+  RKS-DFT to ≤ 1e-5 Ha across all functionals; H atom doublet ⟨S²⟩
+  = 0.75 exactly; Li doublet cc-pVDZ converges with non-zero spin
+  density.
+- **UKS-CPHF static α** (`uks-cphf.ts`) — LSDA only. 4-spin-block
+  (A+B) on combined (α-OV + β-OV) with XC kernel. Closed-shell
+  H₂O matches RKS-TDDFT@ω=0 to 1e-3 per element / 1e-4 isotropic.
+- **UKS-TDDFT α(ω)** (`uks-tdhf.ts`) — LSDA dynamic response. (A−B)
+  reduces to ε-diag in LSDA (Coulomb and symmetric kernel both
+  cancel in A−B). Static ω=0 limit matches UKS-CPHF to 1e-7.
+- **TDHF, UHF-TDHF, TDDFT, UKS-TDDFT α(ω) and α(iω)** — all RPA
+  response solvers shipped (`tdhf.ts`, `uhf-tdhf.ts`,
+  `tddft-response.ts`, `uks-tdhf.ts`).
+- **Open-shell counterpoise** — `runCounterpoise` extended to UHF /
+  UCCSD / RKS / UKS methods + optional D2 dispersion add-on.
+- **{RHF, UHF, RKS, UKS} × {static α, α(ω), α(iω), C₆} 16-cell
+  polarizability matrix: 16/16 closed.**
+
+### Added — Dispersion correction (Grimme D2)
+
+- `dispersionD2(atoms, opts)` (`dispersion-d2.ts`) — atomic-pairwise
+  C6/R⁶ with Fermi damping and functional-specific s6 (BLYP=1.20,
+  B3LYP5/B3VWN5=1.05, LDA=1.05 default). Tabulated for full first
+  row + He.
+- `dispersionD2Gradient(atoms, opts)` — analytical Cartesian gradient
+  ∂E_disp/∂R_A. Validated against central FD to 1e-6 Ha/Bohr.
+- `dispersionCorrectedEnergy(scfEnergy, atoms, opts)` — convenience
+  wrapper that returns the SCF + dispersion + total decomposition.
+- `c6Coefficient` + `c6CoefficientGeneral` (`dispersion.ts`) —
+  Casimir-Polder integral C₆ = (3/π)·∫₀^∞ ᾱ(iω)² dω with a
+  discriminated `AlphaImagSource` union supporting "rhf" / "uhf" /
+  "rks" / "uks" references. Gauss-Legendre quadrature with Golub-
+  Welsch nodes; converges to 2% from N=8 → N=32.
+
+### Added — Interop exports
+
+- `toMoldenString({atoms, shells, C_MO, ...})` (`molden.ts`) —
+  Cartesian-Gaussian Molden file for Jmol / Avogadro / Multiwfn.
+- `densityCube` / `moCube` / `homoCube` / `lumoCube` /
+  `spinDensityCube` (`cube.ts`) — Gaussian98-standard Cube files
+  with sensible default grids (0.3-bohr step, 4-bohr padding).
+- `toQCSchemaClosedShell` / `toQCSchemaOpenShell` (`qcschema.ts`) —
+  MolSSI QCSchema v1 AtomicResult JSON for QCEngine / QCFractal /
+  cclib pipelines.
+- `parseXYZ` / `toXYZ` / `toMultiFrameXYZ` / `parseMultiFrameXYZ`
+  (`xyz.ts`) — standard XYZ parser + emitter + multi-frame
+  trajectory support for geom-opt visualization.
+
+### Added — Element coverage
+
+- **He** support across STO-3G, cc-pVDZ, and aug-cc-pVDZ. All four
+  basis files wired in `atoms.ts` and `integrals.ts`. Element
+  union now: H, He, Li, Be, C, N, O, F.
+- aug-cc-pVDZ diffuse data for Li/Be/C/N/F (previously only H, O).
+
+### Added — Localization + diagnostics
+
+- `fosterBoys` (`foster-boys.ts`) — Boys 1960 maximization via
+  2×2 Jacobi sweeps. Converges in 5-20 sweeps for small molecules.
+- `pipekMezey` (`pipek-mezey.ts`) — Mulliken-based PM 1989
+  localization. Separates σ and π bonds where Boys mixes them.
+- `naturalOrbitalOccupations` (`natural-orbitals.ts`) — NOON via
+  Löwdin-orthogonal eigendecomposition of the 1-PDM. Multi-
+  reference diagnostic.
+- `multireferenceDiagnostic` — aggregates T1, D1, ⟨S²⟩, NOON into a
+  single severity verdict + flags (Lee-Taylor, Janssen-Nielsen
+  cutoffs).
+- `trkSumRule` — Thomas-Reiche-Kuhn cross-check on oscillator
+  strengths.
+- `decomposeHFEnergy` / `decomposeUHFEnergy`
+  (`energy-decomposition.ts`) — one-electron + Coulomb + exchange
+  + V_nn breakdown. Reconstructs total to 1e-9 Ha.
+
+### Added — Geometry & analysis utilities
+
+`src/chemistry/geometry.ts` extended with:
+- `dihedralAngle`, `findBonds`, `molecularGraph` (adjacency,
+  components), `shortestPath` (BFS), `extractFragments`,
+  `compareMolecules` (formula + bonds + Kabsch RMSD).
+- `translateMolecule`, `rotateMolecule`, `standardOrientation`
+  (Gaussian convention).
+- `rmsd`, `rmsdAligned` (Kabsch SVD-based alignment).
+- `centerOfMass`, `totalMass`, `principalMomentsOfInertia`,
+  `rotationalConstants` (A/B/C in cm⁻¹ and GHz).
+- `coordinationNumbers` (Grimme D3 fractional CN with k₁=16,
+  k₂=4/3).
+- `distanceMatrix`, `molecularFormula` (Hill convention),
+  `planarity` (best-fit plane RMS), `lewisStructure` (Mayer → bond
+  multiplicity).
+
+### Added — Convenience API + ML
+
+- `quickReport(atoms, opts)` (`quick-report.ts`) — one-call SCF +
+  full property report.
+- `molecularReport(input, integrals, shells, atoms, shellAtomIdx,
+  opts)` (`molecular-report.ts`) — comprehensive aggregator
+  dispatching on `{kind: "rhf" | "uhf" | "rks" | "uks"}`.
+- `uvVisSpectrum(atoms, opts)` (`uv-vis.ts`) — atoms → SCF →
+  TDDFT → broadened spectrum + peaks + TRK in one call.
+- `molecules` library (`molecules.ts`) — pre-built h2o, ch4, nh3,
+  beh2, h2, liH, hf, li, he, atomicH, f at experimental geometries.
+- `coulombMatrix` (`descriptors.ts`) — Rupp 2012 permutation-
+  invariant ML feature.
+- `broadenSpectrum`, `findSpectrumPeaks` (`spectrum.ts`) — Gaussian
+  broadening + peak detection for UV-vis output.
+- `PERIODIC_TABLE` + `elementInfo` + `molecularWeight`
+  (`periodic-table.ts`) — atomic properties database.
+- `HARTREE_TO_EV` / `BOHR_TO_ANGSTROM` / `fromHartree` / `toHartree`
+  / etc. (`units.ts`) — CODATA 2018 unit conversions.
+
+### Added — SCF + correlation
+
+- **UCCSD(T) frozen-core** via non-contiguous `ReadonlySet<number>`
+  (closes explicit TODO in `uccsd-t.ts`). Closed-shell H₂O frozen-1s
+  matches RHF-CCSD(T) frozen-1s to 1e-7.
+- **DFT SCF level-shift** (`RKSOpts.levelShift`) — mirror of HF
+  level-shift for stretched-bond / near-degenerate KS problems.
+- **UKS hybrid K-factor fix** — `F_σ -= hfMix·K(D_σ)` (not 0.5·hfMix).
+  Brought B3VWN5/B3LYP5 closed-shell UKS-vs-RKS gap from 0.88 mHa
+  to 1e-6 Ha (SCF convergence noise).
+
+### Fixed
+
+- `uksCphfPolarizability` initial implementation had a missing factor
+  of 2 on the XC kernel piece; closed-shell limit cross-check vs
+  `tddftPolarizability` caught it.
+- `fosterBoys` initial sign on the A_ij maximization coefficient was
+  inverted; caused L to oscillate. Tracked down via the H₂O probe.
+
+### Test surface
+
+`npm test` → **553 passing / 1 skipped across 94 test files**, no
+regressions across all 89 commits. `npx tsc --noEmit` clean.
+
 ## [0.4.1] — 2026-05-14
 
 EOM-CCSD multi-electron singlet bug-hunt + migration framework. The
