@@ -53,7 +53,7 @@ export function localizedOrbitalGallery(
   const totalW = columns * panelW;
   const totalH = headerH + rowCount * panelH + 20;
 
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalW} ${totalH}" width="100%" height="auto" role="img" aria-label="${escapeXML(title)}">`;
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalW} ${totalH}" width="100%" style="height:auto" role="img" aria-label="${escapeXML(title)}">`;
   svg += `<defs><linearGradient id="lobg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${CHART_COLORS.bg0}"/><stop offset="100%" stop-color="${CHART_COLORS.bg1}"/></linearGradient></defs>`;
   svg += `<rect width="${totalW}" height="${totalH}" fill="url(#lobg)" rx="6"/>`;
   svg += `<text x="${totalW / 2}" y="32" font-size="18" font-weight="700" fill="${CHART_COLORS.text}" text-anchor="middle">${escapeXML(title)}</text>`;
