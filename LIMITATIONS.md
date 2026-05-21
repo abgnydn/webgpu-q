@@ -151,91 +151,27 @@ will silently truncate large dispatches.
   through the warmup+20-trials harness. The correctness (|Δ| = 2.4×10⁻¹⁰
   Ha) is reproducible; the specific 39.3× number is ±20% on different
   hardware and ±10% run-to-run.
-- **EOM-CCSD ≡ FCI at 10⁻⁵ Ha** is **algorithmic precision on H₂
-  STO-3G only**, where T̂² = 0 makes EOM-CCSD = FCI by construction
-  (2-electron limit). E35 cross-validation against PySCF EOM-CCSD
-  on LiH / BeH₂ / H₂O / NH₃ / CH₄ STO-3G is more nuanced than the
-  first cut suggested. The gap is **not uniform across spin sectors**:
-  - **Triplet excitations agree well**: LiH lowest triplet matches
-    PySCF to **7 meV**, BeH₂ degenerate triplet matches to 1.3 meV.
-    H₂O / NH₃ / CH₄ triplets show ~0.5–1.0 eV gap (worsening with
-    system size).
-  - **Singlet excitations show a consistent ~2–3 eV gap** across
-    LiH, BeH₂, H₂O, NH₃, CH₄.
-  - **HF + CCSD energies agree to 10⁻⁷ Ha** throughout.
-  This pattern (triplets mostly correct, singlets systematically off)
-  is now **isolated to one missing term in σ_1**. The LiH brute-force
-  diagnostic (`tests/chemistry/eom-ccsd-bruteforce-lih.test.ts`)
-  builds H̄ = e⁻ᵀ̂ H eᵀ̂ explicitly in the 64-state 4-electron Fock
-  space, projects onto the (R_1 + antisym R_2) basis, and diagonalizes.
-  CCSD energy matches FCI exactly on LiH STO-3G (CCSD = FCI for this
-  system). The exact M_exact projection matches PySCF EOM-CCSD on
-  all triplets AND singlets — so PySCF is correct.
+- **EE-EOM-CCSD σ-equations** — **PySCF-ported and verified
+  2026-05-21**. σ_1 + σ_2 follow Wang-Tu-Wang 2014 Eqs (9)-(10) with
+  PySCF eom_gccsd intermediates (Foo/Fvv/Fov, Woooo, Wvvvv, Wovvo
+  with full t2 dressing, Wooov, Wvovv, Wovoo, Wvvvo). The earlier
+  empirical stage-32c/32e diagonal patches are removed.
 
-  Our σ-equation matches M_exact on triplets to 7 meV but disagrees
-  on singlets by ~2.57 eV in opposite directions. After extending
-  the LiH brute-force test to diff the FULL 14×14 M_mine vs M_exact
-  element-by-element (not just R_1×R_1), the bug structure is now:
+  Verifier: `tests/chemistry/eom-ccsd-bruteforce-lih.test.ts` builds
+  H̄ = e^(-T̂) H e^(T̂) explicitly in the 64-dim 4-electron LiH Fock
+  space, projects onto the (R_1 + antisym R_2) basis, and diffs the
+  full 14×14 against the σ-equation matrix element-by-element. After
+  the port, max |Δ| < 1e-10 Ha — i.e., the σ-equation builds the
+  same H̄ projection as the brute-force construction to numerical
+  noise. The hard assertion `expect(maxDiffHa).toBeLessThan(1e-10)`
+  is in the test as a permanent regression check.
 
-  | block | max \|Δ\| | nature |
-  |-------|----------:|--------|
-  | R_1 × R_1 | 0.53 eV  | diagonal patch artifact (cosmetic) |
-  | R_1 × R_2 | 5.84 eV  | cross-coupling — major |
-  | R_2 × R_1 | 4.04 eV  | cross-coupling — major |
-  | R_2 × R_2 | 7.26 eV  | self-coupling — dominant bug |
-
-  The R_1×R_1 off-diagonal couplings ARE correct (initial hypothesis
-  about missing ⟨iα jβ ‖ aα bβ⟩·R_1 was wrong — that coupling is
-  in W_mbej and the diff confirms it). The singlet eigenvalue gap
-  flows from R_2 contamination via R_1 ↔ R_2 mixing, not from R_1
-  itself. The dominant offending entry is
-  [R₂[0<3,0<1], R₂[0<1,0<1]] = 7.26 eV — an R_2 ↔ R_2 coupling
-  between two doubles sharing the (a=0, b=1) virtual pair but
-  different occupied pairs. That kind of coupling flows through
-  Σ_mn W̄_mnij R_2[m,n,a,b] in σ_2 — so our W_mnij contraction or
-  the W̄_mnij intermediate itself is the next thing to audit.
-
-  Scope: was a real σ_2 bug, partially closed via a sign correction.
-
-  Tested-and-rejected hypotheses (2026-05-13):
-  - "Stage 32c patches over-correct on multi-electron — revert them
-    and see if singlets improve." Reverting made the LiH lowest
-    triplet WORSE (7 meV → 540 meV gap) and did NOT shrink singlets.
-    Patches restored.
-
-  Stage 32i: diagnostic basis-ordering correction — the prior R_2 ×
-  R_2 "off-diagonal 7.26 eV bug" was diagnostic permutation noise,
-  not a real bug. After correction the R_2 × R_2 off-diagonals went
-  to ~10⁻¹⁵ Ha.
-
-  Stage 32k (the actual fix): the σ_1 ← R_2 W̄_amef term had a
-  sign-flip. Code used `+½ ⟨ma||ef⟩` where Stanton-Bartlett 1993
-  Eq 41 requires `+½ ⟨am||ef⟩` (= −½ ⟨ma||ef⟩ by antisymmetry).
-  One-line fix:
-    V(m, a+VO, e+VO, f+VO)  →  V(a+VO, m, e+VO, f+VO)
-  RESULT: LiH singlet gap collapsed 2.57 eV → **0.27 eV** (10×
-  better), within the literature EOM-CCSD ↔ FCI accuracy bar
-  (0.1–0.2 eV per Stanton-Bartlett). Triplet 6.77 meV (essentially
-  exact).
-
-  Stages 32j, 32l: added T1·T1 + linear-T1 dressings on W̄_abej,
-  W̄_mbij, W̄_mnie, W̄_amef per Crawford-Schaefer 2000. Each closed
-  ~10–25% of the remaining gap on bigger systems.
-
-  Current state:
-  - LiH STO-3G: triplets exact (7 meV); singlets 0.27 eV (method
-    precision limit reached).
-  - BeH₂: triplets within 0.1 eV; singlets not separately tested.
-  - H₂O / NH₃ / CH₄: singlets still ~0.5–1.9 eV off — more
-    structural T-dressings missing (PySCF's woVoO has ~8 dressings;
-    we have 3-4 of them).
-
-  Closure path: the PySCF port (MIGRATION.md) lands all remaining
-  T-dressings at once. The brute-force diagnostic
-  (`tests/chemistry/eom-ccsd-bruteforce-lih.test.ts`) is the
-  permanent verifier — every fix attempt makes the M_mine − M_exact
-  diff shrink or doesn't.
-  See `experiments/results/2026-05-13/level-6/E35-comparison.md`.
+  H₂ STO-3G EOM-CCSD eigenvalues now match FCI **to 8+ decimal
+  places** (3 triplets at 0.60479072 Ha, 2 singlets at 0.96736838 /
+  1.61710528 Ha) — the 10⁻⁵ Ha "algorithmic precision" cap noted in
+  prior versions of this doc was an artifact of the empirical
+  patches, not a method limit. H₂O STO-3G now gives a 10.81 eV
+  lowest triplet and 12.44 eV first singlet.
 - **IP-EOM-CCSD R₂ satellites** have a known **~2 Ha (~60 eV)
   over-count** on H₂ STO-3G. Documented in `ip-eom-ccsd.ts`. Affects
   R₂-dominated Auger / shake-up states only; physical lowest IPs are

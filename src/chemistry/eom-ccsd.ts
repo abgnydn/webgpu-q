@@ -61,12 +61,6 @@ import type { HFResult } from "./hf-scf.js";
 import type { CCSDResult } from "./ccsd.js";
 import {
   buildSpinOrbitalERI,
-  makeF_ae,
-  makeF_mi,
-  makeF_me,
-  makeW_mnij,
-  makeW_abef,
-  makeW_mbej,
   makeTau,
 } from "./ccsd.js";
 import { transformERIToMO } from "./mp2.js";
@@ -169,12 +163,6 @@ export function runEOMCCSD(
   const T2 = ccsd.T2;
   const tau_t = makeTau(T1, T2, NOCC, NVIRT, 0.5);
   const tau   = makeTau(T1, T2, NOCC, NVIRT, 1.0);
-  const F_ae = makeF_ae(T1, eps, eri, tau_t, NOCC, NVIRT, NSO);
-  const F_mi = makeF_mi(T1, eps, eri, tau_t, NOCC, NVIRT, NSO);
-  const F_me = makeF_me(T1, eri, NOCC, NVIRT, NSO);
-  const W_mnij = makeW_mnij(T1, tau, eri, NOCC, NVIRT, NSO);
-  const W_abef = makeW_abef(T1, tau, eri, NOCC, NVIRT, NSO);
-  const W_mbej = makeW_mbej(T1, T2, eri, NOCC, NVIRT, NSO);
 
   // Spin-orbital ERI accessor with i, j, m, n in occupied space [0, NOCC)
   // and a, b, e, f in virtual space [0, NVIRT) (so virtual SO index = a + NOCC).
@@ -182,8 +170,328 @@ export function runEOMCCSD(
     eri[((P * NSO + Q) * NSO + R) * NSO + S]!;
   const VO = NOCC; // virtual-orbital offset
 
-  // sigma function: maps (R_1, R_2) → (σ_1, σ_2). R_2 must be antisymmetric
-  // in (i,j) and (a,b); output σ_2 is also antisymmetric by construction.
+  // ── EOM-CCSD intermediates (PySCF eom_gccsd.py / gintermediates.py) ──
+  // Ref: Wang, Tu, and Wang, J. Chem. Theory Comput. 10, 5567 (2014) Eqs (9)-(10).
+  //
+  // These differ from the cc_ intermediates in ccsd.ts (which solve the
+  // T-equation residual). The EOM versions INCLUDE the bare canonical
+  // Fock diagonal in Fvv/Foo and use full τ/t2 dressings on Woooo/Wvvvv/Wovvo.
+  // Wovoo (W̄_mbij) and Wvvvo (W̄_abej) are heavily dressed via several
+  // tmp tensors.
+  //
+  // Index layout (physicist's antisym ⟨pq||rs⟩, P = 2p + σ):
+  //   Fov[m,e]:        m*NVIRT + e
+  //   Foo[m,i]:        m*NOCC + i
+  //   Fvv[a,e]:        a*NVIRT + e
+  //   Woooo[m,n,i,j]:  ((m*NOCC+n)*NOCC+i)*NOCC + j
+  //   Wvvvv[a,b,e,f]:  ((a*NVIRT+b)*NVIRT+e)*NVIRT + f
+  //   Wovvo[m,b,e,j]:  ((m*NVIRT+b)*NVIRT+e)*NOCC + j
+  //   Wooov[m,n,i,e]:  ((m*NOCC+n)*NOCC+i)*NVIRT + e
+  //   Wvovv[a,m,e,f]:  ((a*NOCC+m)*NVIRT+e)*NVIRT + f
+  //   Wovoo[m,b,i,j]:  ((m*NVIRT+b)*NOCC+i)*NOCC + j
+  //   Wvvvo[a,b,e,i]:  ((a*NVIRT+b)*NVIRT+e)*NOCC + i
+
+  // Fov[m,e] = f_me + Σ_nf t_nf ⟨mn||ef⟩.  Canonical RHF: f_me = 0.
+  const Fov = new Float64Array(NOCC * NVIRT);
+  for (let m = 0; m < NOCC; m++) {
+    for (let e = 0; e < NVIRT; e++) {
+      let s = 0;
+      for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+        for (let f = 0; f < NVIRT; f++) {
+          s += T1[nIdx * NVIRT + f]! * V(m, nIdx, e + VO, f + VO);
+        }
+      }
+      Fov[m * NVIRT + e] = s;
+    }
+  }
+
+  // Fvv[a,e] = ε_a δ_ae + Σ_mf t_mf ⟨am||ef⟩
+  //          − ½ Σ_mnf τ̃_mn^af ⟨mn||ef⟩ − ½ Σ_m t_ma Fov[m,e]
+  const Fvv = new Float64Array(NVIRT * NVIRT);
+  for (let a = 0; a < NVIRT; a++) {
+    for (let e = 0; e < NVIRT; e++) {
+      let s = (a === e) ? eps[a + VO]! : 0;
+      for (let m = 0; m < NOCC; m++) {
+        for (let f = 0; f < NVIRT; f++) {
+          s += T1[m * NVIRT + f]! * V(a + VO, m, e + VO, f + VO);
+        }
+      }
+      for (let m = 0; m < NOCC; m++) {
+        for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+          for (let f = 0; f < NVIRT; f++) {
+            s -= 0.5 * tau_t[((m * NOCC + nIdx) * NVIRT + a) * NVIRT + f]! *
+                       V(m, nIdx, e + VO, f + VO);
+          }
+        }
+      }
+      for (let m = 0; m < NOCC; m++) {
+        s -= 0.5 * T1[m * NVIRT + a]! * Fov[m * NVIRT + e]!;
+      }
+      Fvv[a * NVIRT + e] = s;
+    }
+  }
+
+  // Foo[m,i] = ε_i δ_mi + Σ_ne t_ne ⟨mn||ie⟩
+  //          + ½ Σ_nef τ̃_in^ef ⟨mn||ef⟩ + ½ Σ_e t_ie Fov[m,e]
+  const Foo = new Float64Array(NOCC * NOCC);
+  for (let m = 0; m < NOCC; m++) {
+    for (let i = 0; i < NOCC; i++) {
+      let s = (m === i) ? eps[m]! : 0;
+      for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+        for (let e = 0; e < NVIRT; e++) {
+          s += T1[nIdx * NVIRT + e]! * V(m, nIdx, i, e + VO);
+        }
+      }
+      for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+        for (let e = 0; e < NVIRT; e++) {
+          for (let f = 0; f < NVIRT; f++) {
+            s += 0.5 * tau_t[((i * NOCC + nIdx) * NVIRT + e) * NVIRT + f]! *
+                       V(m, nIdx, e + VO, f + VO);
+          }
+        }
+      }
+      for (let e = 0; e < NVIRT; e++) {
+        s += 0.5 * T1[i * NVIRT + e]! * Fov[m * NVIRT + e]!;
+      }
+      Foo[m * NOCC + i] = s;
+    }
+  }
+
+  // Woooo[m,n,i,j] = ⟨mn||ij⟩ + P(ij) Σ_e t_je ⟨mn||ie⟩ + ½ Σ_ef τ_ij^ef ⟨mn||ef⟩
+  const Woooo = new Float64Array(NOCC * NOCC * NOCC * NOCC);
+  for (let m = 0; m < NOCC; m++) {
+    for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+      for (let i = 0; i < NOCC; i++) {
+        for (let j = 0; j < NOCC; j++) {
+          let s = V(m, nIdx, i, j);
+          for (let e = 0; e < NVIRT; e++) {
+            s += T1[j * NVIRT + e]! * V(m, nIdx, i, e + VO);
+            s -= T1[i * NVIRT + e]! * V(m, nIdx, j, e + VO);
+          }
+          for (let e = 0; e < NVIRT; e++) {
+            for (let f = 0; f < NVIRT; f++) {
+              s += 0.5 * tau[((i * NOCC + j) * NVIRT + e) * NVIRT + f]! *
+                         V(m, nIdx, e + VO, f + VO);
+            }
+          }
+          Woooo[((m * NOCC + nIdx) * NOCC + i) * NOCC + j] = s;
+        }
+      }
+    }
+  }
+
+  // Wvvvv[a,b,e,f] = ⟨ab||ef⟩ − P(ab) Σ_m t_mb ⟨am||ef⟩ + ½ Σ_mn τ_mn^ab ⟨mn||ef⟩
+  const Wvvvv = new Float64Array(NVIRT * NVIRT * NVIRT * NVIRT);
+  for (let a = 0; a < NVIRT; a++) {
+    for (let b = 0; b < NVIRT; b++) {
+      for (let e = 0; e < NVIRT; e++) {
+        for (let f = 0; f < NVIRT; f++) {
+          let s = V(a + VO, b + VO, e + VO, f + VO);
+          for (let m = 0; m < NOCC; m++) {
+            s -= T1[m * NVIRT + b]! * V(a + VO, m, e + VO, f + VO);
+            s += T1[m * NVIRT + a]! * V(b + VO, m, e + VO, f + VO);
+          }
+          for (let m = 0; m < NOCC; m++) {
+            for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+              s += 0.5 * tau[((m * NOCC + nIdx) * NVIRT + a) * NVIRT + b]! *
+                         V(m, nIdx, e + VO, f + VO);
+            }
+          }
+          Wvvvv[((a * NVIRT + b) * NVIRT + e) * NVIRT + f] = s;
+        }
+      }
+    }
+  }
+
+  // Wovvo[m,b,e,j] = ⟨mb||ej⟩ + Σ_f t_jf ⟨mb||ef⟩ − Σ_n t_nb ⟨mn||ej⟩
+  //                − Σ_nf (t_jn^fb + t_jf t_nb) ⟨mn||ef⟩
+  const Wovvo = new Float64Array(NOCC * NVIRT * NVIRT * NOCC);
+  for (let m = 0; m < NOCC; m++) {
+    for (let b = 0; b < NVIRT; b++) {
+      for (let e = 0; e < NVIRT; e++) {
+        for (let j = 0; j < NOCC; j++) {
+          let s = V(m, b + VO, e + VO, j);
+          for (let f = 0; f < NVIRT; f++) {
+            s += T1[j * NVIRT + f]! * V(m, b + VO, e + VO, f + VO);
+          }
+          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+            s -= T1[nIdx * NVIRT + b]! * V(m, nIdx, e + VO, j);
+          }
+          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+            for (let f = 0; f < NVIRT; f++) {
+              const t2val = T2[((j * NOCC + nIdx) * NVIRT + f) * NVIRT + b]!;
+              const t1prod = T1[j * NVIRT + f]! * T1[nIdx * NVIRT + b]!;
+              s -= (t2val + t1prod) * V(m, nIdx, e + VO, f + VO);
+            }
+          }
+          Wovvo[((m * NVIRT + b) * NVIRT + e) * NOCC + j] = s;
+        }
+      }
+    }
+  }
+
+  // Wooov[m,n,i,e] = ⟨mn||ie⟩ + Σ_f t_if ⟨mn||fe⟩
+  const Wooov = new Float64Array(NOCC * NOCC * NOCC * NVIRT);
+  for (let m = 0; m < NOCC; m++) {
+    for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+      for (let i = 0; i < NOCC; i++) {
+        for (let e = 0; e < NVIRT; e++) {
+          let s = V(m, nIdx, i, e + VO);
+          for (let f = 0; f < NVIRT; f++) {
+            s += T1[i * NVIRT + f]! * V(m, nIdx, f + VO, e + VO);
+          }
+          Wooov[((m * NOCC + nIdx) * NOCC + i) * NVIRT + e] = s;
+        }
+      }
+    }
+  }
+
+  // Wvovv[a,m,e,f] = ⟨am||ef⟩ − Σ_n t_na ⟨nm||ef⟩
+  const Wvovv = new Float64Array(NVIRT * NOCC * NVIRT * NVIRT);
+  for (let a = 0; a < NVIRT; a++) {
+    for (let m = 0; m < NOCC; m++) {
+      for (let e = 0; e < NVIRT; e++) {
+        for (let f = 0; f < NVIRT; f++) {
+          let s = V(a + VO, m, e + VO, f + VO);
+          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+            s -= T1[nIdx * NVIRT + a]! * V(nIdx, m, e + VO, f + VO);
+          }
+          Wvovv[((a * NOCC + m) * NVIRT + e) * NVIRT + f] = s;
+        }
+      }
+    }
+  }
+
+  // Wovoo[m,b,i,j] — heavily dressed. See gintermediates.Wovoo.
+  // Wmbij = ⟨mb||ij⟩
+  //       − Σ_e Fov[m,e] · t_ij^be
+  //       − Σ_n T1[n,b] · Woooo[m,n,i,j]
+  //       + ½ Σ_ef ⟨mb||ef⟩ · τ_ij^ef
+  //       + P(ij) Σ_ne ⟨mn||ie⟩ · t_jn^be
+  //       + P(ij) [Σ_e T1[i,e] · ⟨mb||ej⟩ − Σ_nef T1[i,e] · t_nj^bf · ⟨mn||ef⟩]
+  const Wovoo = new Float64Array(NOCC * NVIRT * NOCC * NOCC);
+  for (let m = 0; m < NOCC; m++) {
+    for (let b = 0; b < NVIRT; b++) {
+      for (let i = 0; i < NOCC; i++) {
+        for (let j = 0; j < NOCC; j++) {
+          // ⟨mb||ij⟩
+          let s = V(m, b + VO, i, j);
+          // − Σ_e Fov[m,e] · t_ij^be (note: T2[i,j,b,e])
+          for (let e = 0; e < NVIRT; e++) {
+            s -= Fov[m * NVIRT + e]! *
+                 T2[((i * NOCC + j) * NVIRT + b) * NVIRT + e]!;
+          }
+          // − Σ_n T1[n,b] · Woooo[m,n,i,j]
+          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+            s -= T1[nIdx * NVIRT + b]! *
+                 Woooo[((m * NOCC + nIdx) * NOCC + i) * NOCC + j]!;
+          }
+          // + ½ Σ_ef ⟨mb||ef⟩ · τ_ij^ef
+          for (let e = 0; e < NVIRT; e++) {
+            for (let f = 0; f < NVIRT; f++) {
+              s += 0.5 * V(m, b + VO, e + VO, f + VO) *
+                         tau[((i * NOCC + j) * NVIRT + e) * NVIRT + f]!;
+            }
+          }
+          // P(ij) Σ_ne ⟨mn||ie⟩ · t_jn^be
+          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+            for (let e = 0; e < NVIRT; e++) {
+              s += V(m, nIdx, i, e + VO) *
+                   T2[((j * NOCC + nIdx) * NVIRT + b) * NVIRT + e]!;
+              s -= V(m, nIdx, j, e + VO) *
+                   T2[((i * NOCC + nIdx) * NVIRT + b) * NVIRT + e]!;
+            }
+          }
+          // P(ij) Σ_e T1[i,e] · ⟨mb||ej⟩
+          // (eris_ovvo[m,b,e,j] = ⟨mb||ej⟩, so this is just plain V)
+          for (let e = 0; e < NVIRT; e++) {
+            s += T1[i * NVIRT + e]! * V(m, b + VO, e + VO, j);
+            s -= T1[j * NVIRT + e]! * V(m, b + VO, e + VO, i);
+          }
+          // − P(ij) Σ_nef T1[i,e] · t_nj^bf · ⟨mn||ef⟩
+          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+            for (let e = 0; e < NVIRT; e++) {
+              for (let f = 0; f < NVIRT; f++) {
+                const tval_j = T2[((nIdx * NOCC + j) * NVIRT + b) * NVIRT + f]!;
+                const tval_i = T2[((nIdx * NOCC + i) * NVIRT + b) * NVIRT + f]!;
+                const eriV = V(m, nIdx, e + VO, f + VO);
+                s -= T1[i * NVIRT + e]! * tval_j * eriV;
+                s += T1[j * NVIRT + e]! * tval_i * eriV;
+              }
+            }
+          }
+          Wovoo[((m * NVIRT + b) * NOCC + i) * NOCC + j] = s;
+        }
+      }
+    }
+  }
+
+  // Wvvvo[a,b,e,i] — heavily dressed. See gintermediates.Wvvvo.
+  // Wabei = ⟨ab||ei⟩
+  //       + ½ Σ_mn ⟨mn||ei⟩ · τ_mn^ab
+  //       − Σ_m Fov[m,e] · t_mi^ab
+  //       − P(ab) [Σ_mf ⟨mb||ef⟩ · t_mi^af]
+  //       − P(ab) [Σ_m T1[m,a] · ⟨mb||ei⟩ − Σ_mnf T1[m,a] · t_ni^bf · ⟨mn||ef⟩]
+  //       + Σ_f Wvvvv[a,b,e,f] · T1[i,f]
+  const Wvvvo = new Float64Array(NVIRT * NVIRT * NVIRT * NOCC);
+  for (let a = 0; a < NVIRT; a++) {
+    for (let b = 0; b < NVIRT; b++) {
+      for (let e = 0; e < NVIRT; e++) {
+        for (let i = 0; i < NOCC; i++) {
+          // ⟨ab||ei⟩
+          let s = V(a + VO, b + VO, e + VO, i);
+          // + ½ Σ_mn ⟨mn||ei⟩ · τ_mn^ab
+          for (let m = 0; m < NOCC; m++) {
+            for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+              s += 0.5 * V(m, nIdx, e + VO, i) *
+                         tau[((m * NOCC + nIdx) * NVIRT + a) * NVIRT + b]!;
+            }
+          }
+          // − Σ_m Fov[m,e] · t_mi^ab
+          for (let m = 0; m < NOCC; m++) {
+            s -= Fov[m * NVIRT + e]! *
+                 T2[((m * NOCC + i) * NVIRT + a) * NVIRT + b]!;
+          }
+          // − P(ab) Σ_mf ⟨mb||ef⟩ · t_mi^af
+          for (let m = 0; m < NOCC; m++) {
+            for (let f = 0; f < NVIRT; f++) {
+              s -= V(m, b + VO, e + VO, f + VO) *
+                   T2[((m * NOCC + i) * NVIRT + a) * NVIRT + f]!;
+              s += V(m, a + VO, e + VO, f + VO) *
+                   T2[((m * NOCC + i) * NVIRT + b) * NVIRT + f]!;
+            }
+          }
+          // − P(ab) Σ_m T1[m,a] · ⟨mb||ei⟩
+          for (let m = 0; m < NOCC; m++) {
+            s -= T1[m * NVIRT + a]! * V(m, b + VO, e + VO, i);
+            s += T1[m * NVIRT + b]! * V(m, a + VO, e + VO, i);
+          }
+          // + P(ab) Σ_mnf T1[m,a] · t_ni^bf · ⟨mn||ef⟩
+          for (let m = 0; m < NOCC; m++) {
+            for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+              for (let f = 0; f < NVIRT; f++) {
+                const eriV = V(m, nIdx, e + VO, f + VO);
+                const tval_a = T2[((nIdx * NOCC + i) * NVIRT + b) * NVIRT + f]!;
+                const tval_b = T2[((nIdx * NOCC + i) * NVIRT + a) * NVIRT + f]!;
+                s += T1[m * NVIRT + a]! * tval_a * eriV;
+                s -= T1[m * NVIRT + b]! * tval_b * eriV;
+              }
+            }
+          }
+          // + Σ_f Wvvvv[a,b,e,f] · T1[i,f]
+          for (let f = 0; f < NVIRT; f++) {
+            s += Wvvvv[((a * NVIRT + b) * NVIRT + e) * NVIRT + f]! *
+                 T1[i * NVIRT + f]!;
+          }
+          Wvvvo[((a * NVIRT + b) * NVIRT + e) * NOCC + i] = s;
+        }
+      }
+    }
+  }
+
+  // sigma function: maps (R_1, R_2) → (σ_1, σ_2). PySCF Wang-Tu-Wang
+  // Eqs (9)-(10) using the EOM intermediates built above.
+  // R_2 must be antisymmetric in (i,j) and (a,b); output σ_2 also is.
   function sigma(R_1: Float64Array, R_2: Float64Array): {
     s1: Float64Array;
     s2: Float64Array;
@@ -191,205 +499,206 @@ export function runEOMCCSD(
     const s1 = new Float64Array(NOCC * NVIRT);
     const s2 = new Float64Array(NOCC * NOCC * NVIRT * NVIRT);
 
-    // ── σ_1[i, a] ─────────────────────────────────────────────
+    // ── σ_1[i, a] (PySCF Eq. 9) ───────────────────────────────
     for (let i = 0; i < NOCC; i++) {
       for (let a = 0; a < NVIRT; a++) {
         let s = 0;
-        // 0th-order Fock diagonal.
-        s += (eps[a + VO]! - eps[i]!) * R_1[i * NVIRT + a]!;
-        // + Σ_e F_ae R_1[i, e]
-        for (let e = 0; e < NVIRT; e++) s += F_ae[a * NVIRT + e]! * R_1[i * NVIRT + e]!;
-        // − Σ_m F_mi R_1[m, a]
-        for (let m = 0; m < NOCC; m++) s -= F_mi[m * NOCC + i]! * R_1[m * NVIRT + a]!;
-        // + Σ_me F_me R_2[i, m, a, e]
+        // + Σ_e Fvv[a,e] · R_1[i,e]
+        for (let e = 0; e < NVIRT; e++) {
+          s += Fvv[a * NVIRT + e]! * R_1[i * NVIRT + e]!;
+        }
+        // − Σ_m Foo[m,i] · R_1[m,a]
+        for (let m = 0; m < NOCC; m++) {
+          s -= Foo[m * NOCC + i]! * R_1[m * NVIRT + a]!;
+        }
+        // + Σ_me Fov[m,e] · R_2[i,m,a,e]
         for (let m = 0; m < NOCC; m++) {
           for (let e = 0; e < NVIRT; e++) {
-            s += F_me[m * NVIRT + e]! *
+            s += Fov[m * NVIRT + e]! *
                  R_2[((i * NOCC + m) * NVIRT + a) * NVIRT + e]!;
           }
         }
-        // + Σ_me W_mbej[m, a, e, i] R_1[m, e]
-        //   (= W̄_amie · r_m^e via index permutation; T1+T2-dressed)
+        // + Σ_me Wovvo[m,a,e,i] · R_1[m,e]
         for (let m = 0; m < NOCC; m++) {
           for (let e = 0; e < NVIRT; e++) {
-            s += W_mbej[((m * NVIRT + a) * NVIRT + e) * NOCC + i]! *
+            s += Wovvo[((m * NVIRT + a) * NVIRT + e) * NOCC + i]! *
                  R_1[m * NVIRT + e]!;
           }
         }
-        // − ½ Σ_mne W̄_mnie R_2[m, n, a, e]
-        // W̄_mnie = ⟨mn||ie⟩ + Σ_f T1[i,f] · ⟨mn||fe⟩
-        // (Stage 32j fix 2026-05-13: added T1 dressing; old comment
-        //  "T1=0 approx" was wrong — T1 ≠ 0 for LiH STO-3G.)
+        // − ½ Σ_mne Wooov[m,n,i,e] · R_2[m,n,a,e]
         for (let m = 0; m < NOCC; m++) {
-          for (let nn = 0; nn < NOCC; nn++) {
+          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
             for (let e = 0; e < NVIRT; e++) {
-              let Wmnie = V(m, nn, i, e + VO);
-              for (let f = 0; f < NVIRT; f++) {
-                Wmnie += T1[i * NVIRT + f]! * V(m, nn, f + VO, e + VO);
-              }
-              s -= 0.5 * Wmnie *
-                   R_2[((m * NOCC + nn) * NVIRT + a) * NVIRT + e]!;
+              s -= 0.5 * Wooov[((m * NOCC + nIdx) * NOCC + i) * NVIRT + e]! *
+                         R_2[((m * NOCC + nIdx) * NVIRT + a) * NVIRT + e]!;
             }
           }
         }
-        // + ½ Σ_mef W̄_amef R_2[i, m, e, f]
-        // W̄_amef = ⟨am||ef⟩ + Σ_n T1[n,a] · ⟨nm||ef⟩  (Stanton-Bartlett)
-        // (Stage 32k fix 2026-05-13: sign correction — old code used
-        //  ⟨ma||ef⟩ = −⟨am||ef⟩, flipping the sign of the whole term.
-        //  Indexed via V(a+VO, m, e+VO, f+VO) directly.)
+        // + ½ Σ_mef Wvovv[a,m,e,f] · R_2[i,m,e,f]
         for (let m = 0; m < NOCC; m++) {
           for (let e = 0; e < NVIRT; e++) {
             for (let f = 0; f < NVIRT; f++) {
-              let Wamef = V(a + VO, m, e + VO, f + VO);
-              for (let nn = 0; nn < NOCC; nn++) {
-                Wamef += T1[nn * NVIRT + a]! *
-                         V(nn, m, e + VO, f + VO);
-              }
-              s += 0.5 * Wamef *
-                   R_2[((i * NOCC + m) * NVIRT + e) * NVIRT + f]!;
+              s += 0.5 * Wvovv[((a * NOCC + m) * NVIRT + e) * NVIRT + f]! *
+                         R_2[((i * NOCC + m) * NVIRT + e) * NVIRT + f]!;
             }
           }
         }
-        // EMPIRICAL DIAGONAL PATCH (stage 32c). 2026-05-13 experiment:
-        // tried reverting on the LiH 4-electron brute-force diagnostic
-        // expecting multi-electron improvement; instead the lowest LiH
-        // triplet got WORSE (7 meV → 540 meV gap) and singlets did not
-        // improve. The R_2 × R_2 off-diagonal coupling at
-        // [R_2[0<3,0<1], R_2[0<1,0<1]] = 7.26 eV is INDEPENDENT of this
-        // patch — it lives in the W_mnij / W̄_abef / W̄_mbej R_2 sector.
-        // Patch restored; the real fix is the PySCF port (MIGRATION.md).
-        s += 0.5 * ccsd.correlationEnergy * R_1[i * NVIRT + a]!;
         s1[i * NVIRT + a] = s;
       }
     }
 
-    // ── σ_2[i, j, a, b] ───────────────────────────────────────
+    // ── σ_2[i, j, a, b] (PySCF Eq. 10) ────────────────────────
+    // Build tmpab[i,j,a,b], tmpij[i,j,a,b] separately, then antisymmetrize.
+    const tmpab = new Float64Array(NOCC * NOCC * NVIRT * NVIRT);
+    const tmpij = new Float64Array(NOCC * NOCC * NVIRT * NVIRT);
+
+    // tmpab[i,j,a,b] =
+    //   + Σ_e Fvv[b,e] · R_2[i,j,a,e]
+    //   − ½ Σ_mnef ⟨mn||ef⟩ · t_ij^ae · R_2[m,n,b,f]
+    //   − Σ_m Wovoo[m,b,i,j] · R_1[m,a]
+    //   − Σ_mef Wvovv[a,m,e,f] · t_ij^fb · R_1[m,e]
     for (let i = 0; i < NOCC; i++) {
       for (let j = 0; j < NOCC; j++) {
         for (let a = 0; a < NVIRT; a++) {
           for (let b = 0; b < NVIRT; b++) {
-            let z = 0;
-            const idx_ijab = ((i * NOCC + j) * NVIRT + a) * NVIRT + b;
-            // 0th-order Fock diagonal.
-            z += (eps[a + VO]! + eps[b + VO]! - eps[i]! - eps[j]!) *
-                 R_2[idx_ijab]!;
-            // P(ab) Σ_e F_ae R_2[i,j,e,b]:
+            let v = 0;
+            // + Σ_e Fvv[b,e] · R_2[i,j,a,e]
             for (let e = 0; e < NVIRT; e++) {
-              z += F_ae[a * NVIRT + e]! *
-                   R_2[((i * NOCC + j) * NVIRT + e) * NVIRT + b]!;
-              z -= F_ae[b * NVIRT + e]! *
-                   R_2[((i * NOCC + j) * NVIRT + e) * NVIRT + a]!;
+              v += Fvv[b * NVIRT + e]! *
+                   R_2[((i * NOCC + j) * NVIRT + a) * NVIRT + e]!;
             }
-            // −P(ij) Σ_m F_mi R_2[m,j,a,b]:
+            // − ½ Σ_mnef ⟨mn||ef⟩ · T2[i,j,a,e] · R_2[m,n,b,f]
             for (let m = 0; m < NOCC; m++) {
-              z -= F_mi[m * NOCC + i]! *
-                   R_2[((m * NOCC + j) * NVIRT + a) * NVIRT + b]!;
-              z += F_mi[m * NOCC + j]! *
-                   R_2[((m * NOCC + i) * NVIRT + a) * NVIRT + b]!;
-            }
-            // ½ Σ_mn W_mnij R_2[m,n,a,b]:
-            for (let m = 0; m < NOCC; m++) {
-              for (let nn = 0; nn < NOCC; nn++) {
-                z += 0.5 * W_mnij[((m * NOCC + nn) * NOCC + i) * NOCC + j]! *
-                     R_2[((m * NOCC + nn) * NVIRT + a) * NVIRT + b]!;
-              }
-            }
-            // ½ Σ_ef W_abef R_2[i,j,e,f]:
-            for (let e = 0; e < NVIRT; e++) {
-              for (let f = 0; f < NVIRT; f++) {
-                z += 0.5 * W_abef[((a * NVIRT + b) * NVIRT + e) * NVIRT + f]! *
-                     R_2[((i * NOCC + j) * NVIRT + e) * NVIRT + f]!;
-              }
-            }
-            // P(ij) P(ab) Σ_me W_mbej R_2[i,m,a,e]:
-            //   = +Σ_me W_mbej[m,b,e,j] R_2[i,m,a,e]
-            //     −Σ_me W_mbej[m,a,e,j] R_2[i,m,b,e]
-            //     −Σ_me W_mbej[m,b,e,i] R_2[j,m,a,e]
-            //     +Σ_me W_mbej[m,a,e,i] R_2[j,m,b,e]
-            for (let m = 0; m < NOCC; m++) {
-              for (let e = 0; e < NVIRT; e++) {
-                z += W_mbej[((m * NVIRT + b) * NVIRT + e) * NOCC + j]! *
-                     R_2[((i * NOCC + m) * NVIRT + a) * NVIRT + e]!;
-                z -= W_mbej[((m * NVIRT + a) * NVIRT + e) * NOCC + j]! *
-                     R_2[((i * NOCC + m) * NVIRT + b) * NVIRT + e]!;
-                z -= W_mbej[((m * NVIRT + b) * NVIRT + e) * NOCC + i]! *
-                     R_2[((j * NOCC + m) * NVIRT + a) * NVIRT + e]!;
-                z += W_mbej[((m * NVIRT + a) * NVIRT + e) * NOCC + i]! *
-                     R_2[((j * NOCC + m) * NVIRT + b) * NVIRT + e]!;
-              }
-            }
-            // P(ij) Σ_e W̄_abej R_1[i,e]
-            // W̄_abej = ⟨ab||ej⟩ + ½ Σ_mn τ_mn^ab ⟨mn||ej⟩
-            //        − Σ_m T1[m,a] ⟨mb||ej⟩ + Σ_m T1[m,b] ⟨ma||ej⟩
-            // (Stage 32l 2026-05-13: added the linear-T1 terms that
-            //  Crawford-Schaefer 2000 includes alongside the τ_mn^ab
-            //  T2+T1·T1 ladder.)
-            for (let e = 0; e < NVIRT; e++) {
-              let Wabej_j = V(a + VO, b + VO, e + VO, j);
-              let Wabej_i = V(a + VO, b + VO, e + VO, i);
-              for (let mm = 0; mm < NOCC; mm++) {
-                for (let nn = 0; nn < NOCC; nn++) {
-                  const t2 = T2[((mm * NOCC + nn) * NVIRT + a) * NVIRT + b]!;
-                  const t1ma = T1[mm * NVIRT + a]!;
-                  const t1nb = T1[nn * NVIRT + b]!;
-                  const t1mb = T1[mm * NVIRT + b]!;
-                  const t1na = T1[nn * NVIRT + a]!;
-                  const tau_mnab = t2 + t1ma * t1nb - t1mb * t1na;
-                  Wabej_j += 0.5 * tau_mnab * eri[((mm * NSO + nn) * NSO + (e + VO)) * NSO + j]!;
-                  Wabej_i += 0.5 * tau_mnab * eri[((mm * NSO + nn) * NSO + (e + VO)) * NSO + i]!;
+              for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+                for (let e = 0; e < NVIRT; e++) {
+                  for (let f = 0; f < NVIRT; f++) {
+                    v -= 0.5 * V(m, nIdx, e + VO, f + VO) *
+                               T2[((i * NOCC + j) * NVIRT + a) * NVIRT + e]! *
+                               R_2[((m * NOCC + nIdx) * NVIRT + b) * NVIRT + f]!;
+                  }
                 }
               }
-              // Linear T1 dressing.
-              for (let mm = 0; mm < NOCC; mm++) {
-                const t1ma = T1[mm * NVIRT + a]!;
-                const t1mb = T1[mm * NVIRT + b]!;
-                Wabej_j -= t1ma * V(mm, b + VO, e + VO, j);
-                Wabej_j += t1mb * V(mm, a + VO, e + VO, j);
-                Wabej_i -= t1ma * V(mm, b + VO, e + VO, i);
-                Wabej_i += t1mb * V(mm, a + VO, e + VO, i);
-              }
-              z += Wabej_j * R_1[i * NVIRT + e]!;
-              z -= Wabej_i * R_1[j * NVIRT + e]!;
             }
-            // −P(ab) Σ_m W̄_mbij R_1[m,a]
-            // W̄_mbij = ⟨mb||ij⟩ + ½ Σ_ef τ_ij^ef ⟨mb||ef⟩
-            //        + Σ_e T1[i,e] ⟨mb||ej⟩ − Σ_e T1[j,e] ⟨mb||ei⟩
-            // (Stage 32l 2026-05-13: added linear-T1 terms on i,j.)
+            // − Σ_m Wovoo[m,b,i,j] · R_1[m,a]
             for (let m = 0; m < NOCC; m++) {
-              let Wmbij = V(m, b + VO, i, j);
-              let Wmaij = V(m, a + VO, i, j);
+              v -= Wovoo[((m * NVIRT + b) * NOCC + i) * NOCC + j]! *
+                   R_1[m * NVIRT + a]!;
+            }
+            // − Σ_mef Wvovv[a,m,e,f] · T2[i,j,f,b] · R_1[m,e]
+            for (let m = 0; m < NOCC; m++) {
               for (let e = 0; e < NVIRT; e++) {
                 for (let f = 0; f < NVIRT; f++) {
-                  const t2 = T2[((i * NOCC + j) * NVIRT + e) * NVIRT + f]!;
-                  const t1ie = T1[i * NVIRT + e]!;
-                  const t1jf = T1[j * NVIRT + f]!;
-                  const t1if = T1[i * NVIRT + f]!;
-                  const t1je = T1[j * NVIRT + e]!;
-                  const tau_ijef = t2 + t1ie * t1jf - t1if * t1je;
-                  Wmbij += 0.5 * tau_ijef * eri[((m * NSO + (b + VO)) * NSO + (e + VO)) * NSO + (f + VO)]!;
-                  Wmaij += 0.5 * tau_ijef * eri[((m * NSO + (a + VO)) * NSO + (e + VO)) * NSO + (f + VO)]!;
+                  v -= Wvovv[((a * NOCC + m) * NVIRT + e) * NVIRT + f]! *
+                       T2[((i * NOCC + j) * NVIRT + f) * NVIRT + b]! *
+                       R_1[m * NVIRT + e]!;
                 }
               }
-              // Linear T1 dressing.
-              for (let e = 0; e < NVIRT; e++) {
-                const t1ie = T1[i * NVIRT + e]!;
-                const t1je = T1[j * NVIRT + e]!;
-                Wmbij += t1ie * V(m, b + VO, e + VO, j);
-                Wmbij -= t1je * V(m, b + VO, e + VO, i);
-                Wmaij += t1ie * V(m, a + VO, e + VO, j);
-                Wmaij -= t1je * V(m, a + VO, e + VO, i);
-              }
-              z -= Wmbij * R_1[m * NVIRT + a]!;
-              z += Wmaij * R_1[m * NVIRT + b]!;
             }
-            // Stage 32c R_2 patch. Restored after 2026-05-13 revert
-            // experiment — see σ_1 comment above.
-            z -= ccsd.correlationEnergy * R_2[idx_ijab]!;
-            s2[idx_ijab] = z;
+            tmpab[((i * NOCC + j) * NVIRT + a) * NVIRT + b] = v;
           }
         }
       }
     }
+
+    // tmpij[i,j,a,b] =
+    //   − Σ_m Foo[m,j] · R_2[i,m,a,b]
+    //   − ½ Σ_mnef ⟨mn||ef⟩ · t_im^ab · R_2[j,n,e,f]
+    //   + Σ_e Wvvvo[a,b,e,j] · R_1[i,e]
+    //   + Σ_mne Wooov[m,n,i,e] · t_nj^ab · R_1[m,e]
+    for (let i = 0; i < NOCC; i++) {
+      for (let j = 0; j < NOCC; j++) {
+        for (let a = 0; a < NVIRT; a++) {
+          for (let b = 0; b < NVIRT; b++) {
+            let v = 0;
+            // − Σ_m Foo[m,j] · R_2[i,m,a,b]
+            for (let m = 0; m < NOCC; m++) {
+              v -= Foo[m * NOCC + j]! *
+                   R_2[((i * NOCC + m) * NVIRT + a) * NVIRT + b]!;
+            }
+            // − ½ Σ_mnef ⟨mn||ef⟩ · T2[i,m,a,b] · R_2[j,n,e,f]
+            for (let m = 0; m < NOCC; m++) {
+              for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+                for (let e = 0; e < NVIRT; e++) {
+                  for (let f = 0; f < NVIRT; f++) {
+                    v -= 0.5 * V(m, nIdx, e + VO, f + VO) *
+                               T2[((i * NOCC + m) * NVIRT + a) * NVIRT + b]! *
+                               R_2[((j * NOCC + nIdx) * NVIRT + e) * NVIRT + f]!;
+                  }
+                }
+              }
+            }
+            // + Σ_e Wvvvo[a,b,e,j] · R_1[i,e]
+            for (let e = 0; e < NVIRT; e++) {
+              v += Wvvvo[((a * NVIRT + b) * NVIRT + e) * NOCC + j]! *
+                   R_1[i * NVIRT + e]!;
+            }
+            // + Σ_mne Wooov[m,n,i,e] · T2[n,j,a,b] · R_1[m,e]
+            for (let m = 0; m < NOCC; m++) {
+              for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+                for (let e = 0; e < NVIRT; e++) {
+                  v += Wooov[((m * NOCC + nIdx) * NOCC + i) * NVIRT + e]! *
+                       T2[((nIdx * NOCC + j) * NVIRT + a) * NVIRT + b]! *
+                       R_1[m * NVIRT + e]!;
+                }
+              }
+            }
+            tmpij[((i * NOCC + j) * NVIRT + a) * NVIRT + b] = v;
+          }
+        }
+      }
+    }
+
+    // Hr2[i,j,a,b] =
+    //   P(ij) P(ab) Σ_me Wovvo[m,b,e,j] · R_2[i,m,a,e]
+    //   + P(ab) tmpab
+    //   + P(ij) tmpij
+    //   + ½ Σ_mn Woooo[m,n,i,j] · R_2[m,n,a,b]
+    //   + ½ Σ_ef Wvvvv[a,b,e,f] · R_2[i,j,e,f]
+    for (let i = 0; i < NOCC; i++) {
+      for (let j = 0; j < NOCC; j++) {
+        for (let a = 0; a < NVIRT; a++) {
+          for (let b = 0; b < NVIRT; b++) {
+            const idx = ((i * NOCC + j) * NVIRT + a) * NVIRT + b;
+            let z = 0;
+            // P(ij) P(ab) Σ_me Wovvo[m,b,e,j] · R_2[i,m,a,e] (4 terms)
+            for (let m = 0; m < NOCC; m++) {
+              for (let e = 0; e < NVIRT; e++) {
+                z += Wovvo[((m * NVIRT + b) * NVIRT + e) * NOCC + j]! *
+                     R_2[((i * NOCC + m) * NVIRT + a) * NVIRT + e]!;
+                z -= Wovvo[((m * NVIRT + a) * NVIRT + e) * NOCC + j]! *
+                     R_2[((i * NOCC + m) * NVIRT + b) * NVIRT + e]!;
+                z -= Wovvo[((m * NVIRT + b) * NVIRT + e) * NOCC + i]! *
+                     R_2[((j * NOCC + m) * NVIRT + a) * NVIRT + e]!;
+                z += Wovvo[((m * NVIRT + a) * NVIRT + e) * NOCC + i]! *
+                     R_2[((j * NOCC + m) * NVIRT + b) * NVIRT + e]!;
+              }
+            }
+            // + P(ab) tmpab
+            z += tmpab[((i * NOCC + j) * NVIRT + a) * NVIRT + b]!;
+            z -= tmpab[((i * NOCC + j) * NVIRT + b) * NVIRT + a]!;
+            // + P(ij) tmpij
+            z += tmpij[((i * NOCC + j) * NVIRT + a) * NVIRT + b]!;
+            z -= tmpij[((j * NOCC + i) * NVIRT + a) * NVIRT + b]!;
+            // + ½ Σ_mn Woooo[m,n,i,j] · R_2[m,n,a,b]
+            for (let m = 0; m < NOCC; m++) {
+              for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+                z += 0.5 * Woooo[((m * NOCC + nIdx) * NOCC + i) * NOCC + j]! *
+                           R_2[((m * NOCC + nIdx) * NVIRT + a) * NVIRT + b]!;
+              }
+            }
+            // + ½ Σ_ef Wvvvv[a,b,e,f] · R_2[i,j,e,f]
+            for (let e = 0; e < NVIRT; e++) {
+              for (let f = 0; f < NVIRT; f++) {
+                z += 0.5 * Wvvvv[((a * NVIRT + b) * NVIRT + e) * NVIRT + f]! *
+                           R_2[((i * NOCC + j) * NVIRT + e) * NVIRT + f]!;
+              }
+            }
+            s2[idx] = z;
+          }
+        }
+      }
+    }
+
     return { s1, s2 };
   }
 

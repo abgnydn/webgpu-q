@@ -125,8 +125,11 @@ hyperscope), `/molecule.html` (SI report), `/experiments/` (E1–E33+).
 **Honest negatives / open work** (each its own session):
 - IP-EOM-CCSD R_2 σ_2 P(ij)·W_mbej structural over-count (~60 eV on H₂)
   on R_2-dominated Auger-satellite states only (lowest IPs validated exact).
-- EE-EOM-CCSD R_1/R_2 stages 32c/32e use brute-force-diagnosed
-  empirical patches; PySCF port (`MIGRATION.md`) closes them cleanly.
+- EE-EOM-CCSD: **PySCF-ported (2026-05-21)**. σ_1 + σ_2 follow
+  Wang-Tu-Wang 2014 Eqs (9)-(10) with PySCF eom_gccsd intermediates
+  (EOM-Fvv/Foo/Wovvo with full t2 dressing + Wovoo / Wvvvo). Empirical
+  stage-32c/32e patches removed; brute-force LiH diff < 1e-10 Ha
+  element-by-element. H₂ STO-3G now matches FCI to 8+ decimals.
 - Aux-basis DF (stage 31 proper) — needs new 3-index ERI routine.
 - DF-CCSD via B-tensor through spin-orbital ERI build.
 - WGSL (T) kernel optimization to push 39× → 100× (no warmup+trials harness yet).
