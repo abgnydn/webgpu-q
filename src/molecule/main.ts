@@ -41,6 +41,9 @@ import {
   saveCalculation, listCalculations, registerServiceWorker,
   type HistoryRecord,
 } from "./history.js";
+import {
+  parseGeometry, detectFormat,
+} from "./import-formats.js";
 
 registerServiceWorker();
 
@@ -151,6 +154,68 @@ const runBtn      = $<HTMLButtonElement>("runBtn");
 const progressEl  = $("progress");
 const errEl       = $("err");
 const resultsEl   = $("results");
+
+// ── File-import (XYZ / PDB / MOL / SDF) ────────────────────────
+// Users drop a file anywhere on the page, or click "Open file…" to pick
+// one. We register the imported molecule under the synthetic key
+// "imported" in MOLECULES and select it.
+async function loadImportedFile(file: File): Promise<void> {
+  const fmt = detectFormat(file.name);
+  if (!fmt) {
+    showError(`Unrecognized file extension on "${file.name}" — supported: .xyz, .pdb, .mol, .sdf`);
+    return;
+  }
+  const text = await file.text();
+  try {
+    const parsed = parseGeometry(text, fmt);
+    // Σ for symmetry number is honest-conservative at 1 for arbitrary
+    // imports; thermochemistry will report rotational entropy slightly
+    // high if the user imports a high-symmetry molecule. Documented.
+    const imported: MoleculeDef = {
+      name: parsed.title || file.name,
+      symbol: file.name.replace(/\.[^.]+$/, ""),
+      atoms: parsed.atoms,
+      basis: "sto-3g",
+      symmetryNumber: 1,
+      linear: false,
+      closedShell: true,
+      references: {},
+    };
+    MOLECULES["imported"] = imported;
+    // Insert / update the dropdown option so the user can pick it.
+    let opt = Array.from(moleculeSel.options).find((o) => o.value === "imported");
+    if (!opt) {
+      opt = document.createElement("option");
+      opt.value = "imported";
+      moleculeSel.appendChild(opt);
+    }
+    opt.textContent = `Imported: ${imported.name} (${parsed.atoms.length} atoms · ${parsed.format})`;
+    moleculeSel.value = "imported";
+    syncToURL();
+  } catch (e) {
+    showError(`Failed to parse ${file.name}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+// Drag-and-drop anywhere on the document.
+window.addEventListener("dragover", (e) => { e.preventDefault(); });
+window.addEventListener("drop", (e) => {
+  e.preventDefault();
+  const f = e.dataTransfer?.files?.[0];
+  if (f) void loadImportedFile(f);
+});
+
+// Hidden <input type="file"> wired to the "Open file…" button (added in HTML).
+const importBtn = document.getElementById("importBtn") as HTMLButtonElement | null;
+const importInput = document.getElementById("importInput") as HTMLInputElement | null;
+if (importBtn && importInput) {
+  importBtn.addEventListener("click", () => importInput.click());
+  importInput.addEventListener("change", () => {
+    const f = importInput.files?.[0];
+    if (f) void loadImportedFile(f);
+    importInput.value = ""; // allow re-picking same file
+  });
+}
 
 // ── URL-as-citation contract ───────────────────────────────────
 // ?molecule=h2o&method=b3lyp5&autorun=1
