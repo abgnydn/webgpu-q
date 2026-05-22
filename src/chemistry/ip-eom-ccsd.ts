@@ -15,41 +15,23 @@
 // which is positive because ε_i < 0 for occupied orbitals.
 // So IP = ω directly; sorted ascending in this routine.
 //
-// Stanton-Bartlett-style sigma equations on the N−1 manifold,
-// closed-shell RHF reference, canonical orbitals (so the bare
-// Fock is diagonal in the spin-orbital basis):
+// σ-equations follow PySCF eom_gccsd.ipccsd_matvec (Tu, Wang & Li,
+// J. Chem. Phys. 136, 174102 (2012) Eqs. 8-9) using the EOM-CCSD
+// intermediates from gintermediates.py (Foo, Fov, Fvv with bare canonical
+// Fock diagonal included; Woooo / Wvvvv / Wovvo with full τ/t2 dressings;
+// Wooov / Wovoo proper PySCF builds).
 //
-//   σ_1[i]      = − ε_i r_i  − Σ_j F_mi[j,i]·r_j         (1-h diagonal)
-//               + Σ_je F_me[j,e] · r_ij^e                (1-h ← 2h1p coupling)
-//               − ½ Σ_jke ⟨jk||ie⟩ · r_jk^e              (V coupling)
+// Verifier: tests/chemistry/ip-eom-ccsd-bruteforce.test.ts builds
+// H̄ = e^(-T̂) H e^(T̂) explicitly in the 16-dim 2-electron H₂ Fock space,
+// projects onto the (R_1 + antisym R_2) basis, and diffs the σ-equation
+// matrix element-by-element. Hard regression assertion at < 1e-10 Ha.
 //
-//   σ_2[i,j,a]  = (ε_a − ε_i − ε_j) · r_ij^a                       (Fock diag)
-//               + Σ_e F_ae[a,e] · r_ij^e
-//               − Σ_m F_mi[m,i]·r_mj^a + Σ_m F_mi[m,j]·r_mi^a    (− P(ij) F_mi)
-//               + ½ Σ_mn W_mnij · r_mn^a                            (oo-ladder)
-//               + P(ij)·Σ_me W_mbej[m,a,e,i]·r_jm^e                 (with sign)
-//               − P(ij)·Σ_k ⟨jk||ia⟩ · r_k                          (R_1-coupling, bare V)
-//
-// W̄ T2 dressings on bare-V couplings (W̄_mnie / W̄_amie / W̄_kjia)
-// follow the same pattern as my EE-EOM-CCSD module. T1 dressing
-// terms vanish at canonical RHF when T1 = 0. Higher-order T2
-// dressings on the singles ↔ doubles coupling are documented
-// honest gaps (same as EE-EOM-CCSD stage 24b).
-//
-// PRECISION VALIDATION (stage 32 close-out, 2026-05-12):
-// Brute-force cross-check against explicit H̄ projection on the
-// 4-spin-orbital Fock space (tests/chemistry/ip-eom-ccsd-bruteforce.test.ts)
-// established:
-//   - LOWEST IPs (R_1-dominated, the physically important values)
-//     match the brute-force reference EXACTLY for H₂ STO-3G.
-//     So H₂O's 12.03 eV lowest IP and similar results are validated.
-//   - HIGHER eigenvalues (R_2-dominated 2h1p "satellite" states, e.g.
-//     Auger ionization) have a substantial ~2 Ha (60 eV) over-count
-//     from the σ_2 P(ij)·W_mbej contraction — a structural bug
-//     unrelated to the EE-EOM-CCSD |E_corr|/2 issue.
-//   - Fix for the R_2 sector needs careful re-derivation of σ_2's
-//     W_mbej contribution; outside this turn's scope. Users
-//     consuming `ips[0..k]` (lowest k physical IPs) are unaffected.
+// Ported 2026-05-22 from PySCF (Apache 2.0; see LICENSE-PYSCF). Pre-port
+// the code re-derived from Stanton-Bartlett and shared the EE-EOM bug
+// pattern: CC-T-equation intermediates used as EOM intermediates, plus
+// the (t2, r2) σ_2 coupling term `+½ ⟨mn||ef⟩ r_2[m,n,f] T2[i,j,a,e]` was
+// missing entirely. The known ~60 eV R_2 satellite over-count documented
+// in earlier versions of this header is closed by the port.
 // ─────────────────────────────────────────────────────────────
 
 import type { MolecularIntegrals } from "./cg-molecular.js";
@@ -57,11 +39,6 @@ import type { HFResult } from "./hf-scf.js";
 import type { CCSDResult } from "./ccsd.js";
 import {
   buildSpinOrbitalERI,
-  makeF_ae,
-  makeF_mi,
-  makeF_me,
-  makeW_mnij,
-  makeW_mbej,
   makeTau,
 } from "./ccsd.js";
 import { transformERIToMO } from "./mp2.js";
@@ -115,17 +92,192 @@ export function runIPEOMCCSD(
   const T2 = ccsd.T2;
   const tau_t = makeTau(T1, T2, NOCC, NVIRT, 0.5);
   const tau   = makeTau(T1, T2, NOCC, NVIRT, 1.0);
-  const F_ae = makeF_ae(T1, eps, eri, tau_t, NOCC, NVIRT, NSO);
-  const F_mi = makeF_mi(T1, eps, eri, tau_t, NOCC, NVIRT, NSO);
-  const F_me = makeF_me(T1, eri, NOCC, NVIRT, NSO);
-  const W_mnij = makeW_mnij(T1, tau, eri, NOCC, NVIRT, NSO);
-  const W_mbej = makeW_mbej(T1, T2, eri, NOCC, NVIRT, NSO);
 
   const V = (P: number, Q: number, R: number, S: number): number =>
     eri[((P * NSO + Q) * NSO + R) * NSO + S]!;
   const VO = NOCC;
 
-  // ── sigma function on (R_1, R_2 antisym in (i,j)). ─────────
+  // ── EOM-CCSD intermediates (PySCF gintermediates.py) ──────────
+  // Same as in eom-ccsd.ts; IP-EOM only needs the subset used by
+  // ipccsd_matvec (Foo, Fov, Fvv, Woooo, Wovvo, Wooov, Wovoo).
+  // See feedback_porting_acceptance_gate.md — these EOM intermediates
+  // differ from cc_ counterparts in T-dressing prefactors and inclusion
+  // of the bare Fock diagonal.
+
+  const Fov = new Float64Array(NOCC * NVIRT);
+  for (let m = 0; m < NOCC; m++) {
+    for (let e = 0; e < NVIRT; e++) {
+      let s = 0;
+      for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+        for (let f = 0; f < NVIRT; f++) {
+          s += T1[nIdx * NVIRT + f]! * V(m, nIdx, e + VO, f + VO);
+        }
+      }
+      Fov[m * NVIRT + e] = s;
+    }
+  }
+
+  const Fvv = new Float64Array(NVIRT * NVIRT);
+  for (let a = 0; a < NVIRT; a++) {
+    for (let e = 0; e < NVIRT; e++) {
+      let s = (a === e) ? eps[a + VO]! : 0;
+      for (let m = 0; m < NOCC; m++) {
+        for (let f = 0; f < NVIRT; f++) {
+          s += T1[m * NVIRT + f]! * V(a + VO, m, e + VO, f + VO);
+        }
+      }
+      for (let m = 0; m < NOCC; m++) {
+        for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+          for (let f = 0; f < NVIRT; f++) {
+            s -= 0.5 * tau_t[((m * NOCC + nIdx) * NVIRT + a) * NVIRT + f]! *
+                       V(m, nIdx, e + VO, f + VO);
+          }
+        }
+      }
+      for (let m = 0; m < NOCC; m++) {
+        s -= 0.5 * T1[m * NVIRT + a]! * Fov[m * NVIRT + e]!;
+      }
+      Fvv[a * NVIRT + e] = s;
+    }
+  }
+
+  const Foo = new Float64Array(NOCC * NOCC);
+  for (let m = 0; m < NOCC; m++) {
+    for (let i = 0; i < NOCC; i++) {
+      let s = (m === i) ? eps[m]! : 0;
+      for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+        for (let e = 0; e < NVIRT; e++) {
+          s += T1[nIdx * NVIRT + e]! * V(m, nIdx, i, e + VO);
+        }
+      }
+      for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+        for (let e = 0; e < NVIRT; e++) {
+          for (let f = 0; f < NVIRT; f++) {
+            s += 0.5 * tau_t[((i * NOCC + nIdx) * NVIRT + e) * NVIRT + f]! *
+                       V(m, nIdx, e + VO, f + VO);
+          }
+        }
+      }
+      for (let e = 0; e < NVIRT; e++) {
+        s += 0.5 * T1[i * NVIRT + e]! * Fov[m * NVIRT + e]!;
+      }
+      Foo[m * NOCC + i] = s;
+    }
+  }
+
+  const Woooo = new Float64Array(NOCC * NOCC * NOCC * NOCC);
+  for (let m = 0; m < NOCC; m++) {
+    for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+      for (let i = 0; i < NOCC; i++) {
+        for (let j = 0; j < NOCC; j++) {
+          let s = V(m, nIdx, i, j);
+          for (let e = 0; e < NVIRT; e++) {
+            s += T1[j * NVIRT + e]! * V(m, nIdx, i, e + VO);
+            s -= T1[i * NVIRT + e]! * V(m, nIdx, j, e + VO);
+          }
+          for (let e = 0; e < NVIRT; e++) {
+            for (let f = 0; f < NVIRT; f++) {
+              s += 0.5 * tau[((i * NOCC + j) * NVIRT + e) * NVIRT + f]! *
+                         V(m, nIdx, e + VO, f + VO);
+            }
+          }
+          Woooo[((m * NOCC + nIdx) * NOCC + i) * NOCC + j] = s;
+        }
+      }
+    }
+  }
+
+  const Wovvo = new Float64Array(NOCC * NVIRT * NVIRT * NOCC);
+  for (let m = 0; m < NOCC; m++) {
+    for (let b = 0; b < NVIRT; b++) {
+      for (let e = 0; e < NVIRT; e++) {
+        for (let j = 0; j < NOCC; j++) {
+          let s = V(m, b + VO, e + VO, j);
+          for (let f = 0; f < NVIRT; f++) {
+            s += T1[j * NVIRT + f]! * V(m, b + VO, e + VO, f + VO);
+          }
+          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+            s -= T1[nIdx * NVIRT + b]! * V(m, nIdx, e + VO, j);
+          }
+          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+            for (let f = 0; f < NVIRT; f++) {
+              const t2v = T2[((j * NOCC + nIdx) * NVIRT + f) * NVIRT + b]!;
+              const t1p = T1[j * NVIRT + f]! * T1[nIdx * NVIRT + b]!;
+              s -= (t2v + t1p) * V(m, nIdx, e + VO, f + VO);
+            }
+          }
+          Wovvo[((m * NVIRT + b) * NVIRT + e) * NOCC + j] = s;
+        }
+      }
+    }
+  }
+
+  const Wooov = new Float64Array(NOCC * NOCC * NOCC * NVIRT);
+  for (let m = 0; m < NOCC; m++) {
+    for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+      for (let i = 0; i < NOCC; i++) {
+        for (let e = 0; e < NVIRT; e++) {
+          let s = V(m, nIdx, i, e + VO);
+          for (let f = 0; f < NVIRT; f++) {
+            s += T1[i * NVIRT + f]! * V(m, nIdx, f + VO, e + VO);
+          }
+          Wooov[((m * NOCC + nIdx) * NOCC + i) * NVIRT + e] = s;
+        }
+      }
+    }
+  }
+
+  const Wovoo = new Float64Array(NOCC * NVIRT * NOCC * NOCC);
+  for (let m = 0; m < NOCC; m++) {
+    for (let b = 0; b < NVIRT; b++) {
+      for (let i = 0; i < NOCC; i++) {
+        for (let j = 0; j < NOCC; j++) {
+          let s = V(m, b + VO, i, j);
+          for (let e = 0; e < NVIRT; e++) {
+            s -= Fov[m * NVIRT + e]! *
+                 T2[((i * NOCC + j) * NVIRT + b) * NVIRT + e]!;
+          }
+          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+            s -= T1[nIdx * NVIRT + b]! *
+                 Woooo[((m * NOCC + nIdx) * NOCC + i) * NOCC + j]!;
+          }
+          for (let e = 0; e < NVIRT; e++) {
+            for (let f = 0; f < NVIRT; f++) {
+              s += 0.5 * V(m, b + VO, e + VO, f + VO) *
+                         tau[((i * NOCC + j) * NVIRT + e) * NVIRT + f]!;
+            }
+          }
+          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+            for (let e = 0; e < NVIRT; e++) {
+              s += V(m, nIdx, i, e + VO) *
+                   T2[((j * NOCC + nIdx) * NVIRT + b) * NVIRT + e]!;
+              s -= V(m, nIdx, j, e + VO) *
+                   T2[((i * NOCC + nIdx) * NVIRT + b) * NVIRT + e]!;
+            }
+          }
+          for (let e = 0; e < NVIRT; e++) {
+            s += T1[i * NVIRT + e]! * V(m, b + VO, e + VO, j);
+            s -= T1[j * NVIRT + e]! * V(m, b + VO, e + VO, i);
+          }
+          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+            for (let e = 0; e < NVIRT; e++) {
+              for (let f = 0; f < NVIRT; f++) {
+                const tvj = T2[((nIdx * NOCC + j) * NVIRT + b) * NVIRT + f]!;
+                const tvi = T2[((nIdx * NOCC + i) * NVIRT + b) * NVIRT + f]!;
+                const eV = V(m, nIdx, e + VO, f + VO);
+                s -= T1[i * NVIRT + e]! * tvj * eV;
+                s += T1[j * NVIRT + e]! * tvi * eV;
+              }
+            }
+          }
+          Wovoo[((m * NVIRT + b) * NOCC + i) * NOCC + j] = s;
+        }
+      }
+    }
+  }
+
+  // ── σ via PySCF eom_gccsd.ipccsd_matvec, Eqs. (8)-(9). ──────────
+  // Ref: Tu, Wang, and Li, J. Chem. Phys. 136, 174102 (2012).
   function sigma(R_1: Float64Array, R_2: Float64Array): {
     s1: Float64Array;
     s2: Float64Array;
@@ -133,71 +285,85 @@ export function runIPEOMCCSD(
     const s1 = new Float64Array(NOCC);
     const s2 = new Float64Array(NOCC * NOCC * NVIRT);
 
-    // σ_1[i] ----------------------------------------------------
+    // σ_1[i] (Eq. 8):
+    //   −Σ_m Foo[m,i] r_1[m]
+    //   +Σ_me Fov[m,e] r_2[m,i,e]
+    //   −½ Σ_nme Wooov[n,m,i,e] r_2[m,n,e]
     for (let i = 0; i < NOCC; i++) {
       let s = 0;
-      // Bare Fock diag: −ε_i r_i
-      s -= eps[i]! * R_1[i]!;
-      // F_mi correction
-      for (let j = 0; j < NOCC; j++) s -= F_mi[j * NOCC + i]! * R_1[j]!;
-      // F_me · R_2 coupling (1h ← 2h1p)
-      for (let j = 0; j < NOCC; j++) {
+      for (let m = 0; m < NOCC; m++) {
+        s -= Foo[m * NOCC + i]! * R_1[m]!;
+      }
+      for (let m = 0; m < NOCC; m++) {
         for (let e = 0; e < NVIRT; e++) {
-          s += F_me[j * NVIRT + e]! * R_2[(i * NOCC + j) * NVIRT + e]!;
+          s += Fov[m * NVIRT + e]! * R_2[(m * NOCC + i) * NVIRT + e]!;
         }
       }
-      // − ½ Σ_jke ⟨jk||ie⟩ r_jk^e  (V coupling)
-      for (let j = 0; j < NOCC; j++) {
-        for (let k = 0; k < NOCC; k++) {
+      for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+        for (let m = 0; m < NOCC; m++) {
           for (let e = 0; e < NVIRT; e++) {
-            s -= 0.5 * V(j, k, i, e + VO) *
-                 R_2[(j * NOCC + k) * NVIRT + e]!;
+            s -= 0.5 * Wooov[((nIdx * NOCC + m) * NOCC + i) * NVIRT + e]! *
+                       R_2[(m * NOCC + nIdx) * NVIRT + e]!;
           }
         }
       }
       s1[i] = s;
     }
 
-    // σ_2[i,j,a] (antisym in (i,j)) -----------------------------
+    // σ_2[i,j,a] (Eq. 9):
+    //   +Σ_e Fvv[a,e] r_2[i,j,e]
+    //   −P(ij) Σ_m Foo[m,i] r_2[m,j,a]
+    //   −Σ_m Wovoo[m,a,j,i] r_1[m]
+    //   +½ Σ_mn Woooo[m,n,i,j] r_2[m,n,a]
+    //   +P(ij) Σ_me Wovvo[m,a,e,i] r_2[m,j,e]
+    //   +½ Σ_mnef ⟨mn||ef⟩ r_2[m,n,f] T2[i,j,a,e]
     for (let i = 0; i < NOCC; i++) {
       for (let j = 0; j < NOCC; j++) {
         for (let a = 0; a < NVIRT; a++) {
           let z = 0;
-          // Fock diag (ε_a − ε_i − ε_j) r_ij^a
-          z += (eps[a + VO]! - eps[i]! - eps[j]!) *
-               R_2[(i * NOCC + j) * NVIRT + a]!;
-          // + Σ_e F_ae r_ij^e
+          const idx_ija = (i * NOCC + j) * NVIRT + a;
+          // + Σ_e Fvv[a,e] r_2[i,j,e]
           for (let e = 0; e < NVIRT; e++) {
-            z += F_ae[a * NVIRT + e]! * R_2[(i * NOCC + j) * NVIRT + e]!;
+            z += Fvv[a * NVIRT + e]! * R_2[(i * NOCC + j) * NVIRT + e]!;
           }
-          // − P(ij) Σ_m F_mi r_mj^a
+          // − P(ij) Σ_m Foo[m,i] r_2[m,j,a]
           for (let m = 0; m < NOCC; m++) {
-            z -= F_mi[m * NOCC + i]! * R_2[(m * NOCC + j) * NVIRT + a]!;
-            z += F_mi[m * NOCC + j]! * R_2[(m * NOCC + i) * NVIRT + a]!;
+            z -= Foo[m * NOCC + i]! * R_2[(m * NOCC + j) * NVIRT + a]!;
+            z += Foo[m * NOCC + j]! * R_2[(m * NOCC + i) * NVIRT + a]!;
           }
-          // ½ Σ_mn W_mnij r_mn^a
+          // − Σ_m Wovoo[m,a,j,i] r_1[m]
           for (let m = 0; m < NOCC; m++) {
-            for (let nn = 0; nn < NOCC; nn++) {
-              z += 0.5 * W_mnij[((m * NOCC + nn) * NOCC + i) * NOCC + j]! *
-                   R_2[(m * NOCC + nn) * NVIRT + a]!;
+            z -= Wovoo[((m * NVIRT + a) * NOCC + j) * NOCC + i]! * R_1[m]!;
+          }
+          // + ½ Σ_mn Woooo[m,n,i,j] r_2[m,n,a]
+          for (let m = 0; m < NOCC; m++) {
+            for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+              z += 0.5 * Woooo[((m * NOCC + nIdx) * NOCC + i) * NOCC + j]! *
+                         R_2[(m * NOCC + nIdx) * NVIRT + a]!;
             }
           }
-          // P(ij) Σ_me W_mbej[m,a,e,i] r_jm^e
-          //  = + Σ_me W_mbej[m,a,e,i] r_jm^e − Σ_me W_mbej[m,a,e,j] r_im^e
+          // + P(ij) Σ_me Wovvo[m,a,e,i] r_2[m,j,e]
           for (let m = 0; m < NOCC; m++) {
             for (let e = 0; e < NVIRT; e++) {
-              z += W_mbej[((m * NVIRT + a) * NVIRT + e) * NOCC + i]! *
-                   R_2[(j * NOCC + m) * NVIRT + e]!;
-              z -= W_mbej[((m * NVIRT + a) * NVIRT + e) * NOCC + j]! *
-                   R_2[(i * NOCC + m) * NVIRT + e]!;
+              z += Wovvo[((m * NVIRT + a) * NVIRT + e) * NOCC + i]! *
+                   R_2[(m * NOCC + j) * NVIRT + e]!;
+              z -= Wovvo[((m * NVIRT + a) * NVIRT + e) * NOCC + j]! *
+                   R_2[(m * NOCC + i) * NVIRT + e]!;
             }
           }
-          // − P(ij) Σ_k ⟨jk||ia⟩ r_k  =  −Σ_k ⟨jk||ia⟩ r_k + Σ_k ⟨ik||ja⟩ r_k
-          for (let k = 0; k < NOCC; k++) {
-            z -= V(j, k, i, a + VO) * R_1[k]!;
-            z += V(i, k, j, a + VO) * R_1[k]!;
+          // + ½ Σ_mnef ⟨mn||ef⟩ r_2[m,n,f] T2[i,j,a,e]
+          for (let m = 0; m < NOCC; m++) {
+            for (let nIdx = 0; nIdx < NOCC; nIdx++) {
+              for (let e = 0; e < NVIRT; e++) {
+                for (let f = 0; f < NVIRT; f++) {
+                  z += 0.5 * V(m, nIdx, e + VO, f + VO) *
+                             R_2[(m * NOCC + nIdx) * NVIRT + f]! *
+                             T2[((i * NOCC + j) * NVIRT + a) * NVIRT + e]!;
+                }
+              }
+            }
           }
-          s2[(i * NOCC + j) * NVIRT + a] = z;
+          s2[idx_ija] = z;
         }
       }
     }

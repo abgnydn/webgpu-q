@@ -172,10 +172,15 @@ will silently truncate large dispatches.
   prior versions of this doc was an artifact of the empirical
   patches, not a method limit. H₂O STO-3G now gives a 10.81 eV
   lowest triplet and 12.44 eV first singlet.
-- **IP-EOM-CCSD R₂ satellites** have a known **~2 Ha (~60 eV)
-  over-count** on H₂ STO-3G. Documented in `ip-eom-ccsd.ts`. Affects
-  R₂-dominated Auger / shake-up states only; physical lowest IPs are
-  validated exact against brute-force.
+- **IP-EOM-CCSD σ-equations** — **PySCF-ported and verified 2026-05-22**.
+  Mirror of the 2026-05-21 EE-EOM port: σ_1 + σ_2 follow Tu-Wang-Li
+  2012 Eqs (8)-(9) with PySCF eom_gccsd intermediates (Foo/Fov/Fvv with
+  bare canonical Fock diagonal, Woooo/Wvvvv/Wovvo with full τ/t2
+  dressings, Wooov/Wovoo properly dressed). The pre-port R_2 satellite
+  over-count (~60 eV on H₂) is closed; brute-force diff
+  `tests/chemistry/ip-eom-ccsd-bruteforce.test.ts` < 1e-10 Ha
+  element-by-element with hard `expect(maxDiff).toBeLessThan(1e-10)`
+  regression assertion.
 - **Stage 30 eigenvectors** for degenerate eigenvalues set the
   zero-denominator entry to 0, picking one representative from the
   degenerate eigenspace. The 3 returned vectors are individually

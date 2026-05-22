@@ -4,18 +4,13 @@
 //
 // 1-hole basis: |Φ_i⟩ = a_i |Φ_0⟩ for i ∈ occupied SOs.
 // 2h1p basis (antisym in i, j with i>j): |Φ_{ij}^a⟩ = a^†_a a_j a_i |Φ_0⟩.
-import { describe, test } from "vitest";
+import { describe, test, expect } from "vitest";
 import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
 import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
 import {
   runCCSD,
   buildSpinOrbitalERI,
-  makeF_ae,
-  makeF_mi,
-  makeF_me,
-  makeW_mnij,
-  makeW_mbej,
   makeTau,
 } from "../../src/chemistry/ccsd.js";
 import { runIPEOMCCSD } from "../../src/chemistry/ip-eom-ccsd.js";
@@ -286,72 +281,245 @@ describe("IP-EOM-CCSD brute-force diagnostic (H₂ STO-3G)", () => {
     for (let P = 0; P < NSO_full; P++) eps_full[P] = hf.orbitalEnergies[P >> 1]!;
     const tau_t = makeTau(ccsd.T1, ccsd.T2, NOCC_full, NVIRT_full, 0.5);
     const tau_full = makeTau(ccsd.T1, ccsd.T2, NOCC_full, NVIRT_full, 1.0);
-    const F_ae = makeF_ae(ccsd.T1, eps_full, eri_SO, tau_t, NOCC_full, NVIRT_full, NSO_full);
-    const F_mi = makeF_mi(ccsd.T1, eps_full, eri_SO, tau_t, NOCC_full, NVIRT_full, NSO_full);
-    const F_me = makeF_me(ccsd.T1, eri_SO, NOCC_full, NVIRT_full, NSO_full);
-    const W_mnij = makeW_mnij(ccsd.T1, tau_full, eri_SO, NOCC_full, NVIRT_full, NSO_full);
-    const W_mbej = makeW_mbej(ccsd.T1, ccsd.T2, eri_SO, NOCC_full, NVIRT_full, NSO_full);
-
+    // ── EOM-CCSD intermediates (PySCF gintermediates.py). ──
+    // Mirror of src/chemistry/ip-eom-ccsd.ts post-PySCF port (2026-05-22).
     const V_eri = (P: number, Q: number, R: number, S: number): number =>
       eri_SO[((P * NSO_full + Q) * NSO_full + R) * NSO_full + S]!;
     const VO = NOCC_full;
 
+    const Fov = new Float64Array(NOCC_full * NVIRT_full);
+    for (let m = 0; m < NOCC_full; m++) {
+      for (let e = 0; e < NVIRT_full; e++) {
+        let s = 0;
+        for (let nIdx = 0; nIdx < NOCC_full; nIdx++) {
+          for (let f = 0; f < NVIRT_full; f++) {
+            s += ccsd.T1[nIdx * NVIRT_full + f]! * V_eri(m, nIdx, e + VO, f + VO);
+          }
+        }
+        Fov[m * NVIRT_full + e] = s;
+      }
+    }
+    const Fvv = new Float64Array(NVIRT_full * NVIRT_full);
+    for (let a = 0; a < NVIRT_full; a++) {
+      for (let e = 0; e < NVIRT_full; e++) {
+        let s = (a === e) ? eps_full[a + VO]! : 0;
+        for (let m = 0; m < NOCC_full; m++) {
+          for (let f = 0; f < NVIRT_full; f++) {
+            s += ccsd.T1[m * NVIRT_full + f]! * V_eri(a + VO, m, e + VO, f + VO);
+          }
+        }
+        for (let m = 0; m < NOCC_full; m++) {
+          for (let nIdx = 0; nIdx < NOCC_full; nIdx++) {
+            for (let f = 0; f < NVIRT_full; f++) {
+              s -= 0.5 * tau_t[((m * NOCC_full + nIdx) * NVIRT_full + a) * NVIRT_full + f]! *
+                         V_eri(m, nIdx, e + VO, f + VO);
+            }
+          }
+        }
+        for (let m = 0; m < NOCC_full; m++) {
+          s -= 0.5 * ccsd.T1[m * NVIRT_full + a]! * Fov[m * NVIRT_full + e]!;
+        }
+        Fvv[a * NVIRT_full + e] = s;
+      }
+    }
+    const Foo = new Float64Array(NOCC_full * NOCC_full);
+    for (let m = 0; m < NOCC_full; m++) {
+      for (let i = 0; i < NOCC_full; i++) {
+        let s = (m === i) ? eps_full[m]! : 0;
+        for (let nIdx = 0; nIdx < NOCC_full; nIdx++) {
+          for (let e = 0; e < NVIRT_full; e++) {
+            s += ccsd.T1[nIdx * NVIRT_full + e]! * V_eri(m, nIdx, i, e + VO);
+          }
+        }
+        for (let nIdx = 0; nIdx < NOCC_full; nIdx++) {
+          for (let e = 0; e < NVIRT_full; e++) {
+            for (let f = 0; f < NVIRT_full; f++) {
+              s += 0.5 * tau_t[((i * NOCC_full + nIdx) * NVIRT_full + e) * NVIRT_full + f]! *
+                         V_eri(m, nIdx, e + VO, f + VO);
+            }
+          }
+        }
+        for (let e = 0; e < NVIRT_full; e++) {
+          s += 0.5 * ccsd.T1[i * NVIRT_full + e]! * Fov[m * NVIRT_full + e]!;
+        }
+        Foo[m * NOCC_full + i] = s;
+      }
+    }
+    const Woooo = new Float64Array(NOCC_full * NOCC_full * NOCC_full * NOCC_full);
+    for (let m = 0; m < NOCC_full; m++) {
+      for (let nIdx = 0; nIdx < NOCC_full; nIdx++) {
+        for (let i = 0; i < NOCC_full; i++) {
+          for (let j = 0; j < NOCC_full; j++) {
+            let s = V_eri(m, nIdx, i, j);
+            for (let e = 0; e < NVIRT_full; e++) {
+              s += ccsd.T1[j * NVIRT_full + e]! * V_eri(m, nIdx, i, e + VO);
+              s -= ccsd.T1[i * NVIRT_full + e]! * V_eri(m, nIdx, j, e + VO);
+            }
+            for (let e = 0; e < NVIRT_full; e++) {
+              for (let f = 0; f < NVIRT_full; f++) {
+                s += 0.5 * tau_full[((i * NOCC_full + j) * NVIRT_full + e) * NVIRT_full + f]! *
+                           V_eri(m, nIdx, e + VO, f + VO);
+              }
+            }
+            Woooo[((m * NOCC_full + nIdx) * NOCC_full + i) * NOCC_full + j] = s;
+          }
+        }
+      }
+    }
+    const Wovvo = new Float64Array(NOCC_full * NVIRT_full * NVIRT_full * NOCC_full);
+    for (let m = 0; m < NOCC_full; m++) {
+      for (let b = 0; b < NVIRT_full; b++) {
+        for (let e = 0; e < NVIRT_full; e++) {
+          for (let j = 0; j < NOCC_full; j++) {
+            let s = V_eri(m, b + VO, e + VO, j);
+            for (let f = 0; f < NVIRT_full; f++) {
+              s += ccsd.T1[j * NVIRT_full + f]! * V_eri(m, b + VO, e + VO, f + VO);
+            }
+            for (let nIdx = 0; nIdx < NOCC_full; nIdx++) {
+              s -= ccsd.T1[nIdx * NVIRT_full + b]! * V_eri(m, nIdx, e + VO, j);
+            }
+            for (let nIdx = 0; nIdx < NOCC_full; nIdx++) {
+              for (let f = 0; f < NVIRT_full; f++) {
+                const t2v = ccsd.T2[((j * NOCC_full + nIdx) * NVIRT_full + f) * NVIRT_full + b]!;
+                const t1p = ccsd.T1[j * NVIRT_full + f]! * ccsd.T1[nIdx * NVIRT_full + b]!;
+                s -= (t2v + t1p) * V_eri(m, nIdx, e + VO, f + VO);
+              }
+            }
+            Wovvo[((m * NVIRT_full + b) * NVIRT_full + e) * NOCC_full + j] = s;
+          }
+        }
+      }
+    }
+    const Wooov = new Float64Array(NOCC_full * NOCC_full * NOCC_full * NVIRT_full);
+    for (let m = 0; m < NOCC_full; m++) {
+      for (let nIdx = 0; nIdx < NOCC_full; nIdx++) {
+        for (let i = 0; i < NOCC_full; i++) {
+          for (let e = 0; e < NVIRT_full; e++) {
+            let s = V_eri(m, nIdx, i, e + VO);
+            for (let f = 0; f < NVIRT_full; f++) {
+              s += ccsd.T1[i * NVIRT_full + f]! * V_eri(m, nIdx, f + VO, e + VO);
+            }
+            Wooov[((m * NOCC_full + nIdx) * NOCC_full + i) * NVIRT_full + e] = s;
+          }
+        }
+      }
+    }
+    const Wovoo = new Float64Array(NOCC_full * NVIRT_full * NOCC_full * NOCC_full);
+    for (let m = 0; m < NOCC_full; m++) {
+      for (let b = 0; b < NVIRT_full; b++) {
+        for (let i = 0; i < NOCC_full; i++) {
+          for (let j = 0; j < NOCC_full; j++) {
+            let s = V_eri(m, b + VO, i, j);
+            for (let e = 0; e < NVIRT_full; e++) {
+              s -= Fov[m * NVIRT_full + e]! *
+                   ccsd.T2[((i * NOCC_full + j) * NVIRT_full + b) * NVIRT_full + e]!;
+            }
+            for (let nIdx = 0; nIdx < NOCC_full; nIdx++) {
+              s -= ccsd.T1[nIdx * NVIRT_full + b]! *
+                   Woooo[((m * NOCC_full + nIdx) * NOCC_full + i) * NOCC_full + j]!;
+            }
+            for (let e = 0; e < NVIRT_full; e++) {
+              for (let f = 0; f < NVIRT_full; f++) {
+                s += 0.5 * V_eri(m, b + VO, e + VO, f + VO) *
+                           tau_full[((i * NOCC_full + j) * NVIRT_full + e) * NVIRT_full + f]!;
+              }
+            }
+            for (let nIdx = 0; nIdx < NOCC_full; nIdx++) {
+              for (let e = 0; e < NVIRT_full; e++) {
+                s += V_eri(m, nIdx, i, e + VO) *
+                     ccsd.T2[((j * NOCC_full + nIdx) * NVIRT_full + b) * NVIRT_full + e]!;
+                s -= V_eri(m, nIdx, j, e + VO) *
+                     ccsd.T2[((i * NOCC_full + nIdx) * NVIRT_full + b) * NVIRT_full + e]!;
+              }
+            }
+            for (let e = 0; e < NVIRT_full; e++) {
+              s += ccsd.T1[i * NVIRT_full + e]! * V_eri(m, b + VO, e + VO, j);
+              s -= ccsd.T1[j * NVIRT_full + e]! * V_eri(m, b + VO, e + VO, i);
+            }
+            for (let nIdx = 0; nIdx < NOCC_full; nIdx++) {
+              for (let e = 0; e < NVIRT_full; e++) {
+                for (let f = 0; f < NVIRT_full; f++) {
+                  const tvj = ccsd.T2[((nIdx * NOCC_full + j) * NVIRT_full + b) * NVIRT_full + f]!;
+                  const tvi = ccsd.T2[((nIdx * NOCC_full + i) * NVIRT_full + b) * NVIRT_full + f]!;
+                  const eV = V_eri(m, nIdx, e + VO, f + VO);
+                  s -= ccsd.T1[i * NVIRT_full + e]! * tvj * eV;
+                  s += ccsd.T1[j * NVIRT_full + e]! * tvi * eV;
+                }
+              }
+            }
+            Wovoo[((m * NVIRT_full + b) * NOCC_full + i) * NOCC_full + j] = s;
+          }
+        }
+      }
+    }
+
+    // σ via PySCF eom_gccsd.ipccsd_matvec (Tu-Wang-Li 2012 Eqs. 8-9).
     const sigmaFn = (R_1: Float64Array, R_2: Float64Array): {
       s1: Float64Array; s2: Float64Array;
     } => {
       const s1 = new Float64Array(NOCC_full);
       const s2 = new Float64Array(NOCC_full * NOCC_full * NVIRT_full);
-      // σ_1[i] (1h)
+      // σ_1[i]
       for (let i = 0; i < NOCC_full; i++) {
         let s = 0;
-        s -= eps_full[i]! * R_1[i]!;
-        for (let j = 0; j < NOCC_full; j++) s -= F_mi[j * NOCC_full + i]! * R_1[j]!;
-        for (let j = 0; j < NOCC_full; j++) {
+        for (let m = 0; m < NOCC_full; m++) s -= Foo[m * NOCC_full + i]! * R_1[m]!;
+        for (let m = 0; m < NOCC_full; m++) {
           for (let e = 0; e < NVIRT_full; e++) {
-            s += F_me[j * NVIRT_full + e]! * R_2[(i * NOCC_full + j) * NVIRT_full + e]!;
+            s += Fov[m * NVIRT_full + e]! * R_2[(m * NOCC_full + i) * NVIRT_full + e]!;
           }
         }
-        for (let j = 0; j < NOCC_full; j++) {
-          for (let k = 0; k < NOCC_full; k++) {
+        for (let nIdx = 0; nIdx < NOCC_full; nIdx++) {
+          for (let m = 0; m < NOCC_full; m++) {
             for (let e = 0; e < NVIRT_full; e++) {
-              s -= 0.5 * V_eri(j, k, i, e + VO) * R_2[(j * NOCC_full + k) * NVIRT_full + e]!;
+              s -= 0.5 * Wooov[((nIdx * NOCC_full + m) * NOCC_full + i) * NVIRT_full + e]! *
+                         R_2[(m * NOCC_full + nIdx) * NVIRT_full + e]!;
             }
           }
         }
         s1[i] = s;
       }
-      // σ_2[i, j, a] (2h1p, antisym in i,j)
+      // σ_2[i,j,a]
       for (let i = 0; i < NOCC_full; i++) {
         for (let j = 0; j < NOCC_full; j++) {
           for (let a = 0; a < NVIRT_full; a++) {
             let z = 0;
-            z += (eps_full[a + VO]! - eps_full[i]! - eps_full[j]!) * R_2[(i * NOCC_full + j) * NVIRT_full + a]!;
+            const idx_ija = (i * NOCC_full + j) * NVIRT_full + a;
             for (let e = 0; e < NVIRT_full; e++) {
-              z += F_ae[a * NVIRT_full + e]! * R_2[(i * NOCC_full + j) * NVIRT_full + e]!;
+              z += Fvv[a * NVIRT_full + e]! * R_2[(i * NOCC_full + j) * NVIRT_full + e]!;
             }
             for (let m = 0; m < NOCC_full; m++) {
-              z -= F_mi[m * NOCC_full + i]! * R_2[(m * NOCC_full + j) * NVIRT_full + a]!;
-              z += F_mi[m * NOCC_full + j]! * R_2[(m * NOCC_full + i) * NVIRT_full + a]!;
+              z -= Foo[m * NOCC_full + i]! * R_2[(m * NOCC_full + j) * NVIRT_full + a]!;
+              z += Foo[m * NOCC_full + j]! * R_2[(m * NOCC_full + i) * NVIRT_full + a]!;
             }
             for (let m = 0; m < NOCC_full; m++) {
-              for (let nn = 0; nn < NOCC_full; nn++) {
-                z += 0.5 * W_mnij[((m * NOCC_full + nn) * NOCC_full + i) * NOCC_full + j]! *
-                     R_2[(m * NOCC_full + nn) * NVIRT_full + a]!;
+              z -= Wovoo[((m * NVIRT_full + a) * NOCC_full + j) * NOCC_full + i]! * R_1[m]!;
+            }
+            for (let m = 0; m < NOCC_full; m++) {
+              for (let nIdx = 0; nIdx < NOCC_full; nIdx++) {
+                z += 0.5 * Woooo[((m * NOCC_full + nIdx) * NOCC_full + i) * NOCC_full + j]! *
+                           R_2[(m * NOCC_full + nIdx) * NVIRT_full + a]!;
               }
             }
             for (let m = 0; m < NOCC_full; m++) {
               for (let e = 0; e < NVIRT_full; e++) {
-                z += W_mbej[((m * NVIRT_full + a) * NVIRT_full + e) * NOCC_full + i]! *
-                     R_2[(j * NOCC_full + m) * NVIRT_full + e]!;
-                z -= W_mbej[((m * NVIRT_full + a) * NVIRT_full + e) * NOCC_full + j]! *
-                     R_2[(i * NOCC_full + m) * NVIRT_full + e]!;
+                z += Wovvo[((m * NVIRT_full + a) * NVIRT_full + e) * NOCC_full + i]! *
+                     R_2[(m * NOCC_full + j) * NVIRT_full + e]!;
+                z -= Wovvo[((m * NVIRT_full + a) * NVIRT_full + e) * NOCC_full + j]! *
+                     R_2[(m * NOCC_full + i) * NVIRT_full + e]!;
               }
             }
-            for (let k = 0; k < NOCC_full; k++) {
-              z -= V_eri(j, k, i, a + VO) * R_1[k]!;
-              z += V_eri(i, k, j, a + VO) * R_1[k]!;
+            for (let m = 0; m < NOCC_full; m++) {
+              for (let nIdx = 0; nIdx < NOCC_full; nIdx++) {
+                for (let e = 0; e < NVIRT_full; e++) {
+                  for (let f = 0; f < NVIRT_full; f++) {
+                    z += 0.5 * V_eri(m, nIdx, e + VO, f + VO) *
+                               R_2[(m * NOCC_full + nIdx) * NVIRT_full + f]! *
+                               ccsd.T2[((i * NOCC_full + j) * NVIRT_full + a) * NVIRT_full + e]!;
+                  }
+                }
+              }
             }
-            s2[(i * NOCC_full + j) * NVIRT_full + a] = z;
+            s2[idx_ija] = z;
           }
         }
       }
@@ -395,12 +563,18 @@ describe("IP-EOM-CCSD brute-force diagnostic (H₂ STO-3G)", () => {
       console.log(`  ${basisLabels[i]!.padEnd(11)} ${row}`);
     }
     console.log(`[bf-ip-h2] M_mine − M_exact:`);
+    let maxDiff = 0;
     for (let i = 0; i < dim; i++) {
       const row = Array.from({ length: dim }, (_, j) => {
         const d = M_mine[i * dim + j]! - M_exact[i * dim + j]!;
+        if (Math.abs(d) > maxDiff) maxDiff = Math.abs(d);
         return Math.abs(d) > 1e-9 ? d.toExponential(3).padStart(11) : "    .      ";
       }).join(" ");
       console.log(`  ${basisLabels[i]!.padEnd(11)} ${row}`);
     }
+    // Hard regression assertion. After the PySCF eom_gccsd.ipccsd_matvec
+    // port (2026-05-22, commit pending), the σ-equation matrix matches
+    // the brute-force explicit H̄ projection to numerical noise.
+    expect(maxDiff).toBeLessThan(1e-10);
   });
 });

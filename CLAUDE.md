@@ -123,8 +123,10 @@ hyperscope), `/molecule.html` (SI report), `/experiments/` (E1–E33+).
 `npm run lint` clean. `npx playwright test` 11+ specs green.
 
 **Honest negatives / open work** (each its own session):
-- IP-EOM-CCSD R_2 σ_2 P(ij)·W_mbej structural over-count (~60 eV on H₂)
-  on R_2-dominated Auger-satellite states only (lowest IPs validated exact).
+- IP-EOM-CCSD: **PySCF-ported (2026-05-22)**. σ_1 + σ_2 follow
+  Tu-Wang-Li 2012 Eqs (8)-(9) with PySCF eom_gccsd intermediates. The
+  earlier R_2 satellite over-count (~60 eV on H₂) is closed; brute-force
+  H₂ diff < 1e-10 Ha element-by-element.
 - EE-EOM-CCSD: **PySCF-ported (2026-05-21)**. σ_1 + σ_2 follow
   Wang-Tu-Wang 2014 Eqs (9)-(10) with PySCF eom_gccsd intermediates
   (EOM-Fvv/Foo/Wovvo with full t2 dressing + Wovoo / Wvvvo). Empirical
