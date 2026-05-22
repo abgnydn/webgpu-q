@@ -253,6 +253,11 @@ export function attachSwarmRuntime(transport: SwarmTransport): KernelRegistry {
     tileSpec: unknown,
   ): Promise<Result[]> {
     const jobId = opts.jobId ?? `job-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36).slice(-4)}`;
+    // Empty-input shortcut — no announce, no waiting.
+    if (tiles.length === 0) {
+      opts.onProgress?.(0, 0);
+      return Promise.resolve([] as Result[]);
+    }
     return new Promise<Result[]>((resolve, reject) => {
       const claimTimeoutMs = opts.claimTimeoutMs ?? 250;
       const pending = new Set<number>();

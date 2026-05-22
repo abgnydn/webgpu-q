@@ -78,4 +78,47 @@ M  END`;
     expect(r.atoms[0]!.symbol).toBe("C");
     expect(r.atoms[1]!.symbol).toBe("H");
   });
+
+  test("XYZ — CRLF line endings parse cleanly", () => {
+    const xyz = "2\r\nH₂\r\nH 0 0 0\r\nH 0.7414 0 0\r\n";
+    const r = parseGeometry(xyz, "xyz");
+    expect(r.atoms.length).toBe(2);
+    expect(r.atoms[0]!.symbol).toBe("H");
+    expect(r.atoms[1]!.pos[0]).toBeCloseTo(0.7414, 4);
+  });
+
+  test("XYZ — extra whitespace and trailing blank lines tolerated", () => {
+    const xyz = `  2   \nspaced\n  O   0.0   0.0   0.0  \n  H    0.95   0.0  0.0   \n\n\n`;
+    const r = parseGeometry(xyz, "xyz");
+    expect(r.atoms.length).toBe(2);
+    expect(r.atoms[0]!.symbol).toBe("O");
+    expect(r.atoms[1]!.pos[0]).toBeCloseTo(0.95, 4);
+  });
+
+  test("XYZ — non-finite coordinate rejected with named error", () => {
+    const xyz = `1\nbad\nC 0 NaN 0`;
+    expect(() => parseGeometry(xyz, "xyz")).toThrow(/non-finite coordinate/);
+  });
+
+  test("PDB — file with no ATOM/HETATM records throws", () => {
+    const pdb = "HEADER    EMPTY\nTITLE     Nothing\nEND\n";
+    expect(() => parseGeometry(pdb, "pdb")).toThrow(/no ATOM/);
+  });
+
+  test("PDB — element field inferred from atom name when col 77-78 blank", () => {
+    // Element columns (77-78) intentionally blank; element should come
+    // from the atom-name field (cols 13-16).
+    const pdb =
+`HETATM    1  OW  HOH A   1       0.000   0.000   0.000  1.00  0.00
+HETATM    2  HW1 HOH A   1       0.757   0.586   0.000  1.00  0.00
+END`;
+    const r = parseGeometry(pdb, "pdb");
+    expect(r.atoms.length).toBe(2);
+    expect(r.atoms[0]!.symbol).toBe("O");
+    expect(r.atoms[1]!.symbol).toBe("H");
+  });
+
+  test("MOL — too-short file throws", () => {
+    expect(() => parseGeometry("name\nempty\n\n", "mol")).toThrow(/too short/);
+  });
 });
