@@ -42,4 +42,37 @@ test.describe("Swarm — BroadcastChannel multi-tab", () => {
 
     await ctx.close();
   });
+
+  test("two tabs distribute an H₂ bond-length scan and find the minimum near 0.73 Å", async ({ browser }) => {
+    const ctx = await browser.newContext();
+    const a = await ctx.newPage();
+    const b = await ctx.newPage();
+
+    a.on("pageerror", (err) => console.error(`[a:pageerror] ${err.message}`));
+    b.on("pageerror", (err) => console.error(`[b:pageerror] ${err.message}`));
+
+    await a.goto("/swarm.html", { waitUntil: "domcontentloaded" });
+    await b.goto("/swarm.html", { waitUntil: "domcontentloaded" });
+
+    await a.waitForFunction(() =>
+      document.querySelectorAll("#peers .peer").length >= 2,
+      { timeout: 5000 },
+    );
+
+    // Use a small scan for speed.
+    await a.locator("#rMin").fill("0.5");
+    await a.locator("#rMax").fill("1.0");
+    await a.locator("#nPoints").fill("11");
+
+    await a.locator("#runScanBtn").click();
+
+    // Wait for the success log line on A (no fixed text — just match
+    // the "equilibrium r ≈" prefix and a numeric value).
+    await expect(a.locator("#log")).toContainText("Scan complete", { timeout: 60000 });
+    const text = await a.locator("#log").textContent();
+    // r_eq for H₂ HF/STO-3G is around 0.72 — 0.74 Å.
+    expect(text).toMatch(/Equilibrium r ≈ 0\.7\d\d Å/);
+
+    await ctx.close();
+  });
 });

@@ -73,6 +73,25 @@
       </p>
 
       <section class="card">
+        <h3>TRANSPORT</h3>
+        <div class="row" style="margin-bottom:8px">
+          <label><input type="radio" name="transport" value="bc" checked /> BroadcastChannel (same-machine tabs)</label>
+          <label><input type="radio" name="transport" value="webrtc" /> WebRTC (cross-machine via PeerJS broker)</label>
+        </div>
+        <div id="webrtc-controls" style="display:none">
+          <div class="row" style="margin-top:8px;font-size:12px;color:var(--dim)">
+            Your peer ID: <code id="self-id" style="background:var(--bg2);padding:2px 6px;border-radius:4px;color:var(--accent);font-family:ui-monospace,monospace">— connecting —</code>
+            <button id="copy-id" class="btn btn-secondary" style="font-size:12px;padding:4px 10px">Copy</button>
+            <button id="copy-link" class="btn btn-secondary" style="font-size:12px;padding:4px 10px">Copy join link</button>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <input id="remote-id" type="text" placeholder="paste another peer's ID" style="background:var(--bg2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-family:ui-monospace,monospace;font-size:12px;flex:1;max-width:300px" />
+            <button id="connect-btn" class="btn btn-secondary" style="font-size:12px;padding:6px 14px">Connect</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
         <h3>PEERS</h3>
         <div id="peers" class="row">
           <span class="peer self">self · loading…</span>
@@ -80,7 +99,7 @@
       </section>
 
       <section class="card">
-        <h3>DEMO · COUNT PRIMES IN [0, N) ACROSS PEERS</h3>
+        <h3>DEMO 1 · COUNT PRIMES IN [0, N) ACROSS PEERS</h3>
         <div class="row" style="margin-bottom:10px">
           <label>N&nbsp;=&nbsp;<input id="N" type="number" value="2000000" min="10000" step="100000" /></label>
           <label>Tiles&nbsp;=&nbsp;<input id="tiles" type="number" value="16" min="2" max="256" /></label>
@@ -93,6 +112,26 @@
           <div id="progressText">0 / 0 tiles done</div>
           <div class="progress-bar"><div id="progressFill" style="width:0%"></div></div>
         </div>
+      </section>
+
+      <section class="card">
+        <h3>DEMO 2 · H₂ BOND-LENGTH SCAN (REAL HF/STO-3G)</h3>
+        <p style="color:var(--dim);margin:0 0 10px;font-size:13px">
+          Real chemistry across the swarm. Each tile is one H₂ geometry; workers
+          run full HF SCF + ERI build locally and return the energy. Minimum of
+          the curve is the equilibrium bond length.
+        </p>
+        <div class="row" style="margin-bottom:10px">
+          <label>r<sub>min</sub>&nbsp;(Å)&nbsp;=&nbsp;<input id="rMin" type="number" value="0.4" step="0.05" /></label>
+          <label>r<sub>max</sub>&nbsp;(Å)&nbsp;=&nbsp;<input id="rMax" type="number" value="2.5" step="0.05" /></label>
+          <label>points&nbsp;=&nbsp;<input id="nPoints" type="number" value="24" min="3" max="100" /></label>
+          <button id="runScanBtn" class="btn">Distribute scan</button>
+        </div>
+        <div id="scanProgress" class="progress" style="display:none">
+          <div id="scanProgressText">0 / 0 points done</div>
+          <div class="progress-bar"><div id="scanProgressFill" style="width:0%"></div></div>
+        </div>
+        <div id="scanResult" style="margin-top:12px;font-family:ui-monospace,monospace;font-size:12px;color:var(--dim)"></div>
       </section>
 
       <section class="card">

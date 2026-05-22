@@ -127,10 +127,16 @@ hyperscope), `/molecule.html` (SI report), `/experiments/` (E1–E33+).
   Tu-Wang-Li 2012 Eqs (8)-(9) with PySCF eom_gccsd intermediates. The
   earlier R_2 satellite over-count (~60 eV on H₂) is closed; brute-force
   H₂ diff < 1e-10 Ha element-by-element.
-- **Phase D Step 1 — swarm shipped (2026-05-22)**: `swarmMap(items, fn)`
-  primitive + `BroadcastChannelTransport` for same-origin multi-tab
-  distribution. `/swarm.html` demo distributes a primes-counting job
-  across N tabs. WebRTC transport is the follow-up for cross-machine.
+- **Phase D — swarm shipped (2026-05-22), all three steps**:
+  - Step 1: `swarmMap(items, fn)` primitive + `BroadcastChannelTransport`
+    (same-origin multi-tab, no infra).
+  - Step 2: `WebRTCTransport` via PeerJS broker (cross-machine, NAT-
+    traversal via Google STUN; symmetric-NAT corporate networks may
+    need TURN, documented).
+  - Step 3: real-chemistry kernel — `chem-energy` runs HF SCF on a
+    molecule tile, swarm distributes H₂ bond-length scans (and any
+    1D parameter scan) across tabs. /swarm.html ships both prime-
+    counting (Demo 1) and bond-scan (Demo 2) demos.
 - EE-EOM-CCSD: **PySCF-ported (2026-05-21)**. σ_1 + σ_2 follow
   Wang-Tu-Wang 2014 Eqs (9)-(10) with PySCF eom_gccsd intermediates
   (EOM-Fvv/Foo/Wovvo with full t2 dressing + Wovoo / Wvvvo). Empirical
