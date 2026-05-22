@@ -37,6 +37,7 @@
 import { type MolecularIntegrals } from "./cg-molecular.js";
 import { eigsymmetric } from "../manybody/dense-eig.js";
 import { choleskyDecomposeERI, buildJK_DF, type DFResult } from "./df.js";
+import { buildGParallel } from "../parallel/parallel-buildG.js";
 
 export interface HFResult {
   /** Total HF energy (Hartree) including nuclear repulsion. */
@@ -62,6 +63,14 @@ export interface HFResult {
 export interface HFOpts {
   /** Hard cap on SCF iterations. Default 100. */
   readonly maxIter?: number;
+  /**
+   * Parallelize the JK build across a Web Worker pool. 0 = single-threaded
+   * (default). Positive N spawns N workers and partitions the outer μ
+   * loop. Requires the page to be cross-origin-isolated (COOP/COEP
+   * headers, which webgpu-q ships for WebGPU). Most useful for n ≥ 20
+   * basis functions; below that the worker overhead dominates.
+   */
+  readonly parallel?: number;
   /** Energy tolerance for convergence. Default 1e-8 Ha. */
   readonly energyTol?: number;
   /**
@@ -296,6 +305,155 @@ export function runRHFSCF(
     iter,
     converged,
     history,
+  };
+}
+
+/**
+ * Async variant of `runRHFSCF` that uses a Web Worker pool to parallelize
+ * the JK build. For `opts.parallel === 0` (default), delegates directly
+ * to `runRHFSCF` (zero overhead). For `opts.parallel > 0`, runs the
+ * SCF loop with `await buildGParallel(...)`.
+ *
+ * MUST stay in sync with `runRHFSCF` above — the loop body is identical
+ * except for the buildG call. If you change one, change the other.
+ *
+ * Cross-origin isolation (COOP/COEP headers, which webgpu-q ships) is
+ * required for the parallel path. On hosts without isolation, falls
+ * back to single-threaded.
+ */
+export async function runRHFSCFAsync(
+  integrals: MolecularIntegrals,
+  nElectrons: number,
+  opts: HFOpts = {},
+): Promise<HFResult> {
+  const parallel = opts.parallel ?? 0;
+  if (parallel <= 0) {
+    return runRHFSCF(integrals, nElectrons, opts);
+  }
+  // Parallel path: SAB required.
+  if (typeof SharedArrayBuffer === "undefined" ||
+      (typeof crossOriginIsolated !== "undefined" && !crossOriginIsolated)) {
+    return runRHFSCF(integrals, nElectrons, opts);
+  }
+
+  if (nElectrons % 2 !== 0) {
+    throw new Error(`runRHFSCFAsync: open-shell systems require UHF (got nElectrons=${nElectrons}, odd)`);
+  }
+  const nOcc = nElectrons / 2;
+  const n = integrals.n;
+  if (nOcc > n) {
+    throw new Error(`runRHFSCFAsync: ${nElectrons} electrons in ${n} spatial orbitals — too many`);
+  }
+  const maxIter = opts.maxIter ?? 100;
+  const eTol = opts.energyTol ?? 1e-8;
+  const dTol = opts.densityTol ?? 1e-6;
+  const useDIIS = opts.useDIIS ?? true;
+  const diisMaxHistory = opts.diisHistory ?? 8;
+  const damping = opts.damping ?? 0.5;
+  const levelShift = opts.levelShift ?? 0;
+
+  const { S_AO, h_AO, eri_AO, X, Vnn } = integrals;
+
+  let dfTensor: DFResult | null = null;
+  if (opts.useDF !== undefined && opts.useDF !== false) {
+    if (typeof opts.useDF === "object") dfTensor = opts.useDF;
+    else {
+      const tau = typeof opts.useDF === "number" ? opts.useDF : 1e-10;
+      dfTensor = choleskyDecomposeERI(eri_AO, n, tau);
+    }
+  }
+
+  const hPrime = transformSymmetric(h_AO, X, n);
+  const initial = solveFock(hPrime, X, n);
+  let C_MO = initial.C_MO;
+  let eps = initial.eps;
+  let cPrimePrev: Float64Array = initial.cPrime;
+  let D = densityFromC(C_MO, nOcc, n);
+  let E_old = Infinity;
+  const history: number[] = [];
+  let converged = false;
+  let iter = 0;
+
+  const diisF: Float64Array[] = [];
+  const diisE: Float64Array[] = [];
+
+  for (iter = 1; iter <= maxIter; iter++) {
+    // Async fork point — only difference from the sync runRHFSCF.
+    const G = dfTensor !== null
+      ? buildG_DF(D, dfTensor, n)
+      : await buildGParallel(D, eri_AO, n, parallel);
+    const F = new Float64Array(n * n);
+    for (let i = 0; i < n * n; i++) F[i] = h_AO[i]! + G[i]!;
+
+    let Eelec = 0;
+    for (let i = 0; i < n * n; i++) Eelec += 0.5 * D[i]! * (h_AO[i]! + F[i]!);
+    const E = Eelec + Vnn;
+    history.push(E);
+
+    let F_use: Float64Array = F;
+    let errMax = 0;
+    if (useDIIS) {
+      const e = buildDIISError(F, D, S_AO, X, n);
+      for (let i = 0; i < n * n; i++) {
+        const a = Math.abs(e[i]!); if (a > errMax) errMax = a;
+      }
+      diisF.push(F); diisE.push(e);
+      if (diisF.length > diisMaxHistory) { diisF.shift(); diisE.shift(); }
+      if (diisF.length >= 2) {
+        const c = solveDIISCoeffs(diisE, n);
+        if (c !== null) {
+          const F_ext = new Float64Array(n * n);
+          for (let k = 0; k < diisF.length; k++) {
+            const ck = c[k]!; const Fk = diisF[k]!;
+            for (let i = 0; i < n * n; i++) F_ext[i]! += ck * Fk[i]!;
+          }
+          F_use = F_ext;
+        }
+      }
+    }
+
+    const FPrime = transformSymmetric(F_use, X, n);
+    if (levelShift > 0) {
+      for (let p = nOcc; p < n; p++) {
+        for (let i = 0; i < n; i++) {
+          const cpi = cPrimePrev[p * n + i]!; if (cpi === 0) continue;
+          const shifted_cpi = levelShift * cpi;
+          for (let j = 0; j < n; j++) {
+            FPrime[i * n + j]! += shifted_cpi * cPrimePrev[p * n + j]!;
+          }
+        }
+      }
+    }
+
+    const sol = solveFock(FPrime, X, n);
+    C_MO = sol.C_MO; eps = sol.eps; cPrimePrev = sol.cPrime;
+
+    const D_new = densityFromC(C_MO, nOcc, n);
+    let dNorm = 0;
+    for (let i = 0; i < n * n; i++) {
+      const d = D_new[i]! - D[i]!; dNorm += d * d;
+    }
+    dNorm = Math.sqrt(dNorm);
+    if (useDIIS) D = D_new;
+    else for (let i = 0; i < n * n; i++) D[i] = damping * D_new[i]! + (1 - damping) * D[i]!;
+
+    const residOk = useDIIS ? errMax < dTol : dNorm < dTol;
+    if (Math.abs(E - E_old) < eTol && residOk) {
+      converged = true; E_old = E; break;
+    }
+    E_old = E;
+  }
+
+  if (levelShift > 0) {
+    const epsOut = new Float64Array(eps);
+    for (let i = nOcc; i < n; i++) epsOut[i]! -= levelShift;
+    eps = epsOut;
+  }
+
+  return {
+    energy: E_old, electronicEnergy: E_old - Vnn,
+    C_MO, orbitalEnergies: eps, D, nOccupied: nOcc,
+    iter, converged, history,
   };
 }
 

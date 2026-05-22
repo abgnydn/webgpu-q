@@ -14,7 +14,7 @@
 import type { Atom, BasisName } from "../chemistry/atoms.js";
 import { moleculeToShellsNuclei } from "../chemistry/atoms.js";
 import { computeMolecularIntegrals, type MolecularIntegrals } from "../chemistry/cg-molecular.js";
-import { runRHFSCF } from "../chemistry/hf-scf.js";
+import { runRHFSCFAsync } from "../chemistry/hf-scf.js";
 import { runRKSDFT } from "../chemistry/dft/rks-scf.js";
 import { runUHFSCF } from "../chemistry/uhf-scf.js";
 import { optimizeGeometry } from "../chemistry/geometry.js";
@@ -336,8 +336,16 @@ async function runPipeline(): Promise<void> {
     ctx.nElectrons = nElectrons;
     if (mol.closedShell) {
       if (method === "hf") {
-        const hf = runRHFSCF(integrals, nElectrons, {
+        // Use parallel HF on cross-origin-isolated browsers; falls back
+        // to single-threaded on hosts without COOP/COEP isolation or
+        // for small molecules where worker overhead exceeds the win.
+        const parallel = (typeof crossOriginIsolated !== "undefined" &&
+                          crossOriginIsolated && integrals.n >= 15)
+          ? Math.max(2, (navigator.hardwareConcurrency ?? 4) - 1)
+          : 0;
+        const hf = await runRHFSCFAsync(integrals, nElectrons, {
           useDIIS: true, energyTol: 1e-10, densityTol: 1e-8, maxIter: 200,
+          parallel,
         });
         ctx.energy = hf.energy; ctx.P = hf.D; ctx.C_MO = hf.C_MO;
         ctx.orbitalEnergies = hf.orbitalEnergies; ctx.nOccupied = hf.nOccupied;
