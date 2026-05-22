@@ -72,6 +72,8 @@ export function attachPythonREPL(
 "></textarea>
       <div class="repl-buttons">
         <button class="btn btn-secondary repl-run">Run (Cmd/Ctrl+Enter)</button>
+        <button class="btn btn-secondary repl-sanity" title="Run numpy invariant checks against ctx (Hermitian D, orthonormal C, etc.)">Sanity-check</button>
+        <button class="btn btn-secondary repl-pyscf" title="Best-effort: install PySCF via micropip and diff HF energy against ours">Compare to PySCF</button>
         <button class="btn btn-secondary repl-clear">Clear output</button>
       </div>
       <pre class="repl-output" aria-live="polite"></pre>
@@ -82,6 +84,8 @@ export function attachPythonREPL(
   const output = host.querySelector(".repl-output") as HTMLPreElement;
   const runBtn = host.querySelector(".repl-run") as HTMLButtonElement;
   const clearBtn = host.querySelector(".repl-clear") as HTMLButtonElement;
+  const sanityBtn = host.querySelector(".repl-sanity") as HTMLButtonElement;
+  const pyscfBtn = host.querySelector(".repl-pyscf") as HTMLButtonElement;
 
   let pyodide: PyodideInterface | null = null;
 
@@ -138,4 +142,81 @@ sys.stderr = _stderr
       void run();
     }
   });
+
+  sanityBtn.addEventListener("click", () => {
+    input.value = SANITY_SCRIPT;
+    void run();
+  });
+
+  pyscfBtn.addEventListener("click", () => {
+    input.value = PYSCF_COMPARE_SCRIPT;
+    void run();
+  });
 }
+
+const SANITY_SCRIPT = `import numpy as np
+n = ctx['n']
+D = np.asarray(ctx['D'], dtype=float).reshape(n, n)
+C = np.asarray(ctx['C_MO'], dtype=float).reshape(n, n)
+S = np.asarray(ctx['S_AO'], dtype=float).reshape(n, n)
+h = np.asarray(ctx['h_AO'], dtype=float).reshape(n, n)
+
+print(f"Molecule: {ctx['molecule']} / {ctx['method']} (n={n}, E={ctx['energy']:.10f} Ha)")
+print()
+print("Density matrix sanity:")
+print(f"  Hermitian? max|D - D.T|     = {np.abs(D - D.T).max():.2e}")
+print(f"  Idempotent? max|D.S.D - 2D| = {np.abs(D @ S @ D - 2*D).max():.2e}  (factor 2 = closed-shell RHF)")
+print(f"  Trace(D.S) = {np.trace(D @ S):.4f}  (= 2*nOccupied = {2*ctx['nOccupied']})")
+print()
+print("MO coefficient sanity:")
+print(f"  C.T S C orthonormal?  max|C.T S C - I| = {np.abs(C.T @ S @ C - np.eye(n)).max():.2e}")
+print()
+print("Core integral sanity:")
+print(f"  h_AO Hermitian? max|h - h.T| = {np.abs(h - h.T).max():.2e}")
+print(f"  S_AO Hermitian? max|S - S.T| = {np.abs(S - S.T).max():.2e}")
+print(f"  S min eigenvalue = {np.linalg.eigvalsh(S).min():.4e}  (must be > 0)")
+print()
+print("Orbital energies:")
+print(f"  occupied:  {np.array(ctx['orbitalEnergies'][:ctx['nOccupied']])}")
+print(f"  virtual:   {np.array(ctx['orbitalEnergies'][ctx['nOccupied']:])}")
+print(f"  HOMO-LUMO gap = {ctx['orbitalEnergies'][ctx['nOccupied']] - ctx['orbitalEnergies'][ctx['nOccupied']-1]:.4f} Ha")
+`;
+
+const PYSCF_COMPARE_SCRIPT = `# Best-effort: install PySCF via micropip and diff HF energy.
+# PySCF on Pyodide is experimental — depends on libcint compileability.
+# If install fails the script reports the error and you can still use
+# the Sanity-check button.
+import sys, micropip
+try:
+    print("Installing pyscf via micropip… (this can take a few minutes on first run)")
+    await micropip.install("pyscf")
+    from pyscf import gto, scf
+    print(f"  pyscf {sys.modules['pyscf'].__version__} loaded.")
+except Exception as e:
+    print(f"[unavailable] {e}")
+    print()
+    print("PySCF doesn't currently compile cleanly to WASM (libcint C extensions).")
+    print("Workarounds:")
+    print("  - Click 'Sanity-check' for numpy-based invariant checks.")
+    print("  - Download our QCSchema export and run pyscf locally:")
+    print("      pyscf.tools.qcschema.recipe(open('webgpu-q-result.qcjson').read())")
+    raise SystemExit
+# If we reach here, pyscf loaded. Build the same molecule and compare.
+# (Hand-coded for the built-in molecule library; for imported molecules
+# the user can adapt the atom list below.)
+known = {
+    "h2o":  ("O 0 0 0; H 0.7572 0.5864 0; H -0.7572 0.5864 0", 0),
+    "h2":   ("H 0 0 0; H 0.7414 0 0", 0),
+    "lih":  ("Li 0 0 0; H 1.595 0 0", 0),
+    "beh2": ("Be 0 0 0; H 1.330 0 0; H -1.330 0 0", 0),
+}
+if ctx['molecule'] not in known:
+    print(f"No built-in geometry for '{ctx['molecule']}' — adapt the atom list manually.")
+    raise SystemExit
+atoms, charge = known[ctx['molecule']]
+mol = gto.M(atom=atoms, basis="sto-3g", charge=charge, unit="Angstrom", verbose=0)
+mf = scf.RHF(mol).run(conv_tol=1e-10)
+print(f"  PySCF HF (STO-3G): {mf.e_tot:.10f} Ha")
+print(f"  Ours            : {ctx['energy']:.10f} Ha")
+print(f"  Δ              : {abs(mf.e_tot - ctx['energy']):.2e} Ha  (chemical accuracy = 1.6e-3 Ha)")
+`;
