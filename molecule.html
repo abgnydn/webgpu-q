@@ -75,6 +75,11 @@
       }
       .btn:hover { background: #8bb9ff; }
       .btn:disabled { background: #2c344a; color: var(--dim); cursor: progress; }
+      .btn-secondary {
+        background: transparent; color: var(--accent);
+        border: 1px solid var(--line);
+      }
+      .btn-secondary:hover { background: var(--bg2); color: var(--accent); border-color: var(--accent); }
 
       .progress {
         display: none; background: var(--bg2); border: 1px solid var(--line); border-radius: 10px;
@@ -166,6 +171,7 @@
           </select>
         </div>
         <button id="runBtn" class="btn">Run</button>
+        <button id="citeBtn" class="btn btn-secondary" title="Copy a permanent URL that re-runs this calculation in a fresh tab">Copy citation link</button>
       </section>
 
       <div id="progress" class="progress"></div>

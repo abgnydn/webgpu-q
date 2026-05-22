@@ -146,12 +146,66 @@ const progressEl  = $("progress");
 const errEl       = $("err");
 const resultsEl   = $("results");
 
+// ── URL-as-citation contract ───────────────────────────────────
+// ?molecule=h2o&method=b3lyp5&autorun=1
+// Selectors initialized from URL on page load; URL kept in sync as
+// dropdowns change so the address bar IS the citation.
+function syncFromURL(): void {
+  const params = new URLSearchParams(window.location.search);
+  const m = params.get("molecule");
+  const meth = params.get("method");
+  if (m && MOLECULES[m]) moleculeSel.value = m;
+  if (meth && Array.from(methodSel.options).some((o) => o.value === meth)) {
+    methodSel.value = meth;
+  }
+}
+
+function syncToURL(): void {
+  const params = new URLSearchParams(window.location.search);
+  params.set("molecule", moleculeSel.value);
+  params.set("method", methodSel.value);
+  const url = `${window.location.pathname}?${params.toString()}`;
+  window.history.replaceState({}, "", url);
+}
+
+syncFromURL();
+moleculeSel.addEventListener("change", syncToURL);
+methodSel.addEventListener("change", syncToURL);
+
 // ── Pipeline ───────────────────────────────────────────────────
 runBtn.addEventListener("click", () => {
+  syncToURL();
   void runPipeline().catch((e) =>
     showError(e instanceof Error ? e.message : String(e)),
   );
 });
+
+// Autorun on load if ?autorun=1 is present.
+if (new URLSearchParams(window.location.search).get("autorun") === "1") {
+  // Defer until after DOM + module init.
+  queueMicrotask(() => runBtn.click());
+}
+
+// "Copy citation link" — builds the canonical &autorun=1 URL so the
+// recipient sees the exact calculation re-run on open.
+const citeBtn = document.getElementById("citeBtn") as HTMLButtonElement | null;
+if (citeBtn) {
+  citeBtn.addEventListener("click", async () => {
+    const params = new URLSearchParams();
+    params.set("molecule", moleculeSel.value);
+    params.set("method", methodSel.value);
+    params.set("autorun", "1");
+    const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      const orig = citeBtn.textContent;
+      citeBtn.textContent = "Copied ✓";
+      window.setTimeout(() => { citeBtn.textContent = orig; }, 1500);
+    } catch {
+      window.prompt("Copy this citation URL:", url);
+    }
+  });
+}
 
 interface Ctx {
   optAtoms: readonly Atom[];
