@@ -5,6 +5,101 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.7.0] — 2026-05-22
+
+The browser-platform release. Ten commits since v0.6.0 close two
+correctness bugs (EE-EOM-CCSD + IP-EOM-CCSD via PySCF port) and ship
+seven user-visible browser-platform wins atop /molecule.html. The big
+realization driving most of this: we had been GPU-pilled and missed
+the rest of the browser-tab platform — Web Workers, SharedArrayBuffer,
+Pyodide, File System Access, PWA, IndexedDB.
+
+### Fixed — EE-EOM-CCSD + IP-EOM-CCSD σ-equations (PySCF-ported)
+
+- `src/chemistry/eom-ccsd.ts` — direct port of PySCF `eom_gccsd.eeccsd_matvec`
+  (Wang-Tu-Wang 2014 Eqs. 9-10) using `gintermediates.py` intermediates
+  (Foo/Fvv with bare canonical Fock diagonal, Wovvo with full t2·oovv,
+  Wooov/Wvovv/Wovoo/Wvvvo with all dressings). σ_2 also gets four
+  previously-missing (t2, r1) and (t2, r2) couplings.
+- `src/chemistry/ip-eom-ccsd.ts` — mirror port of `eom_gccsd.ipccsd_matvec`
+  (Tu-Wang-Li 2012 Eqs. 8-9). Closes the ~60 eV R_2 satellite over-count
+  documented in earlier LIMITATIONS.md.
+- Verifiers in `tests/chemistry/eom-ccsd-bruteforce-lih.test.ts` and
+  `tests/chemistry/ip-eom-ccsd-bruteforce.test.ts` build H̄ =
+  e^(-T̂) H e^(T̂) explicitly in the Fock space and diff full matrix
+  element-by-element. Both now have hard `expect(maxDiff) < 1e-10` Ha
+  regression assertions. Empirical stage-32c/32e patches removed.
+- Side effects on production tests: H₂ EOM-CCSD now matches FCI to 8+
+  decimals (was 10⁻⁵ Ha "algorithmic cap"). H₂O lowest triplet
+  10.81 eV, first singlet 12.44 eV.
+
+### Added — URL-as-citation contract
+
+- `/molecule.html?molecule=h2o&method=b3lyp5&autorun=1` is a permanent,
+  reproducible reference. URL stays in sync as dropdowns change; "Copy
+  citation link" button copies the canonical autorun URL to clipboard.
+
+### Added — PWA + service worker + IndexedDB history
+
+- `public/sw.js` — network-first for HTML, cache-first for static.
+  Installable as desktop/mobile app, works offline after first load.
+- `src/molecule/history.ts` — IndexedDB persistence of every completed
+  pipeline run. "Past calculations" card on /molecule.html lists 20
+  most recent; each links back via the citation URL.
+
+### Added — File System Access drag-import
+
+- `src/molecule/import-formats.ts` — parsers for `.xyz` / `.pdb` /
+  `.mol` / `.sdf` with symbol normalization (`13C` → `C`). 7 unit tests.
+- Drag-and-drop anywhere on the page OR "Open file…" picker → parsed
+  geometry → MOLECULES["imported"] entry → ready to Run.
+- Round-trip closed: we already export Molden / Cube / XYZ / QCSchema;
+  now we can import the formats users already have.
+
+### Added — Web Worker pool + parallel HF buildG
+
+- `src/parallel/{worker-pool,kernels-worker,parallel-buildG}.ts` —
+  Web Worker pool with SharedArrayBuffer transport (zero-copy of the
+  ERI tensor across workers). Lazy worker spawn, reused across SCF
+  iterations.
+- `runRHFSCFAsync(opts.parallel = N)` — async sibling of `runRHFSCF`
+  that row-partitions the JK build across N workers. Falls back to
+  single-threaded when cross-origin-isolation is unavailable or for
+  small molecules (n < 15). /molecule.html opts in automatically when
+  the page is COOP/COEP-isolated.
+
+### Added — Pyodide REPL on /molecule.html
+
+- `src/molecule/python-repl.ts` — lazy-loaded Pyodide (~10 MB on first
+  Run click). Exposes the latest calculation as Python `ctx` with
+  flattened Float64Arrays of D / C_MO / orbitalEnergies / eri_AO /
+  h_AO / S_AO. Cmd/Ctrl+Enter to run; captured stdout/stderr inline.
+
+### Added — Sanity-check + Compare-to-PySCF buttons
+
+- "Sanity-check" — pure-numpy invariants on ctx (Hermitian D, idempotent
+  D, orthonormal C under S, positive-definite S, HOMO/LUMO gap). Works
+  for every molecule, no external deps beyond numpy.
+- "Compare to PySCF" — best-effort install of pyscf via micropip, runs
+  HF on the same geometry/basis, diffs against ours. Gracefully degrades
+  with QCSchema-export fallback message if pyscf can't compile.
+
+### Infrastructure
+
+- `vercel.json` — `git.deploymentEnabled: false`. No more auto-deploys
+  on push; production lands via the release pipeline or manual
+  `vercel deploy --prod`.
+
+### Docs
+
+- `RESEARCH_STANDARDS.md` section 7a "Porting acceptance gate
+  (non-negotiable)" — codifies the three rules learned the hard way
+  from the EE-EOM port: independent oracle / full-tensor / hard ε;
+  symbol-collision awareness; curve-fitting against your own diagnostic
+  is tautology.
+- `CLAUDE.md` and `LIMITATIONS.md` updated to reflect both EOM ports
+  closed.
+
 ## [0.6.0] — 2026-05-21
 
 The visualization release. Nine commits since v0.5.0 ship a complete

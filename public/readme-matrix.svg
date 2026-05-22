@@ -18,7 +18,7 @@
 
   <text x="40" y="38" font-family="ui-monospace, monospace" font-size="11" letter-spacing="0.25em" fill="#64748b" font-weight="600">COMPLETENESS SCORECARD</text>
   <text x="40" y="68" font-family="ui-monospace, monospace" font-size="24" font-weight="700" fill="#e2e8f0">Every method, our status, the gaps that aren't</text>
-  <text x="40" y="94" font-family="-apple-system, system-ui, sans-serif" font-size="13" fill="#94a3b8" font-style="italic">55+ capabilities across 12 sections. Polarizability/dispersion matrix 16/16 closed in v0.5.0; SVG visualization stack shipped in v0.6.0. Every gap has a roadmap tier, not "we don't do that".</text>
+  <text x="40" y="94" font-family="-apple-system, system-ui, sans-serif" font-size="13" fill="#94a3b8" font-style="italic">55+ capabilities across 12 sections. Polarizability/dispersion matrix 16/16 closed in v0.5.0; SVG visualization stack in v0.6.0; EE/IP-EOM-CCSD PySCF-ported + browser-platform stack (Web Workers, Pyodide, drag-import, PWA) in v0.7.0. Every gap has a roadmap tier.</text>
 
   <g font-family="ui-monospace, monospace" font-size="12" letter-spacing="0.05em">
     <rect x="40" y="108" width="170" height="32" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-opacity="0.3"/>
