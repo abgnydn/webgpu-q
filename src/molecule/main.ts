@@ -37,6 +37,12 @@ import { uvVisChart } from "../viz/uv-vis-chart.js";
 import {
   basisCoverageChart, basisSummary, type AtomBasis,
 } from "../viz/basis-coverage-chart.js";
+import {
+  saveCalculation, listCalculations, registerServiceWorker,
+  type HistoryRecord,
+} from "./history.js";
+
+registerServiceWorker();
 
 type Method = "hf" | FunctionalKind;
 
@@ -223,6 +229,7 @@ interface Ctx {
 async function runPipeline(): Promise<void> {
   resetUI();
   runBtn.disabled = true; runBtn.textContent = "Running…";
+  const t0 = performance.now();
 
   const mol = MOLECULES[moleculeSel.value]!;
   const method = methodSel.value as Method;
@@ -241,6 +248,7 @@ async function runPipeline(): Promise<void> {
   const cardCharges  = ensureCard("charges",  "Charges + bond orders");
   const cardThermo   = ensureCard("thermo",   "Thermochemistry (298.15 K, 1 atm)");
   const cardIP       = ensureCard("ip",       "Ionization potential");
+  const cardHistory  = ensureCard("history",  "Past calculations (this device)");
 
   const ctx = {} as Ctx;
 
@@ -372,7 +380,60 @@ async function runPipeline(): Promise<void> {
     }
   });
 
+  // Persist a lightweight summary of this calculation to IndexedDB +
+  // render the history card.
+  try {
+    const durationMs = performance.now() - t0;
+    const summary: Record<string, unknown> = {
+      nElectrons: ctx.nElectrons,
+      nOccupied: ctx.nOccupied,
+      nBasisFunctions: ctx.integrals.n,
+      hasFrequencies: ctx.frequenciesCmInv !== undefined,
+    };
+    await saveCalculation({
+      molecule: moleculeSel.value,
+      method: methodSel.value,
+      timestamp: Date.now(),
+      durationMs,
+      scfEnergy: ctx.energy,
+      summary,
+    });
+    await renderHistoryCard(cardHistory);
+  } catch (e) {
+    renderSkipped(cardHistory,
+      `History save failed — ${e instanceof Error ? e.message : String(e)}`);
+  }
+
   runBtn.disabled = false; runBtn.textContent = "Run";
+}
+
+async function renderHistoryCard(body: HTMLElement): Promise<void> {
+  const records = await listCalculations(20);
+  if (records.length === 0) {
+    body.innerHTML = `<p class="h-sub">No saved calculations yet.</p>`;
+    return;
+  }
+  const rows = records.map((r: HistoryRecord) => {
+    const when = new Date(r.timestamp).toLocaleString();
+    const dur = (r.durationMs / 1000).toFixed(1);
+    const url = `?molecule=${encodeURIComponent(r.molecule)}&method=${encodeURIComponent(r.method)}&autorun=1`;
+    return `<tr>
+      <td>${when}</td>
+      <td><a href="${url}" style="color:var(--accent)">${escapeHtml(r.molecule)} · ${escapeHtml(r.method)}</a></td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums">${r.scfEnergy.toFixed(6)} Ha</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums">${dur} s</td>
+    </tr>`;
+  }).join("");
+  body.innerHTML = `
+    <p class="h-sub">${records.length} recent run${records.length === 1 ? "" : "s"} stored locally in IndexedDB. Click a row to re-open.</p>
+    <table class="num"><thead>
+      <tr><th>When</th><th>Setup</th><th style="text-align:right">SCF energy</th><th style="text-align:right">Duration</th></tr>
+    </thead><tbody>${rows}</tbody></table>`;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c));
 }
 
 async function step(key: string, label: string, fn: () => Promise<void> | void): Promise<void> {
