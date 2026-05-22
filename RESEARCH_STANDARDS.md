@@ -180,6 +180,49 @@ together — the ported portion keeps its upstream license
 obligations (notice + state changes); the rest of the repo stays
 MIT.
 
+### 7a. Porting acceptance gate (non-negotiable)
+
+A port is not shipped until it passes this gate. Half-ported code that
+"works on the test we ran" is the failure mode this rule exists to
+prevent (E35/EE-EOM-CCSD, weeks lost to empirical patches; closed
+2026-05-21 commit `c5d53fa`).
+
+1. **Independent oracle, full tensor, element-wise, hard ε.** For
+   every ported intermediate / matrix / σ-equation, produce a diff
+   against an independent oracle:
+   - peer-reviewed reference impl (PySCF, libxc, ITensor) projected
+     into the same SO/MO convention, OR
+   - brute-force ground truth in a small basis (explicit Fock-space
+     construction; e.g., `eom-ccsd-bruteforce-lih.test.ts`).
+
+   The acceptance assertion is `expect(max_over_all_cells) <
+   1e-10` (or appropriate ε for f32-only paths) — **not** "lowest
+   eigenvalue matches" or "block-max < ε". Block-max metrics hide
+   structural bugs in the quiet cells. Eigenvalue matches can be
+   accidental (degenerate eigenspaces, symmetry-protected zeros).
+
+2. **Beware symbol collisions.** When two related derivations
+   (CC residual vs EOM-CCSD; T-equation vs response equation) share
+   notation (`F̃`, `W̃`, `H_eff`, …), assume the symbols denote
+   *different* objects until proven otherwise. PySCF's `cc_X` vs `X`
+   naming pattern is a tell that the reference authors hit this trap
+   and named around it. If you find yourself reusing the same
+   intermediate across "looks structurally similar" equations, stop
+   and check.
+
+3. **Curve-fitting against your own diagnostic is tautology.** If a
+   patch is *derived from* observing a diff and the diff *then says*
+   the patch closed it, that's a closed loop. Patches with the form
+   `+ c · E_corr · r` or `+ c · ⟨reference value⟩ · ⟨amplitude⟩` are
+   signature of curve-fitting a missing structural term — they fit
+   one observed shift while leaving N off-diagonal terms broken.
+   Validate with a *different* system, basis, or oracle, or with the
+   acceptance gate of (1).
+
+These three rules are downstream of section 6 (multi-level correctness)
+and section 7 (port don't re-derive), but they specify the
+*operational gate* — what shipping actually requires.
+
 ---
 
 ## 8. No fudge factors without a citation
