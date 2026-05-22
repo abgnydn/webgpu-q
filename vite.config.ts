@@ -27,6 +27,7 @@ export default defineConfig({
         experiments: resolve(__dirname, "experiments/index.html"),
         viz: resolve(__dirname, "viz.html"),
         molecule: resolve(__dirname, "molecule.html"),
+        swarm: resolve(__dirname, "swarm.html"),
         gpuMps: resolve(__dirname, "experiments/gpu-mps/index.html"),
       },
     },
