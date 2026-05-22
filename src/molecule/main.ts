@@ -44,6 +44,7 @@ import {
 import {
   parseGeometry, detectFormat,
 } from "./import-formats.js";
+import { attachPythonREPL } from "./python-repl.js";
 
 registerServiceWorker();
 
@@ -314,6 +315,7 @@ async function runPipeline(): Promise<void> {
   const cardThermo   = ensureCard("thermo",   "Thermochemistry (298.15 K, 1 atm)");
   const cardIP       = ensureCard("ip",       "Ionization potential");
   const cardHistory  = ensureCard("history",  "Past calculations (this device)");
+  const cardRepl     = ensureCard("repl",     "Python REPL (Pyodide — lazy-loaded)");
 
   const ctx = {} as Ctx;
 
@@ -476,6 +478,22 @@ async function runPipeline(): Promise<void> {
     renderSkipped(cardHistory,
       `History save failed — ${e instanceof Error ? e.message : String(e)}`);
   }
+
+  // ── Python REPL — expose a snapshot of ctx for poking. ─────
+  attachPythonREPL(cardRepl, () => ({
+    molecule: moleculeSel.value,
+    method: methodSel.value,
+    n: ctx.integrals.n,
+    nOccupied: ctx.nOccupied,
+    nElectrons: ctx.nElectrons,
+    energy: ctx.energy,
+    D: Array.from(ctx.P),
+    C_MO: Array.from(ctx.C_MO),
+    orbitalEnergies: Array.from(ctx.orbitalEnergies),
+    eri_AO: Array.from(ctx.integrals.eri_AO),
+    h_AO: Array.from(ctx.integrals.h_AO),
+    S_AO: Array.from(ctx.integrals.S_AO),
+  }));
 
   runBtn.disabled = false; runBtn.textContent = "Run";
 }
