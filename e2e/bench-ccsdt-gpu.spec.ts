@@ -22,13 +22,13 @@ test.describe("CCSD(T) GPU kernel — proper trials benchmark", () => {
         { moleculeToShellsNuclei },
         { computeMolecularIntegrals },
       ] = await Promise.all([
-        import("/src/quantum.ts"),
-        import("/src/chemistry/hf-scf.ts"),
-        import("/src/chemistry/ccsd.ts"),
-        import("/src/chemistry/ccsd-t.ts"),
-        import("/src/chemistry/ccsd-t-gpu.ts"),
-        import("/src/chemistry/atoms.ts"),
-        import("/src/chemistry/cg-molecular.ts"),
+        import("/src/quantum.ts" as string),
+        import("/src/chemistry/hf-scf.ts" as string),
+        import("/src/chemistry/ccsd.ts" as string),
+        import("/src/chemistry/ccsd-t.ts" as string),
+        import("/src/chemistry/ccsd-t-gpu.ts" as string),
+        import("/src/chemistry/atoms.ts" as string),
+        import("/src/chemistry/cg-molecular.ts" as string),
       ]);
 
       // H₂O cc-pVDZ — the headline benchmark molecule.

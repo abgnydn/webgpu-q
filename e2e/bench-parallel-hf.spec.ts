@@ -21,9 +21,9 @@ async function benchMolecule(
   return page.evaluate(async ({ atomsIn, labelIn }) => {
     const [{ runRHFSCF, runRHFSCFAsync }, { moleculeToShellsNuclei },
            { computeMolecularIntegrals }] = await Promise.all([
-      import("/src/chemistry/hf-scf.ts"),
-      import("/src/chemistry/atoms.ts"),
-      import("/src/chemistry/cg-molecular.ts"),
+      import("/src/chemistry/hf-scf.ts" as string),
+      import("/src/chemistry/atoms.ts" as string),
+      import("/src/chemistry/cg-molecular.ts" as string),
     ]);
     const { shells, nuclei, nElectrons } =
       moleculeToShellsNuclei(atomsIn as never, "cc-pvdz");
@@ -111,9 +111,9 @@ test.describe("Parallel HF buildG benchmark", () => {
     const results = await page.evaluate(async () => {
       const [{ runRHFSCF, runRHFSCFAsync }, { moleculeToShellsNuclei },
              { computeMolecularIntegrals }] = await Promise.all([
-        import("/src/chemistry/hf-scf.ts"),
-        import("/src/chemistry/atoms.ts"),
-        import("/src/chemistry/cg-molecular.ts"),
+        import("/src/chemistry/hf-scf.ts" as string),
+        import("/src/chemistry/atoms.ts" as string),
+        import("/src/chemistry/cg-molecular.ts" as string),
       ]);
 
       // H₂O in cc-pVDZ — n = 25 basis functions, real workload.
