@@ -35,6 +35,14 @@ export default defineConfig({
   server: {
     port: 5175,
     host: true,
+    // Mirror vercel.json's COOP/COEP headers so SharedArrayBuffer +
+    // crossOriginIsolated are available in dev (required for Web Worker
+    // parallel HF buildG). Without these, runRHFSCFAsync silently falls
+    // back to single-threaded — which silently breaks the bench.
+    headers: {
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+    },
   },
   // WGSL imported via ?raw
   assetsInclude: ["**/*.wgsl"],

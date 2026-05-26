@@ -170,6 +170,22 @@ precision floor is chemical accuracy.
   number is ±20% on different hardware and ±10% run-to-run. Vs
   single-threaded CPU TypeScript, not vs PySCF wall-clock, not vs
   GPU4PySCF on CUDA. Apples-to-apples comparison work outstanding.
+- **Parallel HF buildG via Web Workers** — measured for the first time
+  2026-05-26 (`e2e/bench-parallel-hf.spec.ts`). H₂O cc-pVDZ on M2 Pro,
+  headless Chromium, COI on, 5 trials:
+  | config | median wall | vs sync |
+  |---|---:|---:|
+  | sync | 17 ms | 1.0× |
+  | parallel=2 | 13 ms | 1.31× |
+  | parallel=4 | 10 ms | **1.71×** (best) |
+  | parallel=8 | 12 ms | 1.47× (overhead drag) |
+
+  Earlier docs hand-waved a "4–8× win" for Web Workers; the honest
+  measured number on n=25 cc-pVDZ is **1.7×**, with the win flattening
+  at parallel=8 because spawn + SAB-message overhead starts to dominate
+  the per-iteration JK cost. The speedup is real but modest. Bigger
+  molecules (n ≥ 50) would amortize the worker overhead better;
+  benching at that scale is open work.
 - **EE-EOM-CCSD σ-equations** — **PySCF-ported and verified
   2026-05-21**. σ_1 + σ_2 follow Wang-Tu-Wang 2014 Eqs (9)-(10) with
   PySCF eom_gccsd intermediates (Foo/Fvv/Fov, Woooo, Wvvvv, Wovvo
