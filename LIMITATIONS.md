@@ -165,11 +165,21 @@ Treat anything tighter than 1 mHa as "we don't have a porting bug,"
 not as a meaningful chemistry result. The reviewer-defensible
 precision floor is chemical accuracy.
 
-- **CCSD(T) GPU 39.3×** is a **single-run measurement** on M2 Pro. Not
-  through the warmup+20-trials harness (gap #4 — open). Specific 39.3×
-  number is ±20% on different hardware and ±10% run-to-run. Vs
-  single-threaded CPU TypeScript, not vs PySCF wall-clock, not vs
-  GPU4PySCF on CUDA. Apples-to-apples comparison work outstanding.
+- **CCSD(T) GPU speedup** — properly measured 2026-05-26
+  (`e2e/bench-ccsdt-gpu.spec.ts`). H₂O cc-pVDZ, M2 Pro, headless
+  Chromium, **5 warmup + 20 trials**:
+  | metric | value |
+  |---|---:|
+  | median speedup vs CPU TS | **13.8×** |
+  | p10 (best run) | 28.4× |
+  | p90 (worst run) | 10.1× |
+  | std/median | **41.7% — officially "noisy"** per RESEARCH_STANDARDS sec 4 |
+
+  The previously-headlined "39.3×" was a *single lucky run* near p10;
+  the **honest sustained number is 13.8× median with wide variance**.
+  Still vs single-threaded CPU TypeScript — not vs PySCF wall-clock,
+  not vs GPU4PySCF on CUDA. Apples-to-apples comparison work
+  outstanding.
 - **Parallel HF buildG via Web Workers** — measured for the first time
   2026-05-26 (`e2e/bench-parallel-hf.spec.ts`). H₂O cc-pVDZ on M2 Pro,
   headless Chromium, COI on, 5 trials:

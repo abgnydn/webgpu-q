@@ -446,10 +446,12 @@ Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@ba
 | `TESTS` | **553** | vitest unit + integration, all green |
 | `CHEMISTRY_TESTS` | **437** | chemistry subset (1 skipped: opt-in cc-pVDZ CCSD(T)) |
 | `E2E_SPECS` | **14** | Playwright headless WebGPU (CCSD(T), EOM, UV-vis, wallclock-vs-PySCF, levels 1/2/3/6, smoke tests) |
-| `CCSD_T_SPEEDUP` | **39.3×** | H₂O · cc-pVDZ · M2 Pro · vs our own CPU |
-| `CCSD_T_GPU_TIME` | **5.05 s** | H₂O · cc-pVDZ · GPU |
-| `CCSD_T_CPU_TIME` | **198.6 s** | H₂O · cc-pVDZ · CPU |
-| `CCSD_T_GPU_DELTA` | **2.4×10⁻¹⁰ Ha** | regression assertion only — 6 orders below chemical accuracy (1.6 mHa), validates the GPU port matches CPU, not the method |
+| `CCSD_T_SPEEDUP_MEDIAN` | **13.8×** | H₂O · cc-pVDZ · M2 Pro · 5 warmup + 20 trials · vs our CPU TypeScript · NOISY (std/median = 42%) |
+| `CCSD_T_SPEEDUP_P10` | **28.4×** | best-case across the 20 trials (was historically reported as "39×" — that was a single lucky run) |
+| `CCSD_T_SPEEDUP_P90` | **10.1×** | worst-case across the 20 trials |
+| `CCSD_T_GPU_TIME_MEDIAN` | **8.4 s** | median per-call GPU time over 20 trials |
+| `CCSD_T_CPU_TIME` | **116.4 s** | single CPU run on the same machine (CPU isn't run in trials — too slow) |
+| `CCSD_T_GPU_DELTA` | **1.06×10⁻⁹ Ha** | regression assertion only — 6 orders below chemical accuracy (1.6 mHa); validates the GPU port matches CPU, not the method |
 | `WIN_HF_H2_STO3G` | **105×** | E34 vs PySCF 2.13.0 · no-startup advantage |
 | `WIN_CCSD_LIH_STO3G` | **40×** | E34 vs PySCF 2.13.0 · small-system advantage |
 | `LOSS_CCSD_H2O_CCPVDZ` | **480× slower** | E34 vs PySCF 2.13.0 · BLAS gap (NumPy wins) |
