@@ -182,23 +182,34 @@ precision floor is chemical accuracy.
   outstanding.
 - **Parallel HF buildG via Web Workers** — measured 2026-05-26
   (`e2e/bench-parallel-hf.spec.ts`). M2 Pro, headless Chromium, COI on,
-  5 trials, hardwareConcurrency = 12:
+  hardwareConcurrency = 12:
 
-  | molecule | n (basis fns) | sync median | best speedup | at N workers |
-  |---|---:|---:|---:|---:|
-  | H₂O cc-pVDZ | 25 | 17 ms | **2.08×** | parallel=8 |
-  | Ethane C₂H₆ cc-pVDZ | 60 | 724 ms | **3.00×** | parallel=8 |
+  | molecule | n (basis fns) | sync HF median | parallel=8 | speedup | trials |
+  |---|---:|---:|---:|---:|---:|
+  | H₂O cc-pVDZ | 25 | 17 ms | 8 ms | **2.08×** | 5 |
+  | Ethane C₂H₆ cc-pVDZ | 60 | 724 ms | 241 ms | **3.00×** | 5 |
+  | Furan C₄H₄O cc-pVDZ | 95 | 4620 ms | 1152 ms | **4.01×** | 1 |
+  | Benzene C₆H₆ cc-pVDZ | 120 | — | — | (skipped) | — |
 
-  Speedup **scales with molecule size** — going from n=25 to n=60
-  (a 30× JK-build-cost increase) takes parallel=8 from 2.08× to 3.00×.
-  Worker spawn + SAB-message overhead is fixed; the per-iter JK work
-  is O(n⁴). Bigger amortization → better speedup. Extrapolation: at
-  n ≈ 100-150 (cc-pVDZ benzene or pyrrole) we'd expect 4-6× — open
-  to bench. Energies match sync to 0 Ha across all parallel=N.
+  Speedup grows roughly **+1× per +35 basis functions** on M2 Pro
+  (12-thread hardwareConcurrency). Energies match sync exactly across
+  all parallel=N (Δ = 0 Ha). The honest "best win we've measured" is
+  **4× on n=95**. Earlier docs hand-waved a "4-8× win"; 4× is real,
+  the upper end of "8×" requires bigger molecules + further engineering.
 
-  Earlier docs hand-waved a "4-8× win"; the honest measured numbers
-  are 2× on small molecules and 3× on medium molecules, with linear
-  growth in speedup vs log(workload).
+  **Ceiling: ERI build, not the JK iteration.** Furan ERI build = 361 s,
+  HF SCF iteration = 4.6 s. The ERI build is a fixed one-time cost
+  that doesn't benefit from worker parallelism. Above n ≈ 100, ERI
+  build dominates total wall time and Workers can no longer move
+  the headline number on a single-molecule run. Benzene cc-pVDZ
+  (n=120) attempted at 20 + 30 min Playwright timeouts; both
+  exceeded — ERI build alone is ~20-25 min, making n=120 the
+  practical bench ceiling for the current implementation.
+
+  **What would lift the ceiling**: (a) vectorize the Obara-Saika
+  ERI recursions, (b) shell-pair Schwarz screening on top of the
+  existing primitive-pair screening, (c) density fitting (CD-DF
+  already shipped — wire into the ERI path). All open work.
 - **EE-EOM-CCSD σ-equations** — **PySCF-ported and verified
   2026-05-21**. σ_1 + σ_2 follow Wang-Tu-Wang 2014 Eqs (9)-(10) with
   PySCF eom_gccsd intermediates (Foo/Fvv/Fov, Woooo, Wvvvv, Wovvo
