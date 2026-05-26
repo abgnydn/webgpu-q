@@ -33,6 +33,11 @@ export interface KernelRegistry {
   ): () => void;
   /** Convenience: read currently-known peers (seen via hello). */
   knownPeers(): readonly string[];
+  /** Stop the hello-broadcast timer and close the transport. Always
+   *  call this before constructing a new runtime over a different
+   *  transport — otherwise the orphaned hello-broadcast timer keeps
+   *  firing into a closed transport and throws "send before open()". */
+  dispose(): void;
 }
 
 export function attachSwarmRuntime(transport: SwarmTransport): KernelRegistry {
@@ -239,9 +244,7 @@ export function attachSwarmRuntime(transport: SwarmTransport): KernelRegistry {
       pruneStale();
       return Array.from(peers.keys());
     },
-    // Internal: expose for swarmMap below via the closure capture.
-    // Surface dispose via a side channel if needed.
-    _dispose: dispose,
+    dispose,
     _runMap,
   } as unknown as KernelRegistry;
 

@@ -60,6 +60,11 @@ let active: ActiveSwarm | null = null;
 
 function teardown(): void {
   if (!active) return;
+  // Dispose the runtime first so the hello-broadcast timer stops
+  // BEFORE we close the transport. Otherwise the next interval tick
+  // would call transport.send() on an already-closed channel and
+  // throw an uncaught "send before open()" error.
+  try { active.registry.dispose(); } catch { /* ignore */ }
   try { active.transport.close(); } catch { /* ignore */ }
   active = null;
 }
