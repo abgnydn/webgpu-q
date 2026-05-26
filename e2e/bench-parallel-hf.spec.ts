@@ -8,6 +8,96 @@ import { test, expect } from "@playwright/test";
 // This is the "open critique gap #5" closer: we shipped runRHFSCFAsync
 // with parallel=N but never measured. Now we measure.
 
+// Shared bench helper — run sync vs parallel=N for any molecule.
+async function benchMolecule(
+  page: import("@playwright/test").Page,
+  atoms: ReadonlyArray<{ symbol: string; pos: readonly [number, number, number] }>,
+  label: string,
+): Promise<unknown> {
+  await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+  const isolated = await page.evaluate(() => self.crossOriginIsolated);
+  expect(isolated).toBe(true);
+
+  return page.evaluate(async ({ atomsIn, labelIn }) => {
+    const [{ runRHFSCF, runRHFSCFAsync }, { moleculeToShellsNuclei },
+           { computeMolecularIntegrals }] = await Promise.all([
+      import("/src/chemistry/hf-scf.ts"),
+      import("/src/chemistry/atoms.ts"),
+      import("/src/chemistry/cg-molecular.ts"),
+    ]);
+    const { shells, nuclei, nElectrons } =
+      moleculeToShellsNuclei(atomsIn as never, "cc-pvdz");
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+
+    const N_TRIALS = 5;
+    const HFopts = {
+      useDIIS: true, energyTol: 1e-9, densityTol: 1e-7, maxIter: 200,
+    } as const;
+    async function timeOnce(fn: () => unknown | Promise<unknown>): Promise<number> {
+      const t0 = performance.now();
+      await fn();
+      return performance.now() - t0;
+    }
+    function stats(arr: number[]): { median: number; p10: number; p90: number; min: number; max: number } {
+      const sorted = [...arr].sort((a, b) => a - b);
+      const at = (q: number): number => sorted[Math.floor(q * (sorted.length - 1))]!;
+      return { median: at(0.5), p10: at(0.1), p90: at(0.9), min: sorted[0]!, max: sorted[sorted.length - 1]! };
+    }
+
+    runRHFSCF(integrals, nElectrons, HFopts); // warmup
+
+    const syncTimes: number[] = [];
+    let syncEnergy = 0;
+    for (let i = 0; i < N_TRIALS; i++) {
+      syncTimes.push(await timeOnce(() => {
+        syncEnergy = runRHFSCF(integrals, nElectrons, HFopts).energy;
+      }));
+    }
+
+    const parallelResults: Record<string, { times: number[]; energy: number }> = {};
+    for (const N of [2, 4, 8] as const) {
+      const times: number[] = [];
+      let energy = 0;
+      await runRHFSCFAsync(integrals, nElectrons, { ...HFopts, parallel: N });
+      for (let i = 0; i < N_TRIALS; i++) {
+        times.push(await timeOnce(async () => {
+          energy = (await runRHFSCFAsync(integrals, nElectrons,
+            { ...HFopts, parallel: N })).energy;
+        }));
+      }
+      parallelResults[`parallel=${N}`] = { times, energy };
+    }
+    return {
+      label: labelIn, n: integrals.n,
+      hwConcurrency: navigator.hardwareConcurrency,
+      sync: { stats: stats(syncTimes), energy: syncEnergy, times: syncTimes },
+      parallel: Object.fromEntries(Object.entries(parallelResults).map(
+        ([k, v]) => [k, { stats: stats(v.times), energy: v.energy, times: v.times }],
+      )),
+    };
+  }, { atomsIn: atoms as never, labelIn: label });
+}
+
+function logBench(r: {
+  label: string; n: number; hwConcurrency: number;
+  sync: { stats: { median: number; p10: number; p90: number }; energy: number };
+  parallel: Record<string, { stats: { median: number; p10: number; p90: number }; energy: number }>;
+}): void {
+  /* eslint-disable no-console */
+  console.log("\n──────────────────────────────────────────────────────────");
+  console.log(`Parallel HF buildG — ${r.label} (n = ${r.n} basis functions, HC = ${r.hwConcurrency})`);
+  console.log("──────────────────────────────────────────────────────────");
+  const fmt = (ms: number): string => `${ms.toFixed(0).padStart(5)} ms`;
+  console.log(`sync                : median ${fmt(r.sync.stats.median)}  p10 ${fmt(r.sync.stats.p10)}  p90 ${fmt(r.sync.stats.p90)}`);
+  for (const [name, entry] of Object.entries(r.parallel)) {
+    const speedup = (r.sync.stats.median / entry.stats.median).toFixed(2);
+    console.log(`${name.padEnd(20)}: median ${fmt(entry.stats.median)}  p10 ${fmt(entry.stats.p10)}  p90 ${fmt(entry.stats.p90)}  → ${speedup.padStart(5)}× vs sync`);
+  }
+  const maxDelta = Math.max(...Object.values(r.parallel).map(p => Math.abs(p.energy - r.sync.energy)));
+  console.log(`Energy: sync = ${r.sync.energy.toFixed(8)}, parallel max |Δ| = ${maxDelta.toExponential(2)} Ha`);
+  /* eslint-enable no-console */
+}
+
 test.describe("Parallel HF buildG benchmark", () => {
   test("H₂O cc-pVDZ — runRHFSCFAsync(parallel=N) vs sync", async ({ page }) => {
     // Navigate to molecule.html so the page is cross-origin-isolated
@@ -119,5 +209,41 @@ test.describe("Parallel HF buildG benchmark", () => {
     // No hard assertion on speedup direction — record the number honestly.
     // (Worker overhead can dominate for n=25 cc-pVDZ; that's a known
     // finding. If it loses, the bench should still report the loss.)
+  });
+
+  test("Ethane C₂H₆ cc-pVDZ — bigger molecule (n ≈ 58), expect bigger speedup", async ({ page }) => {
+    // Standard ethane geometry, C-C 1.535 Å, C-H 1.094 Å, HCH 107.8°.
+    // In cc-pVDZ: C (3s, 2p, 1d) × 2 + H (2s, 1p) × 6 = 2·14 + 6·5 = 58 fns.
+    // JK build cost grows as n⁴ → ~30× more work per iter than H₂O cc-pVDZ.
+    const cc = 1.535;
+    const ch = 1.094;
+    const hch = 107.8 * Math.PI / 180;
+    const hcc = (Math.PI - hch) / 2 + Math.PI / 6; // approximate staggered geometry
+    const sH = ch * Math.sin(hcc);
+    const cH = ch * Math.cos(hcc);
+    // Place C atoms along z-axis; arrange 3 H's around each C in a staggered ring.
+    const atoms = [
+      { symbol: "C", pos: [0, 0, -cc / 2] as const },
+      { symbol: "C", pos: [0, 0,  cc / 2] as const },
+      // H's on lower C
+      { symbol: "H", pos: [ sH,             0,    -cc / 2 - cH] as const },
+      { symbol: "H", pos: [-sH / 2,  sH * Math.sqrt(3) / 2, -cc / 2 - cH] as const },
+      { symbol: "H", pos: [-sH / 2, -sH * Math.sqrt(3) / 2, -cc / 2 - cH] as const },
+      // H's on upper C, staggered by 60°
+      { symbol: "H", pos: [-sH,             0,     cc / 2 + cH] as const },
+      { symbol: "H", pos: [ sH / 2,  sH * Math.sqrt(3) / 2,  cc / 2 + cH] as const },
+      { symbol: "H", pos: [ sH / 2, -sH * Math.sqrt(3) / 2,  cc / 2 + cH] as const },
+    ] as const;
+    const results = await benchMolecule(page, atoms, "Ethane C₂H₆ cc-pVDZ") as {
+      label: string; n: number; hwConcurrency: number;
+      sync: { stats: { median: number; p10: number; p90: number }; energy: number };
+      parallel: Record<string, { stats: { median: number; p10: number; p90: number }; energy: number }>;
+    };
+    logBench(results);
+
+    // Energy correctness.
+    for (const entry of Object.values(results.parallel)) {
+      expect(Math.abs(entry.energy - results.sync.energy)).toBeLessThan(1e-8);
+    }
   });
 });

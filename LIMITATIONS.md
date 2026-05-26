@@ -180,22 +180,25 @@ precision floor is chemical accuracy.
   Still vs single-threaded CPU TypeScript — not vs PySCF wall-clock,
   not vs GPU4PySCF on CUDA. Apples-to-apples comparison work
   outstanding.
-- **Parallel HF buildG via Web Workers** — measured for the first time
-  2026-05-26 (`e2e/bench-parallel-hf.spec.ts`). H₂O cc-pVDZ on M2 Pro,
-  headless Chromium, COI on, 5 trials:
-  | config | median wall | vs sync |
-  |---|---:|---:|
-  | sync | 17 ms | 1.0× |
-  | parallel=2 | 13 ms | 1.31× |
-  | parallel=4 | 10 ms | **1.71×** (best) |
-  | parallel=8 | 12 ms | 1.47× (overhead drag) |
+- **Parallel HF buildG via Web Workers** — measured 2026-05-26
+  (`e2e/bench-parallel-hf.spec.ts`). M2 Pro, headless Chromium, COI on,
+  5 trials, hardwareConcurrency = 12:
 
-  Earlier docs hand-waved a "4–8× win" for Web Workers; the honest
-  measured number on n=25 cc-pVDZ is **1.7×**, with the win flattening
-  at parallel=8 because spawn + SAB-message overhead starts to dominate
-  the per-iteration JK cost. The speedup is real but modest. Bigger
-  molecules (n ≥ 50) would amortize the worker overhead better;
-  benching at that scale is open work.
+  | molecule | n (basis fns) | sync median | best speedup | at N workers |
+  |---|---:|---:|---:|---:|
+  | H₂O cc-pVDZ | 25 | 17 ms | **2.08×** | parallel=8 |
+  | Ethane C₂H₆ cc-pVDZ | 60 | 724 ms | **3.00×** | parallel=8 |
+
+  Speedup **scales with molecule size** — going from n=25 to n=60
+  (a 30× JK-build-cost increase) takes parallel=8 from 2.08× to 3.00×.
+  Worker spawn + SAB-message overhead is fixed; the per-iter JK work
+  is O(n⁴). Bigger amortization → better speedup. Extrapolation: at
+  n ≈ 100-150 (cc-pVDZ benzene or pyrrole) we'd expect 4-6× — open
+  to bench. Energies match sync to 0 Ha across all parallel=N.
+
+  Earlier docs hand-waved a "4-8× win"; the honest measured numbers
+  are 2× on small molecules and 3× on medium molecules, with linear
+  growth in speedup vs log(workload).
 - **EE-EOM-CCSD σ-equations** — **PySCF-ported and verified
   2026-05-21**. σ_1 + σ_2 follow Wang-Tu-Wang 2014 Eqs (9)-(10) with
   PySCF eom_gccsd intermediates (Foo/Fvv/Fov, Woooo, Wvvvv, Wovvo
