@@ -41,6 +41,7 @@ import {
   buildSpinOrbitalERI,
   makeTau,
 } from "./ccsd.js";
+import { buildEOMIntermediates } from "./eom-imds.js";
 import { transformERIToMO } from "./mp2.js";
 import { eigGeneral } from "../manybody/dense-eig-general.js";
 import { davidson } from "../manybody/davidson.js";
@@ -98,183 +99,12 @@ export function runIPEOMCCSD(
   const VO = NOCC;
 
   // ── EOM-CCSD intermediates (PySCF gintermediates.py) ──────────
-  // Same as in eom-ccsd.ts; IP-EOM only needs the subset used by
-  // ipccsd_matvec (Foo, Fov, Fvv, Woooo, Wovvo, Wooov, Wovoo).
-  // See feedback_porting_acceptance_gate.md — these EOM intermediates
-  // differ from cc_ counterparts in T-dressing prefactors and inclusion
-  // of the bare Fock diagonal.
+  // Built via the shared eom-imds.ts module. IP-EOM doesn't need
+  // Wvvvv/Wvovv/Wvvvo so we pass subset="ip" to skip those builds.
+  const { Fov, Fvv, Foo, Woooo, Wovvo, Wooov, Wovoo } =
+    buildEOMIntermediates(T1, T2, eri, tau_t, tau, eps, NOCC, NVIRT, NSO,
+      { subset: "ip" });
 
-  const Fov = new Float64Array(NOCC * NVIRT);
-  for (let m = 0; m < NOCC; m++) {
-    for (let e = 0; e < NVIRT; e++) {
-      let s = 0;
-      for (let nIdx = 0; nIdx < NOCC; nIdx++) {
-        for (let f = 0; f < NVIRT; f++) {
-          s += T1[nIdx * NVIRT + f]! * V(m, nIdx, e + VO, f + VO);
-        }
-      }
-      Fov[m * NVIRT + e] = s;
-    }
-  }
-
-  const Fvv = new Float64Array(NVIRT * NVIRT);
-  for (let a = 0; a < NVIRT; a++) {
-    for (let e = 0; e < NVIRT; e++) {
-      let s = (a === e) ? eps[a + VO]! : 0;
-      for (let m = 0; m < NOCC; m++) {
-        for (let f = 0; f < NVIRT; f++) {
-          s += T1[m * NVIRT + f]! * V(a + VO, m, e + VO, f + VO);
-        }
-      }
-      for (let m = 0; m < NOCC; m++) {
-        for (let nIdx = 0; nIdx < NOCC; nIdx++) {
-          for (let f = 0; f < NVIRT; f++) {
-            s -= 0.5 * tau_t[((m * NOCC + nIdx) * NVIRT + a) * NVIRT + f]! *
-                       V(m, nIdx, e + VO, f + VO);
-          }
-        }
-      }
-      for (let m = 0; m < NOCC; m++) {
-        s -= 0.5 * T1[m * NVIRT + a]! * Fov[m * NVIRT + e]!;
-      }
-      Fvv[a * NVIRT + e] = s;
-    }
-  }
-
-  const Foo = new Float64Array(NOCC * NOCC);
-  for (let m = 0; m < NOCC; m++) {
-    for (let i = 0; i < NOCC; i++) {
-      let s = (m === i) ? eps[m]! : 0;
-      for (let nIdx = 0; nIdx < NOCC; nIdx++) {
-        for (let e = 0; e < NVIRT; e++) {
-          s += T1[nIdx * NVIRT + e]! * V(m, nIdx, i, e + VO);
-        }
-      }
-      for (let nIdx = 0; nIdx < NOCC; nIdx++) {
-        for (let e = 0; e < NVIRT; e++) {
-          for (let f = 0; f < NVIRT; f++) {
-            s += 0.5 * tau_t[((i * NOCC + nIdx) * NVIRT + e) * NVIRT + f]! *
-                       V(m, nIdx, e + VO, f + VO);
-          }
-        }
-      }
-      for (let e = 0; e < NVIRT; e++) {
-        s += 0.5 * T1[i * NVIRT + e]! * Fov[m * NVIRT + e]!;
-      }
-      Foo[m * NOCC + i] = s;
-    }
-  }
-
-  const Woooo = new Float64Array(NOCC * NOCC * NOCC * NOCC);
-  for (let m = 0; m < NOCC; m++) {
-    for (let nIdx = 0; nIdx < NOCC; nIdx++) {
-      for (let i = 0; i < NOCC; i++) {
-        for (let j = 0; j < NOCC; j++) {
-          let s = V(m, nIdx, i, j);
-          for (let e = 0; e < NVIRT; e++) {
-            s += T1[j * NVIRT + e]! * V(m, nIdx, i, e + VO);
-            s -= T1[i * NVIRT + e]! * V(m, nIdx, j, e + VO);
-          }
-          for (let e = 0; e < NVIRT; e++) {
-            for (let f = 0; f < NVIRT; f++) {
-              s += 0.5 * tau[((i * NOCC + j) * NVIRT + e) * NVIRT + f]! *
-                         V(m, nIdx, e + VO, f + VO);
-            }
-          }
-          Woooo[((m * NOCC + nIdx) * NOCC + i) * NOCC + j] = s;
-        }
-      }
-    }
-  }
-
-  const Wovvo = new Float64Array(NOCC * NVIRT * NVIRT * NOCC);
-  for (let m = 0; m < NOCC; m++) {
-    for (let b = 0; b < NVIRT; b++) {
-      for (let e = 0; e < NVIRT; e++) {
-        for (let j = 0; j < NOCC; j++) {
-          let s = V(m, b + VO, e + VO, j);
-          for (let f = 0; f < NVIRT; f++) {
-            s += T1[j * NVIRT + f]! * V(m, b + VO, e + VO, f + VO);
-          }
-          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
-            s -= T1[nIdx * NVIRT + b]! * V(m, nIdx, e + VO, j);
-          }
-          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
-            for (let f = 0; f < NVIRT; f++) {
-              const t2v = T2[((j * NOCC + nIdx) * NVIRT + f) * NVIRT + b]!;
-              const t1p = T1[j * NVIRT + f]! * T1[nIdx * NVIRT + b]!;
-              s -= (t2v + t1p) * V(m, nIdx, e + VO, f + VO);
-            }
-          }
-          Wovvo[((m * NVIRT + b) * NVIRT + e) * NOCC + j] = s;
-        }
-      }
-    }
-  }
-
-  const Wooov = new Float64Array(NOCC * NOCC * NOCC * NVIRT);
-  for (let m = 0; m < NOCC; m++) {
-    for (let nIdx = 0; nIdx < NOCC; nIdx++) {
-      for (let i = 0; i < NOCC; i++) {
-        for (let e = 0; e < NVIRT; e++) {
-          let s = V(m, nIdx, i, e + VO);
-          for (let f = 0; f < NVIRT; f++) {
-            s += T1[i * NVIRT + f]! * V(m, nIdx, f + VO, e + VO);
-          }
-          Wooov[((m * NOCC + nIdx) * NOCC + i) * NVIRT + e] = s;
-        }
-      }
-    }
-  }
-
-  const Wovoo = new Float64Array(NOCC * NVIRT * NOCC * NOCC);
-  for (let m = 0; m < NOCC; m++) {
-    for (let b = 0; b < NVIRT; b++) {
-      for (let i = 0; i < NOCC; i++) {
-        for (let j = 0; j < NOCC; j++) {
-          let s = V(m, b + VO, i, j);
-          for (let e = 0; e < NVIRT; e++) {
-            s -= Fov[m * NVIRT + e]! *
-                 T2[((i * NOCC + j) * NVIRT + b) * NVIRT + e]!;
-          }
-          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
-            s -= T1[nIdx * NVIRT + b]! *
-                 Woooo[((m * NOCC + nIdx) * NOCC + i) * NOCC + j]!;
-          }
-          for (let e = 0; e < NVIRT; e++) {
-            for (let f = 0; f < NVIRT; f++) {
-              s += 0.5 * V(m, b + VO, e + VO, f + VO) *
-                         tau[((i * NOCC + j) * NVIRT + e) * NVIRT + f]!;
-            }
-          }
-          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
-            for (let e = 0; e < NVIRT; e++) {
-              s += V(m, nIdx, i, e + VO) *
-                   T2[((j * NOCC + nIdx) * NVIRT + b) * NVIRT + e]!;
-              s -= V(m, nIdx, j, e + VO) *
-                   T2[((i * NOCC + nIdx) * NVIRT + b) * NVIRT + e]!;
-            }
-          }
-          for (let e = 0; e < NVIRT; e++) {
-            s += T1[i * NVIRT + e]! * V(m, b + VO, e + VO, j);
-            s -= T1[j * NVIRT + e]! * V(m, b + VO, e + VO, i);
-          }
-          for (let nIdx = 0; nIdx < NOCC; nIdx++) {
-            for (let e = 0; e < NVIRT; e++) {
-              for (let f = 0; f < NVIRT; f++) {
-                const tvj = T2[((nIdx * NOCC + j) * NVIRT + b) * NVIRT + f]!;
-                const tvi = T2[((nIdx * NOCC + i) * NVIRT + b) * NVIRT + f]!;
-                const eV = V(m, nIdx, e + VO, f + VO);
-                s -= T1[i * NVIRT + e]! * tvj * eV;
-                s += T1[j * NVIRT + e]! * tvi * eV;
-              }
-            }
-          }
-          Wovoo[((m * NVIRT + b) * NOCC + i) * NOCC + j] = s;
-        }
-      }
-    }
-  }
 
   // ── σ via PySCF eom_gccsd.ipccsd_matvec, Eqs. (8)-(9). ──────────
   // Ref: Tu, Wang, and Li, J. Chem. Phys. 136, 174102 (2012).
