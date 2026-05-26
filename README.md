@@ -27,9 +27,44 @@
 <tr>
 <td align="center" width="800">
 
-**A research-grade quantum chemistry + many-body physics engine that runs entirely in a browser tab.**
+**A browser-native quantum chemistry sandbox.** Open a URL and get HF · UHF · DFT (RKS+UKS) · MP2 · CCSD · CCSD(T) · EOM-CCSD · TDDFT α(ω) · C₆ dispersion on real molecules — with WebGPU acceleration for the (T) bottleneck. No install. No backend. No CUDA.
 
-No install. No backend. No CUDA. Open a URL and get HF · UHF · DFT (RKS+UKS) · MP2 · CCSD · CCSD(T) · EOM-CCSD · TDDFT α(ω) · C₆ dispersion on real molecules — with GPU acceleration via WebGPU. Molden / Cube / QCSchema / XYZ exports for visualization + interop.
+</td>
+</tr>
+</table>
+
+<br/>
+
+<table align="center" border="0">
+<tr>
+<td valign="top" width="33%">
+
+**What this is**
+
+- Browser-native quantum chemistry engine, all methods ported from PySCF and brute-force verified to ≤ 1e-10 Ha element-wise.
+- WebGPU systems demonstration — a 110-line WGSL kernel makes CCSD(T)/cc-pVDZ browser-feasible (13.8× median speedup over CPU TypeScript, 5w+20t harness; p10 28×, p90 10×, noisy).
+- Distributed-compute substrate — `swarmMap` primitive over BroadcastChannel (verified) and WebRTC (cross-machine path; chem-energy kernel works in same-machine multi-tab, cross-machine unverified e2e).
+- Teaching / reproducibility / methodology platform — URL-as-citation, drag-import (XYZ/PDB/MOL/SDF), in-browser Pyodide REPL with "Compare to PySCF" button.
+
+</td>
+<td valign="top" width="33%">
+
+**What this isn't**
+
+- **Not a PySCF replacement.** PySCF runs 10-100× faster, scales to 100× larger molecules, supports 10× more methods, and has 25 years of validation. If you're a working computational chemist, install PySCF.
+- **Not a production research tool for ≥ 30-atom molecules.** Largest benchmarked system is BeH₂/cc-pVDZ; nothing at the porphyrin / metal-complex / enzyme-active-site scale that real research chemistry needs.
+- **Not a CUDA competitor.** WebGPU is the lowest-common-denominator GPU API; raw throughput is 2-5× behind well-tuned CUDA today (gap closing as the WebGPU spec evolves — f16 shader extension, subgroups, tensor-core intrinsics).
+- **Not novel chemistry.** Every method here was already in PySCF before we ported it. The contribution is the substrate, not the algorithms.
+
+</td>
+<td valign="top" width="33%">
+
+**Who it's for**
+
+- **Chemistry educators.** Quantum methods are an opaque pipeline ("HF then MP2 then CCSD…"). webgpu-q makes every intermediate inspectable, computed in real time, with no install barrier. Drop a PDB file, run HF, see the orbitals.
+- **WebGPU / systems researchers.** A real O(n⁷) kernel benchmarked end-to-end in the browser. Hardware-vs-API throughput gap can be tracked over time as the spec evolves.
+- **AI-paired-development practitioners.** The repo is a worked case study in *porting* (vs re-deriving) textbook methods — see `RESEARCH_STANDARDS.md` §7a and the `MEMORY.md` triad on porting acceptance gates, symbol collisions, and the diagnostic loop trap.
+- **Anyone who wants reproducible chemistry.** Calculations are URLs; results are shareable via auto-run links + IndexedDB history.
 
 </td>
 </tr>
