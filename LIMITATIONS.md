@@ -147,10 +147,29 @@ will silently truncate large dispatches.
 
 ## 5. Honest precision disclosures (carried from CLAUDE.md)
 
+**Read this first.** webgpu-q reports a lot of precision numbers at
+10⁻¹⁰ Ha and tighter. These are **software regression assertions**
+that catch porting / GPU-CPU drift bugs; they are not chemistry
+results. Chemical accuracy is 1.6 mHa (1 kcal/mol). Basis-set
+incompleteness, functional choice, and method truncation all
+contribute errors at 1–10 kcal/mol on real systems. So:
+
+- **|GPU − CPU| < 10⁻¹⁰ Ha** = "our GPU port matches our CPU TypeScript
+  port" — engineering claim.
+- **|webgpu-q − PySCF| < 10⁻¹⁰ Ha (brute-force diff)** = "our σ-matrix
+  matches PySCF's σ-matrix element-by-element" — also engineering.
+- **|webgpu-q HF − PySCF HF| at ≥ 1 mHa, |E_CCSD(T) − FCI| at ≥ 0.25
+  mHa** = method-quality numbers — actually chemistry-relevant.
+
+Treat anything tighter than 1 mHa as "we don't have a porting bug,"
+not as a meaningful chemistry result. The reviewer-defensible
+precision floor is chemical accuracy.
+
 - **CCSD(T) GPU 39.3×** is a **single-run measurement** on M2 Pro. Not
-  through the warmup+20-trials harness. The correctness (|Δ| = 2.4×10⁻¹⁰
-  Ha) is reproducible; the specific 39.3× number is ±20% on different
-  hardware and ±10% run-to-run.
+  through the warmup+20-trials harness (gap #4 — open). Specific 39.3×
+  number is ±20% on different hardware and ±10% run-to-run. Vs
+  single-threaded CPU TypeScript, not vs PySCF wall-clock, not vs
+  GPU4PySCF on CUDA. Apples-to-apples comparison work outstanding.
 - **EE-EOM-CCSD σ-equations** — **PySCF-ported and verified
   2026-05-21**. σ_1 + σ_2 follow Wang-Tu-Wang 2014 Eqs (9)-(10) with
   PySCF eom_gccsd intermediates (Foo/Fvv/Fov, Woooo, Wvvvv, Wovvo

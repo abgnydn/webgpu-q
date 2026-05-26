@@ -436,6 +436,10 @@ Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@ba
 <br/>
 
 > Anywhere a number appears above, it traces back to this table. Update the entry below, then rebuild the SVG hero (`public/readme-hero.svg`) if a top-line number changed.
+>
+> **How to read the precision numbers.** Anything tighter than 1.6 mHa (= 1 kcal/mol = chemical accuracy) is a *software regression assertion*, not a chemistry result. We diff GPU/CPU paths at 10⁻¹⁰ Ha to catch porting bugs, not because chemistry cares at that scale (basis-set incompleteness and functional choice dwarf any algorithmic difference by 6+ orders of magnitude). When comparing webgpu-q's chemistry numbers to PySCF or experiment, the only line that matters is the |ΔE| vs reference at ≥ 1 mHa.
+>
+> **How to read the speedup numbers.** `CCSD_T_SPEEDUP = 39.3×` is single-run on M2 Pro vs our own single-threaded CPU TypeScript. Not vs PySCF wall-clock. Not vs GPU4PySCF on CUDA. Not yet through the warmup+20-trials harness (gap #4 — open). The number gives an order of magnitude; the apples-to-apples vs production chemistry stacks is open work.
 
 | symbol | value | context |
 |---|---|---|
@@ -445,7 +449,7 @@ Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@ba
 | `CCSD_T_SPEEDUP` | **39.3×** | H₂O · cc-pVDZ · M2 Pro · vs our own CPU |
 | `CCSD_T_GPU_TIME` | **5.05 s** | H₂O · cc-pVDZ · GPU |
 | `CCSD_T_CPU_TIME` | **198.6 s** | H₂O · cc-pVDZ · CPU |
-| `CCSD_T_GPU_DELTA` | **2.4×10⁻¹⁰ Ha** | H₂O · cc-pVDZ · &#124;GPU − CPU&#124; |
+| `CCSD_T_GPU_DELTA` | **2.4×10⁻¹⁰ Ha** | regression assertion only — 6 orders below chemical accuracy (1.6 mHa), validates the GPU port matches CPU, not the method |
 | `WIN_HF_H2_STO3G` | **105×** | E34 vs PySCF 2.13.0 · no-startup advantage |
 | `WIN_CCSD_LIH_STO3G` | **40×** | E34 vs PySCF 2.13.0 · small-system advantage |
 | `LOSS_CCSD_H2O_CCPVDZ` | **480× slower** | E34 vs PySCF 2.13.0 · BLAS gap (NumPy wins) |
@@ -458,8 +462,8 @@ Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@ba
 | `EOM_CCSD_H2O_SINGLET_GAP` | **~1.9 eV** | E35 vs PySCF · 10-e⁻ system · remaining missing T-dressings · PySCF port closes |
 | `IP_EOM_H2O` | **12.03 eV** | expt 12.62 |
 | `EA_EOM_H2O` | **−16.37 eV** | STO-3G (unbound) |
-| `DF_HF_PRECISION` | **7×10⁻¹⁴ Ha** | H₂O STO-3G |
-| `DF_MP2_PRECISION` | **0 Ha** | H₂O STO-3G at τ=10⁻¹⁰ |
+| `DF_HF_PRECISION` | **7×10⁻¹⁴ Ha** | DF-HF vs direct HF regression assertion (engineering, not chemistry-relevant) |
+| `DF_MP2_PRECISION` | **0 Ha** | DF-MP2 vs direct MP2 regression assertion at τ=10⁻¹⁰ |
 | `FUSION_HEADLINE` | **4.18×** | Tier C · 8×8 cascade |
 | `STATEVECTOR_FIDELITY` | **F ≥ 0.999999** | f32 GPU vs f64 CPU |
 | `MPS_N_MAX` | **128** | TFIM/Heisenberg, χ ≤ 32, browser |
