@@ -464,6 +464,27 @@ n ≥ 60 the JK build dominates and speedup approaches the
   speedup at n ≥ 80 because B is ~3× smaller than the 4-index
   tensor AND the JK build over B is cheaper.
 
+  **Honest open question on quality**: HF energy errors with the
+  current Phase-1 path scale unexpectedly with system size:
+
+  | system | orb basis | aux basis | n_orb | n_aux | DF HF error |
+  |---|---|---|---:|---:|---:|
+  | H₂  | cc-pVDZ | cc-pVDZ      | 10 | 10 |   −7 mHa |
+  | H₂  | cc-pVDZ | aug-cc-pVDZ  | 10 | 18 |   −5 mHa |
+  | H₂O | cc-pVDZ | cc-pVDZ      | 25 | 25 | −209 mHa |
+  | H₂O | cc-pVDZ | aug-cc-pVDZ  | 25 | 43 | −188 mHa |
+  | H₂O | STO-3G  | cc-pVDZ      |  7 | 25 | −252 mHa |
+
+  The order-of-magnitude jump from H₂ (mHa) to H₂O (hundreds of
+  mHa) and the H₂O STO-3G→cc-pVDZ-aux result (where aux strictly
+  contains orbital products) suggest a subtle kernel bug or
+  metric-handling error rather than pure aux insufficiency. Phase 2
+  needs to (a) cross-validate (μν|P) against PySCF reference
+  values for a fixed test case, (b) audit `buildAuxBasisDF` matrix
+  composition, (c) check eigendecomp regularization isn't dropping
+  good modes. Until that's resolved, aux-DF stays unwired from HF
+  SCF defaults.
+
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
   every primitive quartet (n_prim⁴ buildPair calls per ERI). Now caches
