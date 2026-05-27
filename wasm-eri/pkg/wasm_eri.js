@@ -133,7 +133,8 @@ export function fock_build_slice(mus, n, eri_slab, d) {
  * n³ slab into WASM linear memory per call (rather than caching the
  * full per-worker slab of |mus|·n³ entries, which doubles browser
  * memory pressure on benzene cc-pVDZ). The copy amortizes against
- * the ~10ms WASM compute per μ at n=120.
+ * the ~10ms WASM compute per μ at n=120. Inner σ-loop uses the
+ * 2-lane f64 SIMD `jk_dot` helper above.
  * @param {number} n
  * @param {Float64Array} eri_mu_row
  * @param {Float64Array} d

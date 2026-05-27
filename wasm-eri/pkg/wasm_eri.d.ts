@@ -58,7 +58,8 @@ export function fock_build_slice(mus: Uint32Array, n: number, eri_slab: Float64A
  * n³ slab into WASM linear memory per call (rather than caching the
  * full per-worker slab of |mus|·n³ entries, which doubles browser
  * memory pressure on benzene cc-pVDZ). The copy amortizes against
- * the ~10ms WASM compute per μ at n=120.
+ * the ~10ms WASM compute per μ at n=120. Inner σ-loop uses the
+ * 2-lane f64 SIMD `jk_dot` helper above.
  */
 export function fock_one_mu_row(n: number, eri_mu_row: Float64Array, d: Float64Array): Float64Array;
 

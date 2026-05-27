@@ -648,18 +648,6 @@ pub fn schwarz_q_table(
     q
 }
 
-/// Single-μ variant of fock_build_slice. Computes G[μ, :] for one μ.
-///
-///   G[μ, ν] = Σ_{λ, σ} D[λ, σ] · ( (μν|λσ) − ½ (μλ|νσ) )
-///
-/// `eri_mu_row` is the n³ slab eri[μ, :, :, :], laid out row-major as
-/// eri_mu_row[a · n² + b · n + c] = eri[μ, a, b, c].
-///
-/// Used by the per-μ WASM JK kernel: the worker copies only this μ's
-/// n³ slab into WASM linear memory per call (rather than caching the
-/// full per-worker slab of |mus|·n³ entries, which doubles browser
-/// memory pressure on benzene cc-pVDZ). The copy amortizes against
-/// the ~10ms WASM compute per μ at n=120.
 /// Inner-product helper for the JK σ-loop. Sums
 ///   Σ_si d[si] · (j[si] − 0.5 · k[si])
 /// across 3 length-n slices. Uses wasm-simd128 intrinsics
@@ -703,6 +691,19 @@ fn jk_dot(d: &[f64], j: &[f64], k: &[f64], n: usize) -> f64 {
     }
 }
 
+/// Single-μ variant of fock_build_slice. Computes G[μ, :] for one μ.
+///
+///   G[μ, ν] = Σ_{λ, σ} D[λ, σ] · ( (μν|λσ) − ½ (μλ|νσ) )
+///
+/// `eri_mu_row` is the n³ slab eri[μ, :, :, :], laid out row-major as
+/// eri_mu_row[a · n² + b · n + c] = eri[μ, a, b, c].
+///
+/// Used by the per-μ WASM JK kernel: the worker copies only this μ's
+/// n³ slab into WASM linear memory per call (rather than caching the
+/// full per-worker slab of |mus|·n³ entries, which doubles browser
+/// memory pressure on benzene cc-pVDZ). The copy amortizes against
+/// the ~10ms WASM compute per μ at n=120. Inner σ-loop uses the
+/// 2-lane f64 SIMD `jk_dot` helper above.
 #[wasm_bindgen]
 pub fn fock_one_mu_row(
     n: u32,
