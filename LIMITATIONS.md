@@ -208,8 +208,28 @@ precision floor is chemical accuracy.
 
   **What would lift the ceiling**: (a) vectorize the Obara-Saika
   ERI recursions, (b) shell-pair Schwarz screening on top of the
-  existing primitive-pair screening, (c) density fitting (CD-DF
-  already shipped — wire into the ERI path). All open work.
+  existing primitive-pair screening, (c) **aux-basis density fitting**
+  (3-index ERIs directly, never build the n⁴ tensor — *not* the same
+  as our shipped CD-DF which still builds the full tensor first;
+  measured 11.5× slower at n=25, 20.5× slower at n=60 — see DF-HF
+  benches in `e2e/bench-parallel-hf.spec.ts`).
+
+- **CD-DF as shipped is a NET LOSS for HF speed.** The Cholesky
+  decomposition operates on the already-built n⁴ ERI tensor — it
+  doesn't avoid the ERI build cost (the actual bottleneck) and adds
+  decomposition overhead on top. Useful for post-HF methods that work
+  in B-tensor space (memory savings) but the `opts.useDF: true` HF
+  path is strictly slower than `useDF: false` on every system we
+  benched. The real DF speedup (PySCF-style, 5×+) requires aux-basis
+  3-index ERIs — a new integral routine, not derivable from `ERI_cg`.
+  Measured 2026-05-27:
+  | molecule | n | direct HF | DF-HF | ratio |
+  |---|---:|---:|---:|---:|
+  | H₂O cc-pVDZ | 25 | 18 ms | 204 ms | DF 11.5× slower |
+  | Ethane cc-pVDZ | 60 | 652 ms | 13336 ms | DF 20.5× slower |
+  Energies match to ≤ 1.1×10⁻⁵ Ha (below chemical accuracy), so DF is
+  correct, just slow. Documentation that hand-waved DF as a "speedup"
+  was wrong; the API is now annotated honestly.
 - **EE-EOM-CCSD σ-equations** — **PySCF-ported and verified
   2026-05-21**. σ_1 + σ_2 follow Wang-Tu-Wang 2014 Eqs (9)-(10) with
   PySCF eom_gccsd intermediates (Foo/Fvv/Fov, Woooo, Wvvvv, Wovvo

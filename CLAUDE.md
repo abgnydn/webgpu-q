@@ -62,7 +62,7 @@ Ranked by ROI. One focused session ≈ a few hours.
 | **WebGPU port of (T) kernel** | ✓ (39× on H₂O cc-pVDZ, single-run) | 10-100× speedup; cc-pVTZ CCSD(T) routine |
 | **EOM-CCSD (excited states)** | ✓ (+ eigenvectors, oscillator strengths, spin classifier) | UV-vis, photochemistry |
 | **UHF + open-shell CCSD** | ✓ (UHF stage 21, UCCSD stage 25) | radicals, transition metals |
-| **Density fitting (RI)** | ✓ (Cholesky-DF + HF/MP2 wiring; aux-basis variant deferred) | 3-5× speedup + half memory |
+| **Density fitting (RI)** | ✓ correctness, ✗ speedup (CD-DF still builds full 4-index ERI then decomposes — measured 11-20× SLOWER than direct HF on cc-pVDZ benches; aux-basis 3-index DF would be the real win, deferred) | half memory; no speedup |
 | **IP-EOM-CCSD / EA-EOM-CCSD** | ✓ (stages 37–38, beyond original Tier 2 plan) | accurate IPs / EAs |
 
 #### Tier 3 — Substantial (~25 sessions)

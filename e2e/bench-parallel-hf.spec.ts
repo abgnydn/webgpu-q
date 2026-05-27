@@ -255,6 +255,128 @@ test.describe("Parallel HF buildG benchmark", () => {
     }
   });
 
+  test("DF-HF speedup — ethane cc-pVDZ (n=60), bigger system", async ({ page }) => {
+    await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+    const r = await page.evaluate(async () => {
+      const [{ runRHFSCF }, { moleculeToShellsNuclei }, { computeMolecularIntegrals }] =
+        await Promise.all([
+          import("/src/chemistry/hf-scf.ts" as string),
+          import("/src/chemistry/atoms.ts" as string),
+          import("/src/chemistry/cg-molecular.ts" as string),
+        ]);
+      const cc = 1.535, ch = 1.094;
+      const hch = 107.8 * Math.PI / 180;
+      const hcc = (Math.PI - hch) / 2 + Math.PI / 6;
+      const sH = ch * Math.sin(hcc), cH = ch * Math.cos(hcc);
+      const atoms = [
+        { symbol: "C", pos: [0, 0, -cc / 2] },
+        { symbol: "C", pos: [0, 0,  cc / 2] },
+        { symbol: "H", pos: [ sH,             0, -cc / 2 - cH] },
+        { symbol: "H", pos: [-sH / 2,  sH * Math.sqrt(3) / 2, -cc / 2 - cH] },
+        { symbol: "H", pos: [-sH / 2, -sH * Math.sqrt(3) / 2, -cc / 2 - cH] },
+        { symbol: "H", pos: [-sH,             0,  cc / 2 + cH] },
+        { symbol: "H", pos: [ sH / 2,  sH * Math.sqrt(3) / 2,  cc / 2 + cH] },
+        { symbol: "H", pos: [ sH / 2, -sH * Math.sqrt(3) / 2,  cc / 2 + cH] },
+      ];
+      const { shells, nuclei, nElectrons } =
+        moleculeToShellsNuclei(atoms as never, "cc-pvdz");
+      const integrals = computeMolecularIntegrals(shells, nuclei);
+      const HFopts = {
+        useDIIS: true, energyTol: 1e-9, densityTol: 1e-7, maxIter: 200,
+      } as const;
+      runRHFSCF(integrals, nElectrons, HFopts);
+      runRHFSCF(integrals, nElectrons, { ...HFopts, useDF: true });
+      const dT: number[] = [], dfT: number[] = [];
+      let eD = 0, eDF = 0;
+      for (let i = 0; i < 3; i++) {
+        const t0 = performance.now();
+        eD = runRHFSCF(integrals, nElectrons, HFopts).energy;
+        dT.push(performance.now() - t0);
+        const t1 = performance.now();
+        eDF = runRHFSCF(integrals, nElectrons, { ...HFopts, useDF: true }).energy;
+        dfT.push(performance.now() - t1);
+      }
+      const med = (a: number[]): number => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)]!;
+      return { n: integrals.n, directMs: med(dT), dfMs: med(dfT), eD, eDF };
+    });
+    /* eslint-disable no-console */
+    console.log(`\n── DF-HF vs direct HF — ethane cc-pVDZ (n=${r.n}, 3 trials) ──`);
+    console.log(`  direct HF median: ${r.directMs.toFixed(0)} ms   E = ${r.eD.toFixed(8)} Ha`);
+    console.log(`  DF-HF  median:    ${r.dfMs.toFixed(0)} ms   E = ${r.eDF.toFixed(8)} Ha`);
+    console.log(`  DF/direct ratio:  ${(r.dfMs / r.directMs).toFixed(2)}× (>1 = DF SLOWER)`);
+    console.log(`  Energy |Δ|:       ${Math.abs(r.eD - r.eDF).toExponential(2)} Ha`);
+    /* eslint-enable no-console */
+    expect(Math.abs(r.eD - r.eDF)).toBeLessThan(1e-3);
+  });
+
+  test("DF-HF speedup — H₂O cc-pVDZ direct vs density-fitting", async ({ page }) => {
+    // Closes the "DF already shipped but never benched on speed" gap.
+    // Compares opts.useDF = false (full 4-index ERI build + JK) vs
+    // opts.useDF = true (Cholesky decomp → B-tensor → DF-JK).
+    await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+
+    const r = await page.evaluate(async () => {
+      const [{ runRHFSCF }, { moleculeToShellsNuclei }, { computeMolecularIntegrals }] =
+        await Promise.all([
+          import("/src/chemistry/hf-scf.ts" as string),
+          import("/src/chemistry/atoms.ts" as string),
+          import("/src/chemistry/cg-molecular.ts" as string),
+        ]);
+      const half = (104.52 / 2) * Math.PI / 180;
+      const xH = 0.9572 * Math.sin(half);
+      const zH = 0.9572 * Math.cos(half);
+      const atoms = [
+        { symbol: "O", pos: [0, 0, 0] },
+        { symbol: "H", pos: [ xH, 0, zH] },
+        { symbol: "H", pos: [-xH, 0, zH] },
+      ] as const;
+      const { shells, nuclei, nElectrons } =
+        moleculeToShellsNuclei(atoms as never, "cc-pvdz");
+      const integrals = computeMolecularIntegrals(shells, nuclei);
+      const HFopts = {
+        useDIIS: true, energyTol: 1e-9, densityTol: 1e-7, maxIter: 200,
+      } as const;
+
+      runRHFSCF(integrals, nElectrons, HFopts); // warmup
+      runRHFSCF(integrals, nElectrons, { ...HFopts, useDF: true }); // warmup DF too
+
+      const directTimes: number[] = [];
+      const dfTimes: number[] = [];
+      let eDir = 0, eDF = 0;
+      for (let i = 0; i < 5; i++) {
+        const t0 = performance.now();
+        eDir = runRHFSCF(integrals, nElectrons, HFopts).energy;
+        directTimes.push(performance.now() - t0);
+        const t1 = performance.now();
+        eDF = runRHFSCF(integrals, nElectrons, { ...HFopts, useDF: true }).energy;
+        dfTimes.push(performance.now() - t1);
+      }
+
+      const med = (arr: number[]): number =>
+        [...arr].sort((a, b) => a - b)[Math.floor(arr.length / 2)]!;
+
+      return {
+        n: integrals.n,
+        directMs: med(directTimes), dfMs: med(dfTimes),
+        eDirect: eDir, eDF,
+        energyDelta: Math.abs(eDir - eDF),
+      };
+    });
+
+    /* eslint-disable no-console */
+    console.log(`\n── DF-HF vs direct HF — H₂O cc-pVDZ (n=${r.n}, 5 trials each) ──`);
+    console.log(`  direct HF median: ${r.directMs.toFixed(0)} ms   E = ${r.eDirect.toFixed(8)} Ha`);
+    console.log(`  DF-HF  median:    ${r.dfMs.toFixed(0)} ms   E = ${r.eDF.toFixed(8)} Ha`);
+    console.log(`  DF/direct ratio:  ${(r.dfMs / r.directMs).toFixed(2)}× (>1 = DF SLOWER)`);
+    console.log(`  Energy |Δ|:       ${r.energyDelta.toExponential(2)} Ha`);
+    /* eslint-enable no-console */
+
+    // Energy correctness — DF must be within chemical accuracy of direct.
+    // (Empirically DF at τ=1e-10 gives ~1e-5 to 1e-6 Ha vs direct on cc-pVDZ;
+    // tighter than chemical accuracy of 1.6 mHa but not bit-identical.)
+    expect(r.energyDelta).toBeLessThan(1e-4);
+  });
+
   test("Furan C₄H₄O cc-pVDZ — n=90, intermediate scaling point", async ({ page }) => {
     // Standard furan geometry (rough planar pentagon, O at one corner).
     // C-C 1.43 Å, C=C 1.36 Å, C-O 1.36 Å, C-H 1.08 Å. Ring in xy-plane.
