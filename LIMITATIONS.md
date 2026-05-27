@@ -352,6 +352,35 @@ precision floor is chemical accuracy.
   branches break LLVM's auto-vec. The JK kernel succeeded because
   the inner loop is a clean length-n contiguous reduction.
 
+  A 4-way unroll of the SIMD JK (two independent f64x2
+  accumulators) showed no measurable signal on benzene (17.88s vs
+  18.01s on a single trial — within noise band); the 2-way SIMD
+  already saturated the pipeline at our problem sizes. Reverted to
+  the cleaner 2-way version.
+
+### HF SCF parallel scaling (with WASM JK, measured 2026-05-27)
+
+End-to-end HF SCF wall time across molecule sizes with all wins
+shipped (`runRHFSCFAsync(..., parallel: 8, useWasmJK: true)` vs
+`runRHFSCF` sync baseline):
+
+| molecule | n | sync HF | parallel=8 HF | speedup |
+|---|---:|---:|---:|---:|
+| H₂O cc-pVDZ      |  25 | 18 ms    | 8 ms     | 2.29× (worker overhead floor) |
+| ethane cc-pVDZ   |  60 | 602 ms   | 93 ms    | **6.48×** |
+| furan cc-pVDZ    |  95 | 3882 ms  | 591 ms   | **6.56×** |
+| benzene cc-pVDZ  | 120 | (TS path 14+ min, skipped) | 1.24 s | (vs WASM-1× HF ~5.2 s ≈ 4.2×) |
+
+(Benzene sync omitted from the parallel-HF bench because the TS-built
+ERI alone takes 14+ minutes; the WASM ERI path is the relevant
+sync reference. Full benzene WASM HF end-to-end ≈ 16.8 s, vs the
+TS-only "cold shells → converged" baseline of 841 s.)
+
+The 2.29× floor on H₂O reflects worker-spawn + message-passing
+overhead at n=25: workers idle most of their lifetime. For
+n ≥ 60 the JK build dominates and speedup approaches the
+6-8× ceiling that 8 workers + 2-lane f64 SIMD allow.
+
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
   every primitive quartet (n_prim⁴ buildPair calls per ERI). Now caches
