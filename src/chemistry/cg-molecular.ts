@@ -58,6 +58,14 @@ export interface IntegralOpts {
    * cc-pVDZ vs PySCF. Default false.
    */
   readonly spherical?: boolean;
+  /** If set, the ERI build records {computed, skipped, total-unique}
+   *  pair-quartet counts to this object and the Schwarz threshold to
+   *  schwarzTol. For benchmarking the screening hit-rate. */
+  readonly screenStats?: { computed: number; skipped: number; totalUnique: number };
+  /** Override the default Schwarz threshold (1e-10). Tighter (1e-12)
+   *  is essentially no-screening; looser (1e-6) starts losing precision
+   *  below chemical accuracy. */
+  readonly schwarzTol?: number;
 }
 
 /**
@@ -102,7 +110,7 @@ export function computeMolecularIntegrals(
   // Q[μ,ν] = √⟨μν|μν⟩ table lets us skip negligible (μν|λσ) pairs.
   // Threshold 1e-10 is well below sub-µHa precision and gives 2-5×
   // speedup on cc-pVDZ-class basis sets.
-  const SCHWARZ_TOL = 1e-10;
+  const SCHWARZ_TOL = opts.schwarzTol ?? 1e-10;
   const Q = new Float64Array(n * n);
   for (let mu = 0; mu < n; mu++) {
     for (let nu = mu; nu < n; nu++) {
@@ -112,17 +120,20 @@ export function computeMolecularIntegrals(
       Q[nu * n + mu] = q;
     }
   }
+  let computed = 0, skipped = 0, totalUnique = 0;
   // Index encoding: (μν|λσ) = (νμ|λσ) = (μν|σλ) = (λσ|μν).
   for (let mu = 0; mu < n; mu++) {
     for (let nu = mu; nu < n; nu++) {
       const qMuNu = Q[mu * n + nu]!;
-      if (qMuNu < SCHWARZ_TOL) continue;     // whole (μν, *) row negligible
       for (let la = 0; la < n; la++) {
         for (let si = la; si < n; si++) {
-          // Skip double-count via the (μν) ↔ (λσ) swap: only do
-          // (μν, λσ) where the encoded pair (μ·n+ν) ≤ (λ·n+σ).
           if (mu * n + nu > la * n + si) continue;
-          if (qMuNu * Q[la * n + si]! < SCHWARZ_TOL) continue;
+          totalUnique++;
+          if (qMuNu < SCHWARZ_TOL || qMuNu * Q[la * n + si]! < SCHWARZ_TOL) {
+            skipped++;
+            continue;
+          }
+          computed++;
           const v = ERI_cg(shells[mu]!, shells[nu]!, shells[la]!, shells[si]!);
           // Fill all 8 symmetric entries.
           const idx = (a: number, b: number, c: number, d: number): number =>
@@ -138,6 +149,11 @@ export function computeMolecularIntegrals(
         }
       }
     }
+  }
+  if (opts.screenStats) {
+    opts.screenStats.computed = computed;
+    opts.screenStats.skipped = skipped;
+    opts.screenStats.totalUnique = totalUnique;
   }
 
   // ── Optional: Cartesian d → spherical-harmonic d transform ──

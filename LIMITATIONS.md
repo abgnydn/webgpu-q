@@ -214,6 +214,26 @@ precision floor is chemical accuracy.
   measured 11.5× slower at n=25, 20.5× slower at n=60 — see DF-HF
   benches in `e2e/bench-parallel-hf.spec.ts`).
 
+- **Schwarz screening is ineffective at cc-pVDZ density.** Measured
+  on ethane cc-pVDZ 2026-05-27 (`e2e/bench-eri-screening.spec.ts`):
+  | threshold | skip rate | ERI build | |ΔE| vs 1e-10 |
+  |---|---:|---:|---:|
+  | 1e-12 | 0.0% | 31.5 s | numerical noise |
+  | **1e-10 (default)** | **0.0%** | 31.2 s | — |
+  | 1e-8 | 0.3% | 32.3 s | 10⁻⁸ Ha |
+  | 1e-6 | 3.2% | 31.3 s | 7×10⁻⁶ Ha |
+  | 1e-4 | 18.9% | 25 s (–20%) | **1.5 mHa (chemical-accuracy edge)** |
+
+  At cc-pVDZ density, almost every basis-function pair has Q > 10⁻¹⁰
+  — the integrals are too dense for Cauchy-Schwarz bounds to find
+  skippable pairs. Tightening or loosening the threshold within
+  chemistry-relevant ranges (1e-12 to 1e-6) saves at most 3% of
+  work. The only meaningful win is at 1e-4, which sits at chemical
+  accuracy and is risky. **The "2-3× ERI build speedup from Schwarz"
+  promise was wrong** — for our specific basis sets and molecule
+  sizes, this screen is essentially a no-op. Real ERI speedup needs
+  WebGPU offload or aux-basis DF.
+
 - **CD-DF as shipped is a NET LOSS for HF speed.** The Cholesky
   decomposition operates on the already-built n⁴ ERI tensor — it
   doesn't avoid the ERI build cost (the actual bottleneck) and adds
