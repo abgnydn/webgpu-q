@@ -11,6 +11,43 @@
 
 import { ERI_cg, type CGShell } from "./integrals-cg.js";
 import { sabAvailable, toSAB } from "../parallel/worker-pool.js";
+import { schwarzQTableWasm } from "./wasm-eri.js";
+
+// ── Persistent worker pool ──
+// Spawning a Worker + initializing WASM costs ~1 s per worker on first
+// use (~80 KB compile + Rust init). For multiple `buildERI*Parallel`
+// calls in one page session (e.g. across HF iterations, geometry
+// optimization, or repeated bench trials) we cache the pool by
+// `kind` × size and only tear down on explicit dispose.
+type PoolKind = "ts" | "wasm";
+const poolCache: Map<string, Worker[]> = new Map();
+
+function poolKey(kind: PoolKind, n: number): string { return `${kind}:${n}`; }
+
+function getPool(kind: PoolKind, n: number): Worker[] {
+  const key = poolKey(kind, n);
+  const existing = poolCache.get(key);
+  if (existing) return existing;
+  const workers: Worker[] = [];
+  for (let i = 0; i < n; i++) {
+    workers.push(new Worker(
+      new URL("../parallel/kernels-worker.ts", import.meta.url),
+      { type: "module" },
+    ));
+  }
+  poolCache.set(key, workers);
+  return workers;
+}
+
+/** Tear down all cached worker pools. Useful in test teardown or before
+ *  navigation. After this, the next `buildERI*Parallel` call will pay
+ *  the spawn cost again. */
+export function disposeAllPools(): void {
+  for (const workers of poolCache.values()) {
+    for (const w of workers) w.terminate();
+  }
+  poolCache.clear();
+}
 
 /**
  * Compute the dense AO ERI tensor in parallel across N workers.
@@ -64,37 +101,30 @@ export async function buildERIParallel(
     muAssignments[mu % N]!.push(mu);
   }
 
-  // ── Spawn workers + dispatch. ──
-  const workers: Worker[] = [];
-  for (let i = 0; i < N; i++) {
-    workers.push(new Worker(new URL("../parallel/kernels-worker.ts", import.meta.url), { type: "module" }));
-  }
-  try {
-    await Promise.all(workers.map((w, i) => new Promise<void>((resolve, reject) => {
-      const onMessage = (ev: MessageEvent): void => {
-        w.removeEventListener("message", onMessage);
-        if (ev.data?.ok) resolve();
-        else reject(new Error(ev.data?.error ?? "worker failed"));
-      };
-      w.addEventListener("message", onMessage);
-      w.postMessage({
-        kind: "eri-row-slice",
-        mus: muAssignments[i]!,
-        muStart: 0, muEnd: n, // unused by the eri kernel but in the type
-        n,
-        shells: serializedShells,
-        eri: eriSAB,
-        qTable: qSAB,
-        schwarzTol,
-      });
-    })));
+  // ── Persistent worker pool (TS kernel). ──
+  const workers = getPool("ts", N);
+  await Promise.all(workers.map((w, i) => new Promise<void>((resolve, reject) => {
+    const onMessage = (ev: MessageEvent): void => {
+      w.removeEventListener("message", onMessage);
+      if (ev.data?.ok) resolve();
+      else reject(new Error(ev.data?.error ?? "worker failed"));
+    };
+    w.addEventListener("message", onMessage);
+    w.postMessage({
+      kind: "eri-row-slice",
+      mus: muAssignments[i]!,
+      muStart: 0, muEnd: n,
+      n,
+      shells: serializedShells,
+      eri: eriSAB,
+      qTable: qSAB,
+      schwarzTol,
+    });
+  })));
 
-    const out = new Float64Array(n * n * n * n);
-    out.set(new Float64Array(eriSAB));
-    return out;
-  } finally {
-    for (const w of workers) w.terminate();
-  }
+  const out = new Float64Array(n * n * n * n);
+  out.set(new Float64Array(eriSAB));
+  return out;
 }
 
 /** Pack a shell list into the flat-array layout the Rust kernel expects.
@@ -161,16 +191,11 @@ export async function buildERIWasmParallel(
   }
   const N = poolSize > 0 ? poolSize : (navigator.hardwareConcurrency ?? 4) - 1;
 
-  // ── Schwarz Q table (serial). ──
-  const Q = new Float64Array(n * n);
-  for (let mu = 0; mu < n; mu++) {
-    for (let nu = mu; nu < n; nu++) {
-      const v = ERI_cg(shells[mu]!, shells[nu]!, shells[mu]!, shells[nu]!);
-      const q = Math.sqrt(Math.abs(v));
-      Q[mu * n + nu] = q;
-      Q[nu * n + mu] = q;
-    }
-  }
+  // ── Schwarz Q-table (WASM single-thread, main thread). 4.7× faster
+  // than the TS path on benzene (~50 ms vs ~225 ms). Cheap enough at
+  // n² that parallelizing the table itself isn't worth the message
+  // ping-pong. ──
+  const Q = await schwarzQTableWasm(shells);
   const qSAB = toSAB(Q);
   const eriSAB = new SharedArrayBuffer(n * n * n * n * 8);
 
@@ -183,39 +208,33 @@ export async function buildERIWasmParallel(
     muAssignments[mu % N]!.push(mu);
   }
 
-  const workers: Worker[] = [];
-  for (let i = 0; i < N; i++) {
-    workers.push(new Worker(new URL("../parallel/kernels-worker.ts", import.meta.url), { type: "module" }));
-  }
-  try {
-    await Promise.all(workers.map((w, i) => new Promise<void>((resolve, reject) => {
-      const onMessage = (ev: MessageEvent): void => {
-        w.removeEventListener("message", onMessage);
-        if (ev.data?.ok) resolve();
-        else reject(new Error(ev.data?.error ?? "worker failed"));
-      };
-      w.addEventListener("message", onMessage);
-      w.postMessage({
-        kind: "eri-wasm-slice",
-        mus: muAssignments[i]!,
-        muStart: 0, muEnd: n,
-        n,
-        nPrimsPerShell: packed.nPrimsPerShell,
-        primOffsets: packed.primOffsets,
-        alphaFlat: packed.alphaFlat,
-        cFlat: packed.cFlat,
-        centerFlat: packed.centerFlat,
-        angularFlat: packed.angularFlat,
-        eri: eriSAB,
-        qTable: qSAB,
-        schwarzTol,
-      });
-    })));
+  // ── Persistent worker pool (WASM kernel). ──
+  const workers = getPool("wasm", N);
+  await Promise.all(workers.map((w, i) => new Promise<void>((resolve, reject) => {
+    const onMessage = (ev: MessageEvent): void => {
+      w.removeEventListener("message", onMessage);
+      if (ev.data?.ok) resolve();
+      else reject(new Error(ev.data?.error ?? "worker failed"));
+    };
+    w.addEventListener("message", onMessage);
+    w.postMessage({
+      kind: "eri-wasm-slice",
+      mus: muAssignments[i]!,
+      muStart: 0, muEnd: n,
+      n,
+      nPrimsPerShell: packed.nPrimsPerShell,
+      primOffsets: packed.primOffsets,
+      alphaFlat: packed.alphaFlat,
+      cFlat: packed.cFlat,
+      centerFlat: packed.centerFlat,
+      angularFlat: packed.angularFlat,
+      eri: eriSAB,
+      qTable: qSAB,
+      schwarzTol,
+    });
+  })));
 
-    const out = new Float64Array(n * n * n * n);
-    out.set(new Float64Array(eriSAB));
-    return out;
-  } finally {
-    for (const w of workers) w.terminate();
-  }
+  const out = new Float64Array(n * n * n * n);
+  out.set(new Float64Array(eriSAB));
+  return out;
 }

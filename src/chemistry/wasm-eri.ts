@@ -21,6 +21,15 @@ interface WasmEriModule {
     angularFlat: Int32Array,
     schwarzTol: number,
   ): Float64Array;
+  schwarz_q_table(
+    nShells: number,
+    nPrimsPerShell: Uint32Array,
+    primOffsets: Uint32Array,
+    alphaFlat: Float64Array,
+    cFlat: Float64Array,
+    centerFlat: Float64Array,
+    angularFlat: Int32Array,
+  ): Float64Array;
 }
 
 let wasmModule: WasmEriModule | null = null;
@@ -107,5 +116,27 @@ export async function buildERIWasm(
     packed.centerFlat,
     packed.angularFlat,
     schwarzTol,
+  );
+}
+
+/**
+ * Compute the Schwarz Q-table (sqrt-abs of (μν|μν) for all canonical
+ * (μ, ν) pairs) via the Rust+WASM kernel. Used by parallel ERI paths
+ * to avoid the ~175 ms main-thread TS serialization on benzene.
+ */
+export async function schwarzQTableWasm(
+  shells: readonly CGShell[],
+): Promise<Float64Array> {
+  const mod = await loadWasm();
+  const n = shells.length;
+  const packed = packShells(shells);
+  return mod.schwarz_q_table(
+    n,
+    packed.nPrimsPerShell,
+    packed.primOffsets,
+    packed.alphaFlat,
+    packed.cFlat,
+    packed.centerFlat,
+    packed.angularFlat,
   );
 }
