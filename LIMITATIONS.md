@@ -327,8 +327,30 @@ precision floor is chemical accuracy.
 
   End-to-end HF benzene "cold shells → converged energy":
   - TS-only baseline: 841 s (14 min)
-  - All wins shipped: **~17.5 s** (15.6 s ERI + ~1.9 s parallel WASM HF)
-  - Total speedup: **~48× over the start-of-session baseline**.
+  - All wins shipped: **~16.8 s** (15.6 s ERI + ~1.24 s SIMD WASM HF)
+  - Total speedup: **~50× over the start-of-session baseline**.
+
+- **wasm-simd128 hand-vectorized JK inner loop** — measured
+  2026-05-27. The σ-summation in `fock_one_mu_row`
+  (Σ_σ D[λσ]·(J − ½K)) is a length-n linear scan — perfect for
+  f64x2 SIMD. Hand-wrote a `jk_dot` helper using
+  `std::arch::wasm32::*` intrinsics: `v128_load` + `f64x2_mul` +
+  `f64x2_sub` + `f64x2_add` to process 2 σ per cycle, with a scalar
+  fallback for the (rare) odd remainder.
+
+  | molecule | n | TS JK | WASM-only JK | + SIMD JK | speedup over TS |
+  |---|---:|---:|---:|---:|---:|
+  | ethane cc-pVDZ  |  60 | 13.5 ms | 4.2 ms  | **2.5 ms** | 5.31× |
+  | benzene cc-pVDZ | 120 | 193 ms  | 129 ms  | **~85 ms** | ~2.3× |
+
+  Benzene HF SCF total: 1.89 s → **1.24 s** (1.52× faster).
+  Bit-identical output (max|Δ|=1.19e-13 Ha — pure rounding).
+
+  SIMD on the ERI hot loop (`prim_eri_with_pairs` 6-deep nest)
+  remains unattractive: cc-pVDZ inner loops are 1-5 iterations,
+  too short to amortize SIMD setup, and the parity-sign / E-coef
+  branches break LLVM's auto-vec. The JK kernel succeeded because
+  the inner loop is a clean length-n contiguous reduction.
 
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for

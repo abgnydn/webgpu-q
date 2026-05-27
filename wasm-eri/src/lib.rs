@@ -660,6 +660,49 @@ pub fn schwarz_q_table(
 /// full per-worker slab of |mus|·n³ entries, which doubles browser
 /// memory pressure on benzene cc-pVDZ). The copy amortizes against
 /// the ~10ms WASM compute per μ at n=120.
+/// Inner-product helper for the JK σ-loop. Sums
+///   Σ_si d[si] · (j[si] − 0.5 · k[si])
+/// across 3 length-n slices. Uses wasm-simd128 intrinsics
+/// (2-lane f64) when compiled with `-C target-feature=+simd128`;
+/// falls back to scalar otherwise.
+#[inline(always)]
+fn jk_dot(d: &[f64], j: &[f64], k: &[f64], n: usize) -> f64 {
+    #[cfg(target_feature = "simd128")]
+    {
+        use std::arch::wasm32::*;
+        unsafe {
+            let mut acc = f64x2_splat(0.0);
+            let half = f64x2_splat(0.5);
+            let dp = d.as_ptr();
+            let jp = j.as_ptr();
+            let kp = k.as_ptr();
+            let mut si = 0;
+            while si + 2 <= n {
+                let dv = v128_load(dp.add(si) as *const v128);
+                let jv = v128_load(jp.add(si) as *const v128);
+                let kv = v128_load(kp.add(si) as *const v128);
+                let term = f64x2_sub(jv, f64x2_mul(half, kv));
+                acc = f64x2_add(acc, f64x2_mul(dv, term));
+                si += 2;
+            }
+            let mut s = f64x2_extract_lane::<0>(acc) + f64x2_extract_lane::<1>(acc);
+            while si < n {
+                s += *dp.add(si) * (*jp.add(si) - 0.5 * *kp.add(si));
+                si += 1;
+            }
+            s
+        }
+    }
+    #[cfg(not(target_feature = "simd128"))]
+    {
+        let mut s = 0.0_f64;
+        for si in 0..n {
+            s += d[si] * (j[si] - 0.5 * k[si]);
+        }
+        s
+    }
+}
+
 #[wasm_bindgen]
 pub fn fock_one_mu_row(
     n: u32,
@@ -677,14 +720,13 @@ pub fn fock_one_mu_row(
             let d_la_base = la * n;
             let j_base = nu_n2 + la * n;
             let k_base = la * n2 + nu_n;
-            let mut s_inner = 0.0_f64;
-            for si in 0..n {
-                let dls = d[d_la_base + si];
-                let j_val = eri_mu_row[j_base + si];
-                let k_val = eri_mu_row[k_base + si];
-                s_inner += dls * (j_val - 0.5 * k_val);
-            }
-            s += s_inner;
+            // 2-lane f64 SIMD over the σ-inner loop. n is 25-200 for
+            // typical bases — long enough to amortize SIMD setup and
+            // benefit from the 2× lane throughput.
+            let d_slice = &d[d_la_base..d_la_base + n];
+            let j_slice = &eri_mu_row[j_base..j_base + n];
+            let k_slice = &eri_mu_row[k_base..k_base + n];
+            s += jk_dot(d_slice, j_slice, k_slice, n);
         }
         g_row[nu] = s;
     }
