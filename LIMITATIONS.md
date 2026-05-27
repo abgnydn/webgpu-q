@@ -224,19 +224,21 @@ precision floor is chemical accuracy.
   | molecule | n | TypeScript | Rust+WASM | speedup |
   |---|---:|---:|---:|---:|
   | ethane cc-pVDZ | 60 | 25.5 s | 6.1 s | **4.18×** |
-  Output bit-identical (max |Δ| = 4.4×10⁻¹⁶ Ha, pure float-rounding).
-  WASM module is ~80 KB, loads on demand, first-call init ~1 s.
+  | benzene cc-pVDZ | 120 | 827 s | 175 s | **4.73×** |
+  Output bit-identical at both sizes (max |Δ| = 4.4×10⁻¹⁶ Ha, pure
+  float-rounding). WASM module is ~80 KB, loads on demand, first-call
+  init ~1 s. Speedup *grows* with molecule size — bigger inner loops
+  amortize the WASM/JS call overhead better.
 
-  Extrapolated impact (un-measured, projection only):
-  | molecule | n | TS-only | WASM | WASM + parallel=2 |
-  |---|---:|---:|---:|---:|
-  | furan | 95 | 361 s | ~86 s | ~46 s |
-  | benzene | 120 | 740 s | ~177 s | ~94 s |
+  **End-to-end HF wall time on benzene cc-pVDZ (measured 2026-05-27):**
+  | path | total wall time | breakdown |
+  |---|---:|---|
+  | TS-only | 841 s (14 min) | 827 s ERI + 14 s sync HF |
+  | WASM ERI + parallel=8 HF | **180 s (3 min)** | 175 s ERI + 5.2 s par HF |
+  | speedup | **4.67×** | dominated by ERI 4.73× |
 
-  Compounds with the Worker-parallel ERI build (1.89× at parallel=2)
-  for a theoretical ~8× over the TS-only baseline. Layering WASM SIMD
-  intrinsics on top is open follow-up — the current port is the
-  native-compile-vs-JIT delta with no explicit SIMD yet.
+  Compounds further with WASM SIMD128 intrinsics (open) and
+  WASM-inside-Workers (open).
 
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
