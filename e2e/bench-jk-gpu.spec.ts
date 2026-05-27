@@ -241,4 +241,93 @@ test.describe("WGSL JK build (WebGPU)", () => {
 
     expect(r.maxAbs).toBeLessThan(0.1);  // 100 mHa generous for f32 at n=120
   });
+
+  test("benzene cc-pVDZ — full HF SCF with WGSL JK: convergence + energy", async ({ page }) => {
+    test.setTimeout(15 * 60 * 1000);
+    await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+
+    const r = await page.evaluate(async () => {
+      const [
+        { moleculeToShellsNuclei },
+        { computeMolecularIntegrals },
+        { runRHFSCFAsync },
+        { buildERIWasmParallel },
+        { initGPU },
+        { sabAvailable },
+      ] = await Promise.all([
+        import("/src/chemistry/atoms.ts" as string),
+        import("/src/chemistry/cg-molecular.ts" as string),
+        import("/src/chemistry/hf-scf.ts" as string),
+        import("/src/chemistry/parallel-eri.ts" as string),
+        import("/src/quantum.ts" as string),
+        import("/src/parallel/worker-pool.ts" as string),
+      ]);
+
+      const device = await initGPU();
+      if (!device) return { skipped: true as const, reason: "no GPU" };
+      if (!sabAvailable()) return { skipped: true as const, reason: "no SAB" };
+
+      const rCC = 1.395, rCH = 1.087;
+      const atoms: Array<{ symbol: string; pos: readonly [number, number, number] }> = [];
+      for (let i = 0; i < 6; i++) {
+        const θ = i * Math.PI / 3;
+        atoms.push({ symbol: "C", pos: [rCC * Math.cos(θ), rCC * Math.sin(θ), 0] });
+      }
+      for (let i = 0; i < 6; i++) {
+        const θ = i * Math.PI / 3;
+        const r2 = rCC + rCH;
+        atoms.push({ symbol: "H", pos: [r2 * Math.cos(θ), r2 * Math.sin(θ), 0] });
+      }
+      const { shells, nuclei, nElectrons } =
+        moleculeToShellsNuclei(atoms as never, "cc-pvdz");
+
+      const tEri = performance.now();
+      const eri = await buildERIWasmParallel(shells, shells.length, 1e-10, 8);
+      const eriMs = performance.now() - tEri;
+
+      const integrals = computeMolecularIntegrals(shells, nuclei);
+      (integrals as unknown as { eri_AO: Float64Array }).eri_AO = eri;
+
+      // Two runs: WASM JK reference, then WGSL JK.
+      const HFopts = { useDIIS: true, energyTol: 1e-6, densityTol: 1e-5, maxIter: 100 } as const;
+
+      const tWasm = performance.now();
+      const hfWasm = await runRHFSCFAsync(integrals, nElectrons, {
+        ...HFopts, parallel: 8, useWasmJK: true,
+      });
+      const wasmMs = performance.now() - tWasm;
+
+      const tGpu = performance.now();
+      const hfGpu = await runRHFSCFAsync(integrals, nElectrons, {
+        ...HFopts, parallel: 8, useWgpuJK: device,
+      });
+      const gpuMs = performance.now() - tGpu;
+
+      return {
+        skipped: false as const,
+        n: integrals.n, eriMs, wasmMs, gpuMs,
+        eWasm: hfWasm.energy, iWasm: hfWasm.iter, cWasm: hfWasm.converged,
+        eGpu: hfGpu.energy, iGpu: hfGpu.iter, cGpu: hfGpu.converged,
+      };
+    });
+
+    if (r.skipped) { test.skip(); return; }
+
+    /* eslint-disable no-console */
+    console.log(`\n══════════════════════════════════════════════════════════`);
+    console.log(`Benzene cc-pVDZ HF SCF — WASM JK vs WGSL JK (n=${r.n})`);
+    console.log(`══════════════════════════════════════════════════════════`);
+    console.log(`ERI build (WASM ×8 parallel):  ${(r.eriMs / 1000).toFixed(2)} s`);
+    console.log();
+    console.log(`HF SCF (WASM JK):  ${(r.wasmMs / 1000).toFixed(2)} s  iters=${r.iWasm}  E=${r.eWasm.toFixed(8)} Ha  converged=${r.cWasm}`);
+    console.log(`HF SCF (WGSL JK):  ${(r.gpuMs / 1000).toFixed(2)} s  iters=${r.iGpu}  E=${r.eGpu.toFixed(8)} Ha  converged=${r.cGpu}`);
+    console.log();
+    console.log(`HF SCF speedup: ${(r.wasmMs / r.gpuMs).toFixed(2)}×`);
+    console.log(`Energy delta:   ${(r.eWasm - r.eGpu).toExponential(2)} Ha (WASM minus WGSL)`);
+    console.log();
+    console.log(`Total cold→converged with WASM:  ${((r.eriMs + r.wasmMs) / 1000).toFixed(2)} s`);
+    console.log(`Total cold→converged with WGSL:  ${((r.eriMs + r.gpuMs) / 1000).toFixed(2)} s`);
+    console.log(`══════════════════════════════════════════════════════════\n`);
+    /* eslint-enable no-console */
+  });
 });

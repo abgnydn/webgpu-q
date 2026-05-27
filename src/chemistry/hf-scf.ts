@@ -39,6 +39,7 @@ import { eigsymmetric } from "../manybody/dense-eig.js";
 import { choleskyDecomposeERI, buildJK_DF, type DFResult } from "./df.js";
 import { buildGParallel } from "../parallel/parallel-buildG.js";
 import { buildGWasmParallel } from "../parallel/parallel-buildG-wasm.js";
+import { buildGGpu } from "./jk-gpu.js";
 
 export interface HFResult {
   /** Total HF energy (Hartree) including nuclear repulsion. */
@@ -130,6 +131,17 @@ export interface HFOpts {
    * effect when `parallel > 0` and SAB is available. Default true.
    */
   readonly useWasmJK?: boolean;
+  /**
+   * Use the WebGPU JK kernel via WGSL. Pass a ready `GPUDevice` from
+   * `initGPU()`. f32 precision — for benzene-class cc-pVDZ the max
+   * relative error in G is ~2e-4, which may prevent SCF from
+   * converging tighter than ~1e-6 Ha. Trades precision for ~2.4×
+   * speedup on the JK build at n=120 vs the WASM SIMD path.
+   *
+   * Takes precedence over `useWasmJK` when both are set.
+   * No effect when `parallel === 0`.
+   */
+  readonly useWgpuJK?: GPUDevice;
 }
 
 /**
@@ -390,9 +402,11 @@ export async function runRHFSCFAsync(
     const useWasmJK = opts.useWasmJK ?? true;
     const G = dfTensor !== null
       ? buildG_DF(D, dfTensor, n)
-      : useWasmJK
-        ? await buildGWasmParallel(D, eri_AO, n, parallel)
-        : await buildGParallel(D, eri_AO, n, parallel);
+      : opts.useWgpuJK
+        ? await buildGGpu(opts.useWgpuJK, D, eri_AO, n)
+        : useWasmJK
+          ? await buildGWasmParallel(D, eri_AO, n, parallel)
+          : await buildGParallel(D, eri_AO, n, parallel);
     const F = new Float64Array(n * n);
     for (let i = 0; i < n * n; i++) F[i] = h_AO[i]! + G[i]!;
 

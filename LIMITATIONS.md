@@ -397,12 +397,20 @@ n ≥ 60 the JK build dominates and speedup approaches the
   overhead per call. For small n that dominates compute; for benzene
   n=120 (n⁴ inner work) compute dominates and the GPU wins.
 
-  **f32 precision: 2×10⁻⁴ max relative error.** Not safe for HF SCF
-  at 1e-8 Ha tolerance without iterative refinement. The kernel is
-  shipped as an unwired research artifact (`src/chemistry/jk-gpu.ts`)
-  pending a mixed-precision refinement scheme (f32 G build + f64
-  residual + DIIS-driven correction). Not yet routed through
-  `runRHFSCFAsync` — set `useWasmJK = true` for SCF.
+  **f32 precision: 2×10⁻⁴ max relative error.** Wired into
+  `runRHFSCFAsync` via `useWgpuJK?: GPUDevice` opt for research use,
+  but **fails HF SCF convergence at energyTol ≤ 1e-6 Ha**: tested on
+  benzene cc-pVDZ where the DIIS error vector stays above the f32
+  noise floor (~10⁻⁴ relative) and SCF cannot settle. Hit maxIter=100
+  in 15.76 s without converging, vs 10.85 s / 9 iters / converged
+  with WASM-f64. Per-iter JK was indeed 2.38× faster but the extra
+  iterations swallow the gain and then some.
+
+  Honest read: the per-kernel speedup is real, but f32 alone isn't
+  enough. The proper next step is mixed-precision iterative
+  refinement (f32 GPU bulk + periodic f64 WASM correction). Until
+  that's implemented, production HF should stay on the WASM SIMD
+  path (`useWasmJK = true`).
 
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
