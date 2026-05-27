@@ -381,6 +381,29 @@ overhead at n=25: workers idle most of their lifetime. For
 n ≥ 60 the JK build dominates and speedup approaches the
 6-8× ceiling that 8 workers + 2-lane f64 SIMD allow.
 
+- **WGSL JK kernel (WebGPU)** — measured 2026-05-27
+  (`e2e/bench-jk-gpu.spec.ts`). The Fock G matrix construction is
+  ported to a WebGPU compute shader: one thread per (μ, ν) entry of
+  G, with a serial f32 inner loop over (λ, σ). ERI tensor lives in
+  GPU storage (~830 MB f32 on benzene cc-pVDZ, uploaded once per
+  HF call). D matrix uploaded per iter (~58 KB).
+
+  | molecule | n | WASM (SIMD) JK | GPU JK | speedup | max |G_WASM − G_GPU| |
+  |---|---:|---:|---:|---:|---:|
+  | ethane cc-pVDZ  |  60 |  2.1 ms |  3.4 ms | 0.62× (loses) | — |
+  | benzene cc-pVDZ | 120 | 69.5 ms | 29.2 ms | **2.38×** | 8.6×10⁻⁵ Ha |
+
+  The cross-over: GPU pays a fixed ~1-3 ms dispatch + readback
+  overhead per call. For small n that dominates compute; for benzene
+  n=120 (n⁴ inner work) compute dominates and the GPU wins.
+
+  **f32 precision: 2×10⁻⁴ max relative error.** Not safe for HF SCF
+  at 1e-8 Ha tolerance without iterative refinement. The kernel is
+  shipped as an unwired research artifact (`src/chemistry/jk-gpu.ts`)
+  pending a mixed-precision refinement scheme (f32 G build + f64
+  residual + DIIS-driven correction). Not yet routed through
+  `runRHFSCFAsync` — set `useWasmJK = true` for SCF.
+
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
   every primitive quartet (n_prim⁴ buildPair calls per ERI). Now caches
