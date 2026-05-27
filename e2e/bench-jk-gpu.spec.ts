@@ -330,4 +330,109 @@ test.describe("WGSL JK build (WebGPU)", () => {
     console.log(`══════════════════════════════════════════════════════════\n`);
     /* eslint-enable no-console */
   });
+
+  test("benzene cc-pVDZ — WGSL JK at LOOSE tolerance (1e-3) for fast geom-scan", async ({ page }) => {
+    test.setTimeout(15 * 60 * 1000);
+    await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+
+    const r = await page.evaluate(async () => {
+      const [
+        { moleculeToShellsNuclei },
+        { computeMolecularIntegrals },
+        { runRHFSCFAsync },
+        { buildERIWasmParallel },
+        { initGPU },
+        { sabAvailable },
+      ] = await Promise.all([
+        import("/src/chemistry/atoms.ts" as string),
+        import("/src/chemistry/cg-molecular.ts" as string),
+        import("/src/chemistry/hf-scf.ts" as string),
+        import("/src/chemistry/parallel-eri.ts" as string),
+        import("/src/quantum.ts" as string),
+        import("/src/parallel/worker-pool.ts" as string),
+      ]);
+
+      const device = await initGPU();
+      if (!device) return { skipped: true as const, reason: "no GPU" };
+      if (!sabAvailable()) return { skipped: true as const, reason: "no SAB" };
+
+      const rCC = 1.395, rCH = 1.087;
+      const atoms: Array<{ symbol: string; pos: readonly [number, number, number] }> = [];
+      for (let i = 0; i < 6; i++) {
+        const θ = i * Math.PI / 3;
+        atoms.push({ symbol: "C", pos: [rCC * Math.cos(θ), rCC * Math.sin(θ), 0] });
+      }
+      for (let i = 0; i < 6; i++) {
+        const θ = i * Math.PI / 3;
+        const r2 = rCC + rCH;
+        atoms.push({ symbol: "H", pos: [r2 * Math.cos(θ), r2 * Math.sin(θ), 0] });
+      }
+      const { shells, nuclei, nElectrons } =
+        moleculeToShellsNuclei(atoms as never, "cc-pvdz");
+
+      const eri = await buildERIWasmParallel(shells, shells.length, 1e-10, 8);
+      const integrals = computeMolecularIntegrals(shells, nuclei);
+      (integrals as unknown as { eri_AO: Float64Array }).eri_AO = eri;
+
+      // Three tolerance levels to find the f32 convergence sweet spot.
+      const looseOpts = { useDIIS: true, energyTol: 1e-3, densityTol: 1e-3, maxIter: 100 } as const;
+      const medOpts = { useDIIS: true, energyTol: 1e-4, densityTol: 1e-4, maxIter: 100 } as const;
+      const tightOpts = { useDIIS: true, energyTol: 1e-5, densityTol: 1e-4, maxIter: 100 } as const;
+
+      const tLoose = performance.now();
+      const hfLoose = await runRHFSCFAsync(integrals, nElectrons, {
+        ...looseOpts, parallel: 8, useWgpuJK: device,
+      });
+      const looseMs = performance.now() - tLoose;
+
+      const tMed = performance.now();
+      const hfMed = await runRHFSCFAsync(integrals, nElectrons, {
+        ...medOpts, parallel: 8, useWgpuJK: device,
+      });
+      const medMs = performance.now() - tMed;
+
+      const tTight = performance.now();
+      const hfTight = await runRHFSCFAsync(integrals, nElectrons, {
+        ...tightOpts, parallel: 8, useWgpuJK: device,
+      });
+      const tightMs = performance.now() - tTight;
+
+      // Reference WASM run at tight tolerance.
+      const tRef = performance.now();
+      const hfRef = await runRHFSCFAsync(integrals, nElectrons, {
+        ...tightOpts, parallel: 8, useWasmJK: true,
+      });
+      const refMs = performance.now() - tRef;
+
+      return {
+        skipped: false as const, n: integrals.n,
+        loose: { ms: looseMs, e: hfLoose.energy, iter: hfLoose.iter, cnv: hfLoose.converged },
+        med:   { ms: medMs,   e: hfMed.energy,   iter: hfMed.iter,   cnv: hfMed.converged   },
+        tight: { ms: tightMs, e: hfTight.energy, iter: hfTight.iter, cnv: hfTight.converged },
+        ref:   { ms: refMs,   e: hfRef.energy,   iter: hfRef.iter,   cnv: hfRef.converged   },
+      };
+    });
+
+    if (r.skipped) { test.skip(); return; }
+
+    /* eslint-disable no-console */
+    console.log(`\n══════════════════════════════════════════════════════════`);
+    console.log(`WGSL JK convergence vs tolerance — benzene cc-pVDZ (n=${r.n})`);
+    console.log(`══════════════════════════════════════════════════════════`);
+    console.log(`WGSL JK (tol=1e-3):  ${(r.loose.ms / 1000).toFixed(2).padStart(7)} s  iters=${r.loose.iter}  E=${r.loose.e.toFixed(6)}  cnv=${r.loose.cnv}`);
+    console.log(`WGSL JK (tol=1e-4):  ${(r.med.ms / 1000).toFixed(2).padStart(7)} s  iters=${r.med.iter}  E=${r.med.e.toFixed(6)}  cnv=${r.med.cnv}`);
+    console.log(`WGSL JK (tol=1e-5):  ${(r.tight.ms / 1000).toFixed(2).padStart(7)} s  iters=${r.tight.iter}  E=${r.tight.e.toFixed(6)}  cnv=${r.tight.cnv}`);
+    console.log(`WASM JK (tol=1e-5):  ${(r.ref.ms / 1000).toFixed(2).padStart(7)} s  iters=${r.ref.iter}  E=${r.ref.e.toFixed(6)}  cnv=${r.ref.cnv}  (reference)`);
+    console.log();
+    console.log(`Energy errors vs WASM reference:`);
+    console.log(`  loose: ${(r.loose.e - r.ref.e).toExponential(2)} Ha`);
+    console.log(`  med:   ${(r.med.e - r.ref.e).toExponential(2)} Ha`);
+    console.log(`  tight: ${(r.tight.e - r.ref.e).toExponential(2)} Ha`);
+    console.log();
+    if (r.loose.cnv) {
+      console.log(`Speedup at tol=1e-3 (loose): ${(r.ref.ms / r.loose.ms).toFixed(2)}× vs WASM tight`);
+    }
+    console.log(`══════════════════════════════════════════════════════════\n`);
+    /* eslint-enable no-console */
+  });
 });

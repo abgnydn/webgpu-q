@@ -412,6 +412,30 @@ n ≥ 60 the JK build dominates and speedup approaches the
   that's implemented, production HF should stay on the WASM SIMD
   path (`useWasmJK = true`).
 
+  **WGSL JK at loose tolerances also loses.** Measured 2026-05-27
+  on benzene cc-pVDZ with progressively looser SCF thresholds:
+
+  | tolerance | WGSL time | iters | converged | E error vs WASM ref |
+  |---:|---:|---:|---:|---:|
+  | 1e-3 (chemical) | 8.52 s |   7 | yes | 8.5×10⁻⁵ Ha |
+  | 1e-4            | 13.1 s | 101 | NO  | 5.6×10⁻⁵ Ha |
+  | 1e-5 (tight)    | 13.2 s | 101 | NO  | 5.6×10⁻⁵ Ha |
+  | (WASM tight ref)| 2.56 s |   8 | yes | — |
+
+  At chemical tolerance WGSL DOES converge but is **3.3× slower**
+  than WASM tight: per-iter GPU dispatch + `mapAsync` readback
+  overhead (~100 ms) dwarfs the ~30 ms kernel compute. The
+  per-kernel 2.38× speedup in the synthetic bench does not carry
+  over to in-loop SCF use because WASM SIMD JK is already so fast
+  that the GPU's dispatch latency is the bottleneck, not its
+  compute throughput.
+
+  Real path to a GPU win: (a) keep the GPU pipeline hot between
+  iters (don't `unmap` / `destroy`), (b) use persistent mapped
+  staging buffers for D upload, (c) batch multiple SCF iters into
+  one GPU submission with a small CPU-readback frequency. That's
+  a real engineering project, not a single-session push.
+
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
   every primitive quartet (n_prim⁴ buildPair calls per ERI). Now caches
