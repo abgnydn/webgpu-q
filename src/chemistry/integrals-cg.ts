@@ -423,15 +423,17 @@ function primNuclear(
   return -Z * (2 * Math.PI / pd.p) * sum;
 }
 
-/** Primitive ERI (G_IA G_JB | G_KC G_LD). */
-function primERI(
-  alpha: number, A: readonly [number, number, number], I: readonly [number, number, number],
-  beta: number, B: readonly [number, number, number], J: readonly [number, number, number],
-  gamma: number, C: readonly [number, number, number], K: readonly [number, number, number],
-  delta: number, D: readonly [number, number, number], L: readonly [number, number, number],
+/**
+ * Primitive ERI given already-built bra and ket pair data.
+ * Hot path: ERI_cg's outer contraction calls this directly so the
+ * pair-data tables are reused across the (k,l) loop instead of being
+ * recomputed for every primitive quartet (~9× reduction in buildPair
+ * calls on cc-pVDZ).
+ */
+function primERIWithPairs(
+  pd1: PairData, I: readonly [number, number, number], J: readonly [number, number, number],
+  pd2: PairData, K: readonly [number, number, number], L: readonly [number, number, number],
 ): number {
-  const pd1 = buildPair(alpha, A, I, beta, B, J);
-  const pd2 = buildPair(gamma, C, K, delta, D, L);
   const p = pd1.p, q = pd2.p;
   const alphaPair = (p * q) / (p + q);
   const Px = pd1.P[0], Py = pd1.P[1], Pz = pd1.P[2];
@@ -475,6 +477,19 @@ function primERI(
     }
   }
   return 2 * Math.pow(Math.PI, 2.5) / (p * q * Math.sqrt(p + q)) * sum;
+}
+
+/** Primitive ERI — thin wrapper that builds pair data locally. Kept for
+ *  callers that don't have pair data already (derivatives, integrals.ts). */
+function primERI(
+  alpha: number, A: readonly [number, number, number], I: readonly [number, number, number],
+  beta: number, B: readonly [number, number, number], J: readonly [number, number, number],
+  gamma: number, C: readonly [number, number, number], K: readonly [number, number, number],
+  delta: number, D: readonly [number, number, number], L: readonly [number, number, number],
+): number {
+  const pd1 = buildPair(alpha, A, I, beta, B, J);
+  const pd2 = buildPair(gamma, C, K, delta, D, L);
+  return primERIWithPairs(pd1, I, J, pd2, K, L);
 }
 
 // ── Contracted-shell integrals ───────────────────────────────
@@ -560,23 +575,38 @@ export function V_cg(
 
 /** Two-electron repulsion (chemist notation): (A B | C D). */
 export function ERI_cg(A: CGShell, B: CGShell, C: CGShell, D: CGShell): number {
-  let s = 0;
-  for (let i = 0; i < A.alpha.length; i++) {
+  // Precompute bra-pair (i,j) and ket-pair (k,l) tables ONCE per
+  // primitive-pair combo instead of per-quartet. Drops buildPair calls
+  // from n_prim^4 (e.g. 81 for cc-pVDZ) to 2·n_prim^2 (e.g. 18).
+  const nA = A.alpha.length, nB = B.alpha.length;
+  const nC = C.alpha.length, nD = D.alpha.length;
+  const braCoef = new Float64Array(nA * nB);
+  const braPairs: PairData[] = new Array(nA * nB);
+  for (let i = 0; i < nA; i++) {
     const ai = A.alpha[i]!, ci = A.c[i]! * normCG(ai, A.angular);
-    for (let j = 0; j < B.alpha.length; j++) {
+    for (let j = 0; j < nB; j++) {
       const bj = B.alpha[j]!, cj = B.c[j]! * normCG(bj, B.angular);
-      for (let k = 0; k < C.alpha.length; k++) {
-        const ck = C.alpha[k]!, cck = C.c[k]! * normCG(ck, C.angular);
-        for (let l = 0; l < D.alpha.length; l++) {
-          const dl = D.alpha[l]!, cdl = D.c[l]! * normCG(dl, D.angular);
-          s += ci * cj * cck * cdl * primERI(
-            ai, A.center, A.angular,
-            bj, B.center, B.angular,
-            ck, C.center, C.angular,
-            dl, D.center, D.angular,
-          );
-        }
-      }
+      braCoef[i * nB + j] = ci * cj;
+      braPairs[i * nB + j] = buildPair(ai, A.center, A.angular, bj, B.center, B.angular);
+    }
+  }
+  const ketCoef = new Float64Array(nC * nD);
+  const ketPairs: PairData[] = new Array(nC * nD);
+  for (let k = 0; k < nC; k++) {
+    const ck = C.alpha[k]!, cck = C.c[k]! * normCG(ck, C.angular);
+    for (let l = 0; l < nD; l++) {
+      const dl = D.alpha[l]!, cdl = D.c[l]! * normCG(dl, D.angular);
+      ketCoef[k * nD + l] = cck * cdl;
+      ketPairs[k * nD + l] = buildPair(ck, C.center, C.angular, dl, D.center, D.angular);
+    }
+  }
+  let s = 0;
+  for (let ij = 0; ij < nA * nB; ij++) {
+    const pd1 = braPairs[ij]!;
+    const cBra = braCoef[ij]!;
+    for (let kl = 0; kl < nC * nD; kl++) {
+      s += cBra * ketCoef[kl]! *
+        primERIWithPairs(pd1, A.angular, B.angular, ketPairs[kl]!, C.angular, D.angular);
     }
   }
   return s;

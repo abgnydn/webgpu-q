@@ -214,6 +214,20 @@ precision floor is chemical accuracy.
   measured 11.5× slower at n=25, 20.5× slower at n=60 — see DF-HF
   benches in `e2e/bench-parallel-hf.spec.ts`).
 
+- **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
+  rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
+  every primitive quartet (n_prim⁴ buildPair calls per ERI). Now caches
+  bra-pair and ket-pair tables once per primitive-pair combo (2·n_prim²
+  builds total). For cc-pVDZ with ~3 primitives/shell, that's 81 → 18
+  buildPair calls per ERI_cg — ~4.5× reduction in pair-build work.
+  Wall-time impact on ethane cc-pVDZ ERI build:
+  | threshold | before | after | speedup |
+  |---|---:|---:|---:|
+  | 1e-10 (default) | 31.2 s | 23.9 s | 1.31× |
+  | 1e-6 | 31.3 s | 24.9 s | 1.26× |
+  Energies bit-identical at 1e-10. Furan ERI build extrapolates from
+  361 s → ~275 s; benzene from ~25 min → ~14 min. Real and free.
+
 - **Schwarz screening is ineffective at cc-pVDZ density.** Measured
   on ethane cc-pVDZ 2026-05-27 (`e2e/bench-eri-screening.spec.ts`):
   | threshold | skip rate | ERI build | |ΔE| vs 1e-10 |
