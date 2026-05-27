@@ -306,10 +306,29 @@ precision floor is chemical accuracy.
   Benzene cc-pVDZ ERI build: **49.2× faster than the TS-only
   baseline** (827 s → 16.8 s).
 
+- **r_aux_table buffer pooling** — measured 2026-05-27. The Rust
+  `r_aux_table` allocated a fresh `Vec<f64>` of up to 625 entries on
+  every primitive ERI call (~2 B mallocs on benzene cc-pVDZ).
+  Refactored to write into caller-provided `f_buf` / `r_buf` scratch
+  buffers that get re-used across all 81 primitive-pair calls per
+  ERI quartet and across all ERI quartets in the build. `Vec::clear()
+  + resize(0.0)` keeps capacity (no realloc after the first
+  allocation) and the resize-with-0 just memsets the active prefix.
+
+  | molecule | n | WASM 1× before | WASM 1× after | par=8 before | par=8 after |
+  |---|---:|---:|---:|---:|---:|
+  | ethane cc-pVDZ  |  60 | 3.4 s | **3.05 s** (1.12×) | 0.94 s | **0.83 s** (1.14×) |
+  | benzene cc-pVDZ | 120 | 81.7 s | **74.7 s** (1.09×) | 16.8 s | **15.6 s** (1.08×) |
+
+  Bit-identical output (max|Δ|=0 on benzene).
+
+  Benzene cc-pVDZ ERI build: **53× faster than the TS-only
+  baseline** (827 s → 15.6 s).
+
   End-to-end HF benzene "cold shells → converged energy":
   - TS-only baseline: 841 s (14 min)
-  - All wins shipped: **18.7 s** (16.8 s ERI + 1.9 s parallel WASM HF)
-  - Total speedup: **45× over the start-of-session baseline**.
+  - All wins shipped: **~17.5 s** (15.6 s ERI + ~1.9 s parallel WASM HF)
+  - Total speedup: **~48× over the start-of-session baseline**.
 
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for

@@ -167,25 +167,37 @@ fn build_pair(
 }
 
 // ── R_{tuv} auxiliary table for ERI ─────────────────────────────
+//
+// Writes into caller-provided buffers `f_buf` (Boys table) and
+// `r_buf` (R-aux table). Buffers are re-used across the 81 prim_eri
+// calls per ERI quartet and across 26 M ERI quartets per benzene
+// build — avoiding ~2 B malloc/free pairs that the original
+// Vec-returning version forced. Both buffers are `clear()` +
+// `resize(0.0)` to keep capacity but zero-fill the active prefix.
 fn r_aux_table(
     t_max: i32, u_max: i32, v_max: i32,
     p: f64, rx: f64, ry: f64, rz: f64,
-) -> (Vec<f64>, usize, usize, usize) {
+    f_buf: &mut Vec<f64>,
+    r_buf: &mut Vec<f64>,
+) -> (usize, usize, usize) {
     let n_max = t_max + u_max + v_max;
-    let mut f = vec![0.0_f64; (n_max + 1) as usize];
-    boys_all(n_max, p * (rx * rx + ry * ry + rz * rz), &mut f);
+    f_buf.clear();
+    f_buf.resize((n_max + 1) as usize, 0.0);
+    boys_all(n_max, p * (rx * rx + ry * ry + rz * rz), f_buf);
     let t_dim = (t_max + 1) as usize;
     let u_dim = (u_max + 1) as usize;
     let v_dim = (v_max + 1) as usize;
     let n_dim = (n_max + 1) as usize;
-    let mut r = vec![0.0_f64; n_dim * t_dim * u_dim * v_dim];
+    r_buf.clear();
+    r_buf.resize(n_dim * t_dim * u_dim * v_dim, 0.0);
+    let r = r_buf.as_mut_slice();
     let idx = |n: i32, t: i32, u: i32, v: i32| -> usize {
         (((n as usize) * t_dim + (t as usize)) * u_dim + (u as usize)) * v_dim + (v as usize)
     };
     // Seed.
     let mut neg2p_n = 1.0;
     for n in 0..=n_max {
-        r[idx(n, 0, 0, 0)] = neg2p_n * f[n as usize];
+        r[idx(n, 0, 0, 0)] = neg2p_n * f_buf[n as usize];
         neg2p_n *= -2.0 * p;
     }
     for n in (0..n_max).rev() {
@@ -209,7 +221,7 @@ fn r_aux_table(
             }
         }
     }
-    (r, t_dim, u_dim, v_dim)
+    (t_dim, u_dim, v_dim)
 }
 
 // ── Primitive ERI given pair tables ─────────────────────────────
@@ -233,9 +245,12 @@ fn r_aux_table(
 // (loop bounds keep us in the recurrence-filled region of the E
 // table), so dropping them is correctness-neutral.
 
+#[allow(clippy::too_many_arguments)]
 fn prim_eri_with_pairs(
     pd1: &PairData, ix: i32, iy: i32, iz: i32, jx: i32, jy: i32, jz: i32,
     pd2: &PairData, kx: i32, ky: i32, kz: i32, lx: i32, ly: i32, lz: i32,
+    f_buf: &mut Vec<f64>,
+    r_buf: &mut Vec<f64>,
 ) -> f64 {
     let p = pd1.p;
     let q = pd2.p;
@@ -252,9 +267,11 @@ fn prim_eri_with_pairs(
     let t_dim_sum = (t_max + tau_max) as i32;
     let u_dim_sum = (u_max + nu_max) as i32;
     let v_dim_sum = (v_max + phi_max) as i32;
-    let (rt, _, u_dim_r, v_dim_r) = r_aux_table(
+    let (_, u_dim_r, v_dim_r) = r_aux_table(
         t_dim_sum, u_dim_sum, v_dim_sum, alpha_pair, px - qx, py - qy, pz - qz,
+        f_buf, r_buf,
     );
+    let rt = r_buf.as_slice();
 
     let p1_jdim_x = (pd1.j_max_x + 1) as usize;
     let p1_jdim_y = (pd1.j_max_y + 1) as usize;
@@ -379,7 +396,13 @@ fn build_pair_table(
 }
 
 /// Compute one (μν|λσ) ERI from precomputed pair tables.
-fn eri_from_pair_tables(bra: &PairTable, ket: &PairTable) -> f64 {
+/// `f_buf` / `r_buf` are scratch buffers owned by the caller — reused
+/// across all 81 primitive-pair calls within this ERI quartet and
+/// across all ERI calls in the parent build loop.
+fn eri_from_pair_tables(
+    bra: &PairTable, ket: &PairTable,
+    f_buf: &mut Vec<f64>, r_buf: &mut Vec<f64>,
+) -> f64 {
     let [aix, aiy, aiz] = bra.ax_ang;
     let [bix, biy, biz] = bra.bx_ang;
     let [cix, ciy, ciz] = ket.ax_ang;
@@ -392,6 +415,7 @@ fn eri_from_pair_tables(bra: &PairTable, ket: &PairTable) -> f64 {
             s += c_bra * ket.coef[kl] * prim_eri_with_pairs(
                 pd1, aix, aiy, aiz, bix, biy, biz,
                 &ket.pairs[kl], cix, ciy, ciz, dix, diy, diz,
+                f_buf, r_buf,
             );
         }
     }
@@ -455,7 +479,9 @@ fn eri_cg_for_shells(
         n_prims_per_shell, prim_offsets,
         alpha_flat, c_flat, center_flat, angular_flat,
     );
-    eri_from_pair_tables(&bra, &ket)
+    let mut f_buf = Vec::with_capacity(32);
+    let mut r_buf = Vec::with_capacity(1024);
+    eri_from_pair_tables(&bra, &ket, &mut f_buf, &mut r_buf)
 }
 
 #[wasm_bindgen]
@@ -480,12 +506,18 @@ pub fn eri_build(
         alpha_flat, c_flat, center_flat, angular_flat,
     );
 
+    // Scratch buffers shared across all r_aux_table calls in this
+    // build. Capacities sized for L_max=2 (cc-pVDZ) with slack;
+    // higher-L bases will grow them on first use.
+    let mut f_buf: Vec<f64> = Vec::with_capacity(32);
+    let mut r_buf: Vec<f64> = Vec::with_capacity(1024);
+
     // Schwarz Q table: (μν|μν) reuses bra=ket=(mu, nu).
     let mut q = vec![0.0_f64; n * n];
     for mu in 0..n {
         for nu in mu..n {
             let t = &pair_tables[mu * n + nu];
-            let v = eri_from_pair_tables(t, t);
+            let v = eri_from_pair_tables(t, t, &mut f_buf, &mut r_buf);
             let qv = v.abs().sqrt();
             q[mu * n + nu] = qv;
             q[nu * n + mu] = qv;
@@ -502,7 +534,7 @@ pub fn eri_build(
                     if mu * n + nu > la * n + si { continue; }
                     if q_mu_nu < schwarz_tol || q_mu_nu * q[la * n + si] < schwarz_tol { continue; }
                     let ket = &pair_tables[la * n + si];
-                    let v = eri_from_pair_tables(bra, ket);
+                    let v = eri_from_pair_tables(bra, ket, &mut f_buf, &mut r_buf);
                     let n2 = n * n;
                     let n3 = n2 * n;
                     eri[mu * n3 + nu * n2 + la * n + si] = v;
@@ -556,6 +588,11 @@ pub fn eri_build_slice(
         alpha_flat, c_flat, center_flat, angular_flat,
     );
 
+    // Scratch buffers for r_aux_table — reused across all primitive
+    // ERI calls in this slice. Eliminates ~2 B malloc/free pairs.
+    let mut f_buf: Vec<f64> = Vec::with_capacity(32);
+    let mut r_buf: Vec<f64> = Vec::with_capacity(1024);
+
     for &mu_u in mus {
         let mu = mu_u as usize;
         for nu in mu..n {
@@ -568,7 +605,7 @@ pub fn eri_build_slice(
                     if pair_mn > la * n + si { continue; }
                     if q_mu_nu * q_table[la * n + si] < schwarz_tol { continue; }
                     let ket = &pair_tables[la * n + si];
-                    let v = eri_from_pair_tables(bra, ket);
+                    let v = eri_from_pair_tables(bra, ket, &mut f_buf, &mut r_buf);
                     out.push(mu as f64);
                     out.push(nu as f64);
                     out.push(la as f64);
