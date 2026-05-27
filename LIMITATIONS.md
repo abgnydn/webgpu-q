@@ -282,9 +282,34 @@ precision floor is chemical accuracy.
 
   Combined with the WASM × Workers compound, benzene cc-pVDZ ERI is
   now **32.7× faster than the TS-only baseline** (827 s → 25.3 s).
-  End-to-end HF benzene from cold shells: **~30 s** (25.3 s ERI + ~5 s
-  parallel HF) = **27.6× total speedup** vs the 14-min TS path.
   Bit-identical to the textbook path (max|Δ|=0 on benzene).
+
+- **Pair-table cache in `eri_build` / `eri_build_slice`** — measured
+  2026-05-27. The Rust kernel was rebuilding the bra and ket
+  primitive-pair tables (E-coefficients via Hermite-Gaussian
+  recurrence) on every (μν|λσ) call. For benzene cc-pVDZ that's
+  ~470 M redundant pair builds (26 M unique ERIs × 18 builds per
+  call), even though there are only n²/2 = 7 200 distinct (a, b)
+  shell pairs. Hoisting to a single `precompute_pair_tables` call
+  at the top of the build collapses this to 7 200 builds — a
+  65 000× reduction.
+
+  | molecule | n | WASM 1× before | WASM 1× after | par=8 before | par=8 after |
+  |---|---:|---:|---:|---:|---:|
+  | ethane cc-pVDZ  |  60 | 5.6 s | **3.4 s** (1.65×) |  1.55 s | **0.94 s** (1.65×) |
+  | benzene cc-pVDZ | 120 | 127 s | **81.7 s** (1.55×) | 25.3 s  | **16.8 s** (1.51×) |
+
+  Memory cost is ~4.5 MB per worker on benzene (n²/2 × ~1.2 KB per
+  pair table). Trivial vs the 1.65 GB ERI tensor. Bit-identical
+  output (max|Δ|=0 on benzene). Compounded:
+
+  Benzene cc-pVDZ ERI build: **49.2× faster than the TS-only
+  baseline** (827 s → 16.8 s).
+
+  End-to-end HF benzene "cold shells → converged energy":
+  - TS-only baseline: 841 s (14 min)
+  - All wins shipped: **18.7 s** (16.8 s ERI + 1.9 s parallel WASM HF)
+  - Total speedup: **45× over the start-of-session baseline**.
 
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for

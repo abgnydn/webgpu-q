@@ -11,43 +11,13 @@
 
 import { ERI_cg, type CGShell } from "./integrals-cg.js";
 import { sabAvailable, toSAB } from "../parallel/worker-pool.js";
+import { getSharedWorkerPool, disposeAllSharedPools } from "../parallel/worker-pool-shared.js";
 import { schwarzQTableWasm } from "./wasm-eri.js";
 
-// ── Persistent worker pool ──
-// Spawning a Worker + initializing WASM costs ~1 s per worker on first
-// use (~80 KB compile + Rust init). For multiple `buildERI*Parallel`
-// calls in one page session (e.g. across HF iterations, geometry
-// optimization, or repeated bench trials) we cache the pool by
-// `kind` × size and only tear down on explicit dispose.
-type PoolKind = "ts" | "wasm";
-const poolCache: Map<string, Worker[]> = new Map();
-
-function poolKey(kind: PoolKind, n: number): string { return `${kind}:${n}`; }
-
-function getPool(kind: PoolKind, n: number): Worker[] {
-  const key = poolKey(kind, n);
-  const existing = poolCache.get(key);
-  if (existing) return existing;
-  const workers: Worker[] = [];
-  for (let i = 0; i < n; i++) {
-    workers.push(new Worker(
-      new URL("../parallel/kernels-worker.ts", import.meta.url),
-      { type: "module" },
-    ));
-  }
-  poolCache.set(key, workers);
-  return workers;
-}
-
-/** Tear down all cached worker pools. Useful in test teardown or before
- *  navigation. After this, the next `buildERI*Parallel` call will pay
- *  the spawn cost again. */
-export function disposeAllPools(): void {
-  for (const workers of poolCache.values()) {
-    for (const w of workers) w.terminate();
-  }
-  poolCache.clear();
-}
+// Pool spawning is now shared across all parallel chemistry kernels
+// (ERI build, JK build, …). See ../parallel/worker-pool-shared.ts.
+// Re-exported under the old name for callers that imported it.
+export const disposeAllPools = disposeAllSharedPools;
 
 /**
  * Compute the dense AO ERI tensor in parallel across N workers.
@@ -102,7 +72,7 @@ export async function buildERIParallel(
   }
 
   // ── Persistent worker pool (TS kernel). ──
-  const workers = getPool("ts", N);
+  const workers = getSharedWorkerPool("ts", N);
   await Promise.all(workers.map((w, i) => new Promise<void>((resolve, reject) => {
     const onMessage = (ev: MessageEvent): void => {
       w.removeEventListener("message", onMessage);
@@ -209,7 +179,7 @@ export async function buildERIWasmParallel(
   }
 
   // ── Persistent worker pool (WASM kernel). ──
-  const workers = getPool("wasm", N);
+  const workers = getSharedWorkerPool("wasm", N);
   await Promise.all(workers.map((w, i) => new Promise<void>((resolve, reject) => {
     const onMessage = (ev: MessageEvent): void => {
       w.removeEventListener("message", onMessage);

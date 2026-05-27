@@ -322,6 +322,115 @@ fn prim_eri_with_pairs(
 //   angularFlat: Int32Array, 3 entries per shell, length 3*nShells
 
 // ── ERI between four shells (extracted for reuse) ──────────────
+//
+// PairTable stores the precomputed primitive pair tables for ONE
+// ordered (a, b) shell pair. Computed once per (a, b), reused across
+// the full (μ, ν, λ, σ) sweep: bra uses (mu, nu) → table; ket uses
+// (la, si) → table. Without caching, eri_cg_for_shells rebuilds the
+// pair tables 8M× on benzene cc-pVDZ (once per ERI call).
+struct PairTable {
+    pairs: Vec<PairData>,
+    coef: Vec<f64>,
+    /// Angular momenta of the bra shell (a).
+    ax_ang: [i32; 3],
+    /// Angular momenta of the ket shell (b).
+    bx_ang: [i32; 3],
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_pair_table(
+    a: usize, b: usize,
+    n_prims_per_shell: &[u32],
+    prim_offsets: &[u32],
+    alpha_flat: &[f64],
+    c_flat: &[f64],
+    center_flat: &[f64],
+    angular_flat: &[i32],
+) -> PairTable {
+    let n_a = n_prims_per_shell[a] as usize;
+    let n_b = n_prims_per_shell[b] as usize;
+    let a_off = prim_offsets[a] as usize;
+    let b_off = prim_offsets[b] as usize;
+    let ax = center_flat[a * 3]; let ay = center_flat[a * 3 + 1]; let az = center_flat[a * 3 + 2];
+    let bx = center_flat[b * 3]; let by = center_flat[b * 3 + 1]; let bz = center_flat[b * 3 + 2];
+    let aix = angular_flat[a * 3]; let aiy = angular_flat[a * 3 + 1]; let aiz = angular_flat[a * 3 + 2];
+    let bix = angular_flat[b * 3]; let biy = angular_flat[b * 3 + 1]; let biz = angular_flat[b * 3 + 2];
+
+    let mut pairs = Vec::with_capacity(n_a * n_b);
+    let mut coef = Vec::with_capacity(n_a * n_b);
+    for i in 0..n_a {
+        let ai = alpha_flat[a_off + i];
+        let ci = c_flat[a_off + i] * norm_cg(ai, aix, aiy, aiz);
+        for j in 0..n_b {
+            let bj = alpha_flat[b_off + j];
+            let cj = c_flat[b_off + j] * norm_cg(bj, bix, biy, biz);
+            coef.push(ci * cj);
+            pairs.push(build_pair(
+                ai, ax, ay, az, aix, aiy, aiz,
+                bj, bx, by, bz, bix, biy, biz,
+            ));
+        }
+    }
+    PairTable {
+        pairs, coef,
+        ax_ang: [aix, aiy, aiz],
+        bx_ang: [bix, biy, biz],
+    }
+}
+
+/// Compute one (μν|λσ) ERI from precomputed pair tables.
+fn eri_from_pair_tables(bra: &PairTable, ket: &PairTable) -> f64 {
+    let [aix, aiy, aiz] = bra.ax_ang;
+    let [bix, biy, biz] = bra.bx_ang;
+    let [cix, ciy, ciz] = ket.ax_ang;
+    let [dix, diy, diz] = ket.bx_ang;
+    let mut s = 0.0_f64;
+    for ij in 0..bra.pairs.len() {
+        let pd1 = &bra.pairs[ij];
+        let c_bra = bra.coef[ij];
+        for kl in 0..ket.pairs.len() {
+            s += c_bra * ket.coef[kl] * prim_eri_with_pairs(
+                pd1, aix, aiy, aiz, bix, biy, biz,
+                &ket.pairs[kl], cix, ciy, ciz, dix, diy, diz,
+            );
+        }
+    }
+    s
+}
+
+/// Precompute all canonical (a, b) pair tables with a ≤ b. Index in
+/// the returned Vec is `a * n + b` (only the upper triangle is filled;
+/// the lower-triangle slots remain unused, sentinelled with an empty
+/// PairTable). Memory: ~4.5 MB on benzene cc-pVDZ (n=120) — tiny vs
+/// the n⁴ ERI tensor.
+fn precompute_pair_tables(
+    n: usize,
+    n_prims_per_shell: &[u32],
+    prim_offsets: &[u32],
+    alpha_flat: &[f64],
+    c_flat: &[f64],
+    center_flat: &[f64],
+    angular_flat: &[i32],
+) -> Vec<PairTable> {
+    let mut tables = Vec::with_capacity(n * n);
+    for _ in 0..(n * n) {
+        tables.push(PairTable {
+            pairs: Vec::new(), coef: Vec::new(),
+            ax_ang: [0, 0, 0], bx_ang: [0, 0, 0],
+        });
+    }
+    for a in 0..n {
+        for b in a..n {
+            tables[a * n + b] = build_pair_table(
+                a, b,
+                n_prims_per_shell, prim_offsets,
+                alpha_flat, c_flat, center_flat, angular_flat,
+            );
+        }
+    }
+    tables
+}
+
 #[allow(clippy::too_many_arguments)]
 fn eri_cg_for_shells(
     a: usize, b: usize, c: usize, d: usize,
@@ -332,68 +441,21 @@ fn eri_cg_for_shells(
     center_flat: &[f64],
     angular_flat: &[i32],
 ) -> f64 {
-    let n_a = n_prims_per_shell[a] as usize;
-    let n_b = n_prims_per_shell[b] as usize;
-    let n_c = n_prims_per_shell[c] as usize;
-    let n_d = n_prims_per_shell[d] as usize;
-    let a_off = prim_offsets[a] as usize;
-    let b_off = prim_offsets[b] as usize;
-    let c_off = prim_offsets[c] as usize;
-    let d_off = prim_offsets[d] as usize;
-
-    let ax = center_flat[a * 3]; let ay = center_flat[a * 3 + 1]; let az = center_flat[a * 3 + 2];
-    let bx = center_flat[b * 3]; let by = center_flat[b * 3 + 1]; let bz = center_flat[b * 3 + 2];
-    let cx = center_flat[c * 3]; let cy = center_flat[c * 3 + 1]; let cz = center_flat[c * 3 + 2];
-    let dx = center_flat[d * 3]; let dy = center_flat[d * 3 + 1]; let dz = center_flat[d * 3 + 2];
-
-    let aix = angular_flat[a * 3]; let aiy = angular_flat[a * 3 + 1]; let aiz = angular_flat[a * 3 + 2];
-    let bix = angular_flat[b * 3]; let biy = angular_flat[b * 3 + 1]; let biz = angular_flat[b * 3 + 2];
-    let cix = angular_flat[c * 3]; let ciy = angular_flat[c * 3 + 1]; let ciz = angular_flat[c * 3 + 2];
-    let dix = angular_flat[d * 3]; let diy = angular_flat[d * 3 + 1]; let diz = angular_flat[d * 3 + 2];
-
-    // Bra pair table: n_a × n_b entries.
-    let mut bra_pairs: Vec<PairData> = Vec::with_capacity(n_a * n_b);
-    let mut bra_coef: Vec<f64> = Vec::with_capacity(n_a * n_b);
-    for i in 0..n_a {
-        let ai = alpha_flat[a_off + i];
-        let ci = c_flat[a_off + i] * norm_cg(ai, aix, aiy, aiz);
-        for j in 0..n_b {
-            let bj = alpha_flat[b_off + j];
-            let cj = c_flat[b_off + j] * norm_cg(bj, bix, biy, biz);
-            bra_coef.push(ci * cj);
-            bra_pairs.push(build_pair(
-                ai, ax, ay, az, aix, aiy, aiz,
-                bj, bx, by, bz, bix, biy, biz,
-            ));
-        }
-    }
-    let mut ket_pairs: Vec<PairData> = Vec::with_capacity(n_c * n_d);
-    let mut ket_coef: Vec<f64> = Vec::with_capacity(n_c * n_d);
-    for k in 0..n_c {
-        let ck = alpha_flat[c_off + k];
-        let cck = c_flat[c_off + k] * norm_cg(ck, cix, ciy, ciz);
-        for l in 0..n_d {
-            let dl = alpha_flat[d_off + l];
-            let cdl = c_flat[d_off + l] * norm_cg(dl, dix, diy, diz);
-            ket_coef.push(cck * cdl);
-            ket_pairs.push(build_pair(
-                ck, cx, cy, cz, cix, ciy, ciz,
-                dl, dx, dy, dz, dix, diy, diz,
-            ));
-        }
-    }
-    let mut s = 0.0_f64;
-    for ij in 0..(n_a * n_b) {
-        let pd1 = &bra_pairs[ij];
-        let c_bra = bra_coef[ij];
-        for kl in 0..(n_c * n_d) {
-            s += c_bra * ket_coef[kl] * prim_eri_with_pairs(
-                pd1, aix, aiy, aiz, bix, biy, biz,
-                &ket_pairs[kl], cix, ciy, ciz, dix, diy, diz,
-            );
-        }
-    }
-    s
+    // Slow-path entry used by the legacy `eri_build` and the diagonal
+    // (μν|μν) Q-table calls. Builds bra+ket tables fresh each time —
+    // callers in tight loops should use eri_from_pair_tables + a
+    // shared `precompute_pair_tables` cache.
+    let bra = build_pair_table(
+        a, b,
+        n_prims_per_shell, prim_offsets,
+        alpha_flat, c_flat, center_flat, angular_flat,
+    );
+    let ket = build_pair_table(
+        c, d,
+        n_prims_per_shell, prim_offsets,
+        alpha_flat, c_flat, center_flat, angular_flat,
+    );
+    eri_from_pair_tables(&bra, &ket)
 }
 
 #[wasm_bindgen]
@@ -410,15 +472,20 @@ pub fn eri_build(
     let n = n_shells as usize;
     let mut eri = vec![0.0_f64; n * n * n * n];
 
-    // Schwarz Q table.
+    // Precompute all canonical (a, b) pair tables once. Reused for
+    // both Schwarz Q-table (n² calls) and the main 8-fold ERI build
+    // (~n⁴/8 calls). Saves O(n²) redundant primitive-pair construction.
+    let pair_tables = precompute_pair_tables(
+        n, n_prims_per_shell, prim_offsets,
+        alpha_flat, c_flat, center_flat, angular_flat,
+    );
+
+    // Schwarz Q table: (μν|μν) reuses bra=ket=(mu, nu).
     let mut q = vec![0.0_f64; n * n];
     for mu in 0..n {
         for nu in mu..n {
-            let v = eri_cg_for_shells(
-                mu, nu, mu, nu,
-                n_prims_per_shell, prim_offsets,
-                alpha_flat, c_flat, center_flat, angular_flat,
-            );
+            let t = &pair_tables[mu * n + nu];
+            let v = eri_from_pair_tables(t, t);
             let qv = v.abs().sqrt();
             q[mu * n + nu] = qv;
             q[nu * n + mu] = qv;
@@ -429,15 +496,13 @@ pub fn eri_build(
     for mu in 0..n {
         for nu in mu..n {
             let q_mu_nu = q[mu * n + nu];
+            let bra = &pair_tables[mu * n + nu];
             for la in 0..n {
                 for si in la..n {
                     if mu * n + nu > la * n + si { continue; }
                     if q_mu_nu < schwarz_tol || q_mu_nu * q[la * n + si] < schwarz_tol { continue; }
-                    let v = eri_cg_for_shells(
-                        mu, nu, la, si,
-                        n_prims_per_shell, prim_offsets,
-                        alpha_flat, c_flat, center_flat, angular_flat,
-                    );
+                    let ket = &pair_tables[la * n + si];
+                    let v = eri_from_pair_tables(bra, ket);
                     let n2 = n * n;
                     let n3 = n2 * n;
                     eri[mu * n3 + nu * n2 + la * n + si] = v;
@@ -483,21 +548,27 @@ pub fn eri_build_slice(
     let n = n_shells as usize;
     let mut out: Vec<f64> = Vec::with_capacity(mus.len() * n * n);
 
+    // Precompute all (a, b) pair tables once. Reused for every (μ, ν,
+    // λ, σ) ERI in this slice — eliminates ~470 M redundant primitive
+    // pair builds on benzene cc-pVDZ.
+    let pair_tables = precompute_pair_tables(
+        n, n_prims_per_shell, prim_offsets,
+        alpha_flat, c_flat, center_flat, angular_flat,
+    );
+
     for &mu_u in mus {
         let mu = mu_u as usize;
         for nu in mu..n {
             let q_mu_nu = q_table[mu * n + nu];
             if q_mu_nu < schwarz_tol { continue; }
             let pair_mn = mu * n + nu;
+            let bra = &pair_tables[mu * n + nu];
             for la in 0..n {
                 for si in la..n {
                     if pair_mn > la * n + si { continue; }
                     if q_mu_nu * q_table[la * n + si] < schwarz_tol { continue; }
-                    let v = eri_cg_for_shells(
-                        mu, nu, la, si,
-                        n_prims_per_shell, prim_offsets,
-                        alpha_flat, c_flat, center_flat, angular_flat,
-                    );
+                    let ket = &pair_tables[la * n + si];
+                    let v = eri_from_pair_tables(bra, ket);
                     out.push(mu as f64);
                     out.push(nu as f64);
                     out.push(la as f64);

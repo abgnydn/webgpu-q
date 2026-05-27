@@ -10,21 +10,21 @@
 // amortized by the ~10 ms compute that follows.
 
 import { sabAvailable, toSAB } from "./worker-pool.js";
+import { getSharedWorkerPool } from "./worker-pool-shared.js";
 
-// Round-robin μ pool reused across HF iterations.
-type CachedPool = {
-  workers: Worker[];
+// Per-molecule cache: ERI SAB + μ assignments. Workers are pulled from
+// the shared (kind, size) pool — same instances as buildERIWasmParallel.
+type CachedState = {
   size: number;
   muAssignments: number[][];
   eriSAB: SharedArrayBuffer;
   n: number;
-  /** Identity of the ERI tensor — different ERI ⇒ rebuild SAB. */
   eriIdentity: Float64Array | null;
 };
 
-let cached: CachedPool | null = null;
+let cached: CachedState | null = null;
 
-function getPool(size: number, n: number, eri: Float64Array): CachedPool {
+function getState(size: number, n: number, eri: Float64Array): CachedState {
   if (
     cached &&
     cached.size === size &&
@@ -33,26 +33,13 @@ function getPool(size: number, n: number, eri: Float64Array): CachedPool {
   ) {
     return cached;
   }
-  // Pool size or molecule changed — rebuild.
-  if (cached) {
-    for (const w of cached.workers) w.terminate();
-  }
-  const workers: Worker[] = [];
-  for (let i = 0; i < size; i++) {
-    workers.push(new Worker(
-      new URL("./kernels-worker.ts", import.meta.url),
-      { type: "module" },
-    ));
-  }
+  // Pool size or molecule changed — rebuild μ assignments + SAB.
   const muAssignments: number[][] = Array.from({ length: size }, () => []);
   for (let mu = 0; mu < n; mu++) {
     muAssignments[mu % size]!.push(mu);
   }
   const eriSAB = toSAB(eri);
-  cached = {
-    workers, size, muAssignments, eriSAB, n,
-    eriIdentity: eri,
-  };
+  cached = { size, muAssignments, eriSAB, n, eriIdentity: eri };
   return cached;
 }
 
@@ -68,13 +55,14 @@ export async function buildGWasmParallel(
     throw new Error("buildGWasmParallel: SharedArrayBuffer unavailable");
   }
   const N = poolSize > 0 ? poolSize : (navigator.hardwareConcurrency ?? 4) - 1;
-  const pool = getPool(N, n, eri_AO);
+  const state = getState(N, n, eri_AO);
+  const workers = getSharedWorkerPool("wasm", N);
 
   // D changes every iter → fresh SAB.
   const dSAB = toSAB(D);
   const gSAB = new SharedArrayBuffer(n * n * 8);
 
-  await Promise.all(pool.workers.map((w, i) => new Promise<void>((resolve, reject) => {
+  await Promise.all(workers.map((w, i) => new Promise<void>((resolve, reject) => {
     const onMessage = (ev: MessageEvent): void => {
       w.removeEventListener("message", onMessage);
       if (ev.data?.ok) resolve();
@@ -83,10 +71,10 @@ export async function buildGWasmParallel(
     w.addEventListener("message", onMessage);
     w.postMessage({
       kind: "buildG-wasm-mu-slice",
-      mus: pool.muAssignments[i]!,
+      mus: state.muAssignments[i]!,
       muStart: 0, muEnd: n,
       n,
-      eri: pool.eriSAB,
+      eri: state.eriSAB,
       D: dSAB,
       G: gSAB,
     });
@@ -97,10 +85,9 @@ export async function buildGWasmParallel(
   return out;
 }
 
-/** Tear down cached worker pool. */
+/** Reset the cached (ERI, μ assignments) state. Does NOT terminate
+ *  workers — those live in the shared pool and may be in use by other
+ *  kernels. Call `disposeAllSharedPools()` to actually free them. */
 export function disposeParallelBuildGWasm(): void {
-  if (cached) {
-    for (const w of cached.workers) w.terminate();
-    cached = null;
-  }
+  cached = null;
 }
