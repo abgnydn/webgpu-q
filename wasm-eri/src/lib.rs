@@ -213,6 +213,26 @@ fn r_aux_table(
 }
 
 // ── Primitive ERI given pair tables ─────────────────────────────
+//
+// Hot path. Optimizations relative to the textbook 6-loop:
+//   - Hoist invariant index bases (ex1_base, ey1_base, …) out of the
+//     hottest inner loops so each level adds at most one mul-add.
+//   - Hoist partial-products (xyz1 = ex1·ey1·ez1, etc.) so the inner
+//     loop is 2 mults + 1 multiply-by-sign + 1 load + 1 add.
+//   - Branch-free `sign = 1 - 2·parity` (kills a div-by-2 branch
+//     mispredict pattern at the innermost loop level).
+//
+// Earlier attempt to prefetch the 6 E-coef slices into [f64; 13]
+// stack arrays *regressed* benzene single-thread by 55% — the
+// stack zero-fill cost across ~130M primitive-ERI calls swamped the
+// vectorization gain. Direct indexing into pd1.ex (heap, cached by
+// the surrounding ERI_cg quartet) is faster.
+//
+// Branch-free hot path also makes the `if eN == 0.0 continue`
+// branches go away. For cc-pVDZ those branches rarely fired anyway
+// (loop bounds keep us in the recurrence-filled region of the E
+// table), so dropping them is correctness-neutral.
+
 fn prim_eri_with_pairs(
     pd1: &PairData, ix: i32, iy: i32, iz: i32, jx: i32, jy: i32, jz: i32,
     pd2: &PairData, kx: i32, ky: i32, kz: i32, lx: i32, ly: i32, lz: i32,
@@ -223,43 +243,65 @@ fn prim_eri_with_pairs(
     let px = pd1.p_xyz[0]; let py = pd1.p_xyz[1]; let pz = pd1.p_xyz[2];
     let qx = pd2.p_xyz[0]; let qy = pd2.p_xyz[1]; let qz = pd2.p_xyz[2];
 
-    let t_max = ix + jx;
-    let u_max = iy + jy;
-    let v_max = iz + jz;
-    let tau_max = kx + lx;
-    let nu_max = ky + ly;
-    let phi_max = kz + lz;
-    let t_dim_sum = t_max + tau_max;
-    let u_dim_sum = u_max + nu_max;
-    let v_dim_sum = v_max + phi_max;
+    let t_max = (ix + jx) as usize;
+    let u_max = (iy + jy) as usize;
+    let v_max = (iz + jz) as usize;
+    let tau_max = (kx + lx) as usize;
+    let nu_max = (ky + ly) as usize;
+    let phi_max = (kz + lz) as usize;
+    let t_dim_sum = (t_max + tau_max) as i32;
+    let u_dim_sum = (u_max + nu_max) as i32;
+    let v_dim_sum = (v_max + phi_max) as i32;
     let (rt, _, u_dim_r, v_dim_r) = r_aux_table(
         t_dim_sum, u_dim_sum, v_dim_sum, alpha_pair, px - qx, py - qy, pz - qz,
     );
 
+    let p1_jdim_x = (pd1.j_max_x + 1) as usize;
+    let p1_jdim_y = (pd1.j_max_y + 1) as usize;
+    let p1_jdim_z = (pd1.j_max_z + 1) as usize;
+    let p1_tdim_x = (pd1.i_max_x + pd1.j_max_x + 1) as usize;
+    let p1_tdim_y = (pd1.i_max_y + pd1.j_max_y + 1) as usize;
+    let p1_tdim_z = (pd1.i_max_z + pd1.j_max_z + 1) as usize;
+    let p2_jdim_x = (pd2.j_max_x + 1) as usize;
+    let p2_jdim_y = (pd2.j_max_y + 1) as usize;
+    let p2_jdim_z = (pd2.j_max_z + 1) as usize;
+    let p2_tdim_x = (pd2.i_max_x + pd2.j_max_x + 1) as usize;
+    let p2_tdim_y = (pd2.i_max_y + pd2.j_max_y + 1) as usize;
+    let p2_tdim_z = (pd2.i_max_z + pd2.j_max_z + 1) as usize;
+
+    let ex1_base = ((ix as usize) * p1_jdim_x + jx as usize) * p1_tdim_x;
+    let ey1_base = ((iy as usize) * p1_jdim_y + jy as usize) * p1_tdim_y;
+    let ez1_base = ((iz as usize) * p1_jdim_z + jz as usize) * p1_tdim_z;
+    let ex2_base = ((kx as usize) * p2_jdim_x + lx as usize) * p2_tdim_x;
+    let ey2_base = ((ky as usize) * p2_jdim_y + ly as usize) * p2_tdim_y;
+    let ez2_base = ((kz as usize) * p2_jdim_z + lz as usize) * p2_tdim_z;
+
+    let ex1_slice = &pd1.ex[ex1_base..ex1_base + t_max + 1];
+    let ey1_slice = &pd1.ey[ey1_base..ey1_base + u_max + 1];
+    let ez1_slice = &pd1.ez[ez1_base..ez1_base + v_max + 1];
+    let ex2_slice = &pd2.ex[ex2_base..ex2_base + tau_max + 1];
+    let ey2_slice = &pd2.ey[ey2_base..ey2_base + nu_max + 1];
+    let ez2_slice = &pd2.ez[ez2_base..ez2_base + phi_max + 1];
+
     let mut sum = 0.0_f64;
     for t in 0..=t_max {
-        let ex1 = e_at(&pd1.ex, pd1.j_max_x, pd1.i_max_x, ix, jx, t);
-        if ex1 == 0.0 { continue; }
+        let ex1_t = ex1_slice[t];
         for u in 0..=u_max {
-            let ey1 = e_at(&pd1.ey, pd1.j_max_y, pd1.i_max_y, iy, jy, u);
-            if ey1 == 0.0 { continue; }
+            let ex_ey_1 = ex1_t * ey1_slice[u];
             for v in 0..=v_max {
-                let ez1 = e_at(&pd1.ez, pd1.j_max_z, pd1.i_max_z, iz, jz, v);
-                if ez1 == 0.0 { continue; }
+                let xyz1 = ex_ey_1 * ez1_slice[v];
                 for tau in 0..=tau_max {
-                    let ex2 = e_at(&pd2.ex, pd2.j_max_x, pd2.i_max_x, kx, lx, tau);
-                    if ex2 == 0.0 { continue; }
+                    let xyz1_x2 = xyz1 * ex2_slice[tau];
+                    let r_row_base = (t + tau) * u_dim_r * v_dim_r;
+                    let tau_parity = tau & 1;
                     for nu in 0..=nu_max {
-                        let ey2 = e_at(&pd2.ey, pd2.j_max_y, pd2.i_max_y, ky, ly, nu);
-                        if ey2 == 0.0 { continue; }
+                        let xyz1_x2_y2 = xyz1_x2 * ey2_slice[nu];
+                        let r_phi0 = r_row_base + (u + nu) * v_dim_r + v;
+                        let nu_parity_xor_tau = (nu & 1) ^ tau_parity;
                         for phi in 0..=phi_max {
-                            let ez2 = e_at(&pd2.ez, pd2.j_max_z, pd2.i_max_z, kz, lz, phi);
-                            if ez2 == 0.0 { continue; }
-                            let sign = if ((tau + nu + phi) & 1) != 0 { -1.0 } else { 1.0 };
-                            let r_idx = ((t + tau) as usize) * u_dim_r * v_dim_r
-                                + ((u + nu) as usize) * v_dim_r
-                                + ((v + phi) as usize);
-                            sum += ex1 * ey1 * ez1 * ex2 * ey2 * ez2 * sign * rt[r_idx];
+                            let parity = (phi & 1) ^ nu_parity_xor_tau;
+                            let sign = 1.0 - 2.0 * (parity as f64);
+                            sum += xyz1_x2_y2 * ez2_slice[phi] * sign * rt[r_phi0 + phi];
                         }
                     }
                 }

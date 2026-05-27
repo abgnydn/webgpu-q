@@ -259,6 +259,33 @@ precision floor is chemical accuracy.
   single-thread). All paths agree element-wise (max|Δ|=0 on benzene,
   4.4×10⁻¹⁶ on ethane — pure rounding).
 
+- **Hot-path refactor in `prim_eri_with_pairs`** — measured 2026-05-27.
+  Branch-free + hoisted intermediates in the inner 6-loop of the
+  Rust ERI kernel:
+  - Drop `if eN == 0.0 continue` early-exits (loop bounds keep us in
+    the recurrence-filled E-coef region — branches rarely fire for
+    cc-pVDZ anyway).
+  - `sign = 1 - 2·parity` (branch-free) replaces `if (parity) {
+    -1.0 } else { 1.0 }`.
+  - Hoist partial products: `xyz1 = ex1·ey1·ez1` out of v,tau,nu,phi
+    loops; `xyz1_x2 = xyz1·ex2` out of nu,phi; etc. Inner loop is
+    2 mults + 1 multiply-by-sign + 1 load + 1 add.
+  - Slice-reference the 6 1D E-coef rows instead of computing the
+    flat index per access. **First attempt prefetched into `[f64; 13]`
+    stack arrays — regressed benzene single-thread by 55%** because
+    Rust's zero-init across ~130 M primitive-ERI calls swamped any
+    inner-loop gain. Direct slice indexing recovered the win.
+
+  | molecule | n | WASM 1× before | WASM 1× after | par=8 before | par=8 after |
+  |---|---:|---:|---:|---:|---:|
+  | benzene cc-pVDZ | 120 | 189 s | **127 s** (1.49×) | 38.5 s | **25.3 s** (1.52×) |
+
+  Combined with the WASM × Workers compound, benzene cc-pVDZ ERI is
+  now **32.7× faster than the TS-only baseline** (827 s → 25.3 s).
+  End-to-end HF benzene from cold shells: **~30 s** (25.3 s ERI + ~5 s
+  parallel HF) = **27.6× total speedup** vs the 14-min TS path.
+  Bit-identical to the textbook path (max|Δ|=0 on benzene).
+
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
   every primitive quartet (n_prim⁴ buildPair calls per ERI). Now caches
