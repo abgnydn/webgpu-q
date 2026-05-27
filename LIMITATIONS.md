@@ -189,22 +189,24 @@ precision floor is chemical accuracy.
   | H₂O cc-pVDZ | 25 | 17 ms | 8 ms | **2.08×** | 5 |
   | Ethane C₂H₆ cc-pVDZ | 60 | 724 ms | 241 ms | **3.00×** | 5 |
   | Furan C₄H₄O cc-pVDZ | 95 | 4620 ms | 1152 ms | **4.01×** | 1 |
-  | Benzene C₆H₆ cc-pVDZ | 120 | — | — | (skipped) | — |
+  | Benzene C₆H₆ cc-pVDZ | 120 | 14.07 s | 2.19 s | **6.43×** | 1 |
 
-  Speedup grows roughly **+1× per +35 basis functions** on M2 Pro
-  (12-thread hardwareConcurrency). Energies match sync exactly across
-  all parallel=N (Δ = 0 Ha). The honest "best win we've measured" is
-  **4× on n=95**. Earlier docs hand-waved a "4-8× win"; 4× is real,
-  the upper end of "8×" requires bigger molecules + further engineering.
+  Speedup grows roughly **+1× per +30 basis functions** on M2 Pro
+  (12-thread hardwareConcurrency), with a *bigger* jump at n=120
+  (2.08× → 3.00× → 4.01× → **6.43×**). Energies match sync exactly
+  across all parallel=N (Δ = 0 Ha). The honest "best win we've
+  measured" is **6.43× on benzene cc-pVDZ (n=120)**. Theoretical
+  max for parallel=8 on a 12-thread machine is 8×; we're at 80%
+  of that ceiling on benzene.
 
-  **Ceiling: ERI build, not the JK iteration.** Furan ERI build = 361 s,
-  HF SCF iteration = 4.6 s. The ERI build is a fixed one-time cost
-  that doesn't benefit from worker parallelism. Above n ≈ 100, ERI
-  build dominates total wall time and Workers can no longer move
-  the headline number on a single-molecule run. Benzene cc-pVDZ
-  (n=120) attempted at 20 + 30 min Playwright timeouts; both
-  exceeded — ERI build alone is ~20-25 min, making n=120 the
-  practical bench ceiling for the current implementation.
+  **ERI build is the wall-time bottleneck** (one-time, doesn't
+  parallelize with Workers): 740 s on benzene cc-pVDZ vs 14.1 s for
+  the entire HF SCF after that. So total wall-clock benefit of
+  parallel=8 on a single benzene HF run is only ~1.6×; if you run
+  many SCFs on the same integrals (geom-opt, DFT functional sweep,
+  etc.) it grows to the full 6.43×. Benzene HF previously timed out
+  at 20 + 30 min Playwright caps; ran cleanly in 13.4 min after the
+  ERI pair-cache landed.
 
   **What would lift the ceiling**: (a) vectorize the Obara-Saika
   ERI recursions, (b) shell-pair Schwarz screening on top of the

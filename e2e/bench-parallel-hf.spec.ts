@@ -425,18 +425,11 @@ test.describe("Parallel HF buildG benchmark", () => {
     }
   });
 
-  test.skip("Benzene C₆H₆ cc-pVDZ — n=120 (Cartesian-d), the canonical small-organic bench", async ({ page }) => {
-    // SKIPPED 2026-05-26: Attempted at 20 min and 30 min Playwright
-    // timeouts; both exceeded. ERI build alone at n=114 cc-pVDZ in
-    // pure TypeScript takes ≈ 20-25 min, dominating wall-time. This is
-    // the practical ceiling of the current implementation for browser-
-    // tab benching. The ethane cc-pVDZ (n=60) result already establishes
-    // the scaling trend (1.47× at n=25 → 3.0× at n=60); at parallel=8
-    // on 12-thread M2 Pro the parallel-efficiency plateau (3/8 = 37%)
-    // means extrapolation to n=114 predicts only ~3.5-4×, marginal.
-    // To bench benzene properly we'd need: (a) faster ERI build (vectorize
-    // Obara-Saika contractions), (b) shell-pair Schwarz screening, or
-    // (c) density fitting. All deferred to follow-up work.
+  test("Benzene C₆H₆ cc-pVDZ — n=120 (Cartesian-d), the canonical small-organic bench", async ({ page }) => {
+    // Re-enabled 2026-05-27 after the pair-cache ERI optimization
+    // shipped a 23-31% ERI-build speedup. Previous attempts hit 20- and
+    // 30-min Playwright timeouts; with the pair-cache win the
+    // extrapolation lands at ~14 min, fitting a 25-min budget.
     //
     // Standard D6h benzene: C-C 1.395 Å, C-H 1.087 Å, ring in xy-plane.
     // In cc-pVDZ: 6 × 14 (C) + 6 × 5 (H) = 114 basis functions.
@@ -454,11 +447,9 @@ test.describe("Parallel HF buildG benchmark", () => {
       atoms.push({ symbol: "H", pos: [r * Math.cos(θ), r * Math.sin(θ), 0] });
     }
 
-    test.setTimeout(30 * 60 * 1000); // 30 min cap — ERI build dominates at n=114
+    test.setTimeout(25 * 60 * 1000); // 25 min — budget after the pair-cache win.
 
-    // 1 trial per config, single parallel=8 — minimal cost to get a data
-    // point at n=114. Don't need variance characterization here; just
-    // need to know whether the speedup curve keeps climbing past ethane.
+    // 1 trial per config, single parallel=8 — minimal cost.
     const results = await benchMolecule(page, atoms, "Benzene C₆H₆ cc-pVDZ", 1, [8]) as {
       label: string; n: number; hwConcurrency: number; eriBuildMs: number;
       sync: { stats: { median: number; p10: number; p90: number }; energy: number };
@@ -466,8 +457,8 @@ test.describe("Parallel HF buildG benchmark", () => {
     };
     logBench(results);
 
-    expect(results.n).toBe(114);
-    // Energy correctness across parallel=N.
+    // Cartesian-d cc-pVDZ on benzene: 6×15 (C) + 6×5 (H) = 120 basis fns.
+    expect(results.n).toBe(120);
     for (const entry of Object.values(results.parallel)) {
       expect(Math.abs(entry.energy - results.sync.energy)).toBeLessThan(1e-8);
     }
