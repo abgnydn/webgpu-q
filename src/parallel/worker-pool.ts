@@ -15,6 +15,7 @@
 
 export type KernelKind =
   | "buildG-row-slice"
+  | "buildG-wasm-mu-slice"
   | "eri-row-slice"
   | "eri-wasm-slice";
 
@@ -86,7 +87,29 @@ export interface ERIWasmSliceTask {
   readonly schwarzTol: number;
 }
 
-export type WorkerTask = BuildGRowSliceTask | ERIRowSliceTask | ERIWasmSliceTask;
+/** Fock JK build kernel — WASM per-μ variant. Workers process a list of
+ *  μ rows. For each μ they copy that μ's n³ ERI slab into WASM linear
+ *  memory and call `fock_one_mu_row` for the G[μ, :] row. This avoids
+ *  the doubled-memory cost of caching all the worker's μ slabs in
+ *  WASM (which would be |mus|·n³ × 8 B per worker — 207 MB at benzene
+ *  cc-pVDZ × 8 workers ≈ 1.65 GB, same as the SAB). The per-μ copy is
+ *  ~7 MB/call at n=120; well-amortized by the ~10 ms compute. */
+export interface BuildGWasmMuSliceTask {
+  readonly kind: "buildG-wasm-mu-slice";
+  readonly mus: ReadonlyArray<number>;
+  readonly muStart: number;
+  readonly muEnd: number;
+  readonly n: number;
+  readonly eri: SharedArrayBuffer;
+  readonly D: SharedArrayBuffer;
+  readonly G: SharedArrayBuffer;
+}
+
+export type WorkerTask =
+  | BuildGRowSliceTask
+  | BuildGWasmMuSliceTask
+  | ERIRowSliceTask
+  | ERIWasmSliceTask;
 
 export interface WorkerPool {
   readonly size: number;

@@ -38,6 +38,7 @@ import { type MolecularIntegrals } from "./cg-molecular.js";
 import { eigsymmetric } from "../manybody/dense-eig.js";
 import { choleskyDecomposeERI, buildJK_DF, type DFResult } from "./df.js";
 import { buildGParallel } from "../parallel/parallel-buildG.js";
+import { buildGWasmParallel } from "../parallel/parallel-buildG-wasm.js";
 
 export interface HFResult {
   /** Total HF energy (Hartree) including nuclear repulsion. */
@@ -122,6 +123,13 @@ export interface HFOpts {
    * STO-3G systems and machine precision on cc-pVDZ.
    */
   readonly useDF?: boolean | number | DFResult;
+  /**
+   * Use the WASM-native JK build kernel inside the parallel path.
+   * Each worker calls `fock_one_mu_row` (native Rust) for its μ rows
+   * instead of running the inner accumulator in TypeScript. Only takes
+   * effect when `parallel > 0` and SAB is available. Default true.
+   */
+  readonly useWasmJK?: boolean;
 }
 
 /**
@@ -379,9 +387,12 @@ export async function runRHFSCFAsync(
 
   for (iter = 1; iter <= maxIter; iter++) {
     // Async fork point — only difference from the sync runRHFSCF.
+    const useWasmJK = opts.useWasmJK ?? true;
     const G = dfTensor !== null
       ? buildG_DF(D, dfTensor, n)
-      : await buildGParallel(D, eri_AO, n, parallel);
+      : useWasmJK
+        ? await buildGWasmParallel(D, eri_AO, n, parallel)
+        : await buildGParallel(D, eri_AO, n, parallel);
     const F = new Float64Array(n * n);
     for (let i = 0; i < n * n; i++) F[i] = h_AO[i]! + G[i]!;
 

@@ -79,6 +79,78 @@ export function eri_build_slice(mus, n_shells, n_prims_per_shell, prim_offsets, 
 }
 
 /**
+ * Compute the Fock matrix G slice G[μ, ν] for μ ∈ `mus` (a subset of
+ * rows), from the AO ERI tensor and the density matrix D.
+ *
+ *   G[μ, ν] = Σ_{λ, σ} D[λ, σ] · ( (μν|λσ) − ½ (μλ|νσ) )
+ *
+ * Inputs:
+ *   - `mus`: which global μ indices this worker owns (length K).
+ *   - `n`: AO basis size.
+ *   - `eri_slab`: a flat `K · n³` chunk of the ERI tensor laid out as
+ *     `eri_slab[k * n³ + a * n² + b * n + c] = eri[mus[k], a, b, c]`,
+ *     i.e. row-major over (k = local μ index, a, b, c). Caller is
+ *     responsible for gathering this slab from the full n⁴ ERI before
+ *     the per-iteration SCF loop and reusing it across iterations.
+ *   - `d`: the full n × n density matrix, row-major.
+ *
+ * Output: `K · n` Fock entries, `g_slice[k * n + nu] = G[mus[k], nu]`.
+ * The caller scatters these back into the full G via the same `mus`
+ * indices.
+ *
+ * Why slab-not-tensor: WASM linear memory is separate from the JS
+ * SAB, and copying the full n⁴ ERI (1.65 GB on benzene cc-pVDZ) into
+ * WASM would dominate the kernel. The slab is 8 × smaller per
+ * worker on N=8 and changes never during SCF — copy once, reuse.
+ * @param {Uint32Array} mus
+ * @param {number} n
+ * @param {Float64Array} eri_slab
+ * @param {Float64Array} d
+ * @returns {Float64Array}
+ */
+export function fock_build_slice(mus, n, eri_slab, d) {
+    const ptr0 = passArray32ToWasm0(mus, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArrayF64ToWasm0(eri_slab, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArrayF64ToWasm0(d, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.fock_build_slice(ptr0, len0, n, ptr1, len1, ptr2, len2);
+    var v4 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v4;
+}
+
+/**
+ * Single-μ variant of fock_build_slice. Computes G[μ, :] for one μ.
+ *
+ *   G[μ, ν] = Σ_{λ, σ} D[λ, σ] · ( (μν|λσ) − ½ (μλ|νσ) )
+ *
+ * `eri_mu_row` is the n³ slab eri[μ, :, :, :], laid out row-major as
+ * eri_mu_row[a · n² + b · n + c] = eri[μ, a, b, c].
+ *
+ * Used by the per-μ WASM JK kernel: the worker copies only this μ's
+ * n³ slab into WASM linear memory per call (rather than caching the
+ * full per-worker slab of |mus|·n³ entries, which doubles browser
+ * memory pressure on benzene cc-pVDZ). The copy amortizes against
+ * the ~10ms WASM compute per μ at n=120.
+ * @param {number} n
+ * @param {Float64Array} eri_mu_row
+ * @param {Float64Array} d
+ * @returns {Float64Array}
+ */
+export function fock_one_mu_row(n, eri_mu_row, d) {
+    const ptr0 = passArrayF64ToWasm0(eri_mu_row, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArrayF64ToWasm0(d, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.fock_one_mu_row(n, ptr0, len0, ptr1, len1);
+    var v3 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v3;
+}
+
+/**
  * Compute just the Schwarz Q table (diagonal-pair ERIs sqrt-abs).
  * Cheap, but JS-side construction is also slow on TS — expose this for
  * workers that want to skip the postMessage clone.

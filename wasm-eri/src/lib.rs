@@ -539,3 +539,112 @@ pub fn schwarz_q_table(
     }
     q
 }
+
+/// Single-μ variant of fock_build_slice. Computes G[μ, :] for one μ.
+///
+///   G[μ, ν] = Σ_{λ, σ} D[λ, σ] · ( (μν|λσ) − ½ (μλ|νσ) )
+///
+/// `eri_mu_row` is the n³ slab eri[μ, :, :, :], laid out row-major as
+/// eri_mu_row[a · n² + b · n + c] = eri[μ, a, b, c].
+///
+/// Used by the per-μ WASM JK kernel: the worker copies only this μ's
+/// n³ slab into WASM linear memory per call (rather than caching the
+/// full per-worker slab of |mus|·n³ entries, which doubles browser
+/// memory pressure on benzene cc-pVDZ). The copy amortizes against
+/// the ~10ms WASM compute per μ at n=120.
+#[wasm_bindgen]
+pub fn fock_one_mu_row(
+    n: u32,
+    eri_mu_row: &[f64],
+    d: &[f64],
+) -> Vec<f64> {
+    let n = n as usize;
+    let n2 = n * n;
+    let mut g_row = vec![0.0_f64; n];
+    for nu in 0..n {
+        let mut s = 0.0_f64;
+        let nu_n2 = nu * n2;
+        let nu_n = nu * n;
+        for la in 0..n {
+            let d_la_base = la * n;
+            let j_base = nu_n2 + la * n;
+            let k_base = la * n2 + nu_n;
+            let mut s_inner = 0.0_f64;
+            for si in 0..n {
+                let dls = d[d_la_base + si];
+                let j_val = eri_mu_row[j_base + si];
+                let k_val = eri_mu_row[k_base + si];
+                s_inner += dls * (j_val - 0.5 * k_val);
+            }
+            s += s_inner;
+        }
+        g_row[nu] = s;
+    }
+    g_row
+}
+
+/// Compute the Fock matrix G slice G[μ, ν] for μ ∈ `mus` (a subset of
+/// rows), from the AO ERI tensor and the density matrix D.
+///
+///   G[μ, ν] = Σ_{λ, σ} D[λ, σ] · ( (μν|λσ) − ½ (μλ|νσ) )
+///
+/// Inputs:
+///   - `mus`: which global μ indices this worker owns (length K).
+///   - `n`: AO basis size.
+///   - `eri_slab`: a flat `K · n³` chunk of the ERI tensor laid out as
+///     `eri_slab[k * n³ + a * n² + b * n + c] = eri[mus[k], a, b, c]`,
+///     i.e. row-major over (k = local μ index, a, b, c). Caller is
+///     responsible for gathering this slab from the full n⁴ ERI before
+///     the per-iteration SCF loop and reusing it across iterations.
+///   - `d`: the full n × n density matrix, row-major.
+///
+/// Output: `K · n` Fock entries, `g_slice[k * n + nu] = G[mus[k], nu]`.
+/// The caller scatters these back into the full G via the same `mus`
+/// indices.
+///
+/// Why slab-not-tensor: WASM linear memory is separate from the JS
+/// SAB, and copying the full n⁴ ERI (1.65 GB on benzene cc-pVDZ) into
+/// WASM would dominate the kernel. The slab is 8 × smaller per
+/// worker on N=8 and changes never during SCF — copy once, reuse.
+#[wasm_bindgen]
+pub fn fock_build_slice(
+    mus: &[u32],
+    n: u32,
+    eri_slab: &[f64],
+    d: &[f64],
+) -> Vec<f64> {
+    let n = n as usize;
+    let k_count = mus.len();
+    let n2 = n * n;
+    let n3 = n2 * n;
+    let mut g_slice = vec![0.0_f64; k_count * n];
+    for k in 0..k_count {
+        let slab_base = k * n3;
+        for nu in 0..n {
+            let mut s = 0.0_f64;
+            // J = (μν|λσ): inner stride-1 over σ, outer over λ.
+            // K = (μλ|νσ): inner stride-1 over σ, outer over λ.
+            // Both share the σ inner loop — combine to reduce
+            // memory pressure.
+            let nu_n2 = nu * n2;
+            let nu_n = nu * n;
+            for la in 0..n {
+                let d_la_base = la * n;
+                let j_base = slab_base + nu_n2 + la * n;
+                let k_base = slab_base + la * n2 + nu_n;
+                // Fused inner loop: one D load, one J load, one K
+                // load, three mults, one add per σ.
+                let mut s_inner = 0.0_f64;
+                for si in 0..n {
+                    let dls = d[d_la_base + si];
+                    let j_val = eri_slab[j_base + si];
+                    let k_val = eri_slab[k_base + si];
+                    s_inner += dls * (j_val - 0.5 * k_val);
+                }
+                s += s_inner;
+            }
+            g_slice[k * n + nu] = s;
+        }
+    }
+    g_slice
+}

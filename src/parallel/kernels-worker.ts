@@ -2,7 +2,7 @@
 // Each message is a WorkerTask; we dispatch on `kind` and write results
 // into the shared output SAB.
 
-import type { WorkerTask, ERIWasmSliceTask } from "./worker-pool.js";
+import type { WorkerTask, ERIWasmSliceTask, BuildGWasmMuSliceTask } from "./worker-pool.js";
 import { ERI_cg, type CGShell } from "../chemistry/integrals-cg.js";
 
 interface WasmEriModule {
@@ -18,6 +18,11 @@ interface WasmEriModule {
     angularFlat: Int32Array,
     qTable: Float64Array,
     schwarzTol: number,
+  ): Float64Array;
+  fock_one_mu_row(
+    n: number,
+    eriMuRow: Float64Array,
+    d: Float64Array,
   ): Float64Array;
 }
 
@@ -60,6 +65,9 @@ self.addEventListener("message", (ev: MessageEvent<WorkerTask>) => {
       case "eri-wasm-slice":
         await eriWasmSlice(task);
         return;
+      case "buildG-wasm-mu-slice":
+        await buildGWasmMuSlice(task);
+        return;
       default:
         throw new Error(`unknown kernel kind: ${(task as { kind: string }).kind}`);
     }
@@ -72,6 +80,23 @@ self.addEventListener("message", (ev: MessageEvent<WorkerTask>) => {
     }),
   );
 });
+
+async function buildGWasmMuSlice(task: BuildGWasmMuSliceTask): Promise<void> {
+  const mod = await loadWorkerWasm();
+  const n = task.n;
+  const n3 = n * n * n;
+  const eri = new Float64Array(task.eri);
+  const d = new Float64Array(task.D);
+  const G = new Float64Array(task.G);
+  for (const mu of task.mus) {
+    const eriRow = eri.subarray(mu * n3, (mu + 1) * n3);
+    const gRow = mod.fock_one_mu_row(n, eriRow, d);
+    const gBase = mu * n;
+    for (let nu = 0; nu < n; nu++) {
+      G[gBase + nu] = gRow[nu]!;
+    }
+  }
+}
 
 async function eriWasmSlice(task: ERIWasmSliceTask): Promise<void> {
   const mod = await loadWorkerWasm();

@@ -20,6 +20,49 @@ export function eri_build(n_shells: number, n_prims_per_shell: Uint32Array, prim
 export function eri_build_slice(mus: Uint32Array, n_shells: number, n_prims_per_shell: Uint32Array, prim_offsets: Uint32Array, alpha_flat: Float64Array, c_flat: Float64Array, center_flat: Float64Array, angular_flat: Int32Array, q_table: Float64Array, schwarz_tol: number): Float64Array;
 
 /**
+ * Compute the Fock matrix G slice G[μ, ν] for μ ∈ `mus` (a subset of
+ * rows), from the AO ERI tensor and the density matrix D.
+ *
+ *   G[μ, ν] = Σ_{λ, σ} D[λ, σ] · ( (μν|λσ) − ½ (μλ|νσ) )
+ *
+ * Inputs:
+ *   - `mus`: which global μ indices this worker owns (length K).
+ *   - `n`: AO basis size.
+ *   - `eri_slab`: a flat `K · n³` chunk of the ERI tensor laid out as
+ *     `eri_slab[k * n³ + a * n² + b * n + c] = eri[mus[k], a, b, c]`,
+ *     i.e. row-major over (k = local μ index, a, b, c). Caller is
+ *     responsible for gathering this slab from the full n⁴ ERI before
+ *     the per-iteration SCF loop and reusing it across iterations.
+ *   - `d`: the full n × n density matrix, row-major.
+ *
+ * Output: `K · n` Fock entries, `g_slice[k * n + nu] = G[mus[k], nu]`.
+ * The caller scatters these back into the full G via the same `mus`
+ * indices.
+ *
+ * Why slab-not-tensor: WASM linear memory is separate from the JS
+ * SAB, and copying the full n⁴ ERI (1.65 GB on benzene cc-pVDZ) into
+ * WASM would dominate the kernel. The slab is 8 × smaller per
+ * worker on N=8 and changes never during SCF — copy once, reuse.
+ */
+export function fock_build_slice(mus: Uint32Array, n: number, eri_slab: Float64Array, d: Float64Array): Float64Array;
+
+/**
+ * Single-μ variant of fock_build_slice. Computes G[μ, :] for one μ.
+ *
+ *   G[μ, ν] = Σ_{λ, σ} D[λ, σ] · ( (μν|λσ) − ½ (μλ|νσ) )
+ *
+ * `eri_mu_row` is the n³ slab eri[μ, :, :, :], laid out row-major as
+ * eri_mu_row[a · n² + b · n + c] = eri[μ, a, b, c].
+ *
+ * Used by the per-μ WASM JK kernel: the worker copies only this μ's
+ * n³ slab into WASM linear memory per call (rather than caching the
+ * full per-worker slab of |mus|·n³ entries, which doubles browser
+ * memory pressure on benzene cc-pVDZ). The copy amortizes against
+ * the ~10ms WASM compute per μ at n=120.
+ */
+export function fock_one_mu_row(n: number, eri_mu_row: Float64Array, d: Float64Array): Float64Array;
+
+/**
  * Compute just the Schwarz Q table (diagonal-pair ERIs sqrt-abs).
  * Cheap, but JS-side construction is also slow on TS — expose this for
  * workers that want to skip the postMessage clone.
@@ -32,6 +75,8 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly eri_build: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number) => [number, number];
     readonly eri_build_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number];
+    readonly fock_build_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
+    readonly fock_one_mu_row: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly schwarz_q_table: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => [number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
