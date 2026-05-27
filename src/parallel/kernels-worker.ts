@@ -3,6 +3,7 @@
 // into the shared output SAB.
 
 import type { WorkerTask } from "./worker-pool.js";
+import { ERI_cg, type CGShell } from "../chemistry/integrals-cg.js";
 
 self.addEventListener("message", (ev: MessageEvent<WorkerTask>) => {
   try {
@@ -13,6 +14,13 @@ self.addEventListener("message", (ev: MessageEvent<WorkerTask>) => {
           new Float64Array(task.eri),
           new Float64Array(task.D),
           new Float64Array(task.G));
+        break;
+      case "eri-row-slice":
+        eriRowSlice(task.mus, task.n,
+          task.shells as readonly CGShell[],
+          new Float64Array(task.eri),
+          new Float64Array(task.qTable),
+          task.schwarzTol);
         break;
       default:
         throw new Error(`unknown kernel kind: ${(task as { kind: string }).kind}`);
@@ -25,6 +33,43 @@ self.addEventListener("message", (ev: MessageEvent<WorkerTask>) => {
     });
   }
 });
+
+/**
+ * Compute the canonical ERIs (μν|λσ) for μ ∈ [muStart, muEnd) and
+ * write all 8 symmetric positions into the shared eri buffer.
+ *
+ * Canonical encoding (μ·n+ν ≤ λ·n+σ, ν ≥ μ, σ ≥ λ) guarantees each
+ * unique integral is owned by exactly one worker — the one whose μ
+ * slice contains the "small-first" μ. So no two workers ever write
+ * to the same address; no atomics needed.
+ */
+function eriRowSlice(
+  mus: ReadonlyArray<number>, n: number,
+  shells: readonly CGShell[], eri: Float64Array, Q: Float64Array,
+  schwarzTol: number,
+): void {
+  for (const mu of mus) {
+    for (let nu = mu; nu < n; nu++) {
+      const qMuNu = Q[mu * n + nu]!;
+      const pairMuNu = mu * n + nu;
+      for (let la = 0; la < n; la++) {
+        for (let si = la; si < n; si++) {
+          if (pairMuNu > la * n + si) continue;
+          if (qMuNu < schwarzTol || qMuNu * Q[la * n + si]! < schwarzTol) continue;
+          const v = ERI_cg(shells[mu]!, shells[nu]!, shells[la]!, shells[si]!);
+          eri[((mu * n + nu) * n + la) * n + si] = v;
+          eri[((nu * n + mu) * n + la) * n + si] = v;
+          eri[((mu * n + nu) * n + si) * n + la] = v;
+          eri[((nu * n + mu) * n + si) * n + la] = v;
+          eri[((la * n + si) * n + mu) * n + nu] = v;
+          eri[((si * n + la) * n + mu) * n + nu] = v;
+          eri[((la * n + si) * n + nu) * n + mu] = v;
+          eri[((si * n + la) * n + nu) * n + mu] = v;
+        }
+      }
+    }
+  }
+}
 
 /**
  * Compute G[μ, ν] = Σ_{λ, σ} D[λ, σ] · ( (μν|λσ) − ½ (μλ|νσ) )

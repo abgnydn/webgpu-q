@@ -13,7 +13,7 @@
 //   - Each work item is a small JSON message with the row range +
 //     dimensions; workers know which kernel to run via `kind`.
 
-export type KernelKind = "buildG-row-slice";
+export type KernelKind = "buildG-row-slice" | "eri-row-slice";
 
 export interface BuildGRowSliceTask {
   readonly kind: "buildG-row-slice";
@@ -25,7 +25,38 @@ export interface BuildGRowSliceTask {
   readonly G: SharedArrayBuffer;
 }
 
-export type WorkerTask = BuildGRowSliceTask;
+/** ERI build kernel — each worker computes the (μν|λσ) integrals for
+ *  μ in `mus` and writes the 8-fold symmetric positions to the shared
+ *  eri SAB. Canonical encoding (μ·n+ν ≤ λ·n+σ) ensures each unique
+ *  ERI is owned by exactly one worker → no write races. Using an
+ *  explicit μ list (instead of [muStart, muEnd)) lets the dispatcher
+ *  distribute rows cyclically — work per μ row decreases monotonically
+ *  with μ (canonical encoding), so contiguous chunks are unbalanced. */
+export interface ERIRowSliceTask {
+  readonly kind: "eri-row-slice";
+  /** Indices of μ rows this worker is responsible for. */
+  readonly mus: ReadonlyArray<number>;
+  /** Carry muStart/muEnd as 0,n for compatibility with the generic
+   *  runChunked signature — workers iterate via `mus` instead. */
+  readonly muStart: number;
+  readonly muEnd: number;
+  readonly n: number;
+  /** All shells serialized as plain JSON-clonable data. */
+  readonly shells: ReadonlyArray<{
+    readonly center: readonly [number, number, number];
+    readonly alpha: readonly number[];
+    readonly c: readonly number[];
+    readonly angular: readonly [number, number, number];
+  }>;
+  /** Output ERI tensor (n⁴ Float64). Worker writes only its slice. */
+  readonly eri: SharedArrayBuffer;
+  /** Precomputed Schwarz Q table (n² Float64). Read-only. */
+  readonly qTable: SharedArrayBuffer;
+  /** Schwarz tolerance. */
+  readonly schwarzTol: number;
+}
+
+export type WorkerTask = BuildGRowSliceTask | ERIRowSliceTask;
 
 export interface WorkerPool {
   readonly size: number;
@@ -63,7 +94,7 @@ export function createWorkerPool(size?: number): WorkerPool {
         const extra = i < remainder ? 1 : 0;
         const chunkEnd = Math.min(range.end, cursor + baseChunk + extra);
         if (chunkEnd > cursor) {
-          const task = { ...template, muStart: cursor, muEnd: chunkEnd } as WorkerTask;
+          const task = { ...template, muStart: cursor, muEnd: chunkEnd } as unknown as WorkerTask;
           promises.push(callWorker(workers[i]!, task));
         }
         cursor = chunkEnd;

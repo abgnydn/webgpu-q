@@ -45,7 +45,7 @@ export async function buildGParallel(
   // G output SAB; zero-initialized.
   const gSAB = new SharedArrayBuffer(n * n * 8);
 
-  await pool.runChunked(
+  await pool.runChunked<import("./worker-pool.js").BuildGRowSliceTask>(
     { kind: "buildG-row-slice", n, eri: eriSAB, D: dSAB, G: gSAB },
     { start: 0, end: n },
   );
