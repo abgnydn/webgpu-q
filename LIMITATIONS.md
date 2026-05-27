@@ -436,6 +436,34 @@ n ≥ 60 the JK build dominates and speedup approaches the
   one GPU submission with a small CPU-readback frequency. That's
   a real engineering project, not a single-session push.
 
+- **Aux-basis density fitting Phase 1** — measured 2026-05-27.
+  Foundation laid: a proper 3-index ERI kernel (μν|P) and 2-index
+  ERI kernel (P|Q) for the auxiliary basis path, both written in
+  Rust/WASM with McMurchie-Davidson recursion specialized for the
+  single-function (no-pair) ket side. New `df-aux.ts` JS bridge
+  composes them: V = (μν|P), M = (P|Q), eigendecompose M via the
+  existing Jacobi solver, form B = V · M^(-1/2). Returns a
+  standard `DFResult` interoperable with `buildJK_DF`.
+
+  Phase 1 uses the **orbital basis as the auxiliary basis** because
+  cc-pVDZ-jkfit aux-basis data tables aren't in the repo yet. This
+  validates the algorithm but the aux basis is too small to span
+  orbital products well — reconstruction errors on H₂ cc-pVDZ are
+  ~66 mHa max, ~4 mHa RMS. Symmetries are exact (V[μν,P]=V[νμ,P]
+  to 0.0, M[P,Q]=M[Q,P] to 0.0); M is positive-definite (min
+  diagonal 5.8). Eigendecomp + matrix inverse-sqrt is numerically
+  stable.
+
+  Phase 2 (next session): wire in cc-pVDZ-jkfit aux data tables
+  for H, C, N, O (the minimum to run organics). With proper aux
+  basis the reconstruction quality should be sub-mHa, matching
+  PySCF/ORCA's RI-HF accuracy.
+
+  Phase 3 (later): swap into `runRHFSCFAsync` as
+  `useDF: { type: "aux-basis", ... }` opt. Expected 5-10× HF
+  speedup at n ≥ 80 because B is ~3× smaller than the 4-index
+  tensor AND the JK build over B is cheaper.
+
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
   every primitive quartet (n_prim⁴ buildPair calls per ERI). Now caches

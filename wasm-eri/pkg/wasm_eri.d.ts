@@ -1,6 +1,29 @@
 /* tslint:disable */
 /* eslint-disable */
 
+/**
+ * Build the 2-index AO ERI metric M[P, Q] = (P|Q) on the auxiliary
+ * basis. Symmetric n_aux × n_aux matrix.
+ *
+ * This is the Coulomb metric for density fitting: B = V · M^(-1/2)
+ * where V is the 3-index tensor from `eri_3idx_build`.
+ */
+export function eri_2idx_build(n_aux: number, n_prims_per_aux: Uint32Array, prim_offsets_aux: Uint32Array, alpha_aux: Float64Array, c_aux: Float64Array, center_aux: Float64Array, angular_aux: Int32Array): Float64Array;
+
+/**
+ * Build the 3-index AO ERI tensor V[μν, P] = (μν|P) for aux-basis
+ * density fitting. Returns a flat `n² · n_aux` Float64Array with
+ * layout V[(μ · n + ν) · n_aux + P].
+ *
+ * For prototype, the aux basis is just another shell list; production
+ * would pass a separate jkfit/auxiliary set. Currently the orbital
+ * and aux shell representations are identical (CGShell-shaped).
+ *
+ * Cost: n_bra_pairs · n_aux · prim_eri_3idx (much cheaper than
+ * 4-index since the inner loop is 3+3 deep instead of 6 deep).
+ */
+export function eri_3idx_build(n_orbital: number, n_aux: number, n_prims_per_orb: Uint32Array, prim_offsets_orb: Uint32Array, alpha_orb: Float64Array, c_orb: Float64Array, center_orb: Float64Array, angular_orb: Int32Array, n_prims_per_aux: Uint32Array, prim_offsets_aux: Uint32Array, alpha_aux: Float64Array, c_aux: Float64Array, center_aux: Float64Array, angular_aux: Int32Array): Float64Array;
+
 export function eri_build(n_shells: number, n_prims_per_shell: Uint32Array, prim_offsets: Uint32Array, alpha_flat: Float64Array, c_flat: Float64Array, center_flat: Float64Array, angular_flat: Int32Array, schwarz_tol: number): Float64Array;
 
 /**
@@ -74,6 +97,8 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly eri_2idx_build: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => [number, number];
+    readonly eri_3idx_build: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: number, x: number, y: number, z: number) => [number, number];
     readonly eri_build: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number) => [number, number];
     readonly eri_build_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number];
     readonly fock_build_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];

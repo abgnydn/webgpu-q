@@ -799,3 +799,418 @@ pub fn fock_build_slice(
     }
     g_slice
 }
+
+// ─────────────────────────────────────────────────────────────
+// 3-index ERI kernel for aux-basis density fitting (RI).
+//
+// Computes (μν|P) where μ, ν are orbital basis functions (the same
+// shell list used in `eri_build_slice`) and P is a single auxiliary
+// basis function. The ket has no partner function — the Hermite
+// expansion on the ket side reduces to a simpler 1D centered
+// recursion (PA = 0). Inner loop is 3-deep instead of 6-deep.
+//
+// For a single Gaussian at center C with exponent α and angular
+// (kx, ky, kz), the Hermite expansion coefficients satisfy:
+//   E_0^0    = 1
+//   E_t^{k+1} = (1/(2α)) · E_{t-1}^k + (t+1) · E_{t+1}^k
+// (the PA-shift term vanishes because the "product center" of a
+// single Gaussian is at its own center). One table per (α, k_max);
+// since exp(-α r²) factorizes, the same table indexes for x, y, z.
+//
+// The 3-index integral via McMurchie-Davidson:
+//   (μν|P) = (2π^(5/2)) / (p · q · √(p+q))
+//              · Σ_{t,u,v}  E^bra_{t,u,v}(p, μν-pair)
+//              · E^aux_{kx,ky,kz}_signed(q)
+//              · R_{t+kx, u+ky, v+kz}(α', P_bra − C)
+// where α' = p · q / (p + q) and the parity sign (-1)^(kx+ky+kz)
+// is absorbed into the closed-form factor.
+
+/// E-coefficient table for a single (un-paired) Gaussian with exponent
+/// α and angular momentum up to `k_max` in one dimension. Layout:
+///   tab[k * dim + t] = E_t for angular momentum k (0 ≤ t ≤ k).
+/// Higher-t entries are 0 (recurrence boundary). `dim = k_max + 1`.
+fn aux_e_table(alpha: f64, k_max: i32) -> Vec<f64> {
+    let dim = (k_max + 1) as usize;
+    let mut tab = vec![0.0_f64; dim * dim];
+    tab[0] = 1.0;
+    let inv2a = 1.0 / (2.0 * alpha);
+    for k in 0..k_max {
+        for t in 0..=(k + 1) {
+            let k_us = k as usize;
+            let t_us = t as usize;
+            let left = if t > 0 { tab[k_us * dim + (t_us - 1)] } else { 0.0 };
+            let right = if (t + 1) <= k { tab[k_us * dim + (t_us + 1)] } else { 0.0 };
+            tab[(k_us + 1) * dim + t_us] = inv2a * left + ((t + 1) as f64) * right;
+        }
+    }
+    tab
+}
+
+/// Single auxiliary primitive Gaussian: exponent + center + angular.
+/// Contraction coefficient and Cartesian normalization are baked into
+/// the caller-side `c_norm` constant.
+struct AuxPrim {
+    alpha: f64,
+    cx: f64, cy: f64, cz: f64,
+    kx: i32, ky: i32, kz: i32,
+}
+
+/// Primitive 3-index ERI: (bra_pair | aux_prim).
+/// Bra side reuses PairData. Aux side is a single-function Hermite
+/// expansion. The `aux_ex/ey/ez` are 1D E-coef tables sized to k_max
+/// for the aux exponent; only the (kx, ky, kz) row of each is read.
+#[allow(clippy::too_many_arguments)]
+fn prim_eri_3idx(
+    pd_bra: &PairData, ix: i32, iy: i32, iz: i32, jx: i32, jy: i32, jz: i32,
+    aux: &AuxPrim,
+    aux_e: &[f64], aux_k_dim: usize,
+    f_buf: &mut Vec<f64>, r_buf: &mut Vec<f64>,
+) -> f64 {
+    let p = pd_bra.p;
+    let q = aux.alpha;
+    let alpha_pair = (p * q) / (p + q);
+    let [px, py, pz] = pd_bra.p_xyz;
+    let cx = aux.cx; let cy = aux.cy; let cz = aux.cz;
+
+    let t_max = (ix + jx) as usize;
+    let u_max = (iy + jy) as usize;
+    let v_max = (iz + jz) as usize;
+    let kxu = aux.kx as usize;
+    let kyu = aux.ky as usize;
+    let kzu = aux.kz as usize;
+
+    // R-aux dims account for both bra (t, u, v) and aux (kx, ky, kz)
+    // contributions: index range is t + kx ∈ [0, t_max + kx].
+    let t_dim_total = (t_max + kxu) as i32;
+    let u_dim_total = (u_max + kyu) as i32;
+    let v_dim_total = (v_max + kzu) as i32;
+    let (_, u_dim_r, v_dim_r) = r_aux_table(
+        t_dim_total, u_dim_total, v_dim_total, alpha_pair, px - cx, py - cy, pz - cz,
+        f_buf, r_buf,
+    );
+    let rt = r_buf.as_slice();
+
+    // Bra E-coef slices (same layout as 4-index path).
+    let p_jdim_x = (pd_bra.j_max_x + 1) as usize;
+    let p_jdim_y = (pd_bra.j_max_y + 1) as usize;
+    let p_jdim_z = (pd_bra.j_max_z + 1) as usize;
+    let p_tdim_x = (pd_bra.i_max_x + pd_bra.j_max_x + 1) as usize;
+    let p_tdim_y = (pd_bra.i_max_y + pd_bra.j_max_y + 1) as usize;
+    let p_tdim_z = (pd_bra.i_max_z + pd_bra.j_max_z + 1) as usize;
+    let ex_base = ((ix as usize) * p_jdim_x + jx as usize) * p_tdim_x;
+    let ey_base = ((iy as usize) * p_jdim_y + jy as usize) * p_tdim_y;
+    let ez_base = ((iz as usize) * p_jdim_z + jz as usize) * p_tdim_z;
+    let bra_ex = &pd_bra.ex[ex_base..ex_base + t_max + 1];
+    let bra_ey = &pd_bra.ey[ey_base..ey_base + u_max + 1];
+    let bra_ez = &pd_bra.ez[ez_base..ez_base + v_max + 1];
+
+    // Aux E-coef rows: aux_e[k * aux_k_dim + tau] = E_tau for angular k.
+    // We need to iterate (tau, nu, phi) ∈ [0..=kx] × [0..=ky] × [0..=kz]
+    // since the aux Hermite expansion has nonzero coefs across the
+    // whole 0..=k range (not just t = k as the 4-index ket would).
+    let aux_ex_row = &aux_e[kxu * aux_k_dim..kxu * aux_k_dim + kxu + 1];
+    let aux_ey_row = &aux_e[kyu * aux_k_dim..kyu * aux_k_dim + kyu + 1];
+    let aux_ez_row = &aux_e[kzu * aux_k_dim..kzu * aux_k_dim + kzu + 1];
+
+    // 6-deep loop reduced to 3 + 3 (bra t/u/v, aux tau/nu/phi).
+    let mut sum = 0.0_f64;
+    for t in 0..=t_max {
+        let ex = bra_ex[t];
+        for u in 0..=u_max {
+            let exy = ex * bra_ey[u];
+            for v in 0..=v_max {
+                let exyz = exy * bra_ez[v];
+                for tau in 0..=kxu {
+                    let aex = aux_ex_row[tau];
+                    let tau_par = tau & 1;
+                    for nuv in 0..=kyu {
+                        let aey = aex * aux_ey_row[nuv];
+                        let nu_par_xor_tau = (nuv & 1) ^ tau_par;
+                        let r_row_base = (t + tau) * u_dim_r * v_dim_r;
+                        let r_phi0 = r_row_base + (u + nuv) * v_dim_r + v;
+                        for phi in 0..=kzu {
+                            let parity = (phi & 1) ^ nu_par_xor_tau;
+                            let sign = 1.0 - 2.0 * (parity as f64);
+                            sum += exyz * aey * aux_ez_row[phi] * sign * rt[r_phi0 + phi];
+                        }
+                    }
+                }
+            }
+        }
+    }
+    2.0 * std::f64::consts::PI.powf(2.5) / (p * q * (p + q).sqrt()) * sum
+}
+
+/// Compute the contracted 3-index ERI (μν|P) between a bra PairTable
+/// and an auxiliary contracted shell. Sums over all primitive
+/// combinations.
+#[allow(clippy::too_many_arguments)]
+fn eri_cg_3idx(
+    bra: &PairTable,
+    aux_alpha: &[f64], aux_c: &[f64],
+    aux_center: [f64; 3], aux_angular: [i32; 3],
+    f_buf: &mut Vec<f64>, r_buf: &mut Vec<f64>,
+) -> f64 {
+    let [aix, aiy, aiz] = bra.ax_ang;
+    let [bix, biy, biz] = bra.bx_ang;
+    let [kx, ky, kz] = aux_angular;
+    let n_aux_prim = aux_alpha.len();
+    let k_max = kx.max(ky).max(kz);
+    let k_dim = (k_max + 1) as usize;
+
+    let mut s = 0.0_f64;
+    for ka in 0..n_aux_prim {
+        let ap = aux_alpha[ka];
+        let cp = aux_c[ka] * norm_cg(ap, kx, ky, kz);
+        let aux_e = aux_e_table(ap, k_max);
+        let aux_prim = AuxPrim {
+            alpha: ap,
+            cx: aux_center[0], cy: aux_center[1], cz: aux_center[2],
+            kx, ky, kz,
+        };
+        for ij in 0..bra.pairs.len() {
+            let pd_bra = &bra.pairs[ij];
+            let c_bra = bra.coef[ij];
+            s += c_bra * cp * prim_eri_3idx(
+                pd_bra, aix, aiy, aiz, bix, biy, biz,
+                &aux_prim, &aux_e, k_dim,
+                f_buf, r_buf,
+            );
+        }
+    }
+    s
+}
+
+/// Build the 3-index AO ERI tensor V[μν, P] = (μν|P) for aux-basis
+/// density fitting. Returns a flat `n² · n_aux` Float64Array with
+/// layout V[(μ · n + ν) · n_aux + P].
+///
+/// For prototype, the aux basis is just another shell list; production
+/// would pass a separate jkfit/auxiliary set. Currently the orbital
+/// and aux shell representations are identical (CGShell-shaped).
+///
+/// Cost: n_bra_pairs · n_aux · prim_eri_3idx (much cheaper than
+/// 4-index since the inner loop is 3+3 deep instead of 6 deep).
+#[wasm_bindgen]
+pub fn eri_3idx_build(
+    n_orbital: u32,
+    n_aux: u32,
+    /* orbital shells */
+    n_prims_per_orb: &[u32],
+    prim_offsets_orb: &[u32],
+    alpha_orb: &[f64],
+    c_orb: &[f64],
+    center_orb: &[f64],
+    angular_orb: &[i32],
+    /* aux shells */
+    n_prims_per_aux: &[u32],
+    prim_offsets_aux: &[u32],
+    alpha_aux: &[f64],
+    c_aux: &[f64],
+    center_aux: &[f64],
+    angular_aux: &[i32],
+) -> Vec<f64> {
+    let n = n_orbital as usize;
+    let nx = n_aux as usize;
+    let mut v = vec![0.0_f64; n * n * nx];
+
+    let pair_tables = precompute_pair_tables(
+        n, n_prims_per_orb, prim_offsets_orb,
+        alpha_orb, c_orb, center_orb, angular_orb,
+    );
+
+    let mut f_buf: Vec<f64> = Vec::with_capacity(32);
+    let mut r_buf: Vec<f64> = Vec::with_capacity(1024);
+
+    for mu in 0..n {
+        for nu in mu..n {
+            let bra = &pair_tables[mu * n + nu];
+            for px_idx in 0..nx {
+                let na = n_prims_per_aux[px_idx] as usize;
+                let off = prim_offsets_aux[px_idx] as usize;
+                let alpha_slice = &alpha_aux[off..off + na];
+                let c_slice = &c_aux[off..off + na];
+                let center = [
+                    center_aux[px_idx * 3],
+                    center_aux[px_idx * 3 + 1],
+                    center_aux[px_idx * 3 + 2],
+                ];
+                let angular = [
+                    angular_aux[px_idx * 3],
+                    angular_aux[px_idx * 3 + 1],
+                    angular_aux[px_idx * 3 + 2],
+                ];
+                let val = eri_cg_3idx(
+                    bra,
+                    alpha_slice, c_slice,
+                    center, angular,
+                    &mut f_buf, &mut r_buf,
+                );
+                v[(mu * n + nu) * nx + px_idx] = val;
+                if mu != nu {
+                    v[(nu * n + mu) * nx + px_idx] = val;
+                }
+            }
+        }
+    }
+    v
+}
+
+/// Primitive 2-index ERI: (P|Q) where both P and Q are single
+/// auxiliary Gaussians. Symmetric in (P, Q). Both Hermite expansions
+/// are single-function (no PA-shift) — the inner loop is 3+3 deep,
+/// same total complexity as `prim_eri_3idx` but without bra E-coef
+/// fetches.
+#[allow(clippy::too_many_arguments)]
+fn prim_eri_2idx(
+    p_alpha: f64, p_cx: f64, p_cy: f64, p_cz: f64, pkx: i32, pky: i32, pkz: i32,
+    q_alpha: f64, q_cx: f64, q_cy: f64, q_cz: f64, qkx: i32, qky: i32, qkz: i32,
+    p_e: &[f64], p_k_dim: usize,
+    q_e: &[f64], q_k_dim: usize,
+    f_buf: &mut Vec<f64>, r_buf: &mut Vec<f64>,
+) -> f64 {
+    let p = p_alpha;
+    let q = q_alpha;
+    let alpha_pair = (p * q) / (p + q);
+
+    let pkxu = pkx as usize; let pkyu = pky as usize; let pkzu = pkz as usize;
+    let qkxu = qkx as usize; let qkyu = qky as usize; let qkzu = qkz as usize;
+
+    let t_dim_total = (pkxu + qkxu) as i32;
+    let u_dim_total = (pkyu + qkyu) as i32;
+    let v_dim_total = (pkzu + qkzu) as i32;
+    let (_, u_dim_r, v_dim_r) = r_aux_table(
+        t_dim_total, u_dim_total, v_dim_total, alpha_pair,
+        p_cx - q_cx, p_cy - q_cy, p_cz - q_cz,
+        f_buf, r_buf,
+    );
+    let rt = r_buf.as_slice();
+
+    let p_ex_row = &p_e[pkxu * p_k_dim..pkxu * p_k_dim + pkxu + 1];
+    let p_ey_row = &p_e[pkyu * p_k_dim..pkyu * p_k_dim + pkyu + 1];
+    let p_ez_row = &p_e[pkzu * p_k_dim..pkzu * p_k_dim + pkzu + 1];
+    let q_ex_row = &q_e[qkxu * q_k_dim..qkxu * q_k_dim + qkxu + 1];
+    let q_ey_row = &q_e[qkyu * q_k_dim..qkyu * q_k_dim + qkyu + 1];
+    let q_ez_row = &q_e[qkzu * q_k_dim..qkzu * q_k_dim + qkzu + 1];
+
+    let mut sum = 0.0_f64;
+    for t in 0..=pkxu {
+        let pex = p_ex_row[t];
+        for u in 0..=pkyu {
+            let pey = pex * p_ey_row[u];
+            for v in 0..=pkzu {
+                let pez = pey * p_ez_row[v];
+                for tau in 0..=qkxu {
+                    let aex = q_ex_row[tau];
+                    let tau_par = tau & 1;
+                    for nuv in 0..=qkyu {
+                        let aey = aex * q_ey_row[nuv];
+                        let nu_par_xor_tau = (nuv & 1) ^ tau_par;
+                        let r_phi0 = (t + tau) * u_dim_r * v_dim_r + (u + nuv) * v_dim_r + v;
+                        for phi in 0..=qkzu {
+                            let parity = (phi & 1) ^ nu_par_xor_tau;
+                            let sign = 1.0 - 2.0 * (parity as f64);
+                            sum += pez * aey * q_ez_row[phi] * sign * rt[r_phi0 + phi];
+                        }
+                    }
+                }
+            }
+        }
+    }
+    2.0 * std::f64::consts::PI.powf(2.5) / (p * q * (p + q).sqrt()) * sum
+}
+
+/// Build the 2-index AO ERI metric M[P, Q] = (P|Q) on the auxiliary
+/// basis. Symmetric n_aux × n_aux matrix.
+///
+/// This is the Coulomb metric for density fitting: B = V · M^(-1/2)
+/// where V is the 3-index tensor from `eri_3idx_build`.
+#[wasm_bindgen]
+pub fn eri_2idx_build(
+    n_aux: u32,
+    n_prims_per_aux: &[u32],
+    prim_offsets_aux: &[u32],
+    alpha_aux: &[f64],
+    c_aux: &[f64],
+    center_aux: &[f64],
+    angular_aux: &[i32],
+) -> Vec<f64> {
+    let nx = n_aux as usize;
+    let mut m = vec![0.0_f64; nx * nx];
+
+    let mut f_buf: Vec<f64> = Vec::with_capacity(32);
+    let mut r_buf: Vec<f64> = Vec::with_capacity(1024);
+
+    // Precompute aux E-coef tables (per primitive) and norms.
+    // Each aux shell has up to ~3 primitives; each primitive has its
+    // own α → its own Hermite table.
+    let total_prims: usize = n_prims_per_aux.iter().map(|&x| x as usize).sum();
+    let mut aux_max_k_per_prim: Vec<i32> = Vec::with_capacity(total_prims);
+    let mut aux_e_per_prim: Vec<Vec<f64>> = Vec::with_capacity(total_prims);
+    let mut aux_norm_per_prim: Vec<f64> = Vec::with_capacity(total_prims);
+    for sh in 0..nx {
+        let na = n_prims_per_aux[sh] as usize;
+        let off = prim_offsets_aux[sh] as usize;
+        let kx = angular_aux[sh * 3];
+        let ky = angular_aux[sh * 3 + 1];
+        let kz = angular_aux[sh * 3 + 2];
+        let k_max = kx.max(ky).max(kz);
+        for p in 0..na {
+            let ap = alpha_aux[off + p];
+            aux_max_k_per_prim.push(k_max);
+            aux_e_per_prim.push(aux_e_table(ap, k_max));
+            aux_norm_per_prim.push(norm_cg(ap, kx, ky, kz));
+        }
+    }
+
+    for p_idx in 0..nx {
+        let pkx = angular_aux[p_idx * 3];
+        let pky = angular_aux[p_idx * 3 + 1];
+        let pkz = angular_aux[p_idx * 3 + 2];
+        let na_p = n_prims_per_aux[p_idx] as usize;
+        let off_p = prim_offsets_aux[p_idx] as usize;
+        let p_cx = center_aux[p_idx * 3];
+        let p_cy = center_aux[p_idx * 3 + 1];
+        let p_cz = center_aux[p_idx * 3 + 2];
+        // Aggregate primitive index into the global per-prim arrays.
+        let p_prim_global_base: usize =
+            (0..p_idx).map(|x| n_prims_per_aux[x] as usize).sum();
+        for q_idx in p_idx..nx {
+            let qkx = angular_aux[q_idx * 3];
+            let qky = angular_aux[q_idx * 3 + 1];
+            let qkz = angular_aux[q_idx * 3 + 2];
+            let na_q = n_prims_per_aux[q_idx] as usize;
+            let off_q = prim_offsets_aux[q_idx] as usize;
+            let q_cx = center_aux[q_idx * 3];
+            let q_cy = center_aux[q_idx * 3 + 1];
+            let q_cz = center_aux[q_idx * 3 + 2];
+            let q_prim_global_base: usize =
+                (0..q_idx).map(|x| n_prims_per_aux[x] as usize).sum();
+
+            let mut s = 0.0_f64;
+            for ip in 0..na_p {
+                let p_alpha = alpha_aux[off_p + ip];
+                let p_c_norm = c_aux[off_p + ip] * aux_norm_per_prim[p_prim_global_base + ip];
+                let p_e = &aux_e_per_prim[p_prim_global_base + ip];
+                let p_k_dim = (aux_max_k_per_prim[p_prim_global_base + ip] + 1) as usize;
+                for iq in 0..na_q {
+                    let q_alpha = alpha_aux[off_q + iq];
+                    let q_c_norm = c_aux[off_q + iq] * aux_norm_per_prim[q_prim_global_base + iq];
+                    let q_e = &aux_e_per_prim[q_prim_global_base + iq];
+                    let q_k_dim = (aux_max_k_per_prim[q_prim_global_base + iq] + 1) as usize;
+                    s += p_c_norm * q_c_norm * prim_eri_2idx(
+                        p_alpha, p_cx, p_cy, p_cz, pkx, pky, pkz,
+                        q_alpha, q_cx, q_cy, q_cz, qkx, qky, qkz,
+                        p_e, p_k_dim, q_e, q_k_dim,
+                        &mut f_buf, &mut r_buf,
+                    );
+                }
+            }
+            m[p_idx * nx + q_idx] = s;
+            if p_idx != q_idx {
+                m[q_idx * nx + p_idx] = s;
+            }
+        }
+    }
+    m
+}
