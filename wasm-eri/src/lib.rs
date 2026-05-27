@@ -1,0 +1,397 @@
+// wasm-eri — Rust port of the ERI primitive kernel.
+//
+// Mirrors src/chemistry/integrals-cg.ts (Boys, eCoefTable, rAuxTable,
+// primERIWithPairs, ERI_cg) but compiles to native CPU instructions via
+// wasm32-unknown-unknown. Goal: 3-5× per-thread speedup over JIT'd TS
+// on the n⁴ ERI build.
+//
+// First pass: algorithm-identical port, no SIMD intrinsics yet. The
+// native-compile-vs-JIT delta alone is usually ~1.5-2× on tight FP
+// loops. We layer wasm-simd128 on top in a later pass.
+
+use wasm_bindgen::prelude::*;
+
+const SQRT_PI: f64 = 1.7724538509055160272;
+
+// ── Per-primitive Cartesian-Gaussian normalization ─────────────
+fn double_fact_odd(n: i32) -> f64 {
+    if n <= 0 { return 1.0; }
+    let mut r: f64 = 1.0;
+    for k in 1..=n {
+        r *= (2 * k - 1) as f64;
+    }
+    r
+}
+
+fn norm_cg(alpha: f64, ix: i32, iy: i32, iz: i32) -> f64 {
+    let l = ix + iy + iz;
+    let dfx = double_fact_odd(ix);
+    let dfy = double_fact_odd(iy);
+    let dfz = double_fact_odd(iz);
+    let radial = (2.0 * alpha / std::f64::consts::PI).powf(0.75);
+    let four_alpha_l = (4.0 * alpha).powi(l);
+    let angular = (four_alpha_l / (dfx * dfy * dfz)).sqrt();
+    radial * angular
+}
+
+// ── Boys function F_n(t) for n = 0..=nMax ──────────────────────
+fn erf_approx(x: f64) -> f64 {
+    let sign = if x < 0.0 { -1.0 } else { 1.0 };
+    let ax = x.abs();
+    let p = 0.3275911;
+    let a1 = 0.254829592;
+    let a2 = -0.284496736;
+    let a3 = 1.421413741;
+    let a4 = -1.453152027;
+    let a5 = 1.061405429;
+    let tt = 1.0 / (1.0 + p * ax);
+    let y = 1.0 - (((((a5 * tt + a4) * tt) + a3) * tt + a2) * tt + a1) * tt * (-ax * ax).exp();
+    sign * y
+}
+
+fn boys0(t: f64) -> f64 {
+    if t < 1e-12 { return 1.0 - t / 3.0 + (t * t) / 10.0; }
+    let s = t.sqrt();
+    0.5 * SQRT_PI / s * erf_approx(s)
+}
+
+fn boys_n_taylor(n: i32, t: f64) -> f64 {
+    let mut sum = 0.0_f64;
+    let mut term = 1.0 / (2.0 * (n as f64) + 1.0);
+    for k in 0..200 {
+        sum += term;
+        let nf = n as f64;
+        let kf = k as f64;
+        term *= -t / (kf + 1.0) * (2.0 * nf + 2.0 * kf + 1.0) / (2.0 * nf + 2.0 * kf + 3.0);
+        if term.abs() < 1e-18 * sum.abs() { break; }
+    }
+    sum
+}
+
+fn boys_all(n_max: i32, t: f64, out: &mut [f64]) {
+    if t < 1e-12 {
+        for n in 0..=n_max {
+            out[n as usize] = 1.0 / (2.0 * (n as f64) + 1.0);
+        }
+        return;
+    }
+    let upward_threshold = (2.0 * (n_max as f64) - 1.0) / 2.0;
+    if t < upward_threshold {
+        for n in 0..=n_max {
+            out[n as usize] = boys_n_taylor(n, t);
+        }
+        return;
+    }
+    out[0] = boys0(t);
+    if n_max == 0 { return; }
+    let exp_mt = (-t).exp();
+    for n in 1..=n_max {
+        let n_us = n as usize;
+        out[n_us] = ((2.0 * (n as f64) - 1.0) * out[n_us - 1] - exp_mt) / (2.0 * t);
+    }
+}
+
+// ── McMurchie-Davidson 1D E-coefficients ───────────────────────
+struct PairData {
+    p: f64,
+    p_xyz: [f64; 3],
+    ex: Vec<f64>,
+    ey: Vec<f64>,
+    ez: Vec<f64>,
+    i_max_x: i32, j_max_x: i32,
+    i_max_y: i32, j_max_y: i32,
+    i_max_z: i32, j_max_z: i32,
+}
+
+fn e_coef_table(i_max: i32, j_max: i32, pa: f64, pb: f64, p: f64, k: f64) -> Vec<f64> {
+    let t_dim = (i_max + j_max + 1) as usize;
+    let i_dim = (i_max + 1) as usize;
+    let j_dim = (j_max + 1) as usize;
+    let mut tab = vec![0.0_f64; i_dim * j_dim * t_dim];
+    let idx = |a: i32, b: i32, t: i32| -> usize {
+        ((a as usize) * j_dim + (b as usize)) * t_dim + (t as usize)
+    };
+    tab[idx(0, 0, 0)] = k;
+    let inv2p = 1.0 / (2.0 * p);
+
+    for b in 0..j_max {
+        for t in 0..=(b + 1) {
+            let left = if t > 0 { tab[idx(0, b, t - 1)] } else { 0.0 };
+            let mid = if t <= b { tab[idx(0, b, t)] } else { 0.0 };
+            let right = if t + 1 <= b { tab[idx(0, b, t + 1)] } else { 0.0 };
+            tab[idx(0, b + 1, t)] = inv2p * left + pb * mid + ((t + 1) as f64) * right;
+        }
+    }
+    for a in 0..i_max {
+        for b in 0..=j_max {
+            for t in 0..=(a + b + 1) {
+                let left = if t > 0 { tab[idx(a, b, t - 1)] } else { 0.0 };
+                let mid = if t <= a + b { tab[idx(a, b, t)] } else { 0.0 };
+                let right = if t + 1 <= a + b { tab[idx(a, b, t + 1)] } else { 0.0 };
+                tab[idx(a + 1, b, t)] = inv2p * left + pa * mid + ((t + 1) as f64) * right;
+            }
+        }
+    }
+    tab
+}
+
+fn e_at(tab: &[f64], j_max: i32, i_max: i32, i: i32, j: i32, t: i32) -> f64 {
+    if t < 0 || t > i + j { return 0.0; }
+    let t_dim = (i_max + j_max + 1) as usize;
+    let j_dim = (j_max + 1) as usize;
+    tab[((i as usize) * j_dim + (j as usize)) * t_dim + (t as usize)]
+}
+
+fn build_pair(
+    alpha: f64, ax: f64, ay: f64, az: f64, ix: i32, iy: i32, iz: i32,
+    beta: f64, bx: f64, by: f64, bz: f64, jx: i32, jy: i32, jz: i32,
+) -> PairData {
+    let p = alpha + beta;
+    let mu = alpha * beta / p;
+    let px = (alpha * ax + beta * bx) / p;
+    let py = (alpha * ay + beta * by) / p;
+    let pz = (alpha * az + beta * bz) / p;
+    let kx = (-mu * (ax - bx) * (ax - bx)).exp();
+    let ky = (-mu * (ay - by) * (ay - by)).exp();
+    let kz = (-mu * (az - bz) * (az - bz)).exp();
+    PairData {
+        p,
+        p_xyz: [px, py, pz],
+        ex: e_coef_table(ix, jx, px - ax, px - bx, p, kx),
+        ey: e_coef_table(iy, jy, py - ay, py - by, p, ky),
+        ez: e_coef_table(iz, jz, pz - az, pz - bz, p, kz),
+        i_max_x: ix, j_max_x: jx,
+        i_max_y: iy, j_max_y: jy,
+        i_max_z: iz, j_max_z: jz,
+    }
+}
+
+// ── R_{tuv} auxiliary table for ERI ─────────────────────────────
+fn r_aux_table(
+    t_max: i32, u_max: i32, v_max: i32,
+    p: f64, rx: f64, ry: f64, rz: f64,
+) -> (Vec<f64>, usize, usize, usize) {
+    let n_max = t_max + u_max + v_max;
+    let mut f = vec![0.0_f64; (n_max + 1) as usize];
+    boys_all(n_max, p * (rx * rx + ry * ry + rz * rz), &mut f);
+    let t_dim = (t_max + 1) as usize;
+    let u_dim = (u_max + 1) as usize;
+    let v_dim = (v_max + 1) as usize;
+    let n_dim = (n_max + 1) as usize;
+    let mut r = vec![0.0_f64; n_dim * t_dim * u_dim * v_dim];
+    let idx = |n: i32, t: i32, u: i32, v: i32| -> usize {
+        (((n as usize) * t_dim + (t as usize)) * u_dim + (u as usize)) * v_dim + (v as usize)
+    };
+    // Seed.
+    let mut neg2p_n = 1.0;
+    for n in 0..=n_max {
+        r[idx(n, 0, 0, 0)] = neg2p_n * f[n as usize];
+        neg2p_n *= -2.0 * p;
+    }
+    for n in (0..n_max).rev() {
+        for t in 0..=t_max {
+            for u in 0..=u_max {
+                for v in 0..=v_max {
+                    if t == 0 && u == 0 && v == 0 { continue; }
+                    let mut acc = 0.0_f64;
+                    if v > 0 {
+                        acc += rz * r[idx(n + 1, t, u, v - 1)];
+                        if v >= 2 { acc += ((v - 1) as f64) * r[idx(n + 1, t, u, v - 2)]; }
+                    } else if u > 0 {
+                        acc += ry * r[idx(n + 1, t, u - 1, v)];
+                        if u >= 2 { acc += ((u - 1) as f64) * r[idx(n + 1, t, u - 2, v)]; }
+                    } else {
+                        acc += rx * r[idx(n + 1, t - 1, u, v)];
+                        if t >= 2 { acc += ((t - 1) as f64) * r[idx(n + 1, t - 2, u, v)]; }
+                    }
+                    r[idx(n, t, u, v)] = acc;
+                }
+            }
+        }
+    }
+    (r, t_dim, u_dim, v_dim)
+}
+
+// ── Primitive ERI given pair tables ─────────────────────────────
+fn prim_eri_with_pairs(
+    pd1: &PairData, ix: i32, iy: i32, iz: i32, jx: i32, jy: i32, jz: i32,
+    pd2: &PairData, kx: i32, ky: i32, kz: i32, lx: i32, ly: i32, lz: i32,
+) -> f64 {
+    let p = pd1.p;
+    let q = pd2.p;
+    let alpha_pair = (p * q) / (p + q);
+    let px = pd1.p_xyz[0]; let py = pd1.p_xyz[1]; let pz = pd1.p_xyz[2];
+    let qx = pd2.p_xyz[0]; let qy = pd2.p_xyz[1]; let qz = pd2.p_xyz[2];
+
+    let t_max = ix + jx;
+    let u_max = iy + jy;
+    let v_max = iz + jz;
+    let tau_max = kx + lx;
+    let nu_max = ky + ly;
+    let phi_max = kz + lz;
+    let t_dim_sum = t_max + tau_max;
+    let u_dim_sum = u_max + nu_max;
+    let v_dim_sum = v_max + phi_max;
+    let (rt, _, u_dim_r, v_dim_r) = r_aux_table(
+        t_dim_sum, u_dim_sum, v_dim_sum, alpha_pair, px - qx, py - qy, pz - qz,
+    );
+
+    let mut sum = 0.0_f64;
+    for t in 0..=t_max {
+        let ex1 = e_at(&pd1.ex, pd1.j_max_x, pd1.i_max_x, ix, jx, t);
+        if ex1 == 0.0 { continue; }
+        for u in 0..=u_max {
+            let ey1 = e_at(&pd1.ey, pd1.j_max_y, pd1.i_max_y, iy, jy, u);
+            if ey1 == 0.0 { continue; }
+            for v in 0..=v_max {
+                let ez1 = e_at(&pd1.ez, pd1.j_max_z, pd1.i_max_z, iz, jz, v);
+                if ez1 == 0.0 { continue; }
+                for tau in 0..=tau_max {
+                    let ex2 = e_at(&pd2.ex, pd2.j_max_x, pd2.i_max_x, kx, lx, tau);
+                    if ex2 == 0.0 { continue; }
+                    for nu in 0..=nu_max {
+                        let ey2 = e_at(&pd2.ey, pd2.j_max_y, pd2.i_max_y, ky, ly, nu);
+                        if ey2 == 0.0 { continue; }
+                        for phi in 0..=phi_max {
+                            let ez2 = e_at(&pd2.ez, pd2.j_max_z, pd2.i_max_z, kz, lz, phi);
+                            if ez2 == 0.0 { continue; }
+                            let sign = if ((tau + nu + phi) & 1) != 0 { -1.0 } else { 1.0 };
+                            let r_idx = ((t + tau) as usize) * u_dim_r * v_dim_r
+                                + ((u + nu) as usize) * v_dim_r
+                                + ((v + phi) as usize);
+                            sum += ex1 * ey1 * ez1 * ex2 * ey2 * ez2 * sign * rt[r_idx];
+                        }
+                    }
+                }
+            }
+        }
+    }
+    2.0 * std::f64::consts::PI.powf(2.5) / (p * q * (p + q).sqrt()) * sum
+}
+
+// ── Shell representation (flat for JS interop) ─────────────────
+//
+// JS passes shells as parallel arrays:
+//   nShells: number
+//   nPrimsPerShell: Uint32Array of length nShells (sum = total prim count)
+//   alphaFlat: Float64Array of all alphas concatenated
+//   cFlat: Float64Array of all contraction coefficients concatenated
+//   centerFlat: Float64Array, 3 entries per shell, length 3*nShells
+//   angularFlat: Int32Array, 3 entries per shell, length 3*nShells
+
+#[wasm_bindgen]
+pub fn eri_build(
+    n_shells: u32,
+    n_prims_per_shell: &[u32],
+    prim_offsets: &[u32],
+    alpha_flat: &[f64],
+    c_flat: &[f64],
+    center_flat: &[f64],
+    angular_flat: &[i32],
+    schwarz_tol: f64,
+) -> Vec<f64> {
+    let n = n_shells as usize;
+    let mut eri = vec![0.0_f64; n * n * n * n];
+
+    // Helper to get one ERI between four shells.
+    let eri_cg = |a: usize, b: usize, c: usize, d: usize| -> f64 {
+        let n_a = n_prims_per_shell[a] as usize;
+        let n_b = n_prims_per_shell[b] as usize;
+        let n_c = n_prims_per_shell[c] as usize;
+        let n_d = n_prims_per_shell[d] as usize;
+        let a_off = prim_offsets[a] as usize;
+        let b_off = prim_offsets[b] as usize;
+        let c_off = prim_offsets[c] as usize;
+        let d_off = prim_offsets[d] as usize;
+
+        let ax = center_flat[a * 3]; let ay = center_flat[a * 3 + 1]; let az = center_flat[a * 3 + 2];
+        let bx = center_flat[b * 3]; let by = center_flat[b * 3 + 1]; let bz = center_flat[b * 3 + 2];
+        let cx = center_flat[c * 3]; let cy = center_flat[c * 3 + 1]; let cz = center_flat[c * 3 + 2];
+        let dx = center_flat[d * 3]; let dy = center_flat[d * 3 + 1]; let dz = center_flat[d * 3 + 2];
+
+        let aix = angular_flat[a * 3]; let aiy = angular_flat[a * 3 + 1]; let aiz = angular_flat[a * 3 + 2];
+        let bix = angular_flat[b * 3]; let biy = angular_flat[b * 3 + 1]; let biz = angular_flat[b * 3 + 2];
+        let cix = angular_flat[c * 3]; let ciy = angular_flat[c * 3 + 1]; let ciz = angular_flat[c * 3 + 2];
+        let dix = angular_flat[d * 3]; let diy = angular_flat[d * 3 + 1]; let diz = angular_flat[d * 3 + 2];
+
+        // Bra pair table: n_a × n_b entries.
+        let mut bra_pairs: Vec<PairData> = Vec::with_capacity(n_a * n_b);
+        let mut bra_coef: Vec<f64> = Vec::with_capacity(n_a * n_b);
+        for i in 0..n_a {
+            let ai = alpha_flat[a_off + i];
+            let ci = c_flat[a_off + i] * norm_cg(ai, aix, aiy, aiz);
+            for j in 0..n_b {
+                let bj = alpha_flat[b_off + j];
+                let cj = c_flat[b_off + j] * norm_cg(bj, bix, biy, biz);
+                bra_coef.push(ci * cj);
+                bra_pairs.push(build_pair(
+                    ai, ax, ay, az, aix, aiy, aiz,
+                    bj, bx, by, bz, bix, biy, biz,
+                ));
+            }
+        }
+        let mut ket_pairs: Vec<PairData> = Vec::with_capacity(n_c * n_d);
+        let mut ket_coef: Vec<f64> = Vec::with_capacity(n_c * n_d);
+        for k in 0..n_c {
+            let ck = alpha_flat[c_off + k];
+            let cck = c_flat[c_off + k] * norm_cg(ck, cix, ciy, ciz);
+            for l in 0..n_d {
+                let dl = alpha_flat[d_off + l];
+                let cdl = c_flat[d_off + l] * norm_cg(dl, dix, diy, diz);
+                ket_coef.push(cck * cdl);
+                ket_pairs.push(build_pair(
+                    ck, cx, cy, cz, cix, ciy, ciz,
+                    dl, dx, dy, dz, dix, diy, diz,
+                ));
+            }
+        }
+        let mut s = 0.0_f64;
+        for ij in 0..(n_a * n_b) {
+            let pd1 = &bra_pairs[ij];
+            let c_bra = bra_coef[ij];
+            for kl in 0..(n_c * n_d) {
+                s += c_bra * ket_coef[kl] * prim_eri_with_pairs(
+                    pd1, aix, aiy, aiz, bix, biy, biz,
+                    &ket_pairs[kl], cix, ciy, ciz, dix, diy, diz,
+                );
+            }
+        }
+        s
+    };
+
+    // Schwarz Q table.
+    let mut q = vec![0.0_f64; n * n];
+    for mu in 0..n {
+        for nu in mu..n {
+            let v = eri_cg(mu, nu, mu, nu);
+            let qv = v.abs().sqrt();
+            q[mu * n + nu] = qv;
+            q[nu * n + mu] = qv;
+        }
+    }
+
+    // Build ERI tensor with 8-fold symmetry + Schwarz screening.
+    for mu in 0..n {
+        for nu in mu..n {
+            let q_mu_nu = q[mu * n + nu];
+            for la in 0..n {
+                for si in la..n {
+                    if mu * n + nu > la * n + si { continue; }
+                    if q_mu_nu < schwarz_tol || q_mu_nu * q[la * n + si] < schwarz_tol { continue; }
+                    let v = eri_cg(mu, nu, la, si);
+                    let n2 = n * n;
+                    let n3 = n2 * n;
+                    eri[mu * n3 + nu * n2 + la * n + si] = v;
+                    eri[nu * n3 + mu * n2 + la * n + si] = v;
+                    eri[mu * n3 + nu * n2 + si * n + la] = v;
+                    eri[nu * n3 + mu * n2 + si * n + la] = v;
+                    eri[la * n3 + si * n2 + mu * n + nu] = v;
+                    eri[si * n3 + la * n2 + mu * n + nu] = v;
+                    eri[la * n3 + si * n2 + nu * n + mu] = v;
+                    eri[si * n3 + la * n2 + nu * n + mu] = v;
+                }
+            }
+        }
+    }
+    eri
+}

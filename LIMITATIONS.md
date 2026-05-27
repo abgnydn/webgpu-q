@@ -216,6 +216,28 @@ precision floor is chemical accuracy.
   measured 11.5× slower at n=25, 20.5× slower at n=60 — see DF-HF
   benches in `e2e/bench-parallel-hf.spec.ts`).
 
+- **Rust+WASM ERI kernel** — measured 2026-05-27
+  (`e2e/bench-wasm-eri.spec.ts`). Algorithm-identical port of the ERI
+  primitive kernel (Boys, E-coefs, R-aux table, pair-cache, 8-fold
+  symmetry) to Rust → wasm-pack → wasm32. Native-compiled inner loops
+  beat JIT'd TypeScript on the n⁴ build:
+  | molecule | n | TypeScript | Rust+WASM | speedup |
+  |---|---:|---:|---:|---:|
+  | ethane cc-pVDZ | 60 | 25.5 s | 6.1 s | **4.18×** |
+  Output bit-identical (max |Δ| = 4.4×10⁻¹⁶ Ha, pure float-rounding).
+  WASM module is ~80 KB, loads on demand, first-call init ~1 s.
+
+  Extrapolated impact (un-measured, projection only):
+  | molecule | n | TS-only | WASM | WASM + parallel=2 |
+  |---|---:|---:|---:|---:|
+  | furan | 95 | 361 s | ~86 s | ~46 s |
+  | benzene | 120 | 740 s | ~177 s | ~94 s |
+
+  Compounds with the Worker-parallel ERI build (1.89× at parallel=2)
+  for a theoretical ~8× over the TS-only baseline. Layering WASM SIMD
+  intrinsics on top is open follow-up — the current port is the
+  native-compile-vs-JIT delta with no explicit SIMD yet.
+
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
   every primitive quartet (n_prim⁴ buildPair calls per ERI). Now caches
