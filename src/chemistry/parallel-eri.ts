@@ -96,3 +96,126 @@ export async function buildERIParallel(
     for (const w of workers) w.terminate();
   }
 }
+
+/** Pack a shell list into the flat-array layout the Rust kernel expects.
+ *  Same shape as src/chemistry/wasm-eri.ts → packShells(), duplicated to
+ *  keep parallel-eri.ts independent. */
+function packShells(shells: readonly CGShell[]): {
+  nPrimsPerShell: Uint32Array;
+  primOffsets: Uint32Array;
+  alphaFlat: Float64Array;
+  cFlat: Float64Array;
+  centerFlat: Float64Array;
+  angularFlat: Int32Array;
+} {
+  const n = shells.length;
+  const nPrimsPerShell = new Uint32Array(n);
+  const primOffsets = new Uint32Array(n);
+  let totalPrims = 0;
+  for (let i = 0; i < n; i++) {
+    nPrimsPerShell[i] = shells[i]!.alpha.length;
+    primOffsets[i] = totalPrims;
+    totalPrims += shells[i]!.alpha.length;
+  }
+  const alphaFlat = new Float64Array(totalPrims);
+  const cFlat = new Float64Array(totalPrims);
+  for (let i = 0; i < n; i++) {
+    const offset = primOffsets[i]!;
+    const sh = shells[i]!;
+    for (let p = 0; p < sh.alpha.length; p++) {
+      alphaFlat[offset + p] = sh.alpha[p]!;
+      cFlat[offset + p] = sh.c[p]!;
+    }
+  }
+  const centerFlat = new Float64Array(n * 3);
+  const angularFlat = new Int32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    centerFlat[i * 3]     = shells[i]!.center[0];
+    centerFlat[i * 3 + 1] = shells[i]!.center[1];
+    centerFlat[i * 3 + 2] = shells[i]!.center[2];
+    angularFlat[i * 3]     = shells[i]!.angular[0];
+    angularFlat[i * 3 + 1] = shells[i]!.angular[1];
+    angularFlat[i * 3 + 2] = shells[i]!.angular[2];
+  }
+  return { nPrimsPerShell, primOffsets, alphaFlat, cFlat, centerFlat, angularFlat };
+}
+
+/**
+ * WASM × Workers compound. Each worker loads its own wasm-eri instance
+ * and computes its μ-slice in native code, then writes the 8 symmetric
+ * positions to the shared n⁴ ERI SAB. Multiplies the WASM single-thread
+ * win (~4.7× on benzene) with the Worker parallelism (~2-3× on browsers
+ * with ≥8 logical cores).
+ *
+ * Schwarz Q-table is built once on the main thread (n² ERIs, cheap) and
+ * shared as a read-only SAB.
+ */
+export async function buildERIWasmParallel(
+  shells: readonly CGShell[],
+  n: number,
+  schwarzTol = 1e-10,
+  poolSize = 0,
+): Promise<Float64Array> {
+  if (!sabAvailable()) {
+    throw new Error("buildERIWasmParallel: SharedArrayBuffer unavailable (need COOP/COEP isolation)");
+  }
+  const N = poolSize > 0 ? poolSize : (navigator.hardwareConcurrency ?? 4) - 1;
+
+  // ── Schwarz Q table (serial). ──
+  const Q = new Float64Array(n * n);
+  for (let mu = 0; mu < n; mu++) {
+    for (let nu = mu; nu < n; nu++) {
+      const v = ERI_cg(shells[mu]!, shells[nu]!, shells[mu]!, shells[nu]!);
+      const q = Math.sqrt(Math.abs(v));
+      Q[mu * n + nu] = q;
+      Q[nu * n + mu] = q;
+    }
+  }
+  const qSAB = toSAB(Q);
+  const eriSAB = new SharedArrayBuffer(n * n * n * n * 8);
+
+  // Flatten shells once for all workers.
+  const packed = packShells(shells);
+
+  // Round-robin μ distribution (same logic as TS-only parallel-eri).
+  const muAssignments: number[][] = Array.from({ length: N }, () => []);
+  for (let mu = 0; mu < n; mu++) {
+    muAssignments[mu % N]!.push(mu);
+  }
+
+  const workers: Worker[] = [];
+  for (let i = 0; i < N; i++) {
+    workers.push(new Worker(new URL("../parallel/kernels-worker.ts", import.meta.url), { type: "module" }));
+  }
+  try {
+    await Promise.all(workers.map((w, i) => new Promise<void>((resolve, reject) => {
+      const onMessage = (ev: MessageEvent): void => {
+        w.removeEventListener("message", onMessage);
+        if (ev.data?.ok) resolve();
+        else reject(new Error(ev.data?.error ?? "worker failed"));
+      };
+      w.addEventListener("message", onMessage);
+      w.postMessage({
+        kind: "eri-wasm-slice",
+        mus: muAssignments[i]!,
+        muStart: 0, muEnd: n,
+        n,
+        nPrimsPerShell: packed.nPrimsPerShell,
+        primOffsets: packed.primOffsets,
+        alphaFlat: packed.alphaFlat,
+        cFlat: packed.cFlat,
+        centerFlat: packed.centerFlat,
+        angularFlat: packed.angularFlat,
+        eri: eriSAB,
+        qTable: qSAB,
+        schwarzTol,
+      });
+    })));
+
+    const out = new Float64Array(n * n * n * n);
+    out.set(new Float64Array(eriSAB));
+    return out;
+  } finally {
+    for (const w of workers) w.terminate();
+  }
+}

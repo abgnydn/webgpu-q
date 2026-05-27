@@ -29,6 +29,86 @@ export function eri_build(n_shells, n_prims_per_shell, prim_offsets, alpha_flat,
     wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
     return v7;
 }
+
+/**
+ * Compute the canonical ERIs (μν|λσ) for μ ∈ mus only.
+ *
+ * Returns a packed flat array: [μ, ν, λ, σ, v, μ, ν, λ, σ, v, ...] of
+ * length 5K where K is the number of unique non-screened ERIs in this
+ * slice. Indices are stored as f64 (n ≤ 2^53 fits exactly).
+ *
+ * Q-table is precomputed by the caller (cheap, n² ERIs) so multiple
+ * workers can share it via postMessage clone. Schwarz screening is
+ * applied identically to the full-build path.
+ *
+ * Worker-side: the caller is responsible for writing the 8 symmetric
+ * positions for each (μ, ν, λ, σ, v) into the shared output buffer.
+ * @param {Uint32Array} mus
+ * @param {number} n_shells
+ * @param {Uint32Array} n_prims_per_shell
+ * @param {Uint32Array} prim_offsets
+ * @param {Float64Array} alpha_flat
+ * @param {Float64Array} c_flat
+ * @param {Float64Array} center_flat
+ * @param {Int32Array} angular_flat
+ * @param {Float64Array} q_table
+ * @param {number} schwarz_tol
+ * @returns {Float64Array}
+ */
+export function eri_build_slice(mus, n_shells, n_prims_per_shell, prim_offsets, alpha_flat, c_flat, center_flat, angular_flat, q_table, schwarz_tol) {
+    const ptr0 = passArray32ToWasm0(mus, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray32ToWasm0(n_prims_per_shell, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArray32ToWasm0(prim_offsets, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passArrayF64ToWasm0(alpha_flat, wasm.__wbindgen_malloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ptr4 = passArrayF64ToWasm0(c_flat, wasm.__wbindgen_malloc);
+    const len4 = WASM_VECTOR_LEN;
+    const ptr5 = passArrayF64ToWasm0(center_flat, wasm.__wbindgen_malloc);
+    const len5 = WASM_VECTOR_LEN;
+    const ptr6 = passArray32ToWasm0(angular_flat, wasm.__wbindgen_malloc);
+    const len6 = WASM_VECTOR_LEN;
+    const ptr7 = passArrayF64ToWasm0(q_table, wasm.__wbindgen_malloc);
+    const len7 = WASM_VECTOR_LEN;
+    const ret = wasm.eri_build_slice(ptr0, len0, n_shells, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, ptr6, len6, ptr7, len7, schwarz_tol);
+    var v9 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v9;
+}
+
+/**
+ * Compute just the Schwarz Q table (diagonal-pair ERIs sqrt-abs).
+ * Cheap, but JS-side construction is also slow on TS — expose this for
+ * workers that want to skip the postMessage clone.
+ * @param {number} n_shells
+ * @param {Uint32Array} n_prims_per_shell
+ * @param {Uint32Array} prim_offsets
+ * @param {Float64Array} alpha_flat
+ * @param {Float64Array} c_flat
+ * @param {Float64Array} center_flat
+ * @param {Int32Array} angular_flat
+ * @returns {Float64Array}
+ */
+export function schwarz_q_table(n_shells, n_prims_per_shell, prim_offsets, alpha_flat, c_flat, center_flat, angular_flat) {
+    const ptr0 = passArray32ToWasm0(n_prims_per_shell, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray32ToWasm0(prim_offsets, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArrayF64ToWasm0(alpha_flat, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passArrayF64ToWasm0(c_flat, wasm.__wbindgen_malloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ptr4 = passArrayF64ToWasm0(center_flat, wasm.__wbindgen_malloc);
+    const len4 = WASM_VECTOR_LEN;
+    const ptr5 = passArray32ToWasm0(angular_flat, wasm.__wbindgen_malloc);
+    const len5 = WASM_VECTOR_LEN;
+    const ret = wasm.schwarz_q_table(n_shells, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5);
+    var v7 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v7;
+}
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,

@@ -13,7 +13,10 @@
 //   - Each work item is a small JSON message with the row range +
 //     dimensions; workers know which kernel to run via `kind`.
 
-export type KernelKind = "buildG-row-slice" | "eri-row-slice";
+export type KernelKind =
+  | "buildG-row-slice"
+  | "eri-row-slice"
+  | "eri-wasm-slice";
 
 export interface BuildGRowSliceTask {
   readonly kind: "buildG-row-slice";
@@ -56,7 +59,34 @@ export interface ERIRowSliceTask {
   readonly schwarzTol: number;
 }
 
-export type WorkerTask = BuildGRowSliceTask | ERIRowSliceTask;
+/** ERI build kernel — WASM variant. The worker computes the (μν|λσ)
+ *  integrals for μ ∈ `mus` via the native-compiled Rust kernel, then
+ *  writes the 8-fold symmetric positions into the shared eri SAB.
+ *  Shells arrive pre-flattened so the worker can hand them straight to
+ *  WASM without per-call serialization. Q-table is precomputed by the
+ *  main thread and shared read-only. */
+export interface ERIWasmSliceTask {
+  readonly kind: "eri-wasm-slice";
+  readonly mus: ReadonlyArray<number>;
+  /** Unused but kept for runChunked typing. */
+  readonly muStart: number;
+  readonly muEnd: number;
+  readonly n: number;
+  /** Flat shell representation (matches the WASM API). */
+  readonly nPrimsPerShell: Uint32Array;
+  readonly primOffsets: Uint32Array;
+  readonly alphaFlat: Float64Array;
+  readonly cFlat: Float64Array;
+  readonly centerFlat: Float64Array;
+  readonly angularFlat: Int32Array;
+  /** Output ERI tensor (n⁴ Float64). Worker writes only its slice. */
+  readonly eri: SharedArrayBuffer;
+  /** Precomputed Schwarz Q table (n² Float64). Read-only. */
+  readonly qTable: SharedArrayBuffer;
+  readonly schwarzTol: number;
+}
+
+export type WorkerTask = BuildGRowSliceTask | ERIRowSliceTask | ERIWasmSliceTask;
 
 export interface WorkerPool {
   readonly size: number;

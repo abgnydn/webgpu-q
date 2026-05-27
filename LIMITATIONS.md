@@ -234,11 +234,30 @@ precision floor is chemical accuracy.
   | path | total wall time | breakdown |
   |---|---:|---|
   | TS-only | 841 s (14 min) | 827 s ERI + 14 s sync HF |
-  | WASM ERI + parallel=8 HF | **180 s (3 min)** | 175 s ERI + 5.2 s par HF |
-  | speedup | **4.67×** | dominated by ERI 4.73× |
+  | WASM ERI + parallel=8 HF | 180 s (3 min) | 175 s ERI + 5.2 s par HF |
+  | WASM × parallel=8 ERI + parallel=8 HF | **44 s** | 38.5 s ERI + 5.2 s par HF |
+  | speedup vs TS | **19.1×** | ERI 21.5×, HF dominated by ERI |
 
-  Compounds further with WASM SIMD128 intrinsics (open) and
-  WASM-inside-Workers (open).
+  Compounds further with WASM SIMD128 intrinsics (open).
+
+- **WASM × Workers compound** — measured 2026-05-27
+  (`e2e/bench-wasm-parallel-eri.spec.ts`). Each worker loads its own
+  `wasm-eri` instance and computes its μ-row slice via the native Rust
+  kernel, then writes the 8 symmetric positions to a shared n⁴ ERI
+  SAB. Schwarz Q-table built once on main thread; round-robin μ
+  distribution to balance the canonical-encoding work-per-row decay.
+  Output is bit-identical to both single-thread paths.
+
+  | molecule | n | TS | WASM 1× | WASM × par=4 | WASM × par=8 | best vs TS |
+  |---|---:|---:|---:|---:|---:|---:|
+  | ethane cc-pVDZ  |  60 |  26.3 s | 6.0 s |  2.4 s | 3.0 s | **10.8×** (par=4) |
+  | benzene cc-pVDZ | 120 | 827 s   | 189 s | 61.7 s | 38.5 s | **21.5×** (par=8) |
+
+  Sweet spot shifts with molecule size: at n=60 the per-worker setup
+  cost saturates parallel=8; at n=120 the work-per-worker is large
+  enough that parallel=8 still scales near-linearly (4.91× over WASM
+  single-thread). All paths agree element-wise (max|Δ|=0 on benzene,
+  4.4×10⁻¹⁶ on ethane — pure rounding).
 
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
