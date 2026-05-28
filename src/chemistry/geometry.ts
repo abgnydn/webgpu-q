@@ -103,7 +103,7 @@ export function optimizeGeometry(
     nEvals++;
     const moved = vectorToAtoms(x, atoms);
     const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(moved, basis);
-    const integrals = computeMolecularIntegrals(shells, nuclei, integralOpts);
+    const integrals = computeMolecularIntegrals(shells, nuclei, { skipOAO: true, ...integralOpts });
     if (method === "hf") {
       return runRHFSCF(integrals, nElectrons, hfOpts).energy;
     }
@@ -120,7 +120,7 @@ export function optimizeGeometry(
     const moved = vectorToAtoms(x, atoms);
     const { shells, nuclei, nElectrons, shellAtomIdx } =
       moleculeToShellsNuclei(moved, basis);
-    const integrals = computeMolecularIntegrals(shells, nuclei, integralOpts);
+    const integrals = computeMolecularIntegrals(shells, nuclei, { skipOAO: true, ...integralOpts });
     let gBohr: Float64Array;
     if (method === "hf") {
       const hf = runRHFSCF(integrals, nElectrons, hfOpts);

@@ -196,7 +196,7 @@ export function runCounterpoise(
     nBeta?: number,
   ): number {
     const sh = moleculeToShellsNuclei(atomsIn, basis);
-    const integ = computeMolecularIntegrals(sh.shells, sh.nuclei);
+    const integ = computeMolecularIntegrals(sh.shells, sh.nuclei, { skipOAO: true });
 
     // Derive nucleiSymbols from atoms for DFT methods. Ghost atoms
     // contribute basis functions but no nuclear charge; their symbol
