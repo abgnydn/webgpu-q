@@ -151,6 +151,14 @@ export interface HFOpts {
    * and which one wins depends on n and basis. Off by default.
    */
   readonly profileCallback?: (iter: number, ms: Record<string, number>) => void;
+  /**
+   * Replace the per-iter JK build entirely with a caller-supplied
+   * function. Takes the current density matrix, returns (J, K). Used
+   * by the multi-tab swarm SCF to inject distributed JK_DF without
+   * duplicating the SCF iter loop. When set, takes precedence over
+   * `useDF`, `useWgpuJK`, and `useWasmJK`.
+   */
+  readonly customJKBuilder?: (D: Float64Array) => Promise<{ J: Float64Array; K: Float64Array }>;
 }
 
 /**
@@ -356,9 +364,12 @@ export async function runRHFSCFAsync(
   opts: HFOpts = {},
 ): Promise<HFResult> {
   const parallel = opts.parallel ?? 0;
-  if (parallel <= 0) {
+  if (parallel <= 0 && !opts.customJKBuilder) {
     return runRHFSCF(integrals, nElectrons, opts);
   }
+  // The async loop body is also the only place customJKBuilder is
+  // honored, so force into the async path when it's set even if
+  // parallel was left at 0.
   // Parallel path: SAB required.
   if (typeof SharedArrayBuffer === "undefined" ||
       (typeof crossOriginIsolated !== "undefined" && !crossOriginIsolated)) {
@@ -420,7 +431,14 @@ export async function runRHFSCFAsync(
     // Async fork point — only difference from the sync runRHFSCF.
     const useWasmJK = opts.useWasmJK ?? true;
     let G: Float64Array;
-    if (dfTensor !== null) {
+    if (opts.customJKBuilder) {
+      // Caller injects the JK build (e.g., multi-tab swarm distributing
+      // the JK across browser tabs). Takes precedence over all built-in
+      // JK paths.
+      const { J, K } = await opts.customJKBuilder(D);
+      G = new Float64Array(n * n);
+      for (let i = 0; i < n * n; i++) G[i] = J[i]! - 0.5 * K[i]!;
+    } else if (dfTensor !== null) {
       // DF path: prefer parallel JK_DF when SAB available + workers allow.
       const { J, K } = await buildJK_DF_Parallel(dfTensor, D, parallel);
       G = new Float64Array(n * n);
