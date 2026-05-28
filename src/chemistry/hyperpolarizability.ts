@@ -108,7 +108,7 @@ export function hyperpolarizabilityFiniteField(
 
   const symbols = atoms.map((a) => a.symbol);
   const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(atoms, basis);
-  const integrals = computeMolecularIntegrals(shells, nuclei, integralOpts);
+  const integrals = computeMolecularIntegrals(shells, nuclei, { skipOAO: true, ...integralOpts });
   const n = integrals.n;
 
   // Dipole AO matrices.

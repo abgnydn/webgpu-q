@@ -159,7 +159,7 @@ export function vibrationalFrequencies(
       pos: [xAng[3 * i]!, xAng[3 * i + 1]!, xAng[3 * i + 2]!] as [number, number, number],
     }));
     const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(moved, basis);
-    const integrals = computeMolecularIntegrals(shells, nuclei, integralOpts);
+    const integrals = computeMolecularIntegrals(shells, nuclei, { skipOAO: true, ...integralOpts });
     if (method === "hf") {
       const hf = runRHFSCF(integrals, nElectrons, hfOpts);
       const W = buildEnergyWeightedDensity(hf.C_MO, hf.orbitalEnergies, hf.nOccupied, integrals.n);

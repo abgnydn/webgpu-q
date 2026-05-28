@@ -46,7 +46,7 @@ export function quickReport(
 ): MolecularReport {
   const basis = opts.basis ?? "sto-3g";
   const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(atoms, basis);
-  const integrals = computeMolecularIntegrals(shells, nuclei);
+  const integrals = computeMolecularIntegrals(shells, nuclei, { skipOAO: true });
 
   const openShell = opts.nAlpha !== undefined || opts.nBeta !== undefined;
   if (openShell && (opts.nAlpha === undefined || opts.nBeta === undefined)) {

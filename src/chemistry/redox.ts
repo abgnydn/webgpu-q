@@ -80,7 +80,7 @@ export function ionizationPotential(
       `Use UHF directly for open-shell starting points.`,
     );
   }
-  const integrals = computeMolecularIntegrals(shells, nuclei, integralOpts);
+  const integrals = computeMolecularIntegrals(shells, nuclei, { skipOAO: true, ...integralOpts });
   const hfOpts: HFOpts = {
     useDIIS: true, energyTol: 1e-10, densityTol: 1e-8, maxIter: 200,
     ...opts.hf,
@@ -154,7 +154,7 @@ export function electronAffinity(
       `electronAffinity: starting molecule must be closed-shell (got ${nElectrons} electrons).`,
     );
   }
-  const integrals = computeMolecularIntegrals(shells, nuclei, integralOpts);
+  const integrals = computeMolecularIntegrals(shells, nuclei, { skipOAO: true, ...integralOpts });
   const hfOpts: HFOpts = {
     useDIIS: true, energyTol: 1e-10, densityTol: 1e-8, maxIter: 200,
     ...opts.hf,

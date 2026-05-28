@@ -73,7 +73,7 @@ export function uvVisSpectrum(
   const step = opts.step ?? 0.01;
 
   const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(atoms, basis);
-  const integrals = computeMolecularIntegrals(shells, nuclei);
+  const integrals = computeMolecularIntegrals(shells, nuclei, { skipOAO: true });
   const nucleiSymbols = atoms.map((a) => a.symbol) as AtomSymbol[];
 
   // Run SCF.
