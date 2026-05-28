@@ -330,29 +330,44 @@ export async function buildAuxBasisDFParallel(
       invSqrtLam[i] = 0.0;
     }
   }
+  // T[μν, i] = (V[μν, :] · U[:, i]) · λ_i^(-1/2)
+  // Inner Q-loop: contiguous reads from V's row and U's column (stride 1).
+  // Pre-multiplied invSqrtLam into the result instead of branching.
   const T = new Float64Array(n * n * nAux);
   for (let mu = 0; mu < n; mu++) {
     for (let nu = 0; nu < n; nu++) {
+      const vBase = (mu * n + nu) * nAux;
+      const tBase = vBase;
       for (let i = 0; i < nAux; i++) {
-        if (invSqrtLam[i] === 0) continue;
+        const isl = invSqrtLam[i]!;
+        if (isl === 0) continue;
+        const uBase = i * nAux;
         let s = 0;
         for (let Q = 0; Q < nAux; Q++) {
-          s += V[(mu * n + nu) * nAux + Q]! * eig.vectors[i * nAux + Q]!;
+          s += V[vBase + Q]! * eig.vectors[uBase + Q]!;
         }
-        T[(mu * n + nu) * nAux + i] = s * invSqrtLam[i]!;
+        T[tBase + i] = s * isl;
       }
     }
   }
+  // B[μν, P] = Σ_i T[μν, i] · U[P, i]
+  //         = Σ_i T[μν, i] · vectors[i · nAux + P]
+  // Reorder loops to (mu, nu, i, P) — inner P loop reads
+  // vectors[i*nAux + P] contiguously AND writes B[(μν)*nAux + P]
+  // contiguously. Original order had stride-nAux reads of vectors
+  // for varying i with fixed P, thrashing L1 at n_aux=400.
   const B = new Float64Array(n * n * nAux);
   for (let mu = 0; mu < n; mu++) {
     for (let nu = 0; nu < n; nu++) {
-      for (let P = 0; P < nAux; P++) {
-        let s = 0;
-        for (let i = 0; i < nAux; i++) {
-          if (invSqrtLam[i] === 0) continue;
-          s += T[(mu * n + nu) * nAux + i]! * eig.vectors[i * nAux + P]!;
+      const tBase = (mu * n + nu) * nAux;
+      const bBase = tBase;
+      for (let i = 0; i < nAux; i++) {
+        if (invSqrtLam[i] === 0) continue;
+        const ti = T[tBase + i]!;
+        const uBase = i * nAux;
+        for (let P = 0; P < nAux; P++) {
+          B[bBase + P] = B[bBase + P]! + ti * eig.vectors[uBase + P]!;
         }
-        B[(mu * n + nu) * nAux + P] = s;
       }
     }
   }
