@@ -1413,6 +1413,160 @@ pub fn eri_2idx_build(
 /// benzene cc-pVDZ at n_aux≈660. SIMD on the innermost contiguous
 /// loops; the (la, si) and (P, si) inner pairs are both length-n
 /// f64 reductions perfect for f64x2 wasm-simd128.
+/// Worker-parallel slice of build_jk_df: computes J[μ, :] and K[μ, :]
+/// for μ ∈ `mus`. Returns packed [J_slice; K_slice] of length 2·|mus|·n.
+/// Each worker handles a disjoint μ-row range; combine on main thread.
+///
+/// The full J and K depend on the same γ[P] and X[P, μ', σ] precomputes,
+/// but each row μ only needs:
+///   J[μ, ν] = Σ_P B[μν, P] · γ[P]                    — local to row μ
+///   K[μ, ν] = Σ_P Σ_σ X[P, μ, σ] · B[νσ, P]           — needs X[*, μ, *]
+///
+/// γ is shared (computed once per call, small: n_aux entries).
+/// X[*, μ, *] for μ ∈ mus is the per-worker partition (n_aux · n entries
+/// per μ). Build that per-worker locally.
+#[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn build_jk_df_slice(
+    mus: &[u32],
+    n: u32,
+    n_aux: u32,
+    b: &[f64],
+    d: &[f64],
+    gamma: &[f64],
+) -> Vec<f64> {
+    let n = n as usize;
+    let n_aux = n_aux as usize;
+    let k_mus = mus.len();
+    let mut out = vec![0.0_f64; 2 * k_mus * n];
+    // out[0..k_mus*n] = J slice; out[k_mus*n..] = K slice.
+
+    // J[μν] = Σ_P B[μν, P] · γ[P]   (μ ∈ mus, ν ∈ 0..n)
+    for (k, &mu_u) in mus.iter().enumerate() {
+        let mu = mu_u as usize;
+        for nu in 0..n {
+            let base = (mu * n + nu) * n_aux;
+            let mut s = 0.0_f64;
+            for pp in 0..n_aux {
+                s += b[base + pp] * gamma[pp];
+            }
+            out[k * n + nu] = s;
+        }
+    }
+
+    // X[P, μ, σ] for μ ∈ mus only (local k_mus·n_aux·n footprint).
+    // Reorder loops to (μ, λ, P, σ) for cache-friendly σ inner.
+    let mut x = vec![0.0_f64; k_mus * n_aux * n];
+    for (k, &mu_u) in mus.iter().enumerate() {
+        let mu = mu_u as usize;
+        for la in 0..n {
+            let d_row_base = la * n;
+            for pp in 0..n_aux {
+                let bv = b[(mu * n + la) * n_aux + pp];
+                let x_row_base = (k * n_aux + pp) * n;
+                #[cfg(target_feature = "simd128")]
+                unsafe {
+                    use std::arch::wasm32::*;
+                    let bv_v = f64x2_splat(bv);
+                    let dp = d.as_ptr().add(d_row_base);
+                    let xp = x.as_mut_ptr().add(x_row_base);
+                    let mut si = 0;
+                    while si + 2 <= n {
+                        let dv = v128_load(dp.add(si) as *const v128);
+                        let xv = v128_load(xp.add(si) as *const v128);
+                        let res = f64x2_add(xv, f64x2_mul(bv_v, dv));
+                        v128_store(xp.add(si) as *mut v128, res);
+                        si += 2;
+                    }
+                    while si < n {
+                        *xp.add(si) += bv * *dp.add(si);
+                        si += 1;
+                    }
+                }
+                #[cfg(not(target_feature = "simd128"))]
+                {
+                    for si in 0..n {
+                        x[x_row_base + si] += bv * d[d_row_base + si];
+                    }
+                }
+            }
+        }
+    }
+
+    // K[μν] = Σ_P Σ_σ X[P, μ, σ] · B[νσ, P]
+    // X_T[μ, σ, P] = X[(k_aux + pp) * n + si] transposed.
+    let mut x_t = vec![0.0_f64; k_mus * n * n_aux];
+    for k in 0..k_mus {
+        for pp in 0..n_aux {
+            for si in 0..n {
+                x_t[(k * n + si) * n_aux + pp] = x[(k * n_aux + pp) * n + si];
+            }
+        }
+    }
+    for (k, &mu_u) in mus.iter().enumerate() {
+        let _ = mu_u;
+        for nu in 0..n {
+            let mut s = 0.0_f64;
+            for si in 0..n {
+                let xt_base = (k * n + si) * n_aux;
+                let b_base = (nu * n + si) * n_aux;
+                #[cfg(target_feature = "simd128")]
+                unsafe {
+                    use std::arch::wasm32::*;
+                    let mut acc = f64x2_splat(0.0);
+                    let xp = x_t.as_ptr().add(xt_base);
+                    let bp = b.as_ptr().add(b_base);
+                    let mut pp = 0;
+                    while pp + 2 <= n_aux {
+                        let xv = v128_load(xp.add(pp) as *const v128);
+                        let bv = v128_load(bp.add(pp) as *const v128);
+                        acc = f64x2_add(acc, f64x2_mul(xv, bv));
+                        pp += 2;
+                    }
+                    let mut s_inner = f64x2_extract_lane::<0>(acc) + f64x2_extract_lane::<1>(acc);
+                    while pp < n_aux {
+                        s_inner += *xp.add(pp) * *bp.add(pp);
+                        pp += 1;
+                    }
+                    s += s_inner;
+                }
+                #[cfg(not(target_feature = "simd128"))]
+                {
+                    for pp in 0..n_aux {
+                        s += x_t[xt_base + pp] * b[b_base + pp];
+                    }
+                }
+            }
+            out[k_mus * n + k * n + nu] = s;
+        }
+    }
+
+    out
+}
+
+/// Compute the gamma vector γ[P] = Σ_λσ B[λσ, P] · D[λσ] — shared
+/// across workers in the parallel build_jk_df path.
+#[wasm_bindgen]
+pub fn build_gamma_df(
+    n: u32,
+    n_aux: u32,
+    b: &[f64],
+    d: &[f64],
+) -> Vec<f64> {
+    let n = n as usize;
+    let n_aux = n_aux as usize;
+    let big_n = n * n;
+    let mut gamma = vec![0.0_f64; n_aux];
+    for pp in 0..n_aux {
+        let mut s = 0.0_f64;
+        for i in 0..big_n {
+            s += b[i * n_aux + pp] * d[i];
+        }
+        gamma[pp] = s;
+    }
+    gamma
+}
+
 #[wasm_bindgen]
 pub fn build_jk_df(
     n: u32,

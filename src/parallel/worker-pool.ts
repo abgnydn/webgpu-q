@@ -16,6 +16,7 @@
 export type KernelKind =
   | "buildG-row-slice"
   | "buildG-wasm-mu-slice"
+  | "buildJK-df-slice"
   | "eri-row-slice"
   | "eri-wasm-slice"
   | "eri-3idx-wasm-slice";
@@ -133,9 +134,29 @@ export interface ERI3idxWasmSliceTask {
   readonly v: SharedArrayBuffer;
 }
 
+/** Parallel buildJK_DF: each worker computes (J, K) for μ ∈ its mus list.
+ *  The shared γ vector is computed once (small, n_aux entries) and
+ *  cloned to each worker via postMessage. B and D are SAB-shared.
+ *  Worker writes J slice + K slice into the shared J, K SAB.
+ */
+export interface BuildJKDFSliceTask {
+  readonly kind: "buildJK-df-slice";
+  readonly mus: ReadonlyArray<number>;
+  readonly muStart: number;
+  readonly muEnd: number;
+  readonly n: number;
+  readonly nAux: number;
+  readonly B: SharedArrayBuffer;
+  readonly D: SharedArrayBuffer;
+  readonly gamma: Float64Array;
+  /** Output: 2·n² Float64 — first half J, second half K. */
+  readonly JK: SharedArrayBuffer;
+}
+
 export type WorkerTask =
   | BuildGRowSliceTask
   | BuildGWasmMuSliceTask
+  | BuildJKDFSliceTask
   | ERIRowSliceTask
   | ERIWasmSliceTask
   | ERI3idxWasmSliceTask;

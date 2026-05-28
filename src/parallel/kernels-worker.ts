@@ -2,7 +2,7 @@
 // Each message is a WorkerTask; we dispatch on `kind` and write results
 // into the shared output SAB.
 
-import type { WorkerTask, ERIWasmSliceTask, BuildGWasmMuSliceTask, ERI3idxWasmSliceTask } from "./worker-pool.js";
+import type { WorkerTask, ERIWasmSliceTask, BuildGWasmMuSliceTask, ERI3idxWasmSliceTask, BuildJKDFSliceTask } from "./worker-pool.js";
 import { ERI_cg, type CGShell } from "../chemistry/integrals-cg.js";
 
 interface WasmEriModule {
@@ -33,6 +33,12 @@ interface WasmEriModule {
     nPrimsAux: Uint32Array, primOffAux: Uint32Array,
     alphaAux: Float64Array, cAux: Float64Array,
     centerAux: Float64Array, angularAux: Int32Array,
+  ): Float64Array;
+  build_jk_df_slice(
+    mus: Uint32Array,
+    n: number, nAux: number,
+    b: Float64Array, d: Float64Array,
+    gamma: Float64Array,
   ): Float64Array;
 }
 
@@ -81,6 +87,9 @@ self.addEventListener("message", (ev: MessageEvent<WorkerTask>) => {
       case "eri-3idx-wasm-slice":
         await eri3idxWasmSlice(task);
         return;
+      case "buildJK-df-slice":
+        await buildJKDFSlice(task);
+        return;
       default:
         throw new Error(`unknown kernel kind: ${(task as { kind: string }).kind}`);
     }
@@ -93,6 +102,25 @@ self.addEventListener("message", (ev: MessageEvent<WorkerTask>) => {
     }),
   );
 });
+
+async function buildJKDFSlice(task: BuildJKDFSliceTask): Promise<void> {
+  const mod = await loadWorkerWasm();
+  const mus = new Uint32Array(task.mus);
+  const b = new Float64Array(task.B);
+  const d = new Float64Array(task.D);
+  const out = mod.build_jk_df_slice(mus, task.n, task.nAux, b, d, task.gamma);
+  // out = [J_slice (k_mus·n); K_slice (k_mus·n)]
+  const JK = new Float64Array(task.JK);
+  const kMus = task.mus.length;
+  const n = task.n;
+  for (let k = 0; k < kMus; k++) {
+    const mu = task.mus[k]!;
+    for (let nu = 0; nu < n; nu++) {
+      JK[mu * n + nu] = out[k * n + nu]!;            // J
+      JK[n * n + mu * n + nu] = out[kMus * n + k * n + nu]!;  // K
+    }
+  }
+}
 
 async function eri3idxWasmSlice(task: ERI3idxWasmSliceTask): Promise<void> {
   const mod = await loadWorkerWasm();

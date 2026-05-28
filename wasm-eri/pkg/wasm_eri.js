@@ -1,18 +1,26 @@
 /* @ts-self-types="./wasm_eri.d.ts" */
 
 /**
- * DF Fock build: given B-tensor B[μν, P] and density D[μν], compute
- *   J[μν] = Σ_P B[μν, P] · γ[P],  γ[P] = Σ_λσ B[λσ, P] · D[λσ]
- *   K[μν] = Σ_P Σ_σ X[P, μ, σ] · B[νσ, P],
- *           X[P, μ, σ] = Σ_λ B[μλ, P] · D[λ, σ]
- *
- * Returns packed [J(0..N), K(0..N)] of length 2N where N = n².
- * Layout: out[0..N] = J, out[N..2N] = K.
- *
- * Hot path: the K inner pass is O(n²·n_aux·n) = ~1 B FLOPs for
- * benzene cc-pVDZ at n_aux≈660. SIMD on the innermost contiguous
- * loops; the (la, si) and (P, si) inner pairs are both length-n
- * f64 reductions perfect for f64x2 wasm-simd128.
+ * Compute the gamma vector γ[P] = Σ_λσ B[λσ, P] · D[λσ] — shared
+ * across workers in the parallel build_jk_df path.
+ * @param {number} n
+ * @param {number} n_aux
+ * @param {Float64Array} b
+ * @param {Float64Array} d
+ * @returns {Float64Array}
+ */
+export function build_gamma_df(n, n_aux, b, d) {
+    const ptr0 = passArrayF64ToWasm0(b, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArrayF64ToWasm0(d, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.build_gamma_df(n, n_aux, ptr0, len0, ptr1, len1);
+    var v3 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v3;
+}
+
+/**
  * @param {number} n
  * @param {number} n_aux
  * @param {Float64Array} b
@@ -28,6 +36,54 @@ export function build_jk_df(n, n_aux, b, d) {
     var v3 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
     return v3;
+}
+
+/**
+ * DF Fock build: given B-tensor B[μν, P] and density D[μν], compute
+ *   J[μν] = Σ_P B[μν, P] · γ[P],  γ[P] = Σ_λσ B[λσ, P] · D[λσ]
+ *   K[μν] = Σ_P Σ_σ X[P, μ, σ] · B[νσ, P],
+ *           X[P, μ, σ] = Σ_λ B[μλ, P] · D[λ, σ]
+ *
+ * Returns packed [J(0..N), K(0..N)] of length 2N where N = n².
+ * Layout: out[0..N] = J, out[N..2N] = K.
+ *
+ * Hot path: the K inner pass is O(n²·n_aux·n) = ~1 B FLOPs for
+ * benzene cc-pVDZ at n_aux≈660. SIMD on the innermost contiguous
+ * loops; the (la, si) and (P, si) inner pairs are both length-n
+ * f64 reductions perfect for f64x2 wasm-simd128.
+ * Worker-parallel slice of build_jk_df: computes J[μ, :] and K[μ, :]
+ * for μ ∈ `mus`. Returns packed [J_slice; K_slice] of length 2·|mus|·n.
+ * Each worker handles a disjoint μ-row range; combine on main thread.
+ *
+ * The full J and K depend on the same γ[P] and X[P, μ', σ] precomputes,
+ * but each row μ only needs:
+ *   J[μ, ν] = Σ_P B[μν, P] · γ[P]                    — local to row μ
+ *   K[μ, ν] = Σ_P Σ_σ X[P, μ, σ] · B[νσ, P]           — needs X[*, μ, *]
+ *
+ * γ is shared (computed once per call, small: n_aux entries).
+ * X[*, μ, *] for μ ∈ mus is the per-worker partition (n_aux · n entries
+ * per μ). Build that per-worker locally.
+ * @param {Uint32Array} mus
+ * @param {number} n
+ * @param {number} n_aux
+ * @param {Float64Array} b
+ * @param {Float64Array} d
+ * @param {Float64Array} gamma
+ * @returns {Float64Array}
+ */
+export function build_jk_df_slice(mus, n, n_aux, b, d, gamma) {
+    const ptr0 = passArray32ToWasm0(mus, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArrayF64ToWasm0(b, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArrayF64ToWasm0(d, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passArrayF64ToWasm0(gamma, wasm.__wbindgen_malloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ret = wasm.build_jk_df_slice(ptr0, len0, n, n_aux, ptr1, len1, ptr2, len2, ptr3, len3);
+    var v5 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v5;
 }
 
 /**

@@ -2,6 +2,14 @@
 /* eslint-disable */
 
 /**
+ * Compute the gamma vector γ[P] = Σ_λσ B[λσ, P] · D[λσ] — shared
+ * across workers in the parallel build_jk_df path.
+ */
+export function build_gamma_df(n: number, n_aux: number, b: Float64Array, d: Float64Array): Float64Array;
+
+export function build_jk_df(n: number, n_aux: number, b: Float64Array, d: Float64Array): Float64Array;
+
+/**
  * DF Fock build: given B-tensor B[μν, P] and density D[μν], compute
  *   J[μν] = Σ_P B[μν, P] · γ[P],  γ[P] = Σ_λσ B[λσ, P] · D[λσ]
  *   K[μν] = Σ_P Σ_σ X[P, μ, σ] · B[νσ, P],
@@ -14,8 +22,20 @@
  * benzene cc-pVDZ at n_aux≈660. SIMD on the innermost contiguous
  * loops; the (la, si) and (P, si) inner pairs are both length-n
  * f64 reductions perfect for f64x2 wasm-simd128.
+ * Worker-parallel slice of build_jk_df: computes J[μ, :] and K[μ, :]
+ * for μ ∈ `mus`. Returns packed [J_slice; K_slice] of length 2·|mus|·n.
+ * Each worker handles a disjoint μ-row range; combine on main thread.
+ *
+ * The full J and K depend on the same γ[P] and X[P, μ', σ] precomputes,
+ * but each row μ only needs:
+ *   J[μ, ν] = Σ_P B[μν, P] · γ[P]                    — local to row μ
+ *   K[μ, ν] = Σ_P Σ_σ X[P, μ, σ] · B[νσ, P]           — needs X[*, μ, *]
+ *
+ * γ is shared (computed once per call, small: n_aux entries).
+ * X[*, μ, *] for μ ∈ mus is the per-worker partition (n_aux · n entries
+ * per μ). Build that per-worker locally.
  */
-export function build_jk_df(n: number, n_aux: number, b: Float64Array, d: Float64Array): Float64Array;
+export function build_jk_df_slice(mus: Uint32Array, n: number, n_aux: number, b: Float64Array, d: Float64Array, gamma: Float64Array): Float64Array;
 
 /**
  * Build the 2-index AO ERI metric M[P, Q] = (P|Q) on the auxiliary
@@ -147,7 +167,9 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly build_gamma_df: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly build_jk_df: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
+    readonly build_jk_df_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number];
     readonly eri_2idx_build: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => [number, number];
     readonly eri_3idx_build: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: number, x: number, y: number, z: number) => [number, number];
     readonly eri_3idx_build_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: number, x: number, y: number, z: number, a1: number, b1: number) => [number, number];

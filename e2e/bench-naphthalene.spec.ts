@@ -16,7 +16,7 @@ test.describe("Naphthalene cc-pVDZ — direct OOMs, aux-DF unlocks", () => {
       const [
         { moleculeToShellsNuclei },
         { computeMolecularIntegrals },
-        { runRHFSCF },
+        { runRHFSCFAsync },
         { buildAuxBasisDFCholesky, generateAutoAux },
         { preloadWasmJK },
       ] = await Promise.all([
@@ -72,9 +72,9 @@ test.describe("Naphthalene cc-pVDZ — direct OOMs, aux-DF unlocks", () => {
       const dfMs = performance.now() - tDF;
 
       const tHF = performance.now();
-      const hf = runRHFSCF(integrals, nElectrons, {
+      const hf = await runRHFSCFAsync(integrals, nElectrons, {
         useDIIS: true, energyTol: 1e-6, densityTol: 1e-5, maxIter: 100,
-        useDF: df,
+        useDF: df, parallel: 8,
       });
       const hfMs = performance.now() - tHF;
 

@@ -40,6 +40,7 @@ import { choleskyDecomposeERI, buildJK_DF, type DFResult } from "./df.js";
 import { buildGParallel } from "../parallel/parallel-buildG.js";
 import { buildGWasmParallel } from "../parallel/parallel-buildG-wasm.js";
 import { buildGGpu } from "./jk-gpu.js";
+import { buildJK_DF_Parallel } from "../parallel/parallel-jk-df.js";
 
 export interface HFResult {
   /** Total HF energy (Hartree) including nuclear repulsion. */
@@ -400,13 +401,19 @@ export async function runRHFSCFAsync(
   for (iter = 1; iter <= maxIter; iter++) {
     // Async fork point — only difference from the sync runRHFSCF.
     const useWasmJK = opts.useWasmJK ?? true;
-    const G = dfTensor !== null
-      ? buildG_DF(D, dfTensor, n)
-      : opts.useWgpuJK
-        ? await buildGGpu(opts.useWgpuJK, D, eri_AO, n)
-        : useWasmJK
-          ? await buildGWasmParallel(D, eri_AO, n, parallel)
-          : await buildGParallel(D, eri_AO, n, parallel);
+    let G: Float64Array;
+    if (dfTensor !== null) {
+      // DF path: prefer parallel JK_DF when SAB available + workers allow.
+      const { J, K } = await buildJK_DF_Parallel(dfTensor, D, parallel);
+      G = new Float64Array(n * n);
+      for (let i = 0; i < n * n; i++) G[i] = J[i]! - 0.5 * K[i]!;
+    } else if (opts.useWgpuJK) {
+      G = await buildGGpu(opts.useWgpuJK, D, eri_AO, n);
+    } else if (useWasmJK) {
+      G = await buildGWasmParallel(D, eri_AO, n, parallel);
+    } else {
+      G = await buildGParallel(D, eri_AO, n, parallel);
+    }
     const F = new Float64Array(n * n);
     for (let i = 0; i < n * n; i++) F[i] = h_AO[i]! + G[i]!;
 
