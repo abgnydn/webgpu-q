@@ -571,21 +571,41 @@ n ≥ 60 the JK build dominates and speedup approaches the
      equal accuracy. Phase 3 work.
 
   **Parallel 3-index V build shipped 2026-05-28** (`buildAuxBasisDFParallel`):
-  bit-perfect correctness (max|B_sync − B_parallel|=0) but the speedup
-  is much smaller than expected:
+  bit-perfect correctness (max|B_sync − B_parallel|=0) and after the
+  matmul loop reorder for cache locality, real parallel speedups
+  appear at n=120:
 
   | molecule | n_orb | n_aux | single-thread | parallel=8 | speedup |
   |---|---:|---:|---:|---:|---:|
-  | ethane cc-pVDZ | 60 | 200 | 2.89 s | 3.39 s | **0.85×** (slower) |
-  | benzene cc-pVDZ | 120 | ~400 | 37.95 s | 35.38 s | **1.07×** |
+  | ethane cc-pVDZ  |  60 | 200  |  2.88 s |  2.57 s | 1.12× |
+  | benzene cc-pVDZ | 120 | ~400 | 39.31 s | 21.22 s | **1.85×** |
 
-  Expected parallel=8 speedup is ~5-7×. The 1.07× on benzene means
-  ~25 s of the 35 s isn't being parallelized — most likely the
-  B-tensor formation steps (T = V · U · Λ⁻¹⸍² and B = T · Uᵀ) which
-  run in TypeScript on the main thread and are O(n²·n_aux²) =
-  4.6 B FLOPs for benzene. At ~1 GFLOP/s JS that's 5 s alone, plus
-  eigendecomp + other math. Porting the matmul + eigendecomp steps
-  to Rust/WASM is the next obvious lever. Phase 3 follow-up.
+  The loop reorder (commit 938d4ca) was the key — inner P loops in
+  B = T · Uᵀ now read U's columns contiguously instead of with
+  stride-nAux, which thrashed L1 at n_aux=400. Benzene parallel
+  dropped 35 s → 21 s (14 s saved).
+
+  Remaining gap to optimized direct path on benzene:
+    WASM-parallel direct (4-index):  16.8 s
+    aux-DF parallel=8 + auto-aux:    21.2 s
+    → aux-DF is ~25 % slower at n=120
+
+  The crossover where aux-DF beats direct hasn't materialized yet
+  for benzene cc-pVDZ. Reasons:
+    1. B-tensor matmul still runs in TypeScript on main thread —
+       at 4.6 B FLOPs it's ~5 s of unparallelized work. Porting to
+       Rust+WASM should be another 3-5× speedup.
+    2. The 2-index M build is single-threaded WASM on main — cheap
+       at n_aux=400 (~0.1 s) so not the bottleneck.
+    3. Auto-aux extraL=1 produces ~3-4× more aux functions than
+       optimal jkfit would. A curated aux basis would give half
+       the n_aux and proportionally faster builds.
+
+  Where aux-DF still wins decisively:
+    - Memory: ERI tensor 1.65 GB → B tensor 60 MB on benzene (28×).
+    - Scaling: direct hits the ~4 GB browser tab heap ceiling around
+      n ≈ 200 (e.g., naphthalene cc-pVDZ would need ~10 GB for ERI).
+      aux-DF at n_aux ~ 600 needs only ~170 MB for B — fits easily.
 
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
