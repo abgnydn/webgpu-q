@@ -35,6 +35,45 @@ async function loadWasm(): Promise<WasmJKModule> {
 let cachedDFIdentity: Float64Array | null = null;
 let cachedBSAB: SharedArrayBuffer | null = null;
 
+/** Pre-warm the JK_DF worker pool. Sends each worker an empty-mus
+ *  buildJK-df-slice task so it (1) loads the WASM module, (2) forces
+ *  V8 to JIT the build_jk_df_slice dispatch, and (3) grows per-worker
+ *  heap before SCF iter 1 hits it. On naphthalene cc-pVDZ this turns
+ *  iter 1 from ~8 s into ~2 s — equal to the steady-state cost.
+ *
+ *  Cheap to call; idempotent (worker pool is shared / WASM is cached). */
+export async function preloadJK_DF_Workers(
+  n: number, nAux: number, poolSize = 0,
+): Promise<void> {
+  if (!sabAvailable()) return;
+  await loadWasm();
+  const N = poolSize > 0 ? poolSize : (navigator.hardwareConcurrency ?? 4) - 1;
+  // Minimal SABs (1 byte; we just need a valid handle).
+  const noopB = new SharedArrayBuffer(8);
+  const noopD = new SharedArrayBuffer(8);
+  const noopJK = new SharedArrayBuffer(16);
+  const noopGamma = new Float64Array(nAux);
+  const workers = getSharedWorkerPool("wasm", N);
+  await Promise.all(workers.map((w) => new Promise<void>((resolve, reject) => {
+    const onMessage = (ev: MessageEvent): void => {
+      w.removeEventListener("message", onMessage);
+      if (ev.data?.ok) resolve();
+      else reject(new Error(ev.data?.error ?? "worker preload failed"));
+    };
+    w.addEventListener("message", onMessage);
+    w.postMessage({
+      kind: "buildJK-df-slice",
+      mus: [],
+      muStart: 0, muEnd: 0,
+      n, nAux,
+      B: noopB,
+      D: noopD,
+      gamma: noopGamma,
+      JK: noopJK,
+    });
+  })));
+}
+
 function getBSAB(df: DFResult): SharedArrayBuffer {
   if (cachedDFIdentity === df.B && cachedBSAB) return cachedBSAB;
   cachedBSAB = toSAB(df.B);
