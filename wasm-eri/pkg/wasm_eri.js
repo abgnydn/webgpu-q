@@ -93,6 +93,67 @@ export function eri_3idx_build(n_orbital, n_aux, n_prims_per_orb, prim_offsets_o
 }
 
 /**
+ * Worker-parallel 3-index ERI build. Computes (μν|P) for μ ∈ `mus`
+ * only and returns a packed flat array of length 4·K:
+ *   [μ, ν, P, value, μ, ν, P, value, …]
+ * Indices stored as f64 (n ≤ 2^53 fits exactly). Caller scatters the
+ * values into the n²·n_aux V-tensor at both (μν, P) and (νμ, P)
+ * positions.
+ *
+ * Cost per worker: O(|mus| · n · n_aux · prim_eri_3idx). For benzene
+ * cc-pVDZ with n=120, n_aux≈400, |mus|=15: ~720K 3-index ERIs ≈ ~3 s
+ * on M2 Pro. Parallel across 8 workers: <1 s wall.
+ * @param {Uint32Array} mus
+ * @param {number} n_orbital
+ * @param {number} n_aux
+ * @param {Uint32Array} n_prims_per_orb
+ * @param {Uint32Array} prim_offsets_orb
+ * @param {Float64Array} alpha_orb
+ * @param {Float64Array} c_orb
+ * @param {Float64Array} center_orb
+ * @param {Int32Array} angular_orb
+ * @param {Uint32Array} n_prims_per_aux
+ * @param {Uint32Array} prim_offsets_aux
+ * @param {Float64Array} alpha_aux
+ * @param {Float64Array} c_aux
+ * @param {Float64Array} center_aux
+ * @param {Int32Array} angular_aux
+ * @returns {Float64Array}
+ */
+export function eri_3idx_build_slice(mus, n_orbital, n_aux, n_prims_per_orb, prim_offsets_orb, alpha_orb, c_orb, center_orb, angular_orb, n_prims_per_aux, prim_offsets_aux, alpha_aux, c_aux, center_aux, angular_aux) {
+    const ptr0 = passArray32ToWasm0(mus, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray32ToWasm0(n_prims_per_orb, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArray32ToWasm0(prim_offsets_orb, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passArrayF64ToWasm0(alpha_orb, wasm.__wbindgen_malloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ptr4 = passArrayF64ToWasm0(c_orb, wasm.__wbindgen_malloc);
+    const len4 = WASM_VECTOR_LEN;
+    const ptr5 = passArrayF64ToWasm0(center_orb, wasm.__wbindgen_malloc);
+    const len5 = WASM_VECTOR_LEN;
+    const ptr6 = passArray32ToWasm0(angular_orb, wasm.__wbindgen_malloc);
+    const len6 = WASM_VECTOR_LEN;
+    const ptr7 = passArray32ToWasm0(n_prims_per_aux, wasm.__wbindgen_malloc);
+    const len7 = WASM_VECTOR_LEN;
+    const ptr8 = passArray32ToWasm0(prim_offsets_aux, wasm.__wbindgen_malloc);
+    const len8 = WASM_VECTOR_LEN;
+    const ptr9 = passArrayF64ToWasm0(alpha_aux, wasm.__wbindgen_malloc);
+    const len9 = WASM_VECTOR_LEN;
+    const ptr10 = passArrayF64ToWasm0(c_aux, wasm.__wbindgen_malloc);
+    const len10 = WASM_VECTOR_LEN;
+    const ptr11 = passArrayF64ToWasm0(center_aux, wasm.__wbindgen_malloc);
+    const len11 = WASM_VECTOR_LEN;
+    const ptr12 = passArray32ToWasm0(angular_aux, wasm.__wbindgen_malloc);
+    const len12 = WASM_VECTOR_LEN;
+    const ret = wasm.eri_3idx_build_slice(ptr0, len0, n_orbital, n_aux, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, ptr6, len6, ptr7, len7, ptr8, len8, ptr9, len9, ptr10, len10, ptr11, len11, ptr12, len12);
+    var v14 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v14;
+}
+
+/**
  * @param {number} n_shells
  * @param {Uint32Array} n_prims_per_shell
  * @param {Uint32Array} prim_offsets

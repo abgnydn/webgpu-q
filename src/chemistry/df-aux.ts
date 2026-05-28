@@ -21,6 +21,8 @@
 import type { CGShell } from "./integrals-cg.js";
 import type { DFResult } from "./df.js";
 import { eigsymmetric } from "../manybody/dense-eig.js";
+import { sabAvailable } from "../parallel/worker-pool.js";
+import { getSharedWorkerPool } from "../parallel/worker-pool-shared.js";
 
 /**
  * Generate an "auto-aux" basis from the orbital basis: decontract each
@@ -255,4 +257,104 @@ export async function buildAuxBasisDF(
     threshold: metricRegularization,
     n,
   };
+}
+
+/** Parallel variant of `buildAuxBasisDF` — the 3-index V tensor build
+ *  is partitioned across N workers via the shared worker pool. The
+ *  2-index M build runs on the main thread (cheap, ~50 ms at n_aux=400).
+ *
+ *  Requires SharedArrayBuffer (COOP/COEP isolation). Falls back to the
+ *  single-thread `buildAuxBasisDF` if SAB unavailable. */
+export async function buildAuxBasisDFParallel(
+  orbitalShells: readonly CGShell[],
+  auxShells?: readonly CGShell[],
+  poolSize = 0,
+  metricRegularization = 1e-10,
+): Promise<DFResult> {
+  if (!sabAvailable()) {
+    return buildAuxBasisDF(orbitalShells, auxShells, metricRegularization);
+  }
+  const N = poolSize > 0 ? poolSize : (navigator.hardwareConcurrency ?? 4) - 1;
+  const mod = await loadWasm();
+  const orb = packShells(orbitalShells);
+  const aux = auxShells ? packShells(auxShells) : orb;
+  const n = orbitalShells.length;
+  const nAux = auxShells ? auxShells.length : n;
+
+  // ── 3-index V tensor via worker pool ──
+  const vSAB = new SharedArrayBuffer(n * n * nAux * 8);
+  const muAssignments: number[][] = Array.from({ length: N }, () => []);
+  for (let mu = 0; mu < n; mu++) muAssignments[mu % N]!.push(mu);
+
+  const workers = getSharedWorkerPool("wasm", N);
+  await Promise.all(workers.map((w, i) => new Promise<void>((resolve, reject) => {
+    const onMessage = (ev: MessageEvent): void => {
+      w.removeEventListener("message", onMessage);
+      if (ev.data?.ok) resolve();
+      else reject(new Error(ev.data?.error ?? "worker failed"));
+    };
+    w.addEventListener("message", onMessage);
+    w.postMessage({
+      kind: "eri-3idx-wasm-slice",
+      mus: muAssignments[i]!,
+      muStart: 0, muEnd: n,
+      nOrbital: n, nAux,
+      nPrimsOrb: orb.nPrims, primOffsetsOrb: orb.primOff,
+      alphaOrb: orb.alpha, cOrb: orb.c,
+      centerOrb: orb.center, angularOrb: orb.angular,
+      nPrimsAux: aux.nPrims, primOffsetsAux: aux.primOff,
+      alphaAux: aux.alpha, cAux: aux.c,
+      centerAux: aux.center, angularAux: aux.angular,
+      v: vSAB,
+    });
+  })));
+  const V = new Float64Array(n * n * nAux);
+  V.set(new Float64Array(vSAB));
+
+  // ── 2-index M (single-thread, cheap) ──
+  const M = mod.eri_2idx_build(
+    nAux,
+    aux.nPrims, aux.primOff, aux.alpha, aux.c, aux.center, aux.angular,
+  );
+
+  // ── Eigendecomp + B formation (same as single-thread path) ──
+  const eig = eigsymmetric(M, nAux);
+  const invSqrtLam = new Float64Array(nAux);
+  let nKept = 0;
+  for (let i = 0; i < nAux; i++) {
+    const lam = eig.values[i]!;
+    if (lam > metricRegularization) {
+      invSqrtLam[i] = 1.0 / Math.sqrt(lam);
+      nKept++;
+    } else {
+      invSqrtLam[i] = 0.0;
+    }
+  }
+  const T = new Float64Array(n * n * nAux);
+  for (let mu = 0; mu < n; mu++) {
+    for (let nu = 0; nu < n; nu++) {
+      for (let i = 0; i < nAux; i++) {
+        if (invSqrtLam[i] === 0) continue;
+        let s = 0;
+        for (let Q = 0; Q < nAux; Q++) {
+          s += V[(mu * n + nu) * nAux + Q]! * eig.vectors[i * nAux + Q]!;
+        }
+        T[(mu * n + nu) * nAux + i] = s * invSqrtLam[i]!;
+      }
+    }
+  }
+  const B = new Float64Array(n * n * nAux);
+  for (let mu = 0; mu < n; mu++) {
+    for (let nu = 0; nu < n; nu++) {
+      for (let P = 0; P < nAux; P++) {
+        let s = 0;
+        for (let i = 0; i < nAux; i++) {
+          if (invSqrtLam[i] === 0) continue;
+          s += T[(mu * n + nu) * nAux + i]! * eig.vectors[i * nAux + P]!;
+        }
+        B[(mu * n + nu) * nAux + P] = s;
+      }
+    }
+  }
+  return { B, nAux: nKept, threshold: metricRegularization, n };
 }

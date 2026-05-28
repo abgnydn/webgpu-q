@@ -17,7 +17,8 @@ export type KernelKind =
   | "buildG-row-slice"
   | "buildG-wasm-mu-slice"
   | "eri-row-slice"
-  | "eri-wasm-slice";
+  | "eri-wasm-slice"
+  | "eri-3idx-wasm-slice";
 
 export interface BuildGRowSliceTask {
   readonly kind: "buildG-row-slice";
@@ -105,11 +106,39 @@ export interface BuildGWasmMuSliceTask {
   readonly G: SharedArrayBuffer;
 }
 
+/** 3-index ERI build slice — aux-basis density fitting. Each worker
+ *  computes (μν|P) for μ ∈ `mus` and writes into the shared V tensor
+ *  SAB at both (μν, P) and (νμ, P) symmetric positions. Returns no
+ *  result; the worker scatters into V directly. */
+export interface ERI3idxWasmSliceTask {
+  readonly kind: "eri-3idx-wasm-slice";
+  readonly mus: ReadonlyArray<number>;
+  readonly muStart: number;
+  readonly muEnd: number;
+  readonly nOrbital: number;
+  readonly nAux: number;
+  readonly nPrimsOrb: Uint32Array;
+  readonly primOffsetsOrb: Uint32Array;
+  readonly alphaOrb: Float64Array;
+  readonly cOrb: Float64Array;
+  readonly centerOrb: Float64Array;
+  readonly angularOrb: Int32Array;
+  readonly nPrimsAux: Uint32Array;
+  readonly primOffsetsAux: Uint32Array;
+  readonly alphaAux: Float64Array;
+  readonly cAux: Float64Array;
+  readonly centerAux: Float64Array;
+  readonly angularAux: Int32Array;
+  /** Output V tensor: shape n_orbital × n_orbital × n_aux, f64. */
+  readonly v: SharedArrayBuffer;
+}
+
 export type WorkerTask =
   | BuildGRowSliceTask
   | BuildGWasmMuSliceTask
   | ERIRowSliceTask
-  | ERIWasmSliceTask;
+  | ERIWasmSliceTask
+  | ERI3idxWasmSliceTask;
 
 export interface WorkerPool {
   readonly size: number;

@@ -24,6 +24,20 @@ export function eri_2idx_build(n_aux: number, n_prims_per_aux: Uint32Array, prim
  */
 export function eri_3idx_build(n_orbital: number, n_aux: number, n_prims_per_orb: Uint32Array, prim_offsets_orb: Uint32Array, alpha_orb: Float64Array, c_orb: Float64Array, center_orb: Float64Array, angular_orb: Int32Array, n_prims_per_aux: Uint32Array, prim_offsets_aux: Uint32Array, alpha_aux: Float64Array, c_aux: Float64Array, center_aux: Float64Array, angular_aux: Int32Array): Float64Array;
 
+/**
+ * Worker-parallel 3-index ERI build. Computes (μν|P) for μ ∈ `mus`
+ * only and returns a packed flat array of length 4·K:
+ *   [μ, ν, P, value, μ, ν, P, value, …]
+ * Indices stored as f64 (n ≤ 2^53 fits exactly). Caller scatters the
+ * values into the n²·n_aux V-tensor at both (μν, P) and (νμ, P)
+ * positions.
+ *
+ * Cost per worker: O(|mus| · n · n_aux · prim_eri_3idx). For benzene
+ * cc-pVDZ with n=120, n_aux≈400, |mus|=15: ~720K 3-index ERIs ≈ ~3 s
+ * on M2 Pro. Parallel across 8 workers: <1 s wall.
+ */
+export function eri_3idx_build_slice(mus: Uint32Array, n_orbital: number, n_aux: number, n_prims_per_orb: Uint32Array, prim_offsets_orb: Uint32Array, alpha_orb: Float64Array, c_orb: Float64Array, center_orb: Float64Array, angular_orb: Int32Array, n_prims_per_aux: Uint32Array, prim_offsets_aux: Uint32Array, alpha_aux: Float64Array, c_aux: Float64Array, center_aux: Float64Array, angular_aux: Int32Array): Float64Array;
+
 export function eri_build(n_shells: number, n_prims_per_shell: Uint32Array, prim_offsets: Uint32Array, alpha_flat: Float64Array, c_flat: Float64Array, center_flat: Float64Array, angular_flat: Int32Array, schwarz_tol: number): Float64Array;
 
 /**
@@ -99,6 +113,7 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly eri_2idx_build: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => [number, number];
     readonly eri_3idx_build: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: number, x: number, y: number, z: number) => [number, number];
+    readonly eri_3idx_build_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: number, x: number, y: number, z: number, a1: number, b1: number) => [number, number];
     readonly eri_build: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number) => [number, number];
     readonly eri_build_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number];
     readonly fock_build_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];

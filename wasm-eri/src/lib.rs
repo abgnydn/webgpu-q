@@ -1056,6 +1056,82 @@ pub fn eri_3idx_build(
     v
 }
 
+/// Worker-parallel 3-index ERI build. Computes (μν|P) for μ ∈ `mus`
+/// only and returns a packed flat array of length 4·K:
+///   [μ, ν, P, value, μ, ν, P, value, …]
+/// Indices stored as f64 (n ≤ 2^53 fits exactly). Caller scatters the
+/// values into the n²·n_aux V-tensor at both (μν, P) and (νμ, P)
+/// positions.
+///
+/// Cost per worker: O(|mus| · n · n_aux · prim_eri_3idx). For benzene
+/// cc-pVDZ with n=120, n_aux≈400, |mus|=15: ~720K 3-index ERIs ≈ ~3 s
+/// on M2 Pro. Parallel across 8 workers: <1 s wall.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen]
+pub fn eri_3idx_build_slice(
+    mus: &[u32],
+    n_orbital: u32,
+    n_aux: u32,
+    n_prims_per_orb: &[u32],
+    prim_offsets_orb: &[u32],
+    alpha_orb: &[f64],
+    c_orb: &[f64],
+    center_orb: &[f64],
+    angular_orb: &[i32],
+    n_prims_per_aux: &[u32],
+    prim_offsets_aux: &[u32],
+    alpha_aux: &[f64],
+    c_aux: &[f64],
+    center_aux: &[f64],
+    angular_aux: &[i32],
+) -> Vec<f64> {
+    let n = n_orbital as usize;
+    let nx = n_aux as usize;
+    let mut out: Vec<f64> = Vec::with_capacity(mus.len() * n * nx * 4);
+
+    let pair_tables = precompute_pair_tables(
+        n, n_prims_per_orb, prim_offsets_orb,
+        alpha_orb, c_orb, center_orb, angular_orb,
+    );
+
+    let mut f_buf: Vec<f64> = Vec::with_capacity(32);
+    let mut r_buf: Vec<f64> = Vec::with_capacity(1024);
+
+    for &mu_u in mus {
+        let mu = mu_u as usize;
+        for nu in mu..n {
+            let bra = &pair_tables[mu * n + nu];
+            for px_idx in 0..nx {
+                let na = n_prims_per_aux[px_idx] as usize;
+                let off = prim_offsets_aux[px_idx] as usize;
+                let alpha_slice = &alpha_aux[off..off + na];
+                let c_slice = &c_aux[off..off + na];
+                let center = [
+                    center_aux[px_idx * 3],
+                    center_aux[px_idx * 3 + 1],
+                    center_aux[px_idx * 3 + 2],
+                ];
+                let angular = [
+                    angular_aux[px_idx * 3],
+                    angular_aux[px_idx * 3 + 1],
+                    angular_aux[px_idx * 3 + 2],
+                ];
+                let val = eri_cg_3idx(
+                    bra,
+                    alpha_slice, c_slice,
+                    center, angular,
+                    &mut f_buf, &mut r_buf,
+                );
+                out.push(mu as f64);
+                out.push(nu as f64);
+                out.push(px_idx as f64);
+                out.push(val);
+            }
+        }
+    }
+    out
+}
+
 /// Primitive 2-index ERI: (P|Q) where both P and Q are single
 /// auxiliary Gaussians. Symmetric in (P, Q). Both Hermite expansions
 /// are single-function (no PA-shift) — the inner loop is 3+3 deep,

@@ -2,7 +2,7 @@
 // Each message is a WorkerTask; we dispatch on `kind` and write results
 // into the shared output SAB.
 
-import type { WorkerTask, ERIWasmSliceTask, BuildGWasmMuSliceTask } from "./worker-pool.js";
+import type { WorkerTask, ERIWasmSliceTask, BuildGWasmMuSliceTask, ERI3idxWasmSliceTask } from "./worker-pool.js";
 import { ERI_cg, type CGShell } from "../chemistry/integrals-cg.js";
 
 interface WasmEriModule {
@@ -23,6 +23,16 @@ interface WasmEriModule {
     n: number,
     eriMuRow: Float64Array,
     d: Float64Array,
+  ): Float64Array;
+  eri_3idx_build_slice(
+    mus: Uint32Array,
+    nOrbital: number, nAux: number,
+    nPrimsOrb: Uint32Array, primOffOrb: Uint32Array,
+    alphaOrb: Float64Array, cOrb: Float64Array,
+    centerOrb: Float64Array, angularOrb: Int32Array,
+    nPrimsAux: Uint32Array, primOffAux: Uint32Array,
+    alphaAux: Float64Array, cAux: Float64Array,
+    centerAux: Float64Array, angularAux: Int32Array,
   ): Float64Array;
 }
 
@@ -68,6 +78,9 @@ self.addEventListener("message", (ev: MessageEvent<WorkerTask>) => {
       case "buildG-wasm-mu-slice":
         await buildGWasmMuSlice(task);
         return;
+      case "eri-3idx-wasm-slice":
+        await eri3idxWasmSlice(task);
+        return;
       default:
         throw new Error(`unknown kernel kind: ${(task as { kind: string }).kind}`);
     }
@@ -80,6 +93,34 @@ self.addEventListener("message", (ev: MessageEvent<WorkerTask>) => {
     }),
   );
 });
+
+async function eri3idxWasmSlice(task: ERI3idxWasmSliceTask): Promise<void> {
+  const mod = await loadWorkerWasm();
+  const mus = new Uint32Array(task.mus);
+  const packed = mod.eri_3idx_build_slice(
+    mus,
+    task.nOrbital, task.nAux,
+    task.nPrimsOrb, task.primOffsetsOrb,
+    task.alphaOrb, task.cOrb, task.centerOrb, task.angularOrb,
+    task.nPrimsAux, task.primOffsetsAux,
+    task.alphaAux, task.cAux, task.centerAux, task.angularAux,
+  );
+  // packed = [μ, ν, P, value, …] of length 4·K. Scatter both (μν, P)
+  // and (νμ, P) symmetric positions into the shared V SAB.
+  const V = new Float64Array(task.v);
+  const n = task.nOrbital;
+  const nx = task.nAux;
+  const K = packed.length / 4;
+  for (let k = 0; k < K; k++) {
+    const base = k * 4;
+    const mu = packed[base]! | 0;
+    const nu = packed[base + 1]! | 0;
+    const P = packed[base + 2]! | 0;
+    const v = packed[base + 3]!;
+    V[(mu * n + nu) * nx + P] = v;
+    if (mu !== nu) V[(nu * n + mu) * nx + P] = v;
+  }
+}
 
 async function buildGWasmMuSlice(task: BuildGWasmMuSliceTask): Promise<void> {
   const mod = await loadWorkerWasm();

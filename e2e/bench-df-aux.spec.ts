@@ -688,4 +688,147 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
 
     expect(Number.isFinite(r.eDF)).toBe(true);
   });
+
+  test("ethane cc-pVDZ — parallel aux-DF V build vs single-thread", async ({ page }) => {
+    test.setTimeout(5 * 60 * 1000);
+    await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+
+    const r = await page.evaluate(async () => {
+      const [
+        { moleculeToShellsNuclei },
+        { buildAuxBasisDF, buildAuxBasisDFParallel, generateAutoAux },
+        { sabAvailable },
+      ] = await Promise.all([
+        import("/src/chemistry/atoms.ts" as string),
+        import("/src/chemistry/df-aux.ts" as string),
+        import("/src/parallel/worker-pool.ts" as string),
+      ]);
+      if (!sabAvailable()) return { skipped: true as const };
+
+      const cc = 1.535, ch = 1.094;
+      const hch = 107.8 * Math.PI / 180;
+      const hcc = (Math.PI - hch) / 2 + Math.PI / 6;
+      const sH = ch * Math.sin(hcc), cH = ch * Math.cos(hcc);
+      const atoms = [
+        { symbol: "C", pos: [0, 0, -cc / 2] },
+        { symbol: "C", pos: [0, 0,  cc / 2] },
+        { symbol: "H", pos: [ sH, 0, -cc / 2 - cH] },
+        { symbol: "H", pos: [-sH / 2,  sH * Math.sqrt(3) / 2, -cc / 2 - cH] },
+        { symbol: "H", pos: [-sH / 2, -sH * Math.sqrt(3) / 2, -cc / 2 - cH] },
+        { symbol: "H", pos: [-sH, 0,  cc / 2 + cH] },
+        { symbol: "H", pos: [ sH / 2,  sH * Math.sqrt(3) / 2,  cc / 2 + cH] },
+        { symbol: "H", pos: [ sH / 2, -sH * Math.sqrt(3) / 2,  cc / 2 + cH] },
+      ];
+      const { shells } = moleculeToShellsNuclei(atoms as never, "cc-pvdz");
+      const auxShells = generateAutoAux(shells, 1);
+
+      // Warmup.
+      await buildAuxBasisDF(shells, auxShells);
+      await buildAuxBasisDFParallel(shells, auxShells, 8);
+
+      const tSync = performance.now();
+      const dfSync = await buildAuxBasisDF(shells, auxShells);
+      const syncMs = performance.now() - tSync;
+
+      const tPar = performance.now();
+      const dfPar = await buildAuxBasisDFParallel(shells, auxShells, 8);
+      const parMs = performance.now() - tPar;
+
+      // Verify match: B tensors should be equal.
+      let maxAbs = 0;
+      for (let i = 0; i < dfSync.B.length; i++) {
+        const d = Math.abs(dfSync.B[i]! - dfPar.B[i]!);
+        if (d > maxAbs) maxAbs = d;
+      }
+      return {
+        skipped: false as const,
+        nOrb: shells.length, nAux: auxShells.length,
+        syncMs, parMs, maxAbs,
+      };
+    });
+
+    if (r.skipped) { test.skip(); return; }
+
+    /* eslint-disable no-console */
+    console.log(`\n══════════════════════════════════════════════════════════`);
+    console.log(`Aux-DF B-tensor build — ethane cc-pVDZ (n_orb=${r.nOrb}, n_aux=${r.nAux})`);
+    console.log(`══════════════════════════════════════════════════════════`);
+    console.log(`Single-thread (V via main):  ${(r.syncMs / 1000).toFixed(2)} s`);
+    console.log(`Parallel=8 (V via workers):  ${(r.parMs / 1000).toFixed(2)} s`);
+    console.log(`Speedup:                     ${(r.syncMs / r.parMs).toFixed(2)}×`);
+    console.log(`max |B_sync - B_parallel|:   ${r.maxAbs.toExponential(2)}`);
+    console.log(`══════════════════════════════════════════════════════════\n`);
+    /* eslint-enable no-console */
+
+    expect(r.maxAbs).toBeLessThan(1e-10);
+  });
+
+  test("benzene cc-pVDZ — parallel aux-DF V build (the real test)", async ({ page }) => {
+    test.setTimeout(20 * 60 * 1000);
+    await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+
+    const r = await page.evaluate(async () => {
+      const [
+        { moleculeToShellsNuclei },
+        { buildAuxBasisDF, buildAuxBasisDFParallel, generateAutoAux },
+        { sabAvailable },
+      ] = await Promise.all([
+        import("/src/chemistry/atoms.ts" as string),
+        import("/src/chemistry/df-aux.ts" as string),
+        import("/src/parallel/worker-pool.ts" as string),
+      ]);
+      if (!sabAvailable()) return { skipped: true as const };
+
+      const rCC = 1.395, rCH = 1.087;
+      const atoms: Array<{ symbol: string; pos: readonly [number, number, number] }> = [];
+      for (let i = 0; i < 6; i++) {
+        const θ = i * Math.PI / 3;
+        atoms.push({ symbol: "C", pos: [rCC * Math.cos(θ), rCC * Math.sin(θ), 0] });
+      }
+      for (let i = 0; i < 6; i++) {
+        const θ = i * Math.PI / 3;
+        const r2 = rCC + rCH;
+        atoms.push({ symbol: "H", pos: [r2 * Math.cos(θ), r2 * Math.sin(θ), 0] });
+      }
+      const { shells } = moleculeToShellsNuclei(atoms as never, "cc-pvdz");
+      const auxShells = generateAutoAux(shells, 1);
+
+      // Warmup parallel pool.
+      await buildAuxBasisDFParallel(shells, auxShells, 8);
+
+      const tSync = performance.now();
+      const dfSync = await buildAuxBasisDF(shells, auxShells);
+      const syncMs = performance.now() - tSync;
+
+      const tPar = performance.now();
+      const dfPar = await buildAuxBasisDFParallel(shells, auxShells, 8);
+      const parMs = performance.now() - tPar;
+
+      let maxAbs = 0;
+      for (let i = 0; i < dfSync.B.length; i++) {
+        const d = Math.abs(dfSync.B[i]! - dfPar.B[i]!);
+        if (d > maxAbs) maxAbs = d;
+      }
+      return {
+        skipped: false as const,
+        nOrb: shells.length, nAux: auxShells.length,
+        syncMs, parMs, maxAbs,
+      };
+    });
+
+    if (r.skipped) { test.skip(); return; }
+
+    /* eslint-disable no-console */
+    console.log(`\n══════════════════════════════════════════════════════════`);
+    console.log(`Aux-DF B-tensor build — benzene cc-pVDZ (n_orb=${r.nOrb}, n_aux=${r.nAux})`);
+    console.log(`══════════════════════════════════════════════════════════`);
+    console.log(`Single-thread:  ${(r.syncMs / 1000).toFixed(2)} s`);
+    console.log(`Parallel=8:     ${(r.parMs / 1000).toFixed(2)} s`);
+    console.log(`Speedup:        ${(r.syncMs / r.parMs).toFixed(2)}×`);
+    console.log(`max |B_sync - B_parallel|: ${r.maxAbs.toExponential(2)}`);
+    console.log(`══════════════════════════════════════════════════════════\n`);
+    /* eslint-enable no-console */
+
+    expect(r.maxAbs).toBeLessThan(1e-10);
+  });
 });
