@@ -661,6 +661,28 @@ n ≥ 60 the JK build dominates and speedup approaches the
   buildJK_DF would benefit from a WASM port). aux-DF Cholesky becomes
   the only viable path where direct OOMs (n ≥ 200, e.g., naphthalene).
 
+  **2026-05-28 — Naphthalene cc-pVDZ HF demonstrated** in browser
+  (`e2e/bench-naphthalene.spec.ts`). C₁₀H₈, n=190, n_aux=1080:
+
+    Direct ERI would be:           10.4 GB  ✗ doesn't fit in tab
+    B-tensor footprint:               303 MB ✓ fits
+    Cholesky rank kept:             1048 / 1080 (32 redundant)
+
+    Integrals (skipERI+skipOAO):     2.79 s
+    Aux-DF B-tensor (Cholesky):     40.31 s
+    HF SCF (13 iters, converged):   86.02 s
+    Total end-to-end:              129.12 s   ≈ 2 min 9 s
+
+    E = −383.38457825 Ha (converged)
+
+  First molecule where webgpu-q does HF beyond what direct n⁴ ERI fits
+  in a browser tab. Naphthalene HF in ~2 min, aux-DF Cholesky enabling.
+
+  Earlier today the n⁴ allocation in `computeMolecularIntegrals` ran
+  unconditionally before the `skipERI` check, OOMing on naphthalene at
+  the 10.4 GB ERI alloc. Fixed: the allocation is now gated on
+  `skipERI` so the aux-DF path never touches that 10 GB.
+
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
   every primitive quartet (n_prim⁴ buildPair calls per ERI). Now caches

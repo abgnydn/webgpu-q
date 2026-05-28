@@ -102,7 +102,11 @@ export function computeMolecularIntegrals(
   let n = shells.length;
   let S_AO: Float64Array = new Float64Array(n * n);
   let h_AO: Float64Array = new Float64Array(n * n);
-  let eri_AO: Float64Array = new Float64Array(n * n * n * n);
+  // The n⁴ ERI tensor is the big allocation (10.4 GB on naphthalene
+  // cc-pVDZ). Only allocate when we'll actually fill it.
+  let eri_AO: Float64Array = opts.skipERI
+    ? new Float64Array(0)
+    : new Float64Array(n * n * n * n);
 
   // ── 1-electron integrals ────────────────────────────────────
   for (let i = 0; i < n; i++) {
