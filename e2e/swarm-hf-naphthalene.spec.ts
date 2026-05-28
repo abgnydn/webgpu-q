@@ -6,7 +6,14 @@ import { test, expect } from "@playwright/test";
 // handshake). Each iter: master broadcasts D, every worker computes
 // its partial (J, K) in parallel, master sums + reduces.
 
-const N_WORKERS_TOTAL = 4;  // 1 master + 3 worker tabs
+// Topology sweep on naphthalene (2026-05-29):
+//   4 tabs × 2 inner = 8 threads = 13.9 s   ← winner
+//   2 tabs × 4 inner = 8 threads = 15.6 s
+// Distributing across more V8 processes beats fewer-tabs-more-workers
+// at the same total thread count. Inner-worker scheduling within a
+// single tab has more overhead than cross-tab BroadcastChannel.
+const N_WORKERS_TOTAL = 4;
+const INNER_POOL = 2;
 
 test.describe(`Swarm HF SCF scaled to ${N_WORKERS_TOTAL} tabs`, () => {
   test(`naphthalene cc-pVDZ — ${N_WORKERS_TOTAL}-tab swarm matches single-tab reference`, async ({ browser }) => {
@@ -27,7 +34,7 @@ test.describe(`Swarm HF SCF scaled to ${N_WORKERS_TOTAL} tabs`, () => {
     // and waits for B-slice + jk requests.
     for (let i = 1; i < N_WORKERS_TOTAL; i++) {
       const worker = pages[i]!;
-      await worker.evaluate(async (sliceIdx: number) => {
+      await worker.evaluate(async ({ sliceIdx, INNER_POOL }: { sliceIdx: number; INNER_POOL: number }) => {
         const [
           { preloadWasmJK },
           { buildJK_DF_Parallel, preloadJK_DF_Workers },
@@ -48,20 +55,20 @@ test.describe(`Swarm HF SCF scaled to ${N_WORKERS_TOTAL} tabs`, () => {
             w.__slice = { idx: sliceIdx, B: msg.B, n: msg.n, nAuxLocal: msg.nAuxLocal };
             // Pre-warm the inner worker pool so iter 1 doesn't include
             // cold WASM init + heap growth on top of broadcast latency.
-            await preloadJK_DF_Workers(msg.n, msg.nAuxLocal, 2);
+            await preloadJK_DF_Workers(msg.n, msg.nAuxLocal, INNER_POOL);
             ch.postMessage({ type: "B-slice-ack", sliceIdx });
           } else if (msg.type === "jk" && msg.D && w.__slice) {
             const { B, n, nAuxLocal } = w.__slice;
             const localDF = { B, n, nAux: nAuxLocal, threshold: 0 };
-            const { J, K } = await buildJK_DF_Parallel(localDF, msg.D, 2);
+            const { J, K } = await buildJK_DF_Parallel(localDF, msg.D, INNER_POOL);
             ch.postMessage({ type: "jk-partial", sliceIdx, J, K });
           } else if (msg.type === "shutdown") { ch.close(); w.__slice = null; }
         });
-      }, i);
+      }, { sliceIdx: i, INNER_POOL });
     }
 
     // Master: drives the full distributed SCF.
-    const result = await pages[0]!.evaluate(async ({ nTabs }) => {
+    const result = await pages[0]!.evaluate(async ({ nTabs, INNER_POOL }) => {
       const [
         { moleculeToShellsNuclei },
         { computeMolecularIntegrals },
@@ -143,7 +150,7 @@ test.describe(`Swarm HF SCF scaled to ${N_WORKERS_TOTAL} tabs`, () => {
       const masterSlice = slices[0]!;
 
       // Pre-warm the master's inner JK pool too.
-      await preloadJK_DF_Workers(n, masterSlice.nAuxLocal, 2);
+      await preloadJK_DF_Workers(n, masterSlice.nAuxLocal, INNER_POOL);
 
       const ch = new BroadcastChannel("swarm-hf-n");
       // Send slices 1..nTabs-1 to workers, wait for acks.
@@ -186,7 +193,7 @@ test.describe(`Swarm HF SCF scaled to ${N_WORKERS_TOTAL} tabs`, () => {
         });
         ch.postMessage({ type: "jk", D });
         const masterDF = { B: masterSlice.B, n, nAux: masterSlice.nAuxLocal, threshold: 0 };
-        const masterPart = await buildJK_DF_Parallel(masterDF, D, 2);
+        const masterPart = await buildJK_DF_Parallel(masterDF, D, INNER_POOL);
         await allReceived;
         const J = new Float64Array(n * n);
         const K = new Float64Array(n * n);
@@ -219,7 +226,7 @@ test.describe(`Swarm HF SCF scaled to ${N_WORKERS_TOTAL} tabs`, () => {
         slicesPerTab: slices.map((s) => s.nAuxLocal),
         masterSliceMB: masterSlice.B.byteLength / 1e6,
       };
-    }, { nTabs: N_WORKERS_TOTAL });
+    }, { nTabs: N_WORKERS_TOTAL, INNER_POOL });
 
     /* eslint-disable no-console */
     console.log(`\n══════════════════════════════════════════════════════════`);
@@ -229,7 +236,7 @@ test.describe(`Swarm HF SCF scaled to ${N_WORKERS_TOTAL} tabs`, () => {
     console.log(`Each tab's B-slice: ~${result.masterSliceMB.toFixed(0)} MB (master); full B = ${(result.nAux * result.n * result.n * 8 / 1e6).toFixed(0)} MB`);
     console.log();
     console.log(`Reference (1-tab parallel ×8):     ${result.refMs.toFixed(0).padStart(6)} ms   iter=${result.refIter}   E = ${result.refEnergy.toFixed(8)} Ha`);
-    console.log(`Swarm     (${N_WORKERS_TOTAL}-tab × 2 inner workers):  ${result.swMs.toFixed(0).padStart(6)} ms   iter=${result.swIter}   E = ${result.swEnergy.toFixed(8)} Ha`);
+    console.log(`Swarm     (${N_WORKERS_TOTAL}-tab × ${INNER_POOL} inner workers):  ${result.swMs.toFixed(0).padStart(6)} ms   iter=${result.swIter}   E = ${result.swEnergy.toFixed(8)} Ha`);
     console.log(`|ΔE| = ${result.deltaE.toExponential(2)} Ha`);
     console.log(`══════════════════════════════════════════════════════════\n`);
     /* eslint-enable no-console */
