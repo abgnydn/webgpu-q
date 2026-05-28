@@ -1,6 +1,36 @@
 /* @ts-self-types="./wasm_eri.d.ts" */
 
 /**
+ * DF Fock build: given B-tensor B[μν, P] and density D[μν], compute
+ *   J[μν] = Σ_P B[μν, P] · γ[P],  γ[P] = Σ_λσ B[λσ, P] · D[λσ]
+ *   K[μν] = Σ_P Σ_σ X[P, μ, σ] · B[νσ, P],
+ *           X[P, μ, σ] = Σ_λ B[μλ, P] · D[λ, σ]
+ *
+ * Returns packed [J(0..N), K(0..N)] of length 2N where N = n².
+ * Layout: out[0..N] = J, out[N..2N] = K.
+ *
+ * Hot path: the K inner pass is O(n²·n_aux·n) = ~1 B FLOPs for
+ * benzene cc-pVDZ at n_aux≈660. SIMD on the innermost contiguous
+ * loops; the (la, si) and (P, si) inner pairs are both length-n
+ * f64 reductions perfect for f64x2 wasm-simd128.
+ * @param {number} n
+ * @param {number} n_aux
+ * @param {Float64Array} b
+ * @param {Float64Array} d
+ * @returns {Float64Array}
+ */
+export function build_jk_df(n, n_aux, b, d) {
+    const ptr0 = passArrayF64ToWasm0(b, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArrayF64ToWasm0(d, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.build_jk_df(n, n_aux, ptr0, len0, ptr1, len1);
+    var v3 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v3;
+}
+
+/**
  * Build the 2-index AO ERI metric M[P, Q] = (P|Q) on the auxiliary
  * basis. Symmetric n_aux × n_aux matrix.
  *

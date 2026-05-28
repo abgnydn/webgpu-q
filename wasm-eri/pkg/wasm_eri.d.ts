@@ -2,6 +2,22 @@
 /* eslint-disable */
 
 /**
+ * DF Fock build: given B-tensor B[μν, P] and density D[μν], compute
+ *   J[μν] = Σ_P B[μν, P] · γ[P],  γ[P] = Σ_λσ B[λσ, P] · D[λσ]
+ *   K[μν] = Σ_P Σ_σ X[P, μ, σ] · B[νσ, P],
+ *           X[P, μ, σ] = Σ_λ B[μλ, P] · D[λ, σ]
+ *
+ * Returns packed [J(0..N), K(0..N)] of length 2N where N = n².
+ * Layout: out[0..N] = J, out[N..2N] = K.
+ *
+ * Hot path: the K inner pass is O(n²·n_aux·n) = ~1 B FLOPs for
+ * benzene cc-pVDZ at n_aux≈660. SIMD on the innermost contiguous
+ * loops; the (la, si) and (P, si) inner pairs are both length-n
+ * f64 reductions perfect for f64x2 wasm-simd128.
+ */
+export function build_jk_df(n: number, n_aux: number, b: Float64Array, d: Float64Array): Float64Array;
+
+/**
  * Build the 2-index AO ERI metric M[P, Q] = (P|Q) on the auxiliary
  * basis. Symmetric n_aux × n_aux matrix.
  *
@@ -131,6 +147,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly build_jk_df: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly eri_2idx_build: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => [number, number];
     readonly eri_3idx_build: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: number, x: number, y: number, z: number) => [number, number];
     readonly eri_3idx_build_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: number, x: number, y: number, z: number, a1: number, b1: number) => [number, number];

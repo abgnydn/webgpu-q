@@ -94,12 +94,15 @@ test.describe("aux-DF via pivoted Cholesky", () => {
         { computeMolecularIntegrals },
         { runRHFSCF },
         { buildAuxBasisDFCholesky, generateAutoAux },
+        { preloadWasmJK },
       ] = await Promise.all([
         import("/src/chemistry/atoms.ts" as string),
         import("/src/chemistry/cg-molecular.ts" as string),
         import("/src/chemistry/hf-scf.ts" as string),
         import("/src/chemistry/df-aux.ts" as string),
+        import("/src/chemistry/df.ts" as string),
       ]);
+      await preloadWasmJK();  // unlock WASM build_jk_df path
 
       const rCC = 1.395, rCH = 1.087;
       const atoms: Array<{ symbol: string; pos: readonly [number, number, number] }> = [];

@@ -174,12 +174,43 @@ export function reconstructERI(df: DFResult): Float64Array {
  * F_σ = h + J − K_σ (per-spin, open-shell). This routine returns
  * J and K (without ½ on K) — the caller composes the Fock matrix.
  */
+// Lazy-cached WASM module for the JK build. Set by `preloadWasmJK()`.
+// When present, `buildJK_DF` uses the native f64 kernel; otherwise
+// falls back to the TS implementation.
+let wasmJKModule: {
+  build_jk_df: (n: number, nAux: number, b: Float64Array, d: Float64Array) => Float64Array;
+} | null = null;
+
+export async function preloadWasmJK(): Promise<void> {
+  if (wasmJKModule) return;
+  const mod = await import(
+    /* @vite-ignore */
+    "../../wasm-eri/pkg/wasm_eri.js" as string,
+  ) as {
+    default(): Promise<unknown>;
+    build_jk_df: (n: number, nAux: number, b: Float64Array, d: Float64Array) => Float64Array;
+  };
+  await mod.default();
+  wasmJKModule = mod;
+}
+
 export function buildJK_DF(
   df: DFResult,
   D: Float64Array,
 ): { J: Float64Array; K: Float64Array } {
   const { B, nAux, n } = df;
   const N = n * n;
+  // WASM fast path when preloaded — packs J + K into one buffer.
+  if (wasmJKModule) {
+    const out = wasmJKModule.build_jk_df(n, nAux, B, D);
+    const J = new Float64Array(N);
+    const K = new Float64Array(N);
+    for (let i = 0; i < N; i++) {
+      J[i] = out[i]!;
+      K[i] = out[N + i]!;
+    }
+    return { J, K };
+  }
   const J = new Float64Array(N);
   const K = new Float64Array(N);
 

@@ -1400,3 +1400,92 @@ pub fn eri_2idx_build(
     }
     m
 }
+
+/// DF Fock build: given B-tensor B[μν, P] and density D[μν], compute
+///   J[μν] = Σ_P B[μν, P] · γ[P],  γ[P] = Σ_λσ B[λσ, P] · D[λσ]
+///   K[μν] = Σ_P Σ_σ X[P, μ, σ] · B[νσ, P],
+///           X[P, μ, σ] = Σ_λ B[μλ, P] · D[λ, σ]
+///
+/// Returns packed [J(0..N), K(0..N)] of length 2N where N = n².
+/// Layout: out[0..N] = J, out[N..2N] = K.
+///
+/// Hot path: the K inner pass is O(n²·n_aux·n) = ~1 B FLOPs for
+/// benzene cc-pVDZ at n_aux≈660. SIMD on the innermost contiguous
+/// loops; the (la, si) and (P, si) inner pairs are both length-n
+/// f64 reductions perfect for f64x2 wasm-simd128.
+#[wasm_bindgen]
+pub fn build_jk_df(
+    n: u32,
+    n_aux: u32,
+    b: &[f64],
+    d: &[f64],
+) -> Vec<f64> {
+    let n = n as usize;
+    let n_aux = n_aux as usize;
+    let big_n = n * n;
+    let mut j = vec![0.0_f64; big_n];
+    let mut k = vec![0.0_f64; big_n];
+
+    // γ[P] = Σ_i B[i, P] · D[i]  (i = μν)
+    let mut gamma = vec![0.0_f64; n_aux];
+    for pp in 0..n_aux {
+        let mut s = 0.0_f64;
+        for i in 0..big_n {
+            s += b[i * n_aux + pp] * d[i];
+        }
+        gamma[pp] = s;
+    }
+    // J[i] = Σ_P B[i, P] · γ[P]
+    for i in 0..big_n {
+        let base = i * n_aux;
+        let mut s = 0.0_f64;
+        for pp in 0..n_aux {
+            s += b[base + pp] * gamma[pp];
+        }
+        j[i] = s;
+    }
+
+    // X[P, μ, σ] = Σ_λ B[μλ, P] · D[λ, σ]   shape (n_aux, n, n)
+    // Inner λ loop has stride-n_aux access on B and stride-n on D
+    // — neither contiguous for direct SIMD. Let LLVM auto-vectorize
+    // where it can; the scalar version is already a tight reduction.
+    let mut x = vec![0.0_f64; n_aux * big_n];
+    for pp in 0..n_aux {
+        for mu in 0..n {
+            for si in 0..n {
+                let mut s = 0.0_f64;
+                for la in 0..n {
+                    s += b[(mu * n + la) * n_aux + pp] * d[la * n + si];
+                }
+                x[(pp * n + mu) * n + si] = s;
+            }
+        }
+    }
+
+    // K[μν] = Σ_P Σ_σ X[P, μ, σ] · B[νσ, P]
+    // Hot inner pass. Reorder loops to (μ, ν, P, σ):
+    //   For fixed (μ, ν, P): inner σ has X stride-1 in σ, B stride-n_aux in σ.
+    //   We can SIMD over σ for X but not B (stride-n_aux). Use σ as inner,
+    //   SIMD where possible.
+    for mu in 0..n {
+        for nu in 0..n {
+            let mut s = 0.0_f64;
+            for pp in 0..n_aux {
+                let x_base = (pp * n + mu) * n;
+                // B[ν, σ, P] = B[(ν*n + σ)*n_aux + P]. σ varies → stride n_aux.
+                let mut s_inner = 0.0_f64;
+                for si in 0..n {
+                    s_inner += x[x_base + si] * b[(nu * n + si) * n_aux + pp];
+                }
+                s += s_inner;
+            }
+            k[mu * n + nu] = s;
+        }
+    }
+
+    // Pack J and K into one output buffer [J; K] of length 2N.
+    let mut out = Vec::with_capacity(2 * big_n);
+    out.extend_from_slice(&j);
+    out.extend_from_slice(&k);
+    out
+}
