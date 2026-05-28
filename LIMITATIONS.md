@@ -590,16 +590,24 @@ n ≥ 60 the JK build dominates and speedup approaches the
     aux-DF parallel=8 + auto-aux:    21.2 s
     → aux-DF is ~25 % slower at n=120
 
-  The crossover where aux-DF beats direct hasn't materialized yet
-  for benzene cc-pVDZ. Reasons:
-    1. B-tensor matmul still runs in TypeScript on main thread —
-       at 4.6 B FLOPs it's ~5 s of unparallelized work. Porting to
-       Rust+WASM should be another 3-5× speedup.
-    2. The 2-index M build is single-threaded WASM on main — cheap
-       at n_aux=400 (~0.1 s) so not the bottleneck.
-    3. Auto-aux extraL=1 produces ~3-4× more aux functions than
-       optimal jkfit would. A curated aux basis would give half
-       the n_aux and proportionally faster builds.
+  **Update 2026-05-28**: B-tensor matmul ported to Rust+WASM with
+  f64x2 SIMD (`form_b_tensor`). Benzene B-tensor build:
+
+  | path | before WASM matmul | after WASM matmul | change |
+  |---|---:|---:|---:|
+  | Single-thread aux-DF | 39.31 s | **12.78 s** | 3.1× |
+  | Parallel=8 aux-DF    | 21.22 s |  **9.41 s** | 2.3× |
+
+  Now **aux-DF B-tensor build (9.41 s) beats WASM-parallel direct
+  4-index ERI build (15.6 s) on benzene cc-pVDZ** — the crossover
+  has materialized.
+
+  Remaining differences:
+    - Auto-aux extraL=1 produces ~3-4× more aux functions than
+      curated jkfit would. Halving n_aux would give another ~2×.
+    - Eigendecomp of M (400×400 Jacobi) is in TS — ~0.5 s, small.
+    - The 2-index M build is single-threaded WASM on main — cheap
+      at n_aux=400 (~0.1 s).
 
   Where aux-DF still wins decisively:
     - Memory: ERI tensor 1.65 GB → B tensor 60 MB on benzene (28×).
