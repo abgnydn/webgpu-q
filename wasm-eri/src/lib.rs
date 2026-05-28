@@ -1446,18 +1446,44 @@ pub fn build_jk_df(
     }
 
     // X[P, μ, σ] = Σ_λ B[μλ, P] · D[λ, σ]   shape (n_aux, n, n)
-    // Inner λ loop has stride-n_aux access on B and stride-n on D
-    // — neither contiguous for direct SIMD. Let LLVM auto-vectorize
-    // where it can; the scalar version is already a tight reduction.
+    //
+    // Reorder loops to (μ, λ, P, σ) with σ innermost. For fixed
+    // (μ, λ, P), B[μλ, P] is a scalar (one load), D[λ, σ] varies
+    // contiguously in σ (stride 1), and we accumulate into
+    // X[(P, μ, σ)] which is also contiguous in σ. Pure SIMD-able
+    // FMA pattern. Initialize X to zero, accumulate.
     let mut x = vec![0.0_f64; n_aux * big_n];
-    for pp in 0..n_aux {
-        for mu in 0..n {
-            for si in 0..n {
-                let mut s = 0.0_f64;
-                for la in 0..n {
-                    s += b[(mu * n + la) * n_aux + pp] * d[la * n + si];
+    for mu in 0..n {
+        for la in 0..n {
+            let d_row_base = la * n;  // D[λ, :] row
+            for pp in 0..n_aux {
+                let bv = b[(mu * n + la) * n_aux + pp];
+                let x_row_base = (pp * n + mu) * n;
+                #[cfg(target_feature = "simd128")]
+                unsafe {
+                    use std::arch::wasm32::*;
+                    let bv_v = f64x2_splat(bv);
+                    let dp = d.as_ptr().add(d_row_base);
+                    let xp = x.as_mut_ptr().add(x_row_base);
+                    let mut si = 0;
+                    while si + 2 <= n {
+                        let dv = v128_load(dp.add(si) as *const v128);
+                        let xv = v128_load(xp.add(si) as *const v128);
+                        let res = f64x2_add(xv, f64x2_mul(bv_v, dv));
+                        v128_store(xp.add(si) as *mut v128, res);
+                        si += 2;
+                    }
+                    while si < n {
+                        *xp.add(si) += bv * *dp.add(si);
+                        si += 1;
+                    }
                 }
-                x[(pp * n + mu) * n + si] = s;
+                #[cfg(not(target_feature = "simd128"))]
+                {
+                    for si in 0..n {
+                        x[x_row_base + si] += bv * d[d_row_base + si];
+                    }
+                }
             }
         }
     }
