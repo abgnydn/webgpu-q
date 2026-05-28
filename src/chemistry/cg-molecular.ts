@@ -66,6 +66,12 @@ export interface IntegralOpts {
    *  is essentially no-screening; looser (1e-6) starts losing precision
    *  below chemical accuracy. */
   readonly schwarzTol?: number;
+  /** Skip the 2-electron ERI build entirely — `eri_AO` is returned as
+   *  an empty Float64Array (zero-length placeholder). Use when the
+   *  downstream path is aux-basis DF (`useDF: DFResult`) and never
+   *  touches `eri_AO`. Saves the full O(n⁴) ERI build cost (14+ min
+   *  for benzene cc-pVDZ). Default false. */
+  readonly skipERI?: boolean;
 }
 
 /**
@@ -110,6 +116,10 @@ export function computeMolecularIntegrals(
   // Q[μ,ν] = √⟨μν|μν⟩ table lets us skip negligible (μν|λσ) pairs.
   // Threshold 1e-10 is well below sub-µHa precision and gives 2-5×
   // speedup on cc-pVDZ-class basis sets.
+  if (opts.skipERI) {
+    // Return placeholder eri_AO (empty) — caller must use DF path.
+    eri_AO = new Float64Array(0);
+  } else {
   const SCHWARZ_TOL = opts.schwarzTol ?? 1e-10;
   const Q = new Float64Array(n * n);
   for (let mu = 0; mu < n; mu++) {
@@ -155,6 +165,7 @@ export function computeMolecularIntegrals(
     opts.screenStats.skipped = skipped;
     opts.screenStats.totalUnique = totalUnique;
   }
+  }  // end if !skipERI
 
   // ── Optional: Cartesian d → spherical-harmonic d transform ──
   // Identifies every d-shell group (6 consecutive shells with same
@@ -169,7 +180,9 @@ export function computeMolecularIntegrals(
     nFinal = T.length / n;
     S_AO = transformS_2idx(S_AO, T, n, nFinal);
     h_AO = transformS_2idx(h_AO, T, n, nFinal);
-    eri_AO = transformS_4idx(eri_AO, T, n, nFinal);
+    if (!opts.skipERI) {
+      eri_AO = transformS_4idx(eri_AO, T, n, nFinal);
+    }
     sphericalT = T;
     n = nFinal;
   }
@@ -193,7 +206,9 @@ export function computeMolecularIntegrals(
 
   // ── Transform h, ERI to OAO ─────────────────────────────────
   const h_OAO = transform2(h_AO, X, n);
-  const eri_OAO = transform4(eri_AO, X, n);
+  const eri_OAO = opts.skipERI
+    ? new Float64Array(0)
+    : transform4(eri_AO, X, n);
 
   // ── Nuclear-nuclear repulsion ──────────────────────────────
   let Vnn = 0;

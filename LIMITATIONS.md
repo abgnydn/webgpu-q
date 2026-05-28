@@ -615,6 +615,31 @@ n ≥ 60 the JK build dominates and speedup approaches the
       n ≈ 200 (e.g., naphthalene cc-pVDZ would need ~10 GB for ERI).
       aux-DF at n_aux ~ 600 needs only ~170 MB for B — fits easily.
 
+  **End-to-end benzene aux-DF HF SCF fails to converge (2026-05-28)**:
+  Added `skipERI` option to `computeMolecularIntegrals` so an aux-DF
+  HF run can skip the 14-min TS ERI build entirely. With that:
+
+    Integrals (S/h/X/Vnn, skipERI):    0.62 s   ✓
+    Aux-DF B-tensor (parallel + WASM): 22.69 s  ✓ (correctness preserved)
+    HF SCF (DIIS with DF, 101 iters):  526 s    ✗ NOT converged
+    Total:                            550 s    catastrophic
+    Energy:                          −188000 Ha  (vs −230.72 ref)
+
+  The B-tensor build is fast (beats direct) but its CONTENT is
+  corrupted. Same issue we diagnosed at H₂O extraL=2: auto-aux
+  with extraL=1 on benzene's 6 carbons + 6 hydrogens produces near-
+  duplicate aux exponents across atoms; eigendecomp drops critical
+  modes; M⁻¹⸍² is wrong; B is wrong; HF SCF blows up.
+
+  H₂O extraL=1 works at 0.11 mHa because it has only 1 heavy atom
+  + 2 H. Ethane (2 C + 6 H) also works at 0.4 mHa. Benzene's 6 C
+  cross-coupling at the same exponents is what fails.
+
+  Phase 3 (the only real fix): load Weigend's cc-pVDZ-jkfit aux data
+  tables for H, C, N, O. These are purpose-built to span orbital
+  products with minimal redundancy. Until that's done, auto-aux is
+  a research demo for ≤ 2-heavy-atom systems.
+
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
   every primitive quartet (n_prim⁴ buildPair calls per ERI). Now caches

@@ -831,4 +831,97 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
 
     expect(r.maxAbs).toBeLessThan(1e-10);
   });
+
+  test.skip("benzene cc-pVDZ — full HF SCF end-to-end with aux-DF (skipERI)", async ({ page }) => {
+    // KNOWN FAILING (2026-05-28): auto-aux at benzene scale (n=120,
+    // ~400 aux across 6 atoms) produces severe linear dependence
+    // similar to H₂O extraL=2 — eigendecomp drops critical modes
+    // and HF SCF doesn't converge. Catastrophic energy error
+    // (-188000 Ha, 101 iters NOT converged).
+    //
+    // The B-tensor build itself runs (~22.7 s, beats direct's 15.6 s)
+    // but the resulting B is numerically corrupted. Real fix:
+    // load Weigend cc-pVDZ-jkfit aux basis data tables. Phase 3.
+    test.setTimeout(10 * 60 * 1000);
+    await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+
+    const r = await page.evaluate(async () => {
+      const [
+        { moleculeToShellsNuclei },
+        { computeMolecularIntegrals },
+        { runRHFSCF },
+        { buildAuxBasisDFParallel, generateAutoAux },
+        { sabAvailable },
+      ] = await Promise.all([
+        import("/src/chemistry/atoms.ts" as string),
+        import("/src/chemistry/cg-molecular.ts" as string),
+        import("/src/chemistry/hf-scf.ts" as string),
+        import("/src/chemistry/df-aux.ts" as string),
+        import("/src/parallel/worker-pool.ts" as string),
+      ]);
+      if (!sabAvailable()) return { skipped: true as const };
+
+      const rCC = 1.395, rCH = 1.087;
+      const atoms: Array<{ symbol: string; pos: readonly [number, number, number] }> = [];
+      for (let i = 0; i < 6; i++) {
+        const θ = i * Math.PI / 3;
+        atoms.push({ symbol: "C", pos: [rCC * Math.cos(θ), rCC * Math.sin(θ), 0] });
+      }
+      for (let i = 0; i < 6; i++) {
+        const θ = i * Math.PI / 3;
+        const r2 = rCC + rCH;
+        atoms.push({ symbol: "H", pos: [r2 * Math.cos(θ), r2 * Math.sin(θ), 0] });
+      }
+      const { shells, nuclei, nElectrons } =
+        moleculeToShellsNuclei(atoms as never, "cc-pvdz");
+
+      const tInteg = performance.now();
+      const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true });
+      const integMs = performance.now() - tInteg;
+
+      const auxShells = generateAutoAux(shells, 1);
+      const tDF = performance.now();
+      const df = await buildAuxBasisDFParallel(shells, auxShells, 8);
+      const dfMs = performance.now() - tDF;
+
+      const tHF = performance.now();
+      const hf = runRHFSCF(integrals, nElectrons, {
+        useDIIS: true, energyTol: 1e-7, densityTol: 1e-6, maxIter: 100,
+        useDF: df,
+      });
+      const hfMs = performance.now() - tHF;
+
+      return {
+        skipped: false as const,
+        n: integrals.n, nAux: auxShells.length, nKept: df.nAux,
+        integMs, dfMs, hfMs,
+        energy: hf.energy, iter: hf.iter, converged: hf.converged,
+      };
+    });
+
+    if (r.skipped) { test.skip(); return; }
+
+    const totalMs = r.integMs + r.dfMs + r.hfMs;
+    /* eslint-disable no-console */
+    console.log(`\n══════════════════════════════════════════════════════════`);
+    console.log(`Benzene cc-pVDZ HF SCF end-to-end with aux-DF`);
+    console.log(`══════════════════════════════════════════════════════════`);
+    console.log(`n_orb=${r.n}  n_aux=${r.nAux} (kept ${r.nKept})`);
+    console.log();
+    console.log(`Integrals (skipERI, S/h/X/Vnn only):  ${(r.integMs / 1000).toFixed(2)} s`);
+    console.log(`Aux-DF B-tensor (parallel + WASM):    ${(r.dfMs / 1000).toFixed(2)} s`);
+    console.log(`HF SCF (DIIS over DF, ${r.iter} iters):${(r.hfMs / 1000).toFixed(2)} s  converged=${r.converged}`);
+    console.log(`Total end-to-end:                     ${(totalMs / 1000).toFixed(2)} s`);
+    console.log();
+    console.log(`Energy:  E = ${r.energy.toFixed(8)} Ha`);
+    const directE = -230.72273482;
+    console.log(`Energy error vs WASM-direct reference: ${(r.energy - directE).toExponential(2)} Ha`);
+    console.log(`Speedup vs WASM-direct (16.8 s):      ${(16800 / totalMs).toFixed(2)}×`);
+    console.log(`══════════════════════════════════════════════════════════\n`);
+    /* eslint-enable no-console */
+
+    expect(Number.isFinite(r.energy)).toBe(true);
+    expect(r.converged).toBe(true);
+  });
+
 });
