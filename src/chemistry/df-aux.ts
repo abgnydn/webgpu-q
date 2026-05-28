@@ -24,6 +24,107 @@ import { eigsymmetric } from "../manybody/dense-eig.js";
 import { sabAvailable } from "../parallel/worker-pool.js";
 import { getSharedWorkerPool } from "../parallel/worker-pool-shared.js";
 
+/** Pivoted incomplete Cholesky of a PSD n × n matrix M, returning
+ *  L such that M ≈ L · L^T with rank ≤ n. L has shape n × r where
+ *  r is the discovered rank. Pivot indices are returned to enable
+ *  back-substitution against L^T.
+ *
+ *  Drops dimensions where the remaining diagonal residual falls
+ *  below `threshold`. For a well-conditioned PSD matrix this is
+ *  full rank; for the rank-deficient case (e.g., auto-aux M with
+ *  cross-atom redundancy at benzene scale) it naturally truncates
+ *  to the effective rank without producing spurious modes the way
+ *  eigendecomp + regularization does.
+ *
+ *  Cost: O(n²·r). Memory: O(n·r). */
+function pivotedCholesky(
+  M: Float64Array,
+  n: number,
+  threshold: number,
+): { L: Float64Array; pivots: number[] } {
+  const d = new Float64Array(n);
+  for (let i = 0; i < n; i++) d[i] = M[i * n + i]!;
+  const L_cols: Float64Array[] = [];
+  const pivots: number[] = [];
+
+  for (let step = 0; step < n; step++) {
+    let piv = -1;
+    let pmax = 0;
+    for (let i = 0; i < n; i++) {
+      if (d[i]! > pmax) { pmax = d[i]!; piv = i; }
+    }
+    if (piv < 0 || pmax < threshold) break;
+    const sqrtPiv = Math.sqrt(pmax);
+    const newCol = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      let v = M[i * n + piv]!;
+      for (let j = 0; j < L_cols.length; j++) {
+        v -= L_cols[j]![i]! * L_cols[j]![piv]!;
+      }
+      newCol[i] = v / sqrtPiv;
+    }
+    L_cols.push(newCol);
+    pivots.push(piv);
+    for (let i = 0; i < n; i++) {
+      const v = newCol[i]!;
+      d[i] = Math.max(0, d[i]! - v * v);
+    }
+    d[piv] = 0;
+  }
+
+  // Pack columns into row-major L[i, k] = L_cols[k][i].
+  const r = L_cols.length;
+  const L = new Float64Array(n * r);
+  for (let i = 0; i < n; i++) {
+    for (let k = 0; k < r; k++) {
+      L[i * r + k] = L_cols[k]![i]!;
+    }
+  }
+  return { L, pivots };
+}
+
+/** Form the DF B-tensor B[μν, k] = V[μν, :] · L^(-T)[:, k] via
+ *  forward-substitution. L is the pivoted-Cholesky factor of M
+ *  (M ≈ L · L^T), so M^(-1) ≈ L^(-T) · L^(-1) and
+ *  B · B^T = V · M^(-1) · V^T ≈ ERI.
+ *
+ *  For each (μν), solve L^T_sub · B[μν, :]^T = V[μν, pivots]^T
+ *  via back-substitution along the r-axis.
+ *
+ *  Layout: L is (n × r) row-major; pivots is the r-vector of
+ *  selected indices; V is (n_orb² × n_aux) row-major. Output B is
+ *  (n_orb² × r) row-major.
+ *
+ *  Cost: O(n_orb² · r²). Memory: O(n_orb² · r). */
+function formBFromCholesky(
+  V: Float64Array,
+  L: Float64Array,
+  pivots: number[],
+  nOrb: number,
+  nAux: number,
+): { B: Float64Array; r: number } {
+  const r = pivots.length;
+  const B = new Float64Array(nOrb * nOrb * r);
+  for (let mu = 0; mu < nOrb; mu++) {
+    for (let nu = 0; nu < nOrb; nu++) {
+      const vBase = (mu * nOrb + nu) * nAux;
+      const bBase = (mu * nOrb + nu) * r;
+      for (let k = 0; k < r; k++) {
+        const pivK = pivots[k]!;
+        let s = V[vBase + pivK]!;
+        for (let j = 0; j < k; j++) {
+          s -= L[pivK * r + j]! * B[bBase + j]!;
+        }
+        // L[pivK, k] is the Cholesky diagonal at step k (which is
+        // sqrtPiv_k > 0 by construction unless we've truncated).
+        const diag = L[pivK * r + k]!;
+        B[bBase + k] = s / diag;
+      }
+    }
+  }
+  return { B, r };
+}
+
 /**
  * Generate an "auto-aux" basis from the orbital basis: decontract each
  * primitive into a separate single-primitive aux shell and (optionally)
@@ -220,7 +321,7 @@ export async function buildAuxBasisDF(
       invSqrtLam[i] = 1.0 / Math.sqrt(lam);
       nKept++;
     } else {
-      invSqrtLam[i] = 0.0;  // drop near-zero mode
+      invSqrtLam[i] = 0.0;
     }
   }
 
@@ -241,6 +342,46 @@ export async function buildAuxBasisDF(
     threshold: metricRegularization,
     n,
   };
+}
+
+/** Pivoted-Cholesky variant of `buildAuxBasisDF`. Handles
+ *  rank-deficient auxiliary metrics (e.g., auto-aux with cross-atom
+ *  redundancy on multi-heavy-atom systems) without the spurious-mode
+ *  problem that eigendecomp + regularization produces.
+ *
+ *  Same algorithm as `buildAuxBasisDF` except the M-factorization
+ *  step: pivoted Cholesky of M gives L such that M ≈ L · Lᵀ, then
+ *  B is formed by forward-substitution against Lᵀ. The discovered
+ *  rank r is the auto-detected effective basis size.
+ *
+ *  Returns DFResult with nAux=r (the discovered rank).
+ */
+export async function buildAuxBasisDFCholesky(
+  orbitalShells: readonly CGShell[],
+  auxShells?: readonly CGShell[],
+  choleskyThreshold = 1e-8,
+): Promise<DFResult> {
+  const mod = await loadWasm();
+  const orb = packShells(orbitalShells);
+  const aux = auxShells ? packShells(auxShells) : orb;
+  const n = orbitalShells.length;
+  const nAux = auxShells ? auxShells.length : n;
+
+  const V = mod.eri_3idx_build(
+    n, nAux,
+    orb.nPrims, orb.primOff, orb.alpha, orb.c, orb.center, orb.angular,
+    aux.nPrims, aux.primOff, aux.alpha, aux.c, aux.center, aux.angular,
+  );
+  const M = mod.eri_2idx_build(
+    nAux,
+    aux.nPrims, aux.primOff, aux.alpha, aux.c, aux.center, aux.angular,
+  );
+
+  // Pivoted Cholesky of M → effective rank r ≤ n_aux.
+  const { L, pivots } = pivotedCholesky(M, nAux, choleskyThreshold);
+  const { B, r } = formBFromCholesky(V, L, pivots, n, nAux);
+
+  return { B, nAux: r, threshold: choleskyThreshold, n };
 }
 
 /** Parallel variant of `buildAuxBasisDF` — the 3-index V tensor build
