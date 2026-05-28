@@ -1463,21 +1463,56 @@ pub fn build_jk_df(
     }
 
     // K[μν] = Σ_P Σ_σ X[P, μ, σ] · B[νσ, P]
-    // Hot inner pass. Reorder loops to (μ, ν, P, σ):
-    //   For fixed (μ, ν, P): inner σ has X stride-1 in σ, B stride-n_aux in σ.
-    //   We can SIMD over σ for X but not B (stride-n_aux). Use σ as inner,
-    //   SIMD where possible.
+    //
+    // The "natural" (μ, ν, P, σ) loop kills the cache: B[(νσ)·n_aux + P]
+    // has stride n_aux as σ varies. At n_aux=662 (benzene auto-aux),
+    // each next-σ load misses L1 (32 KB) hard.
+    //
+    // Transpose X[P, μ, σ] → X_T[μ, σ, P] first. Then the (μ, ν)
+    // double sum becomes Σ_σ ⟨X_T[μ, σ, :], B[ν, σ, :]⟩ — a clean
+    // inner dot-product over P with stride-1 access on both sides.
+    // Perfect for SIMD.
+    let mut x_t = vec![0.0_f64; n_aux * big_n];
+    for pp in 0..n_aux {
+        for mu in 0..n {
+            for si in 0..n {
+                x_t[(mu * n + si) * n_aux + pp] = x[(pp * n + mu) * n + si];
+            }
+        }
+    }
     for mu in 0..n {
         for nu in 0..n {
             let mut s = 0.0_f64;
-            for pp in 0..n_aux {
-                let x_base = (pp * n + mu) * n;
-                // B[ν, σ, P] = B[(ν*n + σ)*n_aux + P]. σ varies → stride n_aux.
-                let mut s_inner = 0.0_f64;
-                for si in 0..n {
-                    s_inner += x[x_base + si] * b[(nu * n + si) * n_aux + pp];
+            for si in 0..n {
+                let xt_base = (mu * n + si) * n_aux;
+                let b_base = (nu * n + si) * n_aux;
+                // P-loop: both X_T and B contiguous, SIMD-friendly.
+                #[cfg(target_feature = "simd128")]
+                unsafe {
+                    use std::arch::wasm32::*;
+                    let mut acc = f64x2_splat(0.0);
+                    let xp = x_t.as_ptr().add(xt_base);
+                    let bp = b.as_ptr().add(b_base);
+                    let mut pp = 0;
+                    while pp + 2 <= n_aux {
+                        let xv = v128_load(xp.add(pp) as *const v128);
+                        let bv = v128_load(bp.add(pp) as *const v128);
+                        acc = f64x2_add(acc, f64x2_mul(xv, bv));
+                        pp += 2;
+                    }
+                    let mut s_inner = f64x2_extract_lane::<0>(acc) + f64x2_extract_lane::<1>(acc);
+                    while pp < n_aux {
+                        s_inner += *xp.add(pp) * *bp.add(pp);
+                        pp += 1;
+                    }
+                    s += s_inner;
                 }
-                s += s_inner;
+                #[cfg(not(target_feature = "simd128"))]
+                {
+                    for pp in 0..n_aux {
+                        s += x_t[xt_base + pp] * b[b_base + pp];
+                    }
+                }
             }
             k[mu * n + nu] = s;
         }
