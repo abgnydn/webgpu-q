@@ -433,6 +433,14 @@ export async function buildAuxBasisDFCholesky(
   } else {
     B = formBFromCholesky(V, L, pivots, n, nAux).B;
   }
+
+  // Free the V tensor SAB before returning. On large molecules
+  // (anthracene n=274: V is 900 MB), keeping V alive through SCF
+  // pushes peak resident SAB past Chrome's ~2 GB tab ceiling and
+  // crashes the renderer. B is fully formed at this point — V is
+  // dead weight. Reassigning to a zero-length view drops the
+  // SharedArrayBuffer reference; the next GC cycle reclaims it.
+  V = new Float64Array(0);
   return { B, nAux: pivots.length, threshold: choleskyThreshold, n };
 }
 
