@@ -1056,6 +1056,106 @@ pub fn eri_3idx_build(
     v
 }
 
+/// Worker-parallel slice of form_b_tensor: computes B for μ rows
+/// in `mus`. Returns flat (|mus| · n · n_aux) packed contiguously
+/// by (k, ν, P) where k is the local μ index.
+///
+/// Caller scatters the returned slice into a shared full-B SAB at
+/// the correct μ-offsets. Each worker owns disjoint μ rows so no
+/// atomics needed.
+#[wasm_bindgen]
+pub fn form_b_tensor_slice(
+    mus: &[u32],
+    n: u32,
+    n_aux: u32,
+    v: &[f64],
+    u: &[f64],
+    inv_sqrt_lam: &[f64],
+) -> Vec<f64> {
+    let n = n as usize;
+    let n_aux = n_aux as usize;
+    let k_mus = mus.len();
+    let mut b = vec![0.0_f64; k_mus * n * n_aux];
+    let mut t = vec![0.0_f64; n_aux];
+
+    for (k, &mu_u) in mus.iter().enumerate() {
+        let mu = mu_u as usize;
+        for nu in 0..n {
+            let v_base = (mu * n + nu) * n_aux;
+            // T[i] = (V[μν, :] · U[:, i]) · λ_i^(-1/2)
+            for i in 0..n_aux {
+                let isl = inv_sqrt_lam[i];
+                if isl == 0.0 {
+                    t[i] = 0.0;
+                    continue;
+                }
+                let u_col_base = i * n_aux;
+                let mut s = 0.0_f64;
+                #[cfg(target_feature = "simd128")]
+                unsafe {
+                    use std::arch::wasm32::*;
+                    let mut acc = f64x2_splat(0.0);
+                    let vp = v.as_ptr().add(v_base);
+                    let up = u.as_ptr().add(u_col_base);
+                    let mut q = 0;
+                    while q + 2 <= n_aux {
+                        let vv = v128_load(vp.add(q) as *const v128);
+                        let uv = v128_load(up.add(q) as *const v128);
+                        acc = f64x2_add(acc, f64x2_mul(vv, uv));
+                        q += 2;
+                    }
+                    s = f64x2_extract_lane::<0>(acc) + f64x2_extract_lane::<1>(acc);
+                    while q < n_aux {
+                        s += *vp.add(q) * *up.add(q);
+                        q += 1;
+                    }
+                }
+                #[cfg(not(target_feature = "simd128"))]
+                {
+                    for q in 0..n_aux {
+                        s += v[v_base + q] * u[u_col_base + q];
+                    }
+                }
+                t[i] = s * isl;
+            }
+            // B[k, ν, P] = Σ_i T[i] · U[P, i]
+            let b_base = (k * n + nu) * n_aux;
+            for p in 0..n_aux { b[b_base + p] = 0.0; }
+            for i in 0..n_aux {
+                let ti = t[i];
+                if ti == 0.0 { continue; }
+                let u_row_base = i * n_aux;
+                #[cfg(target_feature = "simd128")]
+                unsafe {
+                    use std::arch::wasm32::*;
+                    let ti_v = f64x2_splat(ti);
+                    let up = u.as_ptr().add(u_row_base);
+                    let bp = b.as_mut_ptr().add(b_base);
+                    let mut p = 0;
+                    while p + 2 <= n_aux {
+                        let uv = v128_load(up.add(p) as *const v128);
+                        let bv = v128_load(bp.add(p) as *const v128);
+                        let res = f64x2_add(bv, f64x2_mul(ti_v, uv));
+                        v128_store(bp.add(p) as *mut v128, res);
+                        p += 2;
+                    }
+                    while p < n_aux {
+                        *bp.add(p) += ti * *up.add(p);
+                        p += 1;
+                    }
+                }
+                #[cfg(not(target_feature = "simd128"))]
+                {
+                    for p in 0..n_aux {
+                        b[b_base + p] += ti * u[u_row_base + p];
+                    }
+                }
+            }
+        }
+    }
+    b
+}
+
 /// Form the density-fitting B tensor: B[μν, P] = Σ_Q V[μν, Q] · M⁻¹⸍²[Q, P]
 /// where M⁻¹⸍² = U · diag(λ⁻¹⸍²) · Uᵀ from the eigendecomposition of M.
 ///
@@ -1072,6 +1172,12 @@ pub fn eri_3idx_build(
 /// that's ~4.6 B FLOPs — was ~5 s in TypeScript even with cache-
 /// friendly loop reorder. WASM with f64x2 SIMD on the inner P loop
 /// (length n_aux=400, perfect for vectorization) drops it to ~1 s.
+///
+/// Note: a Cholesky-back-sub variant (form_b_from_cholesky) was tried
+/// in Rust+WASM and lost to TS (91 s vs 40 s on naphthalene).
+/// wasm-bindgen copies the 312 MB V tensor per call, and the
+/// pivot-indirect access into V/L is cache-unfriendly. See
+/// `src/chemistry/df-aux.ts` for the active TS path.
 #[wasm_bindgen]
 pub fn form_b_tensor(
     n: u32,

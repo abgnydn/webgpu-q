@@ -153,8 +153,25 @@ export function fock_one_mu_row(n: number, eri_mu_row: Float64Array, d: Float64A
  * that's ~4.6 B FLOPs — was ~5 s in TypeScript even with cache-
  * friendly loop reorder. WASM with f64x2 SIMD on the inner P loop
  * (length n_aux=400, perfect for vectorization) drops it to ~1 s.
+ *
+ * Note: a Cholesky-back-sub variant (form_b_from_cholesky) was tried
+ * in Rust+WASM and lost to TS (91 s vs 40 s on naphthalene).
+ * wasm-bindgen copies the 312 MB V tensor per call, and the
+ * pivot-indirect access into V/L is cache-unfriendly. See
+ * `src/chemistry/df-aux.ts` for the active TS path.
  */
 export function form_b_tensor(n: number, n_aux: number, v: Float64Array, u: Float64Array, inv_sqrt_lam: Float64Array): Float64Array;
+
+/**
+ * Worker-parallel slice of form_b_tensor: computes B for μ rows
+ * in `mus`. Returns flat (|mus| · n · n_aux) packed contiguously
+ * by (k, ν, P) where k is the local μ index.
+ *
+ * Caller scatters the returned slice into a shared full-B SAB at
+ * the correct μ-offsets. Each worker owns disjoint μ rows so no
+ * atomics needed.
+ */
+export function form_b_tensor_slice(mus: Uint32Array, n: number, n_aux: number, v: Float64Array, u: Float64Array, inv_sqrt_lam: Float64Array): Float64Array;
 
 /**
  * Compute just the Schwarz Q table (diagonal-pair ERIs sqrt-abs).
@@ -178,6 +195,7 @@ export interface InitOutput {
     readonly fock_build_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
     readonly fock_one_mu_row: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly form_b_tensor: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number];
+    readonly form_b_tensor_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number];
     readonly schwarz_q_table: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => [number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;

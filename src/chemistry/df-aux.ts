@@ -23,6 +23,7 @@ import type { DFResult } from "./df.js";
 import { eigsymmetric } from "../manybody/dense-eig.js";
 import { sabAvailable } from "../parallel/worker-pool.js";
 import { getSharedWorkerPool } from "../parallel/worker-pool-shared.js";
+import { formBFromCholeskyParallel } from "../parallel/parallel-form-b-cholesky.js";
 
 /** Pivoted incomplete Cholesky of a PSD n × n matrix M, returning
  *  L such that M ≈ L · L^T with rank ≤ n. L has shape n × r where
@@ -83,17 +84,19 @@ function pivotedCholesky(
   return { L, pivots };
 }
 
-/** Form the DF B-tensor B[μν, k] = V[μν, :] · L^(-T)[:, k] via
- *  forward-substitution. L is the pivoted-Cholesky factor of M
- *  (M ≈ L · L^T), so M^(-1) ≈ L^(-T) · L^(-1) and
- *  B · B^T = V · M^(-1) · V^T ≈ ERI.
+/** TS form_b_from_cholesky — kept as the active path.
  *
- *  For each (μν), solve L^T_sub · B[μν, :]^T = V[μν, pivots]^T
- *  via back-substitution along the r-axis.
+ *  An honest negative documented 2026-05-28: porting this to Rust+WASM
+ *  was SLOWER than TS (91 s vs 40 s on naphthalene cc-pVDZ at n=190,
+ *  n_aux=1080). Two reasons:
+ *   1. wasm-bindgen `&[f64]` copies the V tensor (~312 MB on
+ *      naphthalene) into WASM linear memory every call.
+ *   2. The piv_k-indirect access into V and L is cache-unfriendly;
+ *      WASM lost the same way TS did, plus paid the copy cost.
  *
- *  Layout: L is (n × r) row-major; pivots is the r-vector of
- *  selected indices; V is (n_orb² × n_aux) row-major. Output B is
- *  (n_orb² × r) row-major.
+ *  Output B is contiguous (μν, k), so V8 JIT can prefetch the writes
+ *  better than expected. Inner k loop has serial dependency on
+ *  B[μν, j<k], so SIMD doesn't help the back-substitution.
  *
  *  Cost: O(n_orb² · r²). Memory: O(n_orb² · r). */
 function formBFromCholesky(
@@ -115,8 +118,6 @@ function formBFromCholesky(
         for (let j = 0; j < k; j++) {
           s -= L[pivK * r + j]! * B[bBase + j]!;
         }
-        // L[pivK, k] is the Cholesky diagonal at step k (which is
-        // sqrtPiv_k > 0 by construction unless we've truncated).
         const diag = L[pivK * r + k]!;
         B[bBase + k] = s / diag;
       }
@@ -222,6 +223,12 @@ interface WasmEriModule {
     v: Float64Array,
     u: Float64Array,
     invSqrtLam: Float64Array,
+  ): Float64Array;
+  form_b_from_cholesky(
+    n: number, nAux: number, r: number,
+    v: Float64Array,
+    l: Float64Array,
+    pivots: Uint32Array,
   ): Float64Array;
 }
 
@@ -360,6 +367,7 @@ export async function buildAuxBasisDFCholesky(
   orbitalShells: readonly CGShell[],
   auxShells?: readonly CGShell[],
   choleskyThreshold = 1e-8,
+  poolSize = 0,
 ): Promise<DFResult> {
   const mod = await loadWasm();
   const orb = packShells(orbitalShells);
@@ -367,11 +375,46 @@ export async function buildAuxBasisDFCholesky(
   const n = orbitalShells.length;
   const nAux = auxShells ? auxShells.length : n;
 
-  const V = mod.eri_3idx_build(
-    n, nAux,
-    orb.nPrims, orb.primOff, orb.alpha, orb.c, orb.center, orb.angular,
-    aux.nPrims, aux.primOff, aux.alpha, aux.c, aux.center, aux.angular,
-  );
+  // ── 3-index V tensor: parallel when SAB available ──
+  const useSAB = sabAvailable();
+  const N = poolSize > 0 ? poolSize : Math.max(1, (navigator?.hardwareConcurrency ?? 4) - 1);
+  let V: Float64Array;
+  if (useSAB) {
+    const vSAB = new SharedArrayBuffer(n * n * nAux * 8);
+    const muAssignments: number[][] = Array.from({ length: N }, () => []);
+    for (let mu = 0; mu < n; mu++) muAssignments[mu % N]!.push(mu);
+    const workers = getSharedWorkerPool("wasm", N);
+    await Promise.all(workers.map((w, i) => new Promise<void>((resolve, reject) => {
+      const onMessage = (ev: MessageEvent): void => {
+        w.removeEventListener("message", onMessage);
+        if (ev.data?.ok) resolve();
+        else reject(new Error(ev.data?.error ?? "worker failed"));
+      };
+      w.addEventListener("message", onMessage);
+      w.postMessage({
+        kind: "eri-3idx-wasm-slice",
+        mus: muAssignments[i]!,
+        muStart: 0, muEnd: n,
+        nOrbital: n, nAux,
+        nPrimsOrb: orb.nPrims, primOffsetsOrb: orb.primOff,
+        alphaOrb: orb.alpha, cOrb: orb.c,
+        centerOrb: orb.center, angularOrb: orb.angular,
+        nPrimsAux: aux.nPrims, primOffsetsAux: aux.primOff,
+        alphaAux: aux.alpha, cAux: aux.c,
+        centerAux: aux.center, angularAux: aux.angular,
+        v: vSAB,
+      });
+    })));
+    // V points into the SAB so the parallel back-sub can share zero-copy.
+    V = new Float64Array(vSAB);
+  } else {
+    V = mod.eri_3idx_build(
+      n, nAux,
+      orb.nPrims, orb.primOff, orb.alpha, orb.c, orb.center, orb.angular,
+      aux.nPrims, aux.primOff, aux.alpha, aux.c, aux.center, aux.angular,
+    );
+  }
+
   const M = mod.eri_2idx_build(
     nAux,
     aux.nPrims, aux.primOff, aux.alpha, aux.c, aux.center, aux.angular,
@@ -379,9 +422,18 @@ export async function buildAuxBasisDFCholesky(
 
   // Pivoted Cholesky of M → effective rank r ≤ n_aux.
   const { L, pivots } = pivotedCholesky(M, nAux, choleskyThreshold);
-  const { B, r } = formBFromCholesky(V, L, pivots, n, nAux);
 
-  return { B, nAux: r, threshold: choleskyThreshold, n };
+  // B-tensor back-substitution. Parallel TS workers when SAB available;
+  // 4-6× win on n=190 because the outer (μ,ν) loop is fully parallel.
+  // WASM port turned out SLOWER (91 s vs 40 s single-thread on
+  // naphthalene) — see formBFromCholesky JSDoc above for full diagnosis.
+  let B: Float64Array;
+  if (useSAB) {
+    B = await formBFromCholeskyParallel(V, L, pivots, n, nAux, N);
+  } else {
+    B = formBFromCholesky(V, L, pivots, n, nAux).B;
+  }
+  return { B, nAux: pivots.length, threshold: choleskyThreshold, n };
 }
 
 /** Parallel variant of `buildAuxBasisDF` — the 3-index V tensor build

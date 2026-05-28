@@ -19,7 +19,9 @@ export type KernelKind =
   | "buildJK-df-slice"
   | "eri-row-slice"
   | "eri-wasm-slice"
-  | "eri-3idx-wasm-slice";
+  | "eri-3idx-wasm-slice"
+  | "form-b-tensor-slice"
+  | "form-b-cholesky-slice";
 
 export interface BuildGRowSliceTask {
   readonly kind: "buildG-row-slice";
@@ -153,13 +155,61 @@ export interface BuildJKDFSliceTask {
   readonly JK: SharedArrayBuffer;
 }
 
+/** Parallel form_b_tensor: each worker computes the B-tensor slice for
+ *  μ ∈ its mus list. Writes into the shared full-B SAB at disjoint
+ *  μ-offsets. Used by buildAuxBasisDFParallel to make B-tensor build
+ *  scale with worker count on large molecules. */
+export interface FormBTensorSliceTask {
+  readonly kind: "form-b-tensor-slice";
+  readonly mus: ReadonlyArray<number>;
+  readonly muStart: number;
+  readonly muEnd: number;
+  readonly n: number;
+  readonly nAux: number;
+  /** Full V tensor (read-only). */
+  readonly V: Float64Array;
+  /** Eigenvectors U (column-major), read-only. */
+  readonly U: Float64Array;
+  /** Inv-sqrt eigenvalues (zeroed for dropped modes). */
+  readonly invSqrtLam: Float64Array;
+  /** Output B tensor SAB (n × n × nAux). */
+  readonly B: SharedArrayBuffer;
+}
+
+/** Parallel formBFromCholesky: each worker computes the back-substituted
+ *  B[μ, ν, k] = L⁻¹ · V[μν, pivots[:r]] for μ ∈ its mus list. Outer
+ *  (μ, ν) loop is fully parallel; inner k has the serial back-sub
+ *  dependency on B[μν, j<k] but that's per-pair-local.
+ *
+ *  V, L are SAB-shared (V is 312 MB on naphthalene — copy-per-worker
+ *  via postMessage would be 1.2 GB extra; SAB is free). pivots is tiny
+ *  and shipped as a Uint32Array clone. B is SAB output; workers write
+ *  disjoint μ ranges. */
+export interface FormBCholeskySliceTask {
+  readonly kind: "form-b-cholesky-slice";
+  readonly mus: ReadonlyArray<number>;
+  readonly muStart: number;
+  readonly muEnd: number;
+  readonly n: number;
+  readonly nAux: number;
+  /** Effective rank after Cholesky (pivots.length). */
+  readonly r: number;
+  readonly V: SharedArrayBuffer;
+  readonly L: SharedArrayBuffer;
+  readonly pivots: Uint32Array;
+  /** Output B tensor SAB (n × n × r). */
+  readonly B: SharedArrayBuffer;
+}
+
 export type WorkerTask =
   | BuildGRowSliceTask
   | BuildGWasmMuSliceTask
   | BuildJKDFSliceTask
   | ERIRowSliceTask
   | ERIWasmSliceTask
-  | ERI3idxWasmSliceTask;
+  | ERI3idxWasmSliceTask
+  | FormBTensorSliceTask
+  | FormBCholeskySliceTask;
 
 export interface WorkerPool {
   readonly size: number;

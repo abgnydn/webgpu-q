@@ -2,7 +2,7 @@
 // Each message is a WorkerTask; we dispatch on `kind` and write results
 // into the shared output SAB.
 
-import type { WorkerTask, ERIWasmSliceTask, BuildGWasmMuSliceTask, ERI3idxWasmSliceTask, BuildJKDFSliceTask } from "./worker-pool.js";
+import type { WorkerTask, ERIWasmSliceTask, BuildGWasmMuSliceTask, ERI3idxWasmSliceTask, BuildJKDFSliceTask, FormBTensorSliceTask, FormBCholeskySliceTask } from "./worker-pool.js";
 import { ERI_cg, type CGShell } from "../chemistry/integrals-cg.js";
 
 interface WasmEriModule {
@@ -39,6 +39,12 @@ interface WasmEriModule {
     n: number, nAux: number,
     b: Float64Array, d: Float64Array,
     gamma: Float64Array,
+  ): Float64Array;
+  form_b_tensor_slice(
+    mus: Uint32Array,
+    n: number, nAux: number,
+    v: Float64Array, u: Float64Array,
+    invSqrtLam: Float64Array,
   ): Float64Array;
 }
 
@@ -90,6 +96,12 @@ self.addEventListener("message", (ev: MessageEvent<WorkerTask>) => {
       case "buildJK-df-slice":
         await buildJKDFSlice(task);
         return;
+      case "form-b-tensor-slice":
+        await formBTensorSlice(task);
+        return;
+      case "form-b-cholesky-slice":
+        formBCholeskySlice(task);
+        return;
       default:
         throw new Error(`unknown kernel kind: ${(task as { kind: string }).kind}`);
     }
@@ -102,6 +114,56 @@ self.addEventListener("message", (ev: MessageEvent<WorkerTask>) => {
     }),
   );
 });
+
+/** Pure-TS back-substitution on a μ slice. V8 JITs the hot loop into
+ *  reasonably tight code; the win over single-thread is pure
+ *  parallelism (N_workers× on what's a compute-bound kernel at ~1
+ *  GFLOP/s per thread). Cache locality of L's piv_k-indirect access is
+ *  the same as TS path; we don't try to fix it here. */
+function formBCholeskySlice(task: FormBCholeskySliceTask): void {
+  const { mus, n, nAux, r, pivots } = task;
+  const V = new Float64Array(task.V);
+  const L = new Float64Array(task.L);
+  const B = new Float64Array(task.B);
+  for (const mu of mus) {
+    for (let nu = 0; nu < n; nu++) {
+      const vBase = (mu * n + nu) * nAux;
+      const bBase = (mu * n + nu) * r;
+      for (let k = 0; k < r; k++) {
+        const pivK = pivots[k]!;
+        let s = V[vBase + pivK]!;
+        const lRow = pivK * r;
+        for (let j = 0; j < k; j++) {
+          s -= L[lRow + j]! * B[bBase + j]!;
+        }
+        B[bBase + k] = s / L[lRow + k]!;
+      }
+    }
+  }
+}
+
+async function formBTensorSlice(task: FormBTensorSliceTask): Promise<void> {
+  const mod = await loadWorkerWasm();
+  const mus = new Uint32Array(task.mus);
+  const out = mod.form_b_tensor_slice(
+    mus, task.n, task.nAux, task.V, task.U, task.invSqrtLam,
+  );
+  // out shape: (|mus| · n · nAux). Scatter into shared B at μ-rows.
+  const B = new Float64Array(task.B);
+  const n = task.n;
+  const nAux = task.nAux;
+  const kMus = task.mus.length;
+  for (let k = 0; k < kMus; k++) {
+    const mu = task.mus[k]!;
+    for (let nu = 0; nu < n; nu++) {
+      const srcBase = (k * n + nu) * nAux;
+      const dstBase = (mu * n + nu) * nAux;
+      for (let P = 0; P < nAux; P++) {
+        B[dstBase + P] = out[srcBase + P]!;
+      }
+    }
+  }
+}
 
 async function buildJKDFSlice(task: BuildJKDFSliceTask): Promise<void> {
   const mod = await loadWorkerWasm();

@@ -407,6 +407,12 @@ export function fock_one_mu_row(n, eri_mu_row, d) {
  * that's ~4.6 B FLOPs — was ~5 s in TypeScript even with cache-
  * friendly loop reorder. WASM with f64x2 SIMD on the inner P loop
  * (length n_aux=400, perfect for vectorization) drops it to ~1 s.
+ *
+ * Note: a Cholesky-back-sub variant (form_b_from_cholesky) was tried
+ * in Rust+WASM and lost to TS (91 s vs 40 s on naphthalene).
+ * wasm-bindgen copies the 312 MB V tensor per call, and the
+ * pivot-indirect access into V/L is cache-unfriendly. See
+ * `src/chemistry/df-aux.ts` for the active TS path.
  * @param {number} n
  * @param {number} n_aux
  * @param {Float64Array} v
@@ -425,6 +431,37 @@ export function form_b_tensor(n, n_aux, v, u, inv_sqrt_lam) {
     var v4 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
     return v4;
+}
+
+/**
+ * Worker-parallel slice of form_b_tensor: computes B for μ rows
+ * in `mus`. Returns flat (|mus| · n · n_aux) packed contiguously
+ * by (k, ν, P) where k is the local μ index.
+ *
+ * Caller scatters the returned slice into a shared full-B SAB at
+ * the correct μ-offsets. Each worker owns disjoint μ rows so no
+ * atomics needed.
+ * @param {Uint32Array} mus
+ * @param {number} n
+ * @param {number} n_aux
+ * @param {Float64Array} v
+ * @param {Float64Array} u
+ * @param {Float64Array} inv_sqrt_lam
+ * @returns {Float64Array}
+ */
+export function form_b_tensor_slice(mus, n, n_aux, v, u, inv_sqrt_lam) {
+    const ptr0 = passArray32ToWasm0(mus, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArrayF64ToWasm0(v, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArrayF64ToWasm0(u, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passArrayF64ToWasm0(inv_sqrt_lam, wasm.__wbindgen_malloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ret = wasm.form_b_tensor_slice(ptr0, len0, n, n_aux, ptr1, len1, ptr2, len2, ptr3, len3);
+    var v5 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v5;
 }
 
 /**
