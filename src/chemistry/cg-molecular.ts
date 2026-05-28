@@ -72,6 +72,15 @@ export interface IntegralOpts {
    *  touches `eri_AO`. Saves the full O(n⁴) ERI build cost (14+ min
    *  for benzene cc-pVDZ). Default false. */
   readonly skipERI?: boolean;
+  /** Skip the OAO basis 4-index transform — `eri_OAO` is returned as
+   *  an empty Float64Array. The OAO transform is 4 sequential O(n⁵)
+   *  passes (~100 s for benzene cc-pVDZ in TS) but `eri_OAO` is only
+   *  consumed by legacy ED builders (hn-builder, beh2-builder,
+   *  lih-builder) and `buildSectorH` paths. HF, MP2, CCSD, EOM-CCSD,
+   *  UHF all use `eri_AO` directly and never touch `eri_OAO`. Default
+   *  false (backward-compatible). Pass `true` in HF-only benchmarks
+   *  or any path that doesn't go through `molecule-builder`. */
+  readonly skipOAO?: boolean;
 }
 
 /**
@@ -206,7 +215,9 @@ export function computeMolecularIntegrals(
 
   // ── Transform h, ERI to OAO ─────────────────────────────────
   const h_OAO = transform2(h_AO, X, n);
-  const eri_OAO = opts.skipERI
+  // OAO ERI is only used by legacy ED builders. Skip for HF / MP2 /
+  // CCSD / EOM / UHF / DF paths which all use eri_AO directly.
+  const eri_OAO = (opts.skipERI || opts.skipOAO)
     ? new Float64Array(0)
     : transform4(eri_AO, X, n);
 
