@@ -14,7 +14,7 @@ import { test, expect } from "@playwright/test";
 const N_TABS = 4;
 
 test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
-  test(`anthracene cc-pVDZ — ${N_TABS}-tab swarm (memory-wall stress)`, async ({ browser }) => {
+  test(`anthracene STO-3G — ${N_TABS}-tab swarm converges`, async ({ browser }) => {
     test.setTimeout(10 * 60 * 1000);
 
     const ctx = await browser.newContext();
@@ -93,10 +93,15 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
         hydrogens.push({ symbol: "H" as const, pos: [cx + cx / rad * CH, cy + cy / rad * CH, 0] as const });
       }
       const ATOMS = [...carbons, ...hydrogens];
-      // STO-3G first to isolate convergence from scale: anthracene
-      // STO-3G has n≈80, the swarm flow runs in seconds and we can
-      // see whether the SCF converges at all on this molecule with
-      // the customJKBuilder path. cc-pvdz was the previous run.
+      // STO-3G converges cleanly (19 iters, -526.92 Ha).
+      // cc-pVDZ at n=260 RHF has near-degenerate frontier orbitals
+      // and SCF blows up around iter 5 with both DIIS and damping:
+      //   DIIS:     iter ~20 → E = +5352 Ha, never recovers
+      //   Damping:  iter 1-4 healthy (E: -400 → -468), iter 5 →
+      //             +801 Ha, oscillates between basins
+      // Real fix needs SOSCF / ADIIS / spin-symmetry-break (UHF)
+      // — a chemistry-method addition orthogonal to the swarm
+      // architecture, queued for a later session.
       const { shells, nuclei, nElectrons } =
         moleculeToShellsNuclei(ATOMS as never, "sto-3g");
 
@@ -225,7 +230,7 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
 
     /* eslint-disable no-console */
     console.log(`\n══════════════════════════════════════════════════════════`);
-    console.log(`Swarm HF SCF — anthracene C₁₄H₁₀ cc-pVDZ across ${N_TABS} tabs`);
+    console.log(`Swarm HF SCF — anthracene C₁₄H₁₀ STO-3G across ${N_TABS} tabs`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`n_orb = ${result.n}    n_aux = ${result.nAux}`);
     console.log(`Slice sizes (aux entries): [${result.slicesPerTab.join(", ")}]`);
