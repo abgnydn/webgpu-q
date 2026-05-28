@@ -146,5 +146,14 @@ export async function buildJK_DF_Parallel(
   const K = new Float64Array(NN);
   J.set(view.subarray(0, NN));
   K.set(view.subarray(NN, 2 * NN));
+  // Mirror K's lower triangle from the upper: the worker kernel
+  // computes K[μ, ν] only for ν ≥ μ and leaves ν < μ as zeros
+  // (saves ~50% of K-build inner work). K is symmetric in HF, so
+  // K[ν, μ] = K[μ, ν] for ν > μ.
+  for (let mu = 0; mu < n; mu++) {
+    for (let nu = mu + 1; nu < n; nu++) {
+      K[nu * n + mu] = K[mu * n + nu]!;
+    }
+  }
   return { J, K };
 }
