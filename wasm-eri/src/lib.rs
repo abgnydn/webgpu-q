@@ -13,6 +13,12 @@ use wasm_bindgen::prelude::*;
 
 const SQRT_PI: f64 = 1.7724538509055160272;
 
+/// Thread-local scratch for build_jk_df_slice. WASM is single-threaded
+/// per Worker so static mut is race-free. Resized lazily to fit the
+/// largest call so far; never shrinks. See use-site for rationale.
+static mut SCRATCH_X: Vec<f64> = Vec::new();
+static mut SCRATCH_XT: Vec<f64> = Vec::new();
+
 // ── Per-primitive Cartesian-Gaussian normalization ─────────────
 fn double_fact_odd(n: i32) -> f64 {
     if n <= 0 { return 1.0; }
@@ -1562,7 +1568,21 @@ pub fn build_jk_df_slice(
 
     // X[P, μ, σ] for μ ∈ mus only (local k_mus·n_aux·n footprint).
     // Reorder loops to (μ, λ, P, σ) for cache-friendly σ inner.
-    let mut x = vec![0.0_f64; k_mus * n_aux * n];
+    //
+    // Reuse thread-local scratch across SCF iters: naphthalene n=190
+    // n_aux=1080 has each worker's X at ~38 MB. Allocating + freeing
+    // 76 MB (X + X_T) per call × 13 iters × 8 workers = ~8 GB of
+    // alloc/free per SCF. Reuse pays ~2 s on a typical SCF.
+    //
+    // WASM is single-threaded per Worker, so the static-mut Vec is
+    // race-free. We zero only the used prefix.
+    let x_len = k_mus * n_aux * n;
+    let x: &mut [f64] = unsafe {
+        // safety: WASM is single-threaded per Worker; no concurrent borrow.
+        if SCRATCH_X.len() < x_len { SCRATCH_X.resize(x_len, 0.0); }
+        for v in &mut SCRATCH_X[..x_len] { *v = 0.0; }
+        &mut SCRATCH_X[..x_len]
+    };
     for (k, &mu_u) in mus.iter().enumerate() {
         let mu = mu_u as usize;
         for la in 0..n {
@@ -1601,7 +1621,12 @@ pub fn build_jk_df_slice(
 
     // K[μν] = Σ_P Σ_σ X[P, μ, σ] · B[νσ, P]
     // X_T[μ, σ, P] = X[(k_aux + pp) * n + si] transposed.
-    let mut x_t = vec![0.0_f64; k_mus * n * n_aux];
+    // Reuse thread-local scratch — see SCRATCH_X comment above.
+    let xt_len = k_mus * n * n_aux;
+    let x_t: &mut [f64] = unsafe {
+        if SCRATCH_XT.len() < xt_len { SCRATCH_XT.resize(xt_len, 0.0); }
+        &mut SCRATCH_XT[..xt_len]
+    };
     for k in 0..k_mus {
         for pp in 0..n_aux {
             for si in 0..n {
