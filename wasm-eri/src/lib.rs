@@ -1597,6 +1597,28 @@ pub fn build_jk_df_slice(
                     let dp = d.as_ptr().add(d_row_base);
                     let xp = x.as_mut_ptr().add(x_row_base);
                     let mut si = 0;
+                    // 4-wide unroll: process 8 f64 per iter. Hides load
+                    // and FMA latency better than the 2-wide loop on
+                    // n=190 (n/8 = 23 full unrolled iters + 1 tail).
+                    while si + 8 <= n {
+                        let d0 = v128_load(dp.add(si)     as *const v128);
+                        let d1 = v128_load(dp.add(si + 2) as *const v128);
+                        let d2 = v128_load(dp.add(si + 4) as *const v128);
+                        let d3 = v128_load(dp.add(si + 6) as *const v128);
+                        let x0 = v128_load(xp.add(si)     as *const v128);
+                        let x1 = v128_load(xp.add(si + 2) as *const v128);
+                        let x2 = v128_load(xp.add(si + 4) as *const v128);
+                        let x3 = v128_load(xp.add(si + 6) as *const v128);
+                        let r0 = f64x2_add(x0, f64x2_mul(bv_v, d0));
+                        let r1 = f64x2_add(x1, f64x2_mul(bv_v, d1));
+                        let r2 = f64x2_add(x2, f64x2_mul(bv_v, d2));
+                        let r3 = f64x2_add(x3, f64x2_mul(bv_v, d3));
+                        v128_store(xp.add(si)     as *mut v128, r0);
+                        v128_store(xp.add(si + 2) as *mut v128, r1);
+                        v128_store(xp.add(si + 4) as *mut v128, r2);
+                        v128_store(xp.add(si + 6) as *mut v128, r3);
+                        si += 8;
+                    }
                     while si + 2 <= n {
                         let dv = v128_load(dp.add(si) as *const v128);
                         let xv = v128_load(xp.add(si) as *const v128);
