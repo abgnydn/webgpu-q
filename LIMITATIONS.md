@@ -546,6 +546,30 @@ n ≥ 60 the JK build dominates and speedup approaches the
   the existing `buildJK_DF` path. Wiring as a default opt-in awaits
   systematic correctness benchmarks across the H/C/N/O/F atom set.
 
+  **End-to-end timing — ethane cc-pVDZ (n=60, measured 2026-05-28)**:
+
+  | path | ERI/B build | HF SCF | total | E error |
+  |---|---:|---:|---:|---:|
+  | Direct 4-index (single-thread WASM) | ~22 s | ~0.3 s | 22.3 s | 0 (reference) |
+  | Direct 4-index (WASM × parallel=8)  | 0.83 s | ~0.1 s | ~1 s | 0 |
+  | Auto-aux DF extraL=1 (single-thread) | 3.00 s | 2.66 s | 5.66 s | 0.4 mHa |
+
+  Auto-aux DF is **slower than the WASM-parallel direct path on
+  ethane** — the direct path's parallel 4-index ERI build is hard to
+  beat at n=60. The aux-DF win is:
+
+  1. **Memory** — at benzene cc-pVDZ, direct ERI tensor is 1.65 GB;
+     auto-aux B-tensor is ~60 MB (30× reduction). Direct path hits
+     browser memory limits around n ≈ 180-200; aux-DF unlocks
+     larger systems (naphthalene+).
+  2. **Algorithmic scaling** — 3-index O(n²·n_aux) eventually beats
+     4-index O(n⁴) as n grows. Crossover around n = 150-200 even
+     before parallelizing.
+  3. **Future**: porting the 3-index ERI build to the worker pool
+     (same pattern as the existing 4-index parallel path) should
+     give parallel-DF that beats parallel-4-index from n ≈ 80+ at
+     equal accuracy. Phase 3 work.
+
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
   every primitive quartet (n_prim⁴ buildPair calls per ERI). Now caches
