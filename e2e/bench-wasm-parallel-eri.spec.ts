@@ -55,7 +55,7 @@ test.describe("WASM × Workers ERI compound", () => {
 
       // A: TS single-thread (also gives us reference ERI tensor + S/h/X).
       const tTs = performance.now();
-      const integrals = computeMolecularIntegrals(shells, nuclei);
+      const integrals = computeMolecularIntegrals(shells, nuclei, { skipOAO: true });
       const tsMs = performance.now() - tTs;
       const eriTs = integrals.eri_AO;
 

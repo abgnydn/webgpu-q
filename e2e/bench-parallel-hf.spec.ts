@@ -30,7 +30,7 @@ async function benchMolecule(
     const tEriStart = performance.now();
     const { shells, nuclei, nElectrons } =
       moleculeToShellsNuclei(atomsIn as never, "cc-pvdz");
-    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const integrals = computeMolecularIntegrals(shells, nuclei, { skipOAO: true });
     const eriBuildMs = performance.now() - tEriStart;
 
     const N_TRIALS = trialsIn;
@@ -135,7 +135,7 @@ test.describe("Parallel HF buildG benchmark", () => {
       ] as const;
       const { shells, nuclei, nElectrons } =
         moleculeToShellsNuclei(atoms as never, "cc-pvdz");
-      const integrals = computeMolecularIntegrals(shells, nuclei);
+      const integrals = computeMolecularIntegrals(shells, nuclei, { skipOAO: true });
 
       const N_TRIALS = 5;
       const HFopts = {
@@ -280,7 +280,7 @@ test.describe("Parallel HF buildG benchmark", () => {
       ];
       const { shells, nuclei, nElectrons } =
         moleculeToShellsNuclei(atoms as never, "cc-pvdz");
-      const integrals = computeMolecularIntegrals(shells, nuclei);
+      const integrals = computeMolecularIntegrals(shells, nuclei, { skipOAO: true });
       const HFopts = {
         useDIIS: true, energyTol: 1e-9, densityTol: 1e-7, maxIter: 200,
       } as const;
@@ -332,7 +332,7 @@ test.describe("Parallel HF buildG benchmark", () => {
       ] as const;
       const { shells, nuclei, nElectrons } =
         moleculeToShellsNuclei(atoms as never, "cc-pvdz");
-      const integrals = computeMolecularIntegrals(shells, nuclei);
+      const integrals = computeMolecularIntegrals(shells, nuclei, { skipOAO: true });
       const HFopts = {
         useDIIS: true, energyTol: 1e-9, densityTol: 1e-7, maxIter: 200,
       } as const;
