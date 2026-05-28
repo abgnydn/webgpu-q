@@ -101,6 +101,26 @@ export function fock_build_slice(mus: Uint32Array, n: number, eri_slab: Float64A
 export function fock_one_mu_row(n: number, eri_mu_row: Float64Array, d: Float64Array): Float64Array;
 
 /**
+ * Form the density-fitting B tensor: B[μν, P] = Σ_Q V[μν, Q] · M⁻¹⸍²[Q, P]
+ * where M⁻¹⸍² = U · diag(λ⁻¹⸍²) · Uᵀ from the eigendecomposition of M.
+ *
+ * Inputs:
+ *   - `v`: 3-index tensor, shape (n·n, n_aux), row-major over (μν, Q)
+ *   - `u`: eigenvector matrix from `eigsymmetric`, column-major:
+ *          u[i·n_aux + Q] = U[Q, i] (Q-th component of i-th eigenvector)
+ *   - `inv_sqrt_lam`: 1/√λ_i for each eigenvalue (0 for regularized-out modes)
+ *   - n, n_aux: dimensions
+ *
+ * Returns flat B of length n·n·n_aux, row-major over (μν, P).
+ *
+ * Hot path: O(n² · n_aux²). For benzene cc-pVDZ (n=120, n_aux≈400)
+ * that's ~4.6 B FLOPs — was ~5 s in TypeScript even with cache-
+ * friendly loop reorder. WASM with f64x2 SIMD on the inner P loop
+ * (length n_aux=400, perfect for vectorization) drops it to ~1 s.
+ */
+export function form_b_tensor(n: number, n_aux: number, v: Float64Array, u: Float64Array, inv_sqrt_lam: Float64Array): Float64Array;
+
+/**
  * Compute just the Schwarz Q table (diagonal-pair ERIs sqrt-abs).
  * Cheap, but JS-side construction is also slow on TS — expose this for
  * workers that want to skip the postMessage clone.
@@ -118,6 +138,7 @@ export interface InitOutput {
     readonly eri_build_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number) => [number, number];
     readonly fock_build_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
     readonly fock_one_mu_row: (a: number, b: number, c: number, d: number, e: number) => [number, number];
+    readonly form_b_tensor: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number];
     readonly schwarz_q_table: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => [number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_malloc: (a: number, b: number) => number;

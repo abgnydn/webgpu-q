@@ -1056,6 +1056,116 @@ pub fn eri_3idx_build(
     v
 }
 
+/// Form the density-fitting B tensor: B[μν, P] = Σ_Q V[μν, Q] · M⁻¹⸍²[Q, P]
+/// where M⁻¹⸍² = U · diag(λ⁻¹⸍²) · Uᵀ from the eigendecomposition of M.
+///
+/// Inputs:
+///   - `v`: 3-index tensor, shape (n·n, n_aux), row-major over (μν, Q)
+///   - `u`: eigenvector matrix from `eigsymmetric`, column-major:
+///          u[i·n_aux + Q] = U[Q, i] (Q-th component of i-th eigenvector)
+///   - `inv_sqrt_lam`: 1/√λ_i for each eigenvalue (0 for regularized-out modes)
+///   - n, n_aux: dimensions
+///
+/// Returns flat B of length n·n·n_aux, row-major over (μν, P).
+///
+/// Hot path: O(n² · n_aux²). For benzene cc-pVDZ (n=120, n_aux≈400)
+/// that's ~4.6 B FLOPs — was ~5 s in TypeScript even with cache-
+/// friendly loop reorder. WASM with f64x2 SIMD on the inner P loop
+/// (length n_aux=400, perfect for vectorization) drops it to ~1 s.
+#[wasm_bindgen]
+pub fn form_b_tensor(
+    n: u32,
+    n_aux: u32,
+    v: &[f64],
+    u: &[f64],
+    inv_sqrt_lam: &[f64],
+) -> Vec<f64> {
+    let n = n as usize;
+    let n_aux = n_aux as usize;
+    let mut b = vec![0.0_f64; n * n * n_aux];
+    // Scratch T[i] for one (μν) row at a time.
+    let mut t = vec![0.0_f64; n_aux];
+
+    for mu in 0..n {
+        for nu in 0..n {
+            let v_base = (mu * n + nu) * n_aux;
+            // Step 1: T[i] = (V[μν, :] · U[:, i]) · λ_i^(-1/2)
+            for i in 0..n_aux {
+                let isl = inv_sqrt_lam[i];
+                if isl == 0.0 {
+                    t[i] = 0.0;
+                    continue;
+                }
+                let u_col_base = i * n_aux;
+                let mut s = 0.0_f64;
+                // Inner Q-loop: contiguous reads from V[μν, :] and U[:, i].
+                // SIMD: f64x2 pairs of multiply-accumulate.
+                #[cfg(target_feature = "simd128")]
+                unsafe {
+                    use std::arch::wasm32::*;
+                    let mut acc = f64x2_splat(0.0);
+                    let vp = v.as_ptr().add(v_base);
+                    let up = u.as_ptr().add(u_col_base);
+                    let mut q = 0;
+                    while q + 2 <= n_aux {
+                        let vv = v128_load(vp.add(q) as *const v128);
+                        let uv = v128_load(up.add(q) as *const v128);
+                        acc = f64x2_add(acc, f64x2_mul(vv, uv));
+                        q += 2;
+                    }
+                    s = f64x2_extract_lane::<0>(acc) + f64x2_extract_lane::<1>(acc);
+                    while q < n_aux {
+                        s += *vp.add(q) * *up.add(q);
+                        q += 1;
+                    }
+                }
+                #[cfg(not(target_feature = "simd128"))]
+                {
+                    for q in 0..n_aux {
+                        s += v[v_base + q] * u[u_col_base + q];
+                    }
+                }
+                t[i] = s * isl;
+            }
+            // Step 2: B[μν, P] = Σ_i T[i] · U[P, i] = Σ_i T[i] · u[i·n_aux + P]
+            // Outer i, inner P. Zero the row first, then accumulate.
+            let b_base = v_base;
+            for p in 0..n_aux { b[b_base + p] = 0.0; }
+            for i in 0..n_aux {
+                let ti = t[i];
+                if ti == 0.0 { continue; }
+                let u_row_base = i * n_aux;
+                #[cfg(target_feature = "simd128")]
+                unsafe {
+                    use std::arch::wasm32::*;
+                    let ti_v = f64x2_splat(ti);
+                    let up = u.as_ptr().add(u_row_base);
+                    let bp = b.as_mut_ptr().add(b_base);
+                    let mut p = 0;
+                    while p + 2 <= n_aux {
+                        let uv = v128_load(up.add(p) as *const v128);
+                        let bv = v128_load(bp.add(p) as *const v128);
+                        let res = f64x2_add(bv, f64x2_mul(ti_v, uv));
+                        v128_store(bp.add(p) as *mut v128, res);
+                        p += 2;
+                    }
+                    while p < n_aux {
+                        *bp.add(p) += ti * *up.add(p);
+                        p += 1;
+                    }
+                }
+                #[cfg(not(target_feature = "simd128"))]
+                {
+                    for p in 0..n_aux {
+                        b[b_base + p] += ti * u[u_row_base + p];
+                    }
+                }
+            }
+        }
+    }
+    b
+}
+
 /// Worker-parallel 3-index ERI build. Computes (μν|P) for μ ∈ `mus`
 /// only and returns a packed flat array of length 4·K:
 ///   [μ, ν, P, value, μ, ν, P, value, …]

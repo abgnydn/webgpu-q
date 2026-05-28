@@ -305,6 +305,43 @@ export function fock_one_mu_row(n, eri_mu_row, d) {
 }
 
 /**
+ * Form the density-fitting B tensor: B[μν, P] = Σ_Q V[μν, Q] · M⁻¹⸍²[Q, P]
+ * where M⁻¹⸍² = U · diag(λ⁻¹⸍²) · Uᵀ from the eigendecomposition of M.
+ *
+ * Inputs:
+ *   - `v`: 3-index tensor, shape (n·n, n_aux), row-major over (μν, Q)
+ *   - `u`: eigenvector matrix from `eigsymmetric`, column-major:
+ *          u[i·n_aux + Q] = U[Q, i] (Q-th component of i-th eigenvector)
+ *   - `inv_sqrt_lam`: 1/√λ_i for each eigenvalue (0 for regularized-out modes)
+ *   - n, n_aux: dimensions
+ *
+ * Returns flat B of length n·n·n_aux, row-major over (μν, P).
+ *
+ * Hot path: O(n² · n_aux²). For benzene cc-pVDZ (n=120, n_aux≈400)
+ * that's ~4.6 B FLOPs — was ~5 s in TypeScript even with cache-
+ * friendly loop reorder. WASM with f64x2 SIMD on the inner P loop
+ * (length n_aux=400, perfect for vectorization) drops it to ~1 s.
+ * @param {number} n
+ * @param {number} n_aux
+ * @param {Float64Array} v
+ * @param {Float64Array} u
+ * @param {Float64Array} inv_sqrt_lam
+ * @returns {Float64Array}
+ */
+export function form_b_tensor(n, n_aux, v, u, inv_sqrt_lam) {
+    const ptr0 = passArrayF64ToWasm0(v, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArrayF64ToWasm0(u, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArrayF64ToWasm0(inv_sqrt_lam, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.form_b_tensor(n, n_aux, ptr0, len0, ptr1, len1, ptr2, len2);
+    var v4 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v4;
+}
+
+/**
  * Compute just the Schwarz Q table (diagonal-pair ERIs sqrt-abs).
  * Cheap, but JS-side construction is also slow on TS — expose this for
  * workers that want to skip the postMessage clone.

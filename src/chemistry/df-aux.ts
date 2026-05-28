@@ -115,6 +115,13 @@ interface WasmEriModule {
     alphaAux: Float64Array, cAux: Float64Array,
     centerAux: Float64Array, angularAux: Int32Array,
   ): Float64Array;
+  form_b_tensor(
+    n: number,
+    nAux: number,
+    v: Float64Array,
+    u: Float64Array,
+    invSqrtLam: Float64Array,
+  ): Float64Array;
 }
 
 let wasmModule: WasmEriModule | null = null;
@@ -224,32 +231,9 @@ export async function buildAuxBasisDF(
   // Then B[μν, P] = Σ_i T[μν, i] · U[P, i]
   //
   // Layout: eig.vectors is column-major, so U[Q, i] = vectors[i*nAux + Q].
-  const T = new Float64Array(n * n * nAux);
-  for (let mu = 0; mu < n; mu++) {
-    for (let nu = 0; nu < n; nu++) {
-      for (let i = 0; i < nAux; i++) {
-        if (invSqrtLam[i] === 0) continue;
-        let s = 0;
-        for (let Q = 0; Q < nAux; Q++) {
-          s += V[(mu * n + nu) * nAux + Q]! * eig.vectors[i * nAux + Q]!;
-        }
-        T[(mu * n + nu) * nAux + i] = s * invSqrtLam[i]!;
-      }
-    }
-  }
-  const B = new Float64Array(n * n * nAux);
-  for (let mu = 0; mu < n; mu++) {
-    for (let nu = 0; nu < n; nu++) {
-      for (let P = 0; P < nAux; P++) {
-        let s = 0;
-        for (let i = 0; i < nAux; i++) {
-          if (invSqrtLam[i] === 0) continue;
-          s += T[(mu * n + nu) * nAux + i]! * eig.vectors[i * nAux + P]!;
-        }
-        B[(mu * n + nu) * nAux + P] = s;
-      }
-    }
-  }
+  // The full B = V · U · diag(λ⁻¹⸍²) · Uᵀ matmul runs in Rust+WASM
+  // with f64x2 SIMD on the inner P loop — ~5× over the TS version.
+  const B = mod.form_b_tensor(n, nAux, V, eig.vectors, invSqrtLam);
 
   return {
     B,
@@ -330,46 +314,9 @@ export async function buildAuxBasisDFParallel(
       invSqrtLam[i] = 0.0;
     }
   }
-  // T[μν, i] = (V[μν, :] · U[:, i]) · λ_i^(-1/2)
-  // Inner Q-loop: contiguous reads from V's row and U's column (stride 1).
-  // Pre-multiplied invSqrtLam into the result instead of branching.
-  const T = new Float64Array(n * n * nAux);
-  for (let mu = 0; mu < n; mu++) {
-    for (let nu = 0; nu < n; nu++) {
-      const vBase = (mu * n + nu) * nAux;
-      const tBase = vBase;
-      for (let i = 0; i < nAux; i++) {
-        const isl = invSqrtLam[i]!;
-        if (isl === 0) continue;
-        const uBase = i * nAux;
-        let s = 0;
-        for (let Q = 0; Q < nAux; Q++) {
-          s += V[vBase + Q]! * eig.vectors[uBase + Q]!;
-        }
-        T[tBase + i] = s * isl;
-      }
-    }
-  }
-  // B[μν, P] = Σ_i T[μν, i] · U[P, i]
-  //         = Σ_i T[μν, i] · vectors[i · nAux + P]
-  // Reorder loops to (mu, nu, i, P) — inner P loop reads
-  // vectors[i*nAux + P] contiguously AND writes B[(μν)*nAux + P]
-  // contiguously. Original order had stride-nAux reads of vectors
-  // for varying i with fixed P, thrashing L1 at n_aux=400.
-  const B = new Float64Array(n * n * nAux);
-  for (let mu = 0; mu < n; mu++) {
-    for (let nu = 0; nu < n; nu++) {
-      const tBase = (mu * n + nu) * nAux;
-      const bBase = tBase;
-      for (let i = 0; i < nAux; i++) {
-        if (invSqrtLam[i] === 0) continue;
-        const ti = T[tBase + i]!;
-        const uBase = i * nAux;
-        for (let P = 0; P < nAux; P++) {
-          B[bBase + P] = B[bBase + P]! + ti * eig.vectors[uBase + P]!;
-        }
-      }
-    }
-  }
+  // Full B = V · U · diag(λ⁻¹⸍²) · Uᵀ matmul via Rust+WASM with
+  // f64x2 SIMD on the inner P-loop. ~5× over the TS version at
+  // benzene n_aux=400.
+  const B = mod.form_b_tensor(n, nAux, V, eig.vectors, invSqrtLam);
   return { B, nAux: nKept, threshold: metricRegularization, n };
 }
