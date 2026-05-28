@@ -570,6 +570,23 @@ n ≥ 60 the JK build dominates and speedup approaches the
      give parallel-DF that beats parallel-4-index from n ≈ 80+ at
      equal accuracy. Phase 3 work.
 
+  **Parallel 3-index V build shipped 2026-05-28** (`buildAuxBasisDFParallel`):
+  bit-perfect correctness (max|B_sync − B_parallel|=0) but the speedup
+  is much smaller than expected:
+
+  | molecule | n_orb | n_aux | single-thread | parallel=8 | speedup |
+  |---|---:|---:|---:|---:|---:|
+  | ethane cc-pVDZ | 60 | 200 | 2.89 s | 3.39 s | **0.85×** (slower) |
+  | benzene cc-pVDZ | 120 | ~400 | 37.95 s | 35.38 s | **1.07×** |
+
+  Expected parallel=8 speedup is ~5-7×. The 1.07× on benzene means
+  ~25 s of the 35 s isn't being parallelized — most likely the
+  B-tensor formation steps (T = V · U · Λ⁻¹⸍² and B = T · Uᵀ) which
+  run in TypeScript on the main thread and are O(n²·n_aux²) =
+  4.6 B FLOPs for benzene. At ~1 GFLOP/s JS that's 5 s alone, plus
+  eigendecomp + other math. Porting the matmul + eigendecomp steps
+  to Rust/WASM is the next obvious lever. Phase 3 follow-up.
+
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
   every primitive quartet (n_prim⁴ buildPair calls per ERI). Now caches
