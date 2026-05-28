@@ -640,6 +640,27 @@ n ≥ 60 the JK build dominates and speedup approaches the
   products with minimal redundancy. Until that's done, auto-aux is
   a research demo for ≤ 2-heavy-atom systems.
 
+  **Update 2026-05-28 — pivoted Cholesky fixes it without jkfit data**:
+  `buildAuxBasisDFCholesky` replaces eigendecomp + threshold
+  regularization with pivoted incomplete Cholesky of M. Naturally
+  stops at the effective rank without spurious-mode dropping.
+
+  | system | aux-in | eigendecomp result | Cholesky result |
+  |---|---:|---|---|
+  | H₂O cc-pVDZ extraL=2 | 315 | −142 Ha NOT converged | **−75.6451 Ha, 1.47 μHa** |
+  | benzene cc-pVDZ extraL=1 | 678 | −188 000 Ha NOT converged | **−230.7227 Ha, 49 μHa** |
+
+  Benzene cc-pVDZ end-to-end aux-DF HF via Cholesky:
+    Integrals (skipERI + skipOAO):    0.6 s
+    B-tensor build (Cholesky):        8.4 s
+    HF SCF (DIIS over DF, 11 iters): 56 s
+    Total:                           65 s   ✓ converged at 49 μHa
+    vs WASM-direct (16.8 s):         3.9× slower (but 28× less memory)
+
+  At benzene, direct is still faster (HF SCF over DF is currently TS;
+  buildJK_DF would benefit from a WASM port). aux-DF Cholesky becomes
+  the only viable path where direct OOMs (n ≥ 200, e.g., naphthalene).
+
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
   every primitive quartet (n_prim⁴ buildPair calls per ERI). Now caches
