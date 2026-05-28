@@ -536,4 +536,93 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
 
     expect(r.results.every((x) => Number.isFinite(x.energy))).toBe(true);
   });
+
+  test("ethane cc-pVDZ — auto-aux DF HF energy + timing", async ({ page }) => {
+    test.setTimeout(5 * 60 * 1000);
+    await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+
+    const r = await page.evaluate(async () => {
+      const [
+        { moleculeToShellsNuclei },
+        { computeMolecularIntegrals },
+        { runRHFSCF },
+        { buildAuxBasisDF, generateAutoAux },
+      ] = await Promise.all([
+        import("/src/chemistry/atoms.ts" as string),
+        import("/src/chemistry/cg-molecular.ts" as string),
+        import("/src/chemistry/hf-scf.ts" as string),
+        import("/src/chemistry/df-aux.ts" as string),
+      ]);
+
+      const cc = 1.535, ch = 1.094;
+      const hch = 107.8 * Math.PI / 180;
+      const hcc = (Math.PI - hch) / 2 + Math.PI / 6;
+      const sH = ch * Math.sin(hcc), cH = ch * Math.cos(hcc);
+      const atoms = [
+        { symbol: "C", pos: [0, 0, -cc / 2] },
+        { symbol: "C", pos: [0, 0,  cc / 2] },
+        { symbol: "H", pos: [ sH, 0, -cc / 2 - cH] },
+        { symbol: "H", pos: [-sH / 2,  sH * Math.sqrt(3) / 2, -cc / 2 - cH] },
+        { symbol: "H", pos: [-sH / 2, -sH * Math.sqrt(3) / 2, -cc / 2 - cH] },
+        { symbol: "H", pos: [-sH, 0,  cc / 2 + cH] },
+        { symbol: "H", pos: [ sH / 2,  sH * Math.sqrt(3) / 2,  cc / 2 + cH] },
+        { symbol: "H", pos: [ sH / 2, -sH * Math.sqrt(3) / 2,  cc / 2 + cH] },
+      ];
+      const { shells, nuclei, nElectrons } =
+        moleculeToShellsNuclei(atoms as never, "cc-pvdz");
+
+      // Direct ERI HF (reference + 4-index build time).
+      const tDirectEri = performance.now();
+      const integrals = computeMolecularIntegrals(shells, nuclei);
+      const directEriMs = performance.now() - tDirectEri;
+      const tDirectHF = performance.now();
+      const hfDirect = runRHFSCF(integrals, nElectrons, {
+        useDIIS: true, energyTol: 1e-9, maxIter: 100,
+      });
+      const directHFms = performance.now() - tDirectHF;
+
+      // Auto-aux DF, extraL=1.
+      const auxShells = generateAutoAux(shells, 1);
+      const tDF = performance.now();
+      const df = await buildAuxBasisDF(shells, auxShells, 1e-10);
+      const dfBuildMs = performance.now() - tDF;
+      const tDFHf = performance.now();
+      const hfDF = runRHFSCF(integrals, nElectrons, {
+        useDIIS: true, energyTol: 1e-9, maxIter: 100, useDF: df,
+      });
+      const dfHFms = performance.now() - tDFHf;
+
+      return {
+        n: integrals.n, nAux: df.nAux,
+        directEriMs, directHFms,
+        dfBuildMs, dfHFms,
+        eDirect: hfDirect.energy, eDF: hfDF.energy,
+        iterDirect: hfDirect.iter, iterDF: hfDF.iter,
+        cnvDF: hfDF.converged,
+      };
+    });
+
+    /* eslint-disable no-console */
+    console.log(`\n══════════════════════════════════════════════════════════`);
+    console.log(`Auto-aux DF — ethane cc-pVDZ (n=${r.n}, n_aux=${r.nAux})`);
+    console.log(`══════════════════════════════════════════════════════════`);
+    console.log(`Direct path:`);
+    console.log(`  4-index ERI build:    ${(r.directEriMs / 1000).toFixed(2)} s`);
+    console.log(`  HF SCF (${r.iterDirect} iter):    ${(r.directHFms / 1000).toFixed(2)} s`);
+    console.log(`  Total:                ${((r.directEriMs + r.directHFms) / 1000).toFixed(2)} s`);
+    console.log(`  E = ${r.eDirect.toFixed(8)} Ha`);
+    console.log();
+    console.log(`Auto-aux DF path (extraL=1):`);
+    console.log(`  B-tensor build:       ${(r.dfBuildMs / 1000).toFixed(2)} s`);
+    console.log(`  HF SCF (${r.iterDF} iter):    ${(r.dfHFms / 1000).toFixed(2)} s   cnv=${r.cnvDF}`);
+    console.log(`  Total:                ${((r.dfBuildMs + r.dfHFms) / 1000).toFixed(2)} s`);
+    console.log(`  E = ${r.eDF.toFixed(8)} Ha`);
+    console.log(`  Energy error:         ${(r.eDF - r.eDirect).toExponential(2)} Ha`);
+    console.log();
+    console.log(`Speedup (Direct → DF):  ${((r.directEriMs + r.directHFms) / (r.dfBuildMs + r.dfHFms)).toFixed(2)}×`);
+    console.log(`══════════════════════════════════════════════════════════\n`);
+    /* eslint-enable no-console */
+
+    expect(Number.isFinite(r.eDF)).toBe(true);
+  });
 });
