@@ -44,7 +44,9 @@ test.describe("WASM JK build", () => {
 
       if (!sabAvailable()) return { skipped: true as const };
 
-      const integrals = computeMolecularIntegrals(shells, nuclei);
+      // ethane builds ERI in TS directly (fast at n=60). skipOAO saves
+      // the ~3 s OAO transform; HF SCF doesn't use eri_OAO.
+      const integrals = computeMolecularIntegrals(shells, nuclei, { skipOAO: true });
       const n = integrals.n;
       const eri = integrals.eri_AO;
 
@@ -156,7 +158,7 @@ test.describe("WASM JK build", () => {
 
       // Synthesize a MolecularIntegrals via the TS path (S, h, X, Vnn)
       // then patch in WASM-built eri.
-      const integrals = computeMolecularIntegrals(shells, nuclei);
+      const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true, skipOAO: true });
       (integrals as unknown as { eri_AO: Float64Array }).eri_AO = eri;
       const n = integrals.n;
 
