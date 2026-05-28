@@ -32,6 +32,11 @@ export default defineConfig({
       },
     },
   },
+  worker: {
+    // ES format so workers can dynamic-import the wasm-eri pkg
+    // (default IIFE doesn't support code-splitting).
+    format: "es",
+  },
   server: {
     port: 5175,
     host: true,
