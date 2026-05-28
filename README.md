@@ -12,7 +12,7 @@
 
 <br/><br/>
 
-<img alt="version" src="https://img.shields.io/badge/v0.7.0-0ea5e9?style=flat-square&labelColor=0b1224"/>
+<img alt="version" src="https://img.shields.io/badge/v0.8.0-0ea5e9?style=flat-square&labelColor=0b1224"/>
 <img alt="license" src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="tests" src="https://img.shields.io/badge/tests-CI%20green-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="typescript" src="https://img.shields.io/badge/typescript-strict-3178c6?style=flat-square&labelColor=0b1224"/>
@@ -390,7 +390,7 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 
 See [`CITATION.cff`](./CITATION.cff). For papers:
 
-> Günaydın, A.B. (2026). _webgpu-q v0.7.0_. https://github.com/abgnydn/webgpu-q
+> Günaydın, A.B. (2026). _webgpu-q v0.8.0_. https://github.com/abgnydn/webgpu-q
 
 A Zenodo DOI will be minted on the next versioned release.
 
@@ -506,7 +506,7 @@ Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@ba
 | `MPS_N_MAX` | **128** | TFIM/Heisenberg, χ ≤ 32, browser |
 | `MPS_CHI_MAX` | **64** | Phase 6 GPU MPS |
 | `H2O_ENTROPY` | **45.06 cal/(mol·K)** | expt 45.1 |
-| `STAGES_SHIPPED` | **through v0.7.0** | **EE/IP-EOM-CCSD PySCF-ported** (brute-force LiH + H₂ diff < 1e-10 Ha); browser-platform stack: Web Worker JK build (SharedArrayBuffer), Pyodide REPL + sanity/PySCF-compare, drag-import XYZ/PDB/MOL/SDF, PWA + offline + IndexedDB history, URL-as-citation. SVG visualization stack wired into `/molecule.html`; polarizability + dispersion matrix end-to-end, UKS-DFT full functional ladder, Molden/Cube/QCSchema/XYZ I/O, D2 dispersion + counterpoise, Foster-Boys + Pipek-Mezey localization, NOON + multireference verdict |
+| `STAGES_SHIPPED` | **through v0.8.0** | **WASM + aux-DF release**: 50× HF speedup on benzene cc-pVDZ (841 s → 16.8 s) via WASM hot-path stack — branch-free `prim_eri`, pair-table cache, r_aux buffer pooling, SIMD JK kernel, parallel WASM ERI build via Web Workers. **Auxiliary-basis density fitting** with pivoted Cholesky now works for arbitrary organic molecules at sub-mHa accuracy without external jkfit basis tables (49 μHa on benzene). `skipERI`/`skipOAO` integral flags eliminate ~100 s of dead work per HF on benzene. WGSL JK kernel shipped as research artifact (faster as isolated kernel, 3.3× slower in SCF due to f32 precision). Prior through v0.7.0: EE/IP-EOM-CCSD PySCF-ported, browser-platform stack (Web Workers, Pyodide REPL, drag-import, PWA + IndexedDB) |
 | `LIVE_URL` | **webgpu-q.vercel.app** | production |
 
 </details>

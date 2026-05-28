@@ -5,6 +5,125 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.8.0] — 2026-05-28
+
+The **WASM + aux-DF** release. ~50 commits since v0.7.0 deliver the
+biggest performance leap in the project's history: benzene cc-pVDZ HF
+goes from 841 s (TS-only baseline) to 16.8 s end-to-end via WASM hot
+paths (50× speedup), and the auxiliary-basis density-fitting stack
+ships from zero to a working sub-mHa-accuracy implementation that
+unlocks arbitrary organic molecules without external basis-set data.
+
+### Headline numbers (benzene cc-pVDZ, n=120, M2 Pro / Chromium WebGPU)
+
+| stage | wall time | speedup vs TS |
+|---|---:|---:|
+| TS-only direct ERI + HF (start of session) | 841 s | 1× |
+| + WASM single-thread ERI                   | 189 s | 4.4× |
+| + Workers parallel (×8)                    |  38.5 s | 21.5× |
+| + branch-free hot path                     |  25.3 s | 32.7× |
+| + pair-table cache                         |  16.8 s | 49× |
+| + r_aux buffer pooling + SIMD JK + matmul  | **16.98 s** (15.76 s ERI + 1.21 s HF) | **49.5×** |
+
+End-to-end HF SCF on benzene cc-pVDZ from cold shells: **~17 s**.
+The aux-DF path (Cholesky) ships at 49 μHa accuracy as the *only*
+viable path where direct's n⁴ ERI tensor exceeds browser memory
+(n ≥ 200, e.g., naphthalene cc-pVDZ).
+
+### Major architectural breakthrough — auxiliary-basis density fitting
+
+The aux-DF stack went from "shipped but broken NET LOSS" (CD-DF on
+the full ERI tensor, v0.7.0) to a working algorithmic path:
+
+- **3-index + 2-index ERI Rust kernels** (`eri_3idx_build`,
+  `eri_2idx_build`) — McMurchie-Davidson with single-Gaussian
+  Hermite expansion on the aux side. Bit-perfect against closed-form
+  `(s|s)` and `(s_a s_a | s_c)` at α ∈ {0.5, 1, 2, 5, 10} (rel 10⁻¹⁶).
+  Parity tests pass at L=1..4 (g-functions correct).
+- **`form_b_tensor` WASM SIMD matmul** — f64x2-vectorized
+  B = V · M⁻¹⸍² composition (4.6 B FLOPs on benzene). 5× over the TS
+  matmul.
+- **`generateAutoAux`** — decontracts the orbital basis and extends
+  angular momentum; no external jkfit basis tables needed.
+- **Pivoted Cholesky breakthrough** (`buildAuxBasisDFCholesky`) — the
+  algorithmic fix that unlocked aux-DF for arbitrary organic systems.
+  Replaces eigendecomp + threshold regularization with pivoted
+  incomplete Cholesky of M. Eigendecomp's spurious near-zero modes
+  corrupted M⁻¹⸍² on rank-deficient auto-aux at multi-heavy-atom
+  systems; pivoted Cholesky naturally stops at the effective rank.
+
+End-to-end benzene cc-pVDZ aux-DF HF via Cholesky:
+
+| stage | time |
+|---|---:|
+| Integrals (skipERI + skipOAO) | 0.6 s |
+| B-tensor (parallel V + WASM matmul) | 8.4 s |
+| HF SCF (DIIS over DF, WASM JK, 11 iters) | 42 s |
+| Total                            | **51 s, 49 μHa accuracy** |
+
+### WASM hot-path wins shipped this release (compound order)
+
+- `buildERIWasm` + `buildERIWasmParallel` — Rust port of the ERI
+  primitive kernel with Boys, E-coefs, R-aux table, pair-cache,
+  8-fold symmetry. Worker-parallel μ-row distribution.
+- Branch-free `prim_eri_with_pairs` — invariant index bases hoisted
+  out of the 6-deep nest; partial products xyz1, xyz1_x2, xyz1_x2_y2
+  lifted out so the inner loop is 2 mults + 1 sign-mult + 1 load + 1
+  add. `sign = 1 − 2·parity` (branch-free).
+- Pair-table cache in `precompute_pair_tables` — the kernel rebuilt
+  the bra+ket Hermite-Gaussian E-coefficient tables on every
+  (μν|λσ) call (~470 M redundant builds on benzene). Hoisting to a
+  single precompute collapses this to 7 200 (65 000× reduction).
+- `r_aux_table` buffer pooling — caller-provided scratch buffers
+  eliminate ~2 B malloc/free pairs per benzene build.
+- WASM JK kernel (`fock_one_mu_row`) — replaces TS Fock-build inner
+  accumulator. Per-μ design keeps worker memory bounded.
+- SIMD JK σ-loop — hand-vectorized f64x2 dot product (`jk_dot`)
+  via `wasm-simd128` intrinsics.
+- `form_b_tensor` + `build_jk_df` WASM kernels — full B-tensor
+  composition and DF Fock build via SIMD matmul.
+
+### Optimization plumbing
+
+- **Persistent worker pool** in `worker-pool-shared.ts` — ERI build
+  and JK build share the same physical Workers via the shared
+  registry. Saves ~150 ms of duplicate WASM init per call.
+- **`skipERI` / `skipOAO` options** on `computeMolecularIntegrals`.
+  HF/MP2/CCSD/EOM/UHF/DF paths all use `eri_AO` directly and never
+  touch `eri_OAO`, so the O(n⁵) 4-index OAO transform (~100 s on
+  benzene) was pure dead work. Both flags applied across
+  `geometry`, `counterpoise`, `vibrations`, `hyperpolarizability`,
+  `redox`, `uv-vis`, `quick-report`. Test wall time on benzene
+  dropped 11 min → 29 s as a side effect.
+
+### Research artifact — WGSL JK kernel (not production)
+
+`src/shaders/fock-build.wgsl` — WebGPU compute shader for JK, one
+thread per (μ, ν). **2.4× faster** than WASM SIMD as an isolated
+kernel on benzene, but **3.3× SLOWER** when wired into actual HF SCF:
+f32 precision (~10⁻⁴ relative noise) prevents DIIS from converging,
+and per-iter GPU dispatch + `mapAsync` latency (~100 ms) dwarfs
+the 30 ms compute saving. Shipped as `useWgpuJK` opt for research
+use; default remains the WASM SIMD path.
+
+### Honest negative results (LIMITATIONS.md)
+
+- wasm-simd128 auto-vec on the `prim_eri_with_pairs` 6-loop: no signal
+- `[f64; 13]` E-coef stack prefetch: 55% benzene regression
+- Boys downward recurrence: mixed signal + precision regression
+- 4-way SIMD JK unroll: within noise band
+- WGSL f32 JK in real HF SCF: 3.3× slower than WASM SIMD
+- Auto-aux + eigendecomp on > 2 heavy atoms: catastrophic SCF
+  failure (later fixed by pivoted Cholesky)
+
+### Tests
+
+- 553 chemistry tests green (one pre-existing skip)
+- New kernel cross-checks: closed-form `(s|s)` and
+  `(s_a s_a | s_c)` at α ∈ {0.5, 1, 2, 5, 10} — rel error 10⁻¹⁶
+- L=1..4 parity tests on the 2-index kernel (g-functions verified)
+- 12 new e2e benchmark specs covering each optimization stage
+
 ## [0.7.0] — 2026-05-22
 
 The browser-platform release. Ten commits since v0.6.0 close two
