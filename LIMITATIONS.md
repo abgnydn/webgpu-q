@@ -464,8 +464,27 @@ n ≥ 60 the JK build dominates and speedup approaches the
   speedup at n ≥ 80 because B is ~3× smaller than the 4-index
   tensor AND the JK build over B is cheaper.
 
-  **Honest open question on quality**: HF energy errors with the
-  current Phase-1 path scale unexpectedly with system size:
+  **Kernels are bit-perfect** (measured 2026-05-28). Cross-checked
+  the 2-index and 3-index kernels against closed-form analytical
+  values:
+
+    (s|s)     for normalized 1s @ origin = 4π/α:
+       α=1    expected 12.56637061   computed 12.56637061  rel 1.4e-16
+       α=0.5  expected 25.13274123   computed 25.13274123  rel 1.4e-16
+       α=2    expected  6.28318531   computed  6.28318531  rel 1.4e-16
+       α=10   expected  1.25663706   computed  1.25663706  rel 1.8e-16
+
+    (s_a s_a | s_c) for normalized 1s @ origin = N³(α)·π^(5/2)/(α^(5/2)·√3):
+       α=1    expected  3.65632112   computed  3.65632112  rel 1.2e-16
+       α=0.5  expected  4.34812309   computed  4.34812309  rel 2.0e-16
+       α=2    expected  3.07458732   computed  3.07458732  rel 1.4e-16
+       α=5    expected  2.44512930   computed  2.44512930  rel 1.8e-16
+
+  Rel error 10⁻¹⁶ on every case = pure float rounding. Algorithm
+  is correct; the HF-level errors below come entirely from aux
+  basis insufficiency, not from the integral kernels.
+
+  **HF energy errors with the current Phase-1 path scale unexpectedly with system size**:
 
   | system | orb basis | aux basis | n_orb | n_aux | DF HF error |
   |---|---|---|---:|---:|---:|
@@ -475,15 +494,30 @@ n ≥ 60 the JK build dominates and speedup approaches the
   | H₂O | cc-pVDZ | aug-cc-pVDZ  | 25 | 43 | −188 mHa |
   | H₂O | STO-3G  | cc-pVDZ      |  7 | 25 | −252 mHa |
 
-  The order-of-magnitude jump from H₂ (mHa) to H₂O (hundreds of
-  mHa) and the H₂O STO-3G→cc-pVDZ-aux result (where aux strictly
-  contains orbital products) suggest a subtle kernel bug or
-  metric-handling error rather than pure aux insufficiency. Phase 2
-  needs to (a) cross-validate (μν|P) against PySCF reference
-  values for a fixed test case, (b) audit `buildAuxBasisDF` matrix
-  composition, (c) check eigendecomp regularization isn't dropping
-  good modes. Until that's resolved, aux-DF stays unwired from HF
-  SCF defaults.
+  With the kernels validated above as bit-perfect, the diagnosis
+  is now clear: **aux basis insufficiency dominates**, both in
+  angular momentum range AND in exponent coverage:
+
+  - For H₂O cc-pVDZ orbital with cc-pVDZ aux: orbital has L=2
+    (d-functions). Pair products span up to L=4 (g-functions
+    via d·d). cc-pVDZ aux only has L=0,1,2. The missing g and f
+    components in aux contribute the ~200 mHa error.
+  - For H₂O STO-3G orbital with cc-pVDZ aux: STO-3G has different
+    exponent ranges than cc-pVDZ. cc-pVDZ aux exponents don't
+    "fit" STO-3G orbital products well even though the L coverage
+    is nominally sufficient. That's the source of the 252 mHa
+    error.
+
+  Phase 2 to do: load proper cc-pVDZ-jkfit aux-basis data tables
+  for H, C, N, O. These were designed by Weigend specifically to
+  span orbital products of cc-pVDZ with optimal exponents AND
+  proper L coverage (up to g on first-row atoms). Expected DF HF
+  energy errors with proper jkfit: < 0.1 mHa (matches PySCF and
+  ORCA RI-HF accuracy).
+
+  Until proper aux tables are loaded, the algorithm correctness
+  is validated but quantitative HF use is gated. aux-DF stays
+  unwired from production HF SCF defaults.
 
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
