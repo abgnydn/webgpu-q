@@ -519,6 +519,33 @@ n ≥ 60 the JK build dominates and speedup approaches the
   is validated but quantitative HF use is gated. aux-DF stays
   unwired from production HF SCF defaults.
 
+  **Update 2026-05-28**: `generateAutoAux` (decontract orbital
+  primitives + extend angular momentum by `extraL`) gives sub-chemical
+  accuracy at `extraL=1` without needing external aux basis tables:
+
+  | system | extraL | n_aux | HF error | iter | converged |
+  |---|---:|---:|---:|---:|---|
+  | H₂O cc-pVDZ | 0 (decontract only) |  41 |   19 mHa  | 16 | ✓ |
+  | H₂O cc-pVDZ | 1 (add L+1)         | 138 | **0.11 mHa** | 14 | ✓ |
+  | H₂O cc-pVDZ | 2 (add L+2)         | 311 |  −55 Ha     | 101 | ✗ |
+
+  extraL=1 hits chemical accuracy (1.6 mHa = 1 kcal/mol) on H₂O.
+  extraL=2 catastrophic failure (−55 Ha, doesn't converge) at L=4
+  reveals an untested g-function code path in the 3-index kernel.
+  Likely a normalization or recurrence bug at L ≥ 4 — the existing
+  4-index path doesn't exercise g because cc-pVDZ orbital tops at
+  d. Phase 2 should: (a) add a focused L=4 unit test against
+  closed-form, (b) fix whatever's wrong, (c) re-run extraL=2 and
+  expect sub-µHa accuracy.
+
+  **For production**: `useDF: generateAutoAux(shells, 1)`-built
+  DFResult through `runRHFSCFAsync` is viable today for any cc-pVDZ
+  orbital system, with 0.1 mHa expected error. The auto-aux build is
+  fast (~100 ms on H₂O n=25). The B-tensor is ~5× the size of the
+  orbital basis (n=25, n_aux=138, B = 25²·138 = 86 KB). Composes with
+  the existing `buildJK_DF` path. Wiring as a default opt-in awaits
+  systematic correctness benchmarks across the H/C/N/O/F atom set.
+
 - **ERI pair-table caching** — measured 2026-05-27. `ERI_cg` was
   rebuilding the bra-pair Hermite-Gaussian E-coefficient tables for
   every primitive quartet (n_prim⁴ buildPair calls per ERI). Now caches

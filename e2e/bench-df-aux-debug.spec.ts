@@ -32,8 +32,6 @@ test.describe("aux-DF Phase 1 — kernel debug", () => {
       };
       await wasmMod.default();
 
-      // One shell: a single 1s primitive with α=1 at origin.
-      const alpha = 1.0;
       const cases: Array<{ name: string; α: number; expected: number }> = [];
 
       for (const α of [1.0, 0.5, 2.0, 10.0]) {

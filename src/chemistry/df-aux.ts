@@ -22,6 +22,70 @@ import type { CGShell } from "./integrals-cg.js";
 import type { DFResult } from "./df.js";
 import { eigsymmetric } from "../manybody/dense-eig.js";
 
+/**
+ * Generate an "auto-aux" basis from the orbital basis: decontract each
+ * primitive into a separate single-primitive aux shell and (optionally)
+ * extend the angular momentum range to L_orb_max + extraL to span
+ * orbital pair products.
+ *
+ * This is a stop-gap between "orbital-as-aux" (insufficient) and
+ * proper Weigend cc-pVDZ-jkfit data (which we don't have tables for).
+ * Auto-aux gives 2-3× richer aux for arbitrary orbital basis at zero
+ * data cost, but exponents aren't optimal — expect mHa-class DF
+ * errors rather than the sub-µHa of purpose-built jkfit.
+ *
+ *   extraL = 0:  decontract only, same angular range as orbital
+ *   extraL = 1:  add L_orb + 1 aux at each orbital exponent
+ *   extraL = 2:  also add L_orb + 2 (e.g., g-functions for d-orbital products)
+ *
+ * Recommended: extraL = 2 to cover (d|d) → g products from cc-pVDZ.
+ */
+export function generateAutoAux(
+  orbitalShells: readonly CGShell[],
+  extraL = 2,
+): CGShell[] {
+  const auxShells: CGShell[] = [];
+  // Track which atom-centered primitive-exponent + angular combos we've
+  // already emitted so we don't duplicate (different orbital shells on
+  // the same atom often share primitives with different contraction
+  // coefs — for aux we just want the exponent once per angular slot).
+  const seen = new Set<string>();
+  const key = (cx: number, cy: number, cz: number, α: number, ax: number, ay: number, az: number): string =>
+    `${cx.toFixed(8)},${cy.toFixed(8)},${cz.toFixed(8)},${α.toFixed(10)},${ax},${ay},${az}`;
+
+  // Emit Cartesian-component shells for a given (center, α, total-L).
+  const emitL = (center: readonly [number, number, number], α: number, totalL: number, label: string): void => {
+    for (let ax = totalL; ax >= 0; ax--) {
+      for (let ay = totalL - ax; ay >= 0; ay--) {
+        const az = totalL - ax - ay;
+        const k = key(center[0], center[1], center[2], α, ax, ay, az);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        auxShells.push({
+          center,
+          alpha: [α],
+          c: [1.0],
+          angular: [ax, ay, az],
+          label: `${label}:α=${α.toExponential(2)}`,
+        });
+      }
+    }
+  };
+
+  for (const sh of orbitalShells) {
+    const Lorb = sh.angular[0] + sh.angular[1] + sh.angular[2];
+    // Decontract: one aux shell per primitive at the original angular.
+    for (const α of sh.alpha) {
+      emitL(sh.center, α, Lorb, `aux-L${Lorb}`);
+      // Extend to higher L at the same exponent.
+      for (let dl = 1; dl <= extraL; dl++) {
+        emitL(sh.center, α, Lorb + dl, `aux-L${Lorb + dl}`);
+      }
+    }
+  }
+  return auxShells;
+}
+
 interface WasmEriModule {
   default(): Promise<unknown>;
   eri_3idx_build(

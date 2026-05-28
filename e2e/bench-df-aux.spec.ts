@@ -463,4 +463,77 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
 
     expect(Number.isFinite(r.eDF)).toBe(true);
   });
+
+  test("H₂O cc-pVDZ — auto-aux (decontract + L extension) HF energy", async ({ page }) => {
+    test.setTimeout(3 * 60 * 1000);
+    await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+
+    const r = await page.evaluate(async () => {
+      const [
+        { moleculeToShellsNuclei },
+        { computeMolecularIntegrals },
+        { runRHFSCF },
+        { buildAuxBasisDF, generateAutoAux },
+      ] = await Promise.all([
+        import("/src/chemistry/atoms.ts" as string),
+        import("/src/chemistry/cg-molecular.ts" as string),
+        import("/src/chemistry/hf-scf.ts" as string),
+        import("/src/chemistry/df-aux.ts" as string),
+      ]);
+
+      const half = (104.52 / 2) * Math.PI / 180;
+      const xH = 0.9572 * Math.sin(half) / 0.529177;
+      const zH = 0.9572 * Math.cos(half) / 0.529177;
+      const atoms = [
+        { symbol: "O", pos: [0, 0, 0] },
+        { symbol: "H", pos: [ xH, 0, zH] },
+        { symbol: "H", pos: [-xH, 0, zH] },
+      ] as const;
+      const { shells, nuclei, nElectrons } =
+        moleculeToShellsNuclei(atoms as never, "cc-pvdz");
+      const integrals = computeMolecularIntegrals(shells, nuclei);
+
+      const hfDirect = runRHFSCF(integrals, nElectrons, {
+        useDIIS: true, energyTol: 1e-9, maxIter: 100,
+      });
+
+      const results: Array<{
+        extraL: number; nAux: number; buildMs: number; energy: number;
+        iter: number; cnv: boolean; error: number;
+      }> = [];
+
+      for (const extraL of [0, 1, 2]) {
+        const auxShells = generateAutoAux(shells, extraL);
+        const tStart = performance.now();
+        const df = await buildAuxBasisDF(shells, auxShells, 1e-10);
+        const buildMs = performance.now() - tStart;
+        const hf = runRHFSCF(integrals, nElectrons, {
+          useDIIS: true, energyTol: 1e-9, maxIter: 100, useDF: df,
+        });
+        results.push({
+          extraL, nAux: df.nAux, buildMs,
+          energy: hf.energy, iter: hf.iter, cnv: hf.converged,
+          error: hf.energy - hfDirect.energy,
+        });
+      }
+      return { n: integrals.n, eDirect: hfDirect.energy, results };
+    });
+
+    /* eslint-disable no-console */
+    console.log(`\n══════════════════════════════════════════════════════════`);
+    console.log(`Auto-aux DF HF — H₂O cc-pVDZ (orbital n=${r.n})`);
+    console.log(`══════════════════════════════════════════════════════════`);
+    console.log(`Direct ERI HF:  E = ${r.eDirect.toFixed(8)} Ha`);
+    console.log();
+    for (const x of r.results) {
+      console.log(`auto-aux extraL=${x.extraL}, n_aux=${String(x.nAux).padStart(3)}, ` +
+                  `build=${x.buildMs.toFixed(0).padStart(5)} ms: ` +
+                  `E=${x.energy.toFixed(8)} Ha  iter=${x.iter}  cnv=${x.cnv}  ` +
+                  `error=${x.error.toExponential(2)} Ha`);
+    }
+    console.log(`══════════════════════════════════════════════════════════\n`);
+    /* eslint-enable no-console */
+
+    expect(r.results.every((x) => Number.isFinite(x.energy))).toBe(true);
+  });
 });
