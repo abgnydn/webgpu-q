@@ -143,6 +143,14 @@ export interface HFOpts {
    * No effect when `parallel === 0`.
    */
   readonly useWgpuJK?: GPUDevice;
+  /**
+   * If set, log per-iter wall-time breakdown (JK build, F assemble,
+   * DIIS, F' transform, eigendecomp, density update) via the supplied
+   * callback. Useful for finding the SCF bottleneck on a given system
+   * — at n=190 most of the iter time is one of {JK_DF, eigsymmetric}
+   * and which one wins depends on n and basis. Off by default.
+   */
+  readonly profileCallback?: (iter: number, ms: Record<string, number>) => void;
 }
 
 /**
@@ -399,6 +407,8 @@ export async function runRHFSCFAsync(
   const diisE: Float64Array[] = [];
 
   for (iter = 1; iter <= maxIter; iter++) {
+    const prof = opts.profileCallback;
+    const t0 = prof ? performance.now() : 0;
     // Async fork point — only difference from the sync runRHFSCF.
     const useWasmJK = opts.useWasmJK ?? true;
     let G: Float64Array;
@@ -414,6 +424,7 @@ export async function runRHFSCFAsync(
     } else {
       G = await buildGParallel(D, eri_AO, n, parallel);
     }
+    const tAfterJK = prof ? performance.now() : 0;
     const F = new Float64Array(n * n);
     for (let i = 0; i < n * n; i++) F[i] = h_AO[i]! + G[i]!;
 
@@ -443,6 +454,7 @@ export async function runRHFSCFAsync(
         }
       }
     }
+    const tAfterDIIS = prof ? performance.now() : 0;
 
     const FPrime = transformSymmetric(F_use, X, n);
     if (levelShift > 0) {
@@ -457,8 +469,10 @@ export async function runRHFSCFAsync(
       }
     }
 
+    const tAfterTransform = prof ? performance.now() : 0;
     const sol = solveFock(FPrime, X, n);
     C_MO = sol.C_MO; eps = sol.eps; cPrimePrev = sol.cPrime;
+    const tAfterEig = prof ? performance.now() : 0;
 
     const D_new = densityFromC(C_MO, nOcc, n);
     let dNorm = 0;
@@ -470,6 +484,17 @@ export async function runRHFSCFAsync(
     else for (let i = 0; i < n * n; i++) D[i] = damping * D_new[i]! + (1 - damping) * D[i]!;
 
     const residOk = useDIIS ? errMax < dTol : dNorm < dTol;
+    if (prof) {
+      const tEnd = performance.now();
+      prof(iter, {
+        jk: tAfterJK - t0,
+        f_assemble: tAfterDIIS - tAfterJK,
+        transform: tAfterTransform - tAfterDIIS,
+        eig: tAfterEig - tAfterTransform,
+        density: tEnd - tAfterEig,
+        total: tEnd - t0,
+      });
+    }
     if (Math.abs(E - E_old) < eTol && residOk) {
       converged = true; E_old = E; break;
     }
