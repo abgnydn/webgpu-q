@@ -537,6 +537,69 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
     expect(r.results.every((x) => Number.isFinite(x.energy))).toBe(true);
   });
 
+  test("H₂O extraL=2 — sweep regularization threshold to recover stability", async ({ page }) => {
+    test.setTimeout(2 * 60 * 1000);
+    await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+
+    const r = await page.evaluate(async () => {
+      const [
+        { moleculeToShellsNuclei },
+        { computeMolecularIntegrals },
+        { runRHFSCF },
+        { buildAuxBasisDF, generateAutoAux },
+      ] = await Promise.all([
+        import("/src/chemistry/atoms.ts" as string),
+        import("/src/chemistry/cg-molecular.ts" as string),
+        import("/src/chemistry/hf-scf.ts" as string),
+        import("/src/chemistry/df-aux.ts" as string),
+      ]);
+
+      const half = (104.52 / 2) * Math.PI / 180;
+      const xH = 0.9572 * Math.sin(half) / 0.529177;
+      const zH = 0.9572 * Math.cos(half) / 0.529177;
+      const atoms = [
+        { symbol: "O", pos: [0, 0, 0] },
+        { symbol: "H", pos: [ xH, 0, zH] },
+        { symbol: "H", pos: [-xH, 0, zH] },
+      ] as const;
+      const { shells, nuclei, nElectrons } =
+        moleculeToShellsNuclei(atoms as never, "cc-pvdz");
+      const integrals = computeMolecularIntegrals(shells, nuclei);
+      const eDirect = runRHFSCF(integrals, nElectrons, {
+        useDIIS: true, energyTol: 1e-9, maxIter: 100,
+      }).energy;
+
+      const auxShells = generateAutoAux(shells, 2);
+      const results: Array<{ reg: number; nAux: number; e: number; iter: number; cnv: boolean }> = [];
+
+      for (const reg of [1e-12, 1e-10, 1e-8, 1e-6, 1e-4, 1e-2]) {
+        const df = await buildAuxBasisDF(shells, auxShells, reg);
+        const hf = runRHFSCF(integrals, nElectrons, {
+          useDIIS: true, energyTol: 1e-9, maxIter: 100, useDF: df,
+        });
+        results.push({ reg, nAux: df.nAux, e: hf.energy, iter: hf.iter, cnv: hf.converged });
+      }
+      return { eDirect, results };
+    });
+
+    /* eslint-disable no-console */
+    console.log(`\n══════════════════════════════════════════════════════════`);
+    console.log(`H₂O extraL=2 — eigendecomp regularization sweep`);
+    console.log(`══════════════════════════════════════════════════════════`);
+    console.log(`Direct ERI HF: E = ${r.eDirect.toFixed(8)} Ha`);
+    console.log();
+    for (const x of r.results) {
+      const err = x.e - r.eDirect;
+      console.log(`reg=${x.reg.toExponential(0).padStart(7)}  n_aux_kept=${String(x.nAux).padStart(3)}  ` +
+                  `E=${x.e.toFixed(6).padStart(13)} Ha  iter=${String(x.iter).padStart(3)}  cnv=${x.cnv}  ` +
+                  `err=${err.toExponential(2)} Ha`);
+    }
+    console.log(`══════════════════════════════════════════════════════════\n`);
+    /* eslint-enable no-console */
+
+    expect(r.results.some((x) => Math.abs(x.e - r.eDirect) < 1e-3 && x.cnv)).toBe(true);
+  });
+
   test("ethane cc-pVDZ — auto-aux DF HF energy + timing", async ({ page }) => {
     test.setTimeout(5 * 60 * 1000);
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });

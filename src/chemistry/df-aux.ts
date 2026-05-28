@@ -72,12 +72,22 @@ export function generateAutoAux(
     }
   };
 
+  // Empirically extraL=1 is the production sweet spot on cc-pVDZ:
+  //   - decontract each primitive, emit at its own Lorb
+  //   - PLUS emit L+1 aux at every primitive exponent (rich f-aux
+  //     coverage from p AND s primitive exponents, not just one
+  //     value from the d-orbital)
+  //
+  // extraL=2 produces severe linear dependence (313 aux for 25-orb
+  // H₂O) because each primitive contributes redundant g-aux at
+  // similar exponents. The eigendecomp orthogonalization fails
+  // catastrophically, giving meaningless B and a runaway SCF.
+  // A jkfit-style curated aux basis is the proper fix; for now,
+  // stick to extraL ≤ 1 in production code.
   for (const sh of orbitalShells) {
     const Lorb = sh.angular[0] + sh.angular[1] + sh.angular[2];
-    // Decontract: one aux shell per primitive at the original angular.
     for (const α of sh.alpha) {
       emitL(sh.center, α, Lorb, `aux-L${Lorb}`);
-      // Extend to higher L at the same exponent.
       for (let dl = 1; dl <= extraL; dl++) {
         emitL(sh.center, α, Lorb + dl, `aux-L${Lorb + dl}`);
       }

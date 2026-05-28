@@ -156,4 +156,86 @@ test.describe("aux-DF Phase 1 — kernel debug", () => {
       expect(x.rel).toBeLessThan(1e-10);
     }
   });
+
+  test("Higher-L symmetry sanity: (P|Q) for same-center primitives must respect parity", async ({ page }) => {
+    test.setTimeout(60 * 1000);
+    await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+
+    const r = await page.evaluate(async () => {
+      const wasmMod = await import(
+        /* @vite-ignore */
+        "../../wasm-eri/pkg/wasm_eri.js" as string,
+      ) as {
+        default(): Promise<unknown>;
+        eri_2idx_build: (
+          nAux: number,
+          nPrimsAux: Uint32Array, primOffAux: Uint32Array,
+          alphaAux: Float64Array, cAux: Float64Array,
+          centerAux: Float64Array, angularAux: Int32Array,
+        ) => Float64Array;
+      };
+      await wasmMod.default();
+
+      // Multiple primitives at origin with α=1, varying angular momenta.
+      // By parity at origin: (P_a | P_b) = 0 if (a_x + b_x, a_y + b_y, a_z + b_z) has any odd component.
+      //   - (px | py): a=(1,0,0), b=(0,1,0): sums (1,1,0) — both odd → integrand odd in BOTH x and y → 0
+      //   - (px | px): a=(1,0,0), b=(1,0,0): sums (2,0,0) — all even → nonzero
+      //   - (dxy | dxy): (1,1,0)+(1,1,0)=(2,2,0) — even → nonzero
+      //   - (dxx | dyy): (2,0,0)+(0,2,0)=(2,2,0) — even → nonzero
+      //   - (dxy | dxz): (1,1,0)+(1,0,1)=(2,1,1) — y,z odd → 0
+      //   - (g_xxxx | g_xxxx): (4,0,0)+(4,0,0)=(8,0,0) — even → nonzero
+      //   - (g_xxxx | g_xxxy): (4,0,0)+(3,1,0)=(7,1,0) — odd → 0
+
+      const cases: Array<{ a: [number, number, number]; b: [number, number, number]; mustBeZero: boolean; name: string }> = [
+        { a: [1, 0, 0], b: [1, 0, 0], mustBeZero: false, name: "(px|px) L=1" },
+        { a: [1, 0, 0], b: [0, 1, 0], mustBeZero: true,  name: "(px|py) L=1" },
+        { a: [1, 1, 0], b: [1, 1, 0], mustBeZero: false, name: "(dxy|dxy) L=2" },
+        { a: [2, 0, 0], b: [0, 2, 0], mustBeZero: false, name: "(dxx|dyy) L=2" },
+        { a: [1, 1, 0], b: [1, 0, 1], mustBeZero: true,  name: "(dxy|dxz) L=2" },
+        { a: [3, 0, 0], b: [3, 0, 0], mustBeZero: false, name: "(fxxx|fxxx) L=3" },
+        { a: [3, 0, 0], b: [2, 1, 0], mustBeZero: true,  name: "(fxxx|fxxy) L=3" },
+        { a: [4, 0, 0], b: [4, 0, 0], mustBeZero: false, name: "(gxxxx|gxxxx) L=4" },
+        { a: [4, 0, 0], b: [3, 1, 0], mustBeZero: true,  name: "(gxxxx|gxxxy) L=4" },
+        { a: [2, 2, 0], b: [2, 2, 0], mustBeZero: false, name: "(gxxyy|gxxyy) L=4" },
+      ];
+
+      const results: Array<{ name: string; mustBeZero: boolean; value: number; correct: boolean }> = [];
+      for (const c of cases) {
+        // Two shells at origin, each one primitive with α=1.
+        const nPrims = new Uint32Array([1, 1]);
+        const primOff = new Uint32Array([0, 1]);
+        const alphaArr = new Float64Array([1.0, 1.0]);
+        const cArr = new Float64Array([1.0, 1.0]);
+        const center = new Float64Array([0, 0, 0, 0, 0, 0]);
+        const angular = new Int32Array([c.a[0], c.a[1], c.a[2], c.b[0], c.b[1], c.b[2]]);
+
+        const M = wasmMod.eri_2idx_build(2, nPrims, primOff, alphaArr, cArr, center, angular);
+        const value = M[1]!;  // M[0, 1]
+        let correct: boolean;
+        if (c.mustBeZero) {
+          correct = Math.abs(value) < 1e-10;
+        } else {
+          correct = Math.abs(value) > 1e-3 && Number.isFinite(value);
+        }
+        results.push({ name: c.name, mustBeZero: c.mustBeZero, value, correct });
+      }
+      return { results };
+    });
+
+    /* eslint-disable no-console */
+    console.log(`\n══════════════════════════════════════════════════════════`);
+    console.log(`(P|Q) parity sanity at same center, α=1`);
+    console.log(`══════════════════════════════════════════════════════════`);
+    for (const x of r.results) {
+      const expect = x.mustBeZero ? "must = 0" : "must ≠ 0";
+      const flag = x.correct ? "✓" : "✗ FAIL";
+      console.log(`${x.name.padEnd(25)} ${expect.padEnd(10)} value=${x.value.toExponential(3)}  ${flag}`);
+    }
+    console.log(`══════════════════════════════════════════════════════════\n`);
+    /* eslint-enable no-console */
+
+    for (const x of r.results) {
+      expect(x.correct).toBe(true);
+    }
+  });
 });
