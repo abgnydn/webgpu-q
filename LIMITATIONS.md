@@ -668,12 +668,12 @@ n ≥ 60 the JK build dominates and speedup approaches the
     B-tensor footprint:               303 MB ✓ fits
     Cholesky rank kept:             1048 / 1080 (32 redundant)
 
-    Integrals (skipERI+skipOAO):     2.79 s
-    Aux-DF B-tensor (Cholesky):     40.31 s
-    HF SCF (13 iters, converged):   86.02 s
-    Total end-to-end:              129.12 s   ≈ 2 min 9 s
+    Integrals (skipERI+skipOAO):     2.70 s
+    Aux-DF B-tensor (Cholesky):     40.15 s
+    HF SCF (parallel JK_DF ×8):     34.11 s   (was 86 s pre-parallel)
+    Total end-to-end:               76.97 s   ≈ 1 min 17 s
 
-    E = −383.38457825 Ha (converged)
+    E = −383.38457825 Ha (converged in 13 DIIS iters)
 
   First molecule where webgpu-q does HF beyond what direct n⁴ ERI fits
   in a browser tab. Naphthalene HF in ~2 min, aux-DF Cholesky enabling.
