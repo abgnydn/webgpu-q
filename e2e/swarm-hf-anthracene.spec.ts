@@ -93,8 +93,12 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
         hydrogens.push({ symbol: "H" as const, pos: [cx + cx / rad * CH, cy + cy / rad * CH, 0] as const });
       }
       const ATOMS = [...carbons, ...hydrogens];
+      // STO-3G first to isolate convergence from scale: anthracene
+      // STO-3G has n≈80, the swarm flow runs in seconds and we can
+      // see whether the SCF converges at all on this molecule with
+      // the customJKBuilder path. cc-pvdz was the previous run.
       const { shells, nuclei, nElectrons } =
-        moleculeToShellsNuclei(ATOMS as never, "cc-pvdz");
+        moleculeToShellsNuclei(ATOMS as never, "sto-3g");
 
       const tInt0 = performance.now();
       const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true, skipOAO: true });
@@ -204,9 +208,7 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
 
       const tS0 = performance.now();
       const swHF = await runRHFSCFAsync(integrals, nElectrons, {
-        useDIIS: true, energyTol: 1e-6, densityTol: 1e-5, maxIter: 80,
-        levelShift: 1.0,   // anthracene has low-lying virtuals; lift
-                           // them to stabilize the initial iters
+        useDIIS: true, energyTol: 1e-6, densityTol: 1e-5, maxIter: 60,
         customJKBuilder,
       });
       const swMs = performance.now() - tS0;
@@ -217,6 +219,7 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
         energy: swHF.energy, iter: swHF.iter, converged: swHF.converged,
         slicesPerTab: ranges.map(([s, e]) => e - s),
         masterSliceMB: masterSlice.B.byteLength / 1e6,
+        history: swHF.history,
       };
     }, { nTabs: N_TABS });
 
@@ -234,6 +237,19 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
     console.log(`Swarm SCF (${result.iter} iters): ${(result.swMs / 1000).toFixed(2).padStart(7)} s  converged=${result.converged}`);
     console.log();
     console.log(`E = ${result.energy.toFixed(8)} Ha`);
+    console.log();
+    console.log(`Energy trajectory (first / last ~5 iters):`);
+    const hist = result.history;
+    const showIters: number[] = [];
+    for (let i = 0; i < Math.min(5, hist.length); i++) showIters.push(i);
+    if (hist.length > 10) {
+      for (let i = Math.max(5, hist.length - 5); i < hist.length; i++) showIters.push(i);
+    } else {
+      for (let i = 5; i < hist.length; i++) showIters.push(i);
+    }
+    for (const i of showIters) {
+      console.log(`  iter ${(i + 1).toString().padStart(3)}: E = ${hist[i]!.toFixed(8)} Ha`);
+    }
     console.log(`══════════════════════════════════════════════════════════\n`);
     /* eslint-enable no-console */
 
