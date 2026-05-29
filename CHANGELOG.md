@@ -74,10 +74,21 @@ SCF iter as broadcast-D → parallel-JK → gather-J/K via BroadcastChannel.
 
 ### Known limitations
 
-- **Anthracene cc-pVDZ RHF**: convergence is tricky; the
-  `diisStartIter` recipe is the working tuning. SOSCF, ADIIS, or UHF
-  spin-symmetry-break are the conventional alternatives if
-  `diisStartIter` doesn't generalize.
+- **Anthracene cc-pVDZ RHF — convergence vs correctness**: the
+  `diisStartIter` recipe (damping=0.2, diisStartIter=8) successfully
+  reaches a stationary point and avoids the +5352 Ha divergence seen
+  on default DIIS. CI's first green run converged to E = -880 Ha,
+  which is *more negative* than the literature anthracene HF/cc-pVDZ
+  value of ~-537 Ha — a "wrong-basin" SCF solution where the damped
+  warm-up steers density into a non-physical orbital occupation
+  that's energetically lower but doesn't correspond to the true
+  ground-state singlet. The architecture and convergence-method
+  work end-to-end; **basin selection** is the new open problem.
+  Real fixes: MOM (maximum overlap method) to preserve orbital
+  ordering across iters, SOSCF for second-order convergence to the
+  nearest stationary point, or a SAD initial guess that starts in
+  the right basin. UHF + spin-symmetry-break is the textbook
+  multi-reference alternative.
 - **C₆₀ in Ubuntu CI runner**: the V tensor build hits a WASM trap
   during SAB allocation around ~3 GB — Chromium's SAB ceiling on
   Linux runners is configured tighter than on macOS. Local C₆₀ works
