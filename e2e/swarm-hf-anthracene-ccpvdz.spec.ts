@@ -1,21 +1,27 @@
 import { test, expect } from "@playwright/test";
 
-// Anthracene C₁₄H₁₀ cc-pVDZ swarm HF SCF — the actual memory-wall
-// stress test. n=274; B ≈ 900 MB. Single-tab earlier attempts OOM'd
-// at the Chrome SAB ceiling.
+// Anthracene C₁₄H₁₀ cc-pVDZ — the bigger basis variant that failed
+// with default DIIS (E went to +5352 Ha) and with plain damping
+// (iter 5 jumped to +801 Ha). With the new `diisStartIter` option
+// (b450896) the recipe is:
+//   useDIIS: true, damping: 0.2, diisStartIter: 8
+// — heavy damping for the first 7 iters keeps the density in the
+// right basin while the SCF "warms up", then DIIS takes over for
+// fast convergence.
 //
-// With 4-tab swarm: each worker holds 225 MB B-slice (well below the
-// per-tab cap). Master still builds the full B once before partitioning,
-// so master peaks at ~1.8 GB during the V+B build phase — that's the
-// risk: if Chrome's SAB ceiling on this machine is below ~2 GB, the
-// master will OOM before reaching the SCF loop. If it survives, this
-// is the first browser-tab anthracene HF in this repo.
+// Memory: master peaks ~1.6 GB during V+B build, then keeps 195 MB
+// slice. Each of 3 worker tabs holds 195 MB. On Ubuntu CI runners
+// (16 GB RAM) this should fit comfortably; C₆₀ STO-3G at 3 GB peak
+// hits a Chromium SAB ceiling — anthracene cc-pVDZ at 1.6 GB is
+// below that threshold.
 
 const N_TABS = 4;
+const INNER_POOL = 2;
 
-test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
-  test(`anthracene STO-3G — ${N_TABS}-tab swarm converges`, async ({ browser }) => {
-    test.setTimeout(10 * 60 * 1000);
+test.describe(`Swarm anthracene cc-pVDZ HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, () => {
+  test.use({ trace: "off" });   // 10-min trace fixture cap would clip this
+  test("anthracene cc-pVDZ — delayed DIIS recipe", async ({ browser }) => {
+    test.setTimeout(20 * 60 * 1000);
 
     const ctx = await browser.newContext();
     const pages = await Promise.all(
@@ -23,55 +29,63 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
     );
     pages.forEach((p, i) => {
       p.on("pageerror", (e) => console.error(`[t${i}:pageerror] ${e.message}`));
+      p.on("console", (msg) => {
+        const t = msg.text();
+        if (t.startsWith("[m]") || t.startsWith(`[w${i}]`)) console.log(t);
+      });
     });
 
-    await Promise.all(pages.map((p) =>
-      p.goto("/molecule.html", { waitUntil: "domcontentloaded" })));
+    await Promise.all(pages.map((p) => p.goto("/molecule.html", { waitUntil: "domcontentloaded" })));
 
-    // Worker setup (tabs 1..N-1).
     for (let i = 1; i < N_TABS; i++) {
       const worker = pages[i]!;
-      await worker.evaluate(async (sliceIdx: number) => {
-        const [{ preloadWasmJK, buildJK_DF }] = await Promise.all([
+      await worker.evaluate(async ({ sliceIdx, INNER_POOL }: { sliceIdx: number; INNER_POOL: number }) => {
+        const [
+          { preloadWasmJK },
+          { buildJK_DF_Parallel, preloadJK_DF_Workers },
+        ] = await Promise.all([
           import("/src/chemistry/df.ts" as string),
+          import("/src/parallel/parallel-jk-df.ts" as string),
         ]);
         await preloadWasmJK();
-        const ch = new BroadcastChannel("swarm-anth");
+        const ch = new BroadcastChannel("swarm-anth-ccpvdz");
         const w = window as unknown as { __slice: { idx: number; B: Float64Array; n: number; nAuxLocal: number } | null };
         w.__slice = null;
-        ch.addEventListener("message", (ev) => {
+        ch.addEventListener("message", async (ev) => {
           const msg = ev.data as { type: string; sliceIdx?: number; B?: Float64Array; n?: number; nAuxLocal?: number; D?: Float64Array };
           if (msg.type === "B-slice" && msg.sliceIdx === sliceIdx && msg.B && typeof msg.n === "number" && typeof msg.nAuxLocal === "number") {
             w.__slice = { idx: sliceIdx, B: msg.B, n: msg.n, nAuxLocal: msg.nAuxLocal };
+            await preloadJK_DF_Workers(msg.n, msg.nAuxLocal, INNER_POOL);
             ch.postMessage({ type: "B-slice-ack", sliceIdx });
           } else if (msg.type === "jk" && msg.D && w.__slice) {
             const { B, n, nAuxLocal } = w.__slice;
             const localDF = { B, n, nAux: nAuxLocal, threshold: 0 };
-            const { J, K } = buildJK_DF(localDF, msg.D);
+            const { J, K } = await buildJK_DF_Parallel(localDF, msg.D, INNER_POOL);
             ch.postMessage({ type: "jk-partial", sliceIdx, J, K });
           } else if (msg.type === "shutdown") { ch.close(); w.__slice = null; }
         });
-      }, i);
+      }, { sliceIdx: i, INNER_POOL });
     }
 
-    // Master.
-    const result = await pages[0]!.evaluate(async ({ nTabs }) => {
+    const result = await pages[0]!.evaluate(async ({ nTabs, INNER_POOL }) => {
       const [
         { moleculeToShellsNuclei },
         { computeMolecularIntegrals },
         { runRHFSCFAsync },
         { buildAuxBasisDFCholesky, generateAutoAux },
-        { preloadWasmJK, buildJK_DF },
+        { preloadWasmJK },
+        { buildJK_DF_Parallel, preloadJK_DF_Workers },
       ] = await Promise.all([
         import("/src/chemistry/atoms.ts" as string),
         import("/src/chemistry/cg-molecular.ts" as string),
         import("/src/chemistry/hf-scf.ts" as string),
         import("/src/chemistry/df-aux.ts" as string),
         import("/src/chemistry/df.ts" as string),
+        import("/src/parallel/parallel-jk-df.ts" as string),
       ]);
       await preloadWasmJK();
 
-      // Anthracene C₁₄H₁₀ — planar, three fused benzene rings.
+      // Same anthracene geometry as STO-3G test
       const A = 1.40;
       const H = A * Math.sqrt(3) / 2;
       const CH = 1.09;
@@ -94,26 +108,24 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
       }
       const ATOMS = [...carbons, ...hydrogens];
       const { shells, nuclei, nElectrons } =
-        moleculeToShellsNuclei(ATOMS as never, "sto-3g");
+        moleculeToShellsNuclei(ATOMS as never, "cc-pvdz");
+
+      // eslint-disable-next-line no-console
+      console.log(`[m] anthracene cc-pVDZ n=${shells.length}, building DF B (memory peak ~1.6 GB)...`);
 
       const tInt0 = performance.now();
       const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true, skipOAO: true });
       const integMs = performance.now() - tInt0;
 
       const auxShells = generateAutoAux(shells, 1);
-      // eslint-disable-next-line no-console
-      console.log(`[m] anthracene n=${integrals.n}, n_aux_in=${auxShells.length}, building DF B (this is the memory peak)...`);
-
       const tDF0 = performance.now();
       const df = await buildAuxBasisDFCholesky(shells, auxShells, 1e-8);
       const dfMs = performance.now() - tDF0;
-      const n = df.n, nAux = df.nAux;
-      const B = df.B;
-
+      const n = df.n, nAux = df.nAux, B = df.B;
       // eslint-disable-next-line no-console
-      console.log(`[m] DF built: n=${n}, n_aux=${nAux}, B=${(B.byteLength / 1e6).toFixed(0)} MB, in ${(dfMs / 1000).toFixed(2)} s`);
+      console.log(`[m] DF: n=${n}, n_aux=${nAux}, B=${(B.byteLength / 1e6).toFixed(0)} MB in ${(dfMs / 1000).toFixed(2)} s`);
 
-      // Partition.
+      // Partition by P
       const step = Math.ceil(nAux / nTabs);
       const ranges: Array<[number, number]> = [];
       for (let i = 0; i < nTabs; i++) {
@@ -136,8 +148,7 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
         return { B: Blocal, nAuxLocal };
       };
 
-      const ch = new BroadcastChannel("swarm-anth");
-      // Stream-send to workers and release full B asap.
+      const ch = new BroadcastChannel("swarm-anth-ccpvdz");
       const ackPromises: Array<Promise<void>> = [];
       for (let i = 1; i < ranges.length; i++) {
         const range = ranges[i]!;
@@ -154,18 +165,14 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
         }));
         const slice = buildSlice(range[0], range[1]);
         ch.postMessage({ type: "B-slice", sliceIdx: i, n, nAuxLocal: slice.nAuxLocal, B: slice.B });
-        // slice goes out of scope after the postMessage clone is queued;
-        // local reference dropped immediately
       }
-      // Build master's slice (kept around for SCF)
       const masterSlice = buildSlice(ranges[0]![0], ranges[0]![1]);
-      // Release master's full B copy — it's no longer needed
-      const sentB = df.B;
+      // Free master's full B copy — workers now own their slices
       (df as { B: Float64Array }).B = new Float64Array(0);
-      void sentB;  // explicit reference dropped
       await Promise.all(ackPromises);
+      await preloadJK_DF_Workers(n, masterSlice.nAuxLocal, INNER_POOL);
       // eslint-disable-next-line no-console
-      console.log(`[m] all worker slices acked; master holds only its own ${(masterSlice.B.byteLength / 1e6).toFixed(0)} MB slice`);
+      console.log(`[m] B distributed; master holds ${(masterSlice.B.byteLength / 1e6).toFixed(0)} MB slice`);
 
       let iterCount = 0;
       const customJKBuilder = async (D: Float64Array): Promise<{ J: Float64Array; K: Float64Array }> => {
@@ -185,7 +192,7 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
         });
         ch.postMessage({ type: "jk", D });
         const masterDF = { B: masterSlice.B, n, nAux: masterSlice.nAuxLocal, threshold: 0 };
-        const masterPart = buildJK_DF(masterDF, D);
+        const masterPart = await buildJK_DF_Parallel(masterDF, D, INNER_POOL);
         await allReceived;
         const J = new Float64Array(n * n);
         const K = new Float64Array(n * n);
@@ -202,9 +209,11 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
         return { J, K };
       };
 
+      // The recipe: heavy damping for first 7 iters, then DIIS takes over.
       const tS0 = performance.now();
       const swHF = await runRHFSCFAsync(integrals, nElectrons, {
-        useDIIS: true, energyTol: 1e-6, densityTol: 1e-5, maxIter: 60,
+        useDIIS: true, damping: 0.2, diisStartIter: 8,
+        energyTol: 1e-5, densityTol: 1e-4, maxIter: 80,
         customJKBuilder,
       });
       const swMs = performance.now() - tS0;
@@ -217,11 +226,11 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
         masterSliceMB: masterSlice.B.byteLength / 1e6,
         history: swHF.history,
       };
-    }, { nTabs: N_TABS });
+    }, { nTabs: N_TABS, INNER_POOL });
 
     /* eslint-disable no-console */
     console.log(`\n══════════════════════════════════════════════════════════`);
-    console.log(`Swarm HF SCF — anthracene C₁₄H₁₀ STO-3G across ${N_TABS} tabs`);
+    console.log(`Swarm HF SCF — anthracene C₁₄H₁₀ cc-pVDZ across ${N_TABS} tabs × ${INNER_POOL} inner`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`n_orb = ${result.n}    n_aux = ${result.nAux}`);
     console.log(`Slice sizes (aux entries): [${result.slicesPerTab.join(", ")}]`);
@@ -231,26 +240,31 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
     console.log(`Integrals:     ${(result.integMs / 1000).toFixed(2).padStart(7)} s`);
     console.log(`Aux-DF build:  ${(result.dfMs / 1000).toFixed(2).padStart(7)} s`);
     console.log(`Swarm SCF (${result.iter} iters): ${(result.swMs / 1000).toFixed(2).padStart(7)} s  converged=${result.converged}`);
+    console.log(`Total:         ${((result.integMs + result.dfMs + result.swMs) / 1000).toFixed(2).padStart(7)} s`);
     console.log();
     console.log(`E = ${result.energy.toFixed(8)} Ha`);
-    console.log();
-    console.log(`Energy trajectory (first / last ~5 iters):`);
+    console.log(`Trajectory (first 5 / last 5):`);
     const hist = result.history;
-    const showIters: number[] = [];
-    for (let i = 0; i < Math.min(5, hist.length); i++) showIters.push(i);
-    if (hist.length > 10) {
-      for (let i = Math.max(5, hist.length - 5); i < hist.length; i++) showIters.push(i);
-    } else {
-      for (let i = 5; i < hist.length; i++) showIters.push(i);
-    }
-    for (const i of showIters) {
-      console.log(`  iter ${(i + 1).toString().padStart(3)}: E = ${hist[i]!.toFixed(8)} Ha`);
+    const head = hist.slice(0, Math.min(5, hist.length));
+    const tail = hist.length > 10 ? hist.slice(-5) : hist.slice(5);
+    for (let i = 0; i < head.length; i++) console.log(`  iter ${(i + 1).toString().padStart(3)}: ${head[i]!.toFixed(6)} Ha`);
+    if (tail.length > 0 && tail !== head) {
+      console.log(`  ...`);
+      const startIdx = hist.length - tail.length;
+      for (let i = 0; i < tail.length; i++) {
+        console.log(`  iter ${(startIdx + i + 1).toString().padStart(3)}: ${tail[i]!.toFixed(6)} Ha`);
+      }
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
     /* eslint-enable no-console */
 
     expect(Number.isFinite(result.energy)).toBe(true);
     expect(result.converged).toBe(true);
+    // anthracene cc-pVDZ HF energy is in the -537 to -540 Ha range
+    // (depending on geometry). Approximate-linear-PAH geometry gives a
+    // slightly worse number; allow some slack.
+    expect(result.energy).toBeLessThan(-500);
+    expect(result.energy).toBeGreaterThan(-560);
 
     await ctx.close();
   });

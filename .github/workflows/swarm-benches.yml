@@ -99,6 +99,7 @@ jobs:
         run: |
           npx playwright test \
             e2e/swarm-hf-anthracene.spec.ts \
+            e2e/swarm-hf-anthracene-ccpvdz.spec.ts \
             e2e/swarm-hf-pentacene.spec.ts \
             --reporter=list
       - name: Upload Playwright report on failure
