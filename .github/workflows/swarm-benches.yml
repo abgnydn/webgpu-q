@@ -1,0 +1,142 @@
+name: Swarm benches
+
+# Heavy multi-tab Playwright benches that exercise the swarm-HF architecture.
+# These don't need WebGPU (the swarm uses WASM + BroadcastChannel + SAB), so
+# they run on a standard Ubuntu runner — 16 GB RAM, 4 cores, plenty of room
+# for naphthalene/pentacene/anthracene STO-3G. Buckminsterfullerene C₆₀
+# peaks ~3 GB during build and runs ~12 min; it's gated to manual + nightly.
+
+on:
+  # Manual trigger from the Actions tab — pick whether to include C₆₀.
+  workflow_dispatch:
+    inputs:
+      include_c60:
+        description: "Include the C₆₀ buckyball bench (~15 min, ~3 GB peak)"
+        type: boolean
+        default: false
+
+  # PR / push: run the quick swarm checks when swarm code or related kernels change.
+  pull_request:
+    paths:
+      - "e2e/swarm-*.spec.ts"
+      - "src/parallel/**"
+      - "src/chemistry/df.ts"
+      - "src/chemistry/df-aux.ts"
+      - "src/chemistry/hf-scf.ts"
+      - "wasm-eri/src/lib.rs"
+      - ".github/workflows/swarm-benches.yml"
+  push:
+    branches: [main]
+    paths:
+      - "e2e/swarm-*.spec.ts"
+      - "src/parallel/**"
+      - "src/chemistry/df.ts"
+      - "src/chemistry/df-aux.ts"
+      - "src/chemistry/hf-scf.ts"
+      - "wasm-eri/src/lib.rs"
+      - ".github/workflows/swarm-benches.yml"
+
+  # Nightly deep run (heavy molecules included; C₆₀ off by default to save
+  # runner minutes — toggle on for a milestone bench).
+  schedule:
+    - cron: "0 9 * * *"   # 09:00 UTC = 02:00 PT — well after CI quiet hours
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  swarm-quick:
+    name: Swarm quick (benzene 2-tab + naphthalene 4-tab + JK partition proofs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Quick swarm benches
+        run: |
+          npx playwright test \
+            e2e/swarm-sab-multitab.spec.ts \
+            e2e/bench-jk-p-partition.spec.ts \
+            e2e/swarm-jk-distributed.spec.ts \
+            e2e/swarm-hf-distributed.spec.ts \
+            e2e/swarm-hf-naphthalene.spec.ts \
+            --reporter=list
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swarm-quick-report
+          path: e2e/.report
+          retention-days: 14
+
+  swarm-deep:
+    name: Swarm deep (anthracene + pentacene STO-3G)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Only run on nightly schedule or manual trigger — skip on PRs to save minutes.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: swarm-quick
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Anthracene + pentacene swarm
+        run: |
+          npx playwright test \
+            e2e/swarm-hf-anthracene.spec.ts \
+            e2e/swarm-hf-pentacene.spec.ts \
+            --reporter=list
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swarm-deep-report
+          path: e2e/.report
+          retention-days: 14
+
+  swarm-c60:
+    name: Swarm C₆₀ buckyball (the headline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45  # M2 Pro: 12 min; Ubuntu 4-core may take 2-3× longer
+    # Manual trigger only when the user opts in via workflow_dispatch input,
+    # OR nightly only if explicitly enabled via repo variable.
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.include_c60) ||
+      (github.event_name == 'schedule' && vars.NIGHTLY_C60 == 'true')
+    needs: swarm-quick
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: C₆₀ swarm
+        run: |
+          npx playwright test \
+            e2e/swarm-hf-c60.spec.ts \
+            --reporter=list
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swarm-c60-report
+          path: e2e/.report
+          retention-days: 14
