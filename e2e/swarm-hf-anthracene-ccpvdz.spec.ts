@@ -18,8 +18,9 @@ import { test, expect } from "@playwright/test";
 const N_TABS = 4;
 const INNER_POOL = 2;
 
+test.use({ trace: "off" });   // 10-min trace fixture cap would clip this — must be top-level, not inside describe
+
 test.describe(`Swarm anthracene cc-pVDZ HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, () => {
-  test.use({ trace: "off" });   // 10-min trace fixture cap would clip this
   test("anthracene cc-pVDZ — delayed DIIS recipe", async ({ browser }) => {
     test.setTimeout(20 * 60 * 1000);
 
