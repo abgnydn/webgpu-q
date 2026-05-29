@@ -95,12 +95,13 @@ jobs:
       - run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
-      - name: Anthracene + pentacene swarm
+      - name: Anthracene + pentacene + hexacene swarm
         run: |
           npx playwright test \
             e2e/swarm-hf-anthracene.spec.ts \
             e2e/swarm-hf-anthracene-ccpvdz.spec.ts \
             e2e/swarm-hf-pentacene.spec.ts \
+            e2e/swarm-hf-hexacene.spec.ts \
             --reporter=list
       - name: Upload Playwright report on failure
         if: failure()

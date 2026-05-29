@@ -1,0 +1,263 @@
+import { test, expect } from "@playwright/test";
+
+// Hexacene C₂₆H₁₆ STO-3G via 4-tab swarm. 6 linearly fused benzene
+// rings, 146 basis functions. Extends naphthalene (2) → anthracene (3)
+// → pentacene (5) → hexacene (6). Proves the swarm scales past
+// pentacene without changes to architecture or chemistry method.
+
+const N_TABS = 4;
+const INNER_POOL = 2;
+
+test.use({ trace: "off" });   // generous timeouts elsewhere; trace fixture would clip
+
+test.describe(`Swarm hexacene HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, () => {
+  test("hexacene C₂₆H₁₆ STO-3G — swarm converges", async ({ browser }) => {
+    test.setTimeout(5 * 60 * 1000);
+
+    const ctx = await browser.newContext();
+    const pages = await Promise.all(
+      Array.from({ length: N_TABS }, () => ctx.newPage()),
+    );
+    pages.forEach((p, i) => p.on("pageerror", (e) => console.error(`[t${i}:pageerror] ${e.message}`)));
+
+    await Promise.all(pages.map((p) => p.goto("/molecule.html", { waitUntil: "domcontentloaded" })));
+
+    for (let i = 1; i < N_TABS; i++) {
+      const worker = pages[i]!;
+      await worker.evaluate(async ({ sliceIdx, INNER_POOL }: { sliceIdx: number; INNER_POOL: number }) => {
+        const [
+          { preloadWasmJK },
+          { buildJK_DF_Parallel, preloadJK_DF_Workers },
+        ] = await Promise.all([
+          import("/src/chemistry/df.ts" as string),
+          import("/src/parallel/parallel-jk-df.ts" as string),
+        ]);
+        await preloadWasmJK();
+        const ch = new BroadcastChannel("swarm-hex");
+        const w = window as unknown as { __slice: { idx: number; B: Float64Array; n: number; nAuxLocal: number } | null };
+        w.__slice = null;
+        ch.addEventListener("message", async (ev) => {
+          const msg = ev.data as { type: string; sliceIdx?: number; B?: Float64Array; n?: number; nAuxLocal?: number; D?: Float64Array };
+          if (msg.type === "B-slice" && msg.sliceIdx === sliceIdx && msg.B && typeof msg.n === "number" && typeof msg.nAuxLocal === "number") {
+            w.__slice = { idx: sliceIdx, B: msg.B, n: msg.n, nAuxLocal: msg.nAuxLocal };
+            await preloadJK_DF_Workers(msg.n, msg.nAuxLocal, INNER_POOL);
+            ch.postMessage({ type: "B-slice-ack", sliceIdx });
+          } else if (msg.type === "jk" && msg.D && w.__slice) {
+            const { B, n, nAuxLocal } = w.__slice;
+            const localDF = { B, n, nAux: nAuxLocal, threshold: 0 };
+            const { J, K } = await buildJK_DF_Parallel(localDF, msg.D, INNER_POOL);
+            ch.postMessage({ type: "jk-partial", sliceIdx, J, K });
+          } else if (msg.type === "shutdown") { ch.close(); w.__slice = null; }
+        });
+      }, { sliceIdx: i, INNER_POOL });
+    }
+
+    const result = await pages[0]!.evaluate(async ({ nTabs, INNER_POOL }) => {
+      const [
+        { moleculeToShellsNuclei },
+        { computeMolecularIntegrals },
+        { runRHFSCFAsync },
+        { buildAuxBasisDFCholesky, generateAutoAux },
+        { preloadWasmJK },
+        { buildJK_DF_Parallel, preloadJK_DF_Workers },
+      ] = await Promise.all([
+        import("/src/chemistry/atoms.ts" as string),
+        import("/src/chemistry/cg-molecular.ts" as string),
+        import("/src/chemistry/hf-scf.ts" as string),
+        import("/src/chemistry/df-aux.ts" as string),
+        import("/src/chemistry/df.ts" as string),
+        import("/src/parallel/parallel-jk-df.ts" as string),
+      ]);
+      await preloadWasmJK();
+
+      // Hexacene C₂₆H₁₆ — 6 linearly fused rings extending the
+      // pentacene pattern. 4N+2 = 26 C, 16 H (one per non-bridgehead).
+      // Carbon row positions: y=±H rows at x = -5.5A..+5.5A in
+      // steps of A (12 atoms each row); plus 2 tips at (±6A, 0).
+      const A = 1.40;
+      const H = A * Math.sqrt(3) / 2;
+      const CH = 1.09;
+      const C_xy: ReadonlyArray<readonly [number, number]> = [
+        // Outer-left ring
+        [-6 * A,        0],   // 0: left tip
+        [-5.5 * A,     -H],   // 1
+        [-4.5 * A,     -H],   // 2: bridge 1-2
+        [-4.5 * A,      H],   // 3: bridge 1-2
+        [-5.5 * A,      H],   // 4
+        // Ring 2
+        [-3.5 * A,     -H],   // 5
+        [-2.5 * A,     -H],   // 6: bridge 2-3
+        [-2.5 * A,      H],   // 7: bridge 2-3
+        [-3.5 * A,      H],   // 8
+        // Ring 3
+        [-1.5 * A,     -H],   // 9
+        [-0.5 * A,     -H],   // 10: bridge 3-4
+        [-0.5 * A,      H],   // 11: bridge 3-4
+        [-1.5 * A,      H],   // 12
+        // Ring 4
+        [ 0.5 * A,     -H],   // 13
+        [ 1.5 * A,     -H],   // 14: bridge 4-5
+        [ 1.5 * A,      H],   // 15: bridge 4-5
+        [ 0.5 * A,      H],   // 16
+        // Ring 5
+        [ 2.5 * A,     -H],   // 17
+        [ 3.5 * A,     -H],   // 18: bridge 5-6
+        [ 3.5 * A,      H],   // 19: bridge 5-6
+        [ 2.5 * A,      H],   // 20
+        // Outer-right ring
+        [ 4.5 * A,     -H],   // 21
+        [ 5.5 * A,     -H],   // 22
+        [ 6 * A,        0],   // 23: right tip
+        [ 5.5 * A,      H],   // 24
+        [ 4.5 * A,      H],   // 25
+      ];
+      const carbons = C_xy.map((p) => ({ symbol: "C" as const, pos: [p[0], p[1], 0] as const }));
+      // Bridgeheads (no H): indices 2,3,6,7,10,11,14,15,18,19 (10 atoms = 5 shared edges × 2)
+      const BRIDGE = new Set([2, 3, 6, 7, 10, 11, 14, 15, 18, 19]);
+      const hydrogens: Array<{ symbol: "H"; pos: readonly [number, number, number] }> = [];
+      for (let i = 0; i < C_xy.length; i++) {
+        if (BRIDGE.has(i)) continue;
+        const cx = C_xy[i]![0];
+        const cy = C_xy[i]![1];
+        const rad = Math.hypot(cx, cy);
+        hydrogens.push({ symbol: "H" as const, pos: [cx + cx / rad * CH, cy + cy / rad * CH, 0] as const });
+      }
+      const ATOMS = [...carbons, ...hydrogens];
+      const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(ATOMS as never, "sto-3g");
+
+      const tInt0 = performance.now();
+      const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true, skipOAO: true });
+      const integMs = performance.now() - tInt0;
+
+      const auxShells = generateAutoAux(shells, 1);
+      const tDF0 = performance.now();
+      const df = await buildAuxBasisDFCholesky(shells, auxShells, 1e-8);
+      const dfMs = performance.now() - tDF0;
+      const n = df.n, nAux = df.nAux, B = df.B;
+
+      // Partition + distribute (same pattern as pentacene)
+      const step = Math.ceil(nAux / nTabs);
+      const ranges: Array<[number, number]> = [];
+      for (let i = 0; i < nTabs; i++) {
+        const s = i * step;
+        const e = Math.min(s + step, nAux);
+        if (e > s) ranges.push([s, e]);
+      }
+      const buildSlice = (pStart: number, pEnd: number): { B: Float64Array; nAuxLocal: number } => {
+        const nAuxLocal = pEnd - pStart;
+        const Blocal = new Float64Array(n * n * nAuxLocal);
+        for (let mu = 0; mu < n; mu++) {
+          for (let nu = 0; nu < n; nu++) {
+            const baseFull = (mu * n + nu) * nAux;
+            const baseLoc = (mu * n + nu) * nAuxLocal;
+            for (let p = 0; p < nAuxLocal; p++) {
+              Blocal[baseLoc + p] = B[baseFull + (pStart + p)]!;
+            }
+          }
+        }
+        return { B: Blocal, nAuxLocal };
+      };
+      const slices = ranges.map(([s, e]) => buildSlice(s, e));
+      const masterSlice = slices[0]!;
+      await preloadJK_DF_Workers(n, masterSlice.nAuxLocal, INNER_POOL);
+
+      const ch = new BroadcastChannel("swarm-hex");
+      const ackPromises = slices.slice(1).map((_, idx) => new Promise<void>((resolve, reject) => {
+        const sliceIdx = idx + 1;
+        const handler = (ev: MessageEvent): void => {
+          const msg = ev.data as { type: string; sliceIdx?: number };
+          if (msg.type === "B-slice-ack" && msg.sliceIdx === sliceIdx) {
+            ch.removeEventListener("message", handler);
+            resolve();
+          }
+        };
+        ch.addEventListener("message", handler);
+        setTimeout(() => { ch.removeEventListener("message", handler); reject(new Error(`worker ${sliceIdx} ack timeout`)); }, 60000);
+      }));
+      for (let i = 1; i < slices.length; i++) {
+        ch.postMessage({ type: "B-slice", sliceIdx: i, n, nAuxLocal: slices[i]!.nAuxLocal, B: slices[i]!.B });
+      }
+      await Promise.all(ackPromises);
+
+      let iterCount = 0;
+      const customJKBuilder = async (D: Float64Array): Promise<{ J: Float64Array; K: Float64Array }> => {
+        iterCount++;
+        const nNeeded = slices.length - 1;
+        const partials = new Map<number, { J: Float64Array; K: Float64Array }>();
+        const allReceived = new Promise<void>((resolve, reject) => {
+          const handler = (ev: MessageEvent): void => {
+            const msg = ev.data as { type: string; sliceIdx?: number; J?: Float64Array; K?: Float64Array };
+            if (msg.type === "jk-partial" && typeof msg.sliceIdx === "number" && msg.J && msg.K) {
+              partials.set(msg.sliceIdx, { J: msg.J, K: msg.K });
+              if (partials.size === nNeeded) { ch.removeEventListener("message", handler); resolve(); }
+            }
+          };
+          ch.addEventListener("message", handler);
+          setTimeout(() => { ch.removeEventListener("message", handler); reject(new Error(`gather timeout iter ${iterCount}`)); }, 60000);
+        });
+        ch.postMessage({ type: "jk", D });
+        const masterDF = { B: masterSlice.B, n, nAux: masterSlice.nAuxLocal, threshold: 0 };
+        const masterPart = await buildJK_DF_Parallel(masterDF, D, INNER_POOL);
+        await allReceived;
+        const J = new Float64Array(n * n);
+        const K = new Float64Array(n * n);
+        for (let i = 0; i < J.length; i++) {
+          J[i] = masterPart.J[i]!;
+          K[i] = masterPart.K[i]!;
+        }
+        for (const { J: Jp, K: Kp } of partials.values()) {
+          for (let i = 0; i < J.length; i++) {
+            J[i]! += Jp[i]!;
+            K[i]! += Kp[i]!;
+          }
+        }
+        return { J, K };
+      };
+
+      const tS0 = performance.now();
+      const swHF = await runRHFSCFAsync(integrals, nElectrons, {
+        useDIIS: true, energyTol: 1e-6, densityTol: 1e-5, maxIter: 60,
+        customJKBuilder,
+      });
+      const swMs = performance.now() - tS0;
+      ch.postMessage({ type: "shutdown" });
+      ch.close();
+      return {
+        n, nAux, integMs, dfMs, swMs,
+        energy: swHF.energy, iter: swHF.iter, converged: swHF.converged,
+        slicesPerTab: ranges.map(([s, e]) => e - s),
+        masterSliceMB: masterSlice.B.byteLength / 1e6,
+        firstFive: swHF.history.slice(0, 5),
+        lastFive: swHF.history.slice(-5),
+      };
+    }, { nTabs: N_TABS, INNER_POOL });
+
+    /* eslint-disable no-console */
+    console.log(`\n══════════════════════════════════════════════════════════`);
+    console.log(`Swarm HF SCF — hexacene C₂₆H₁₆ STO-3G across ${N_TABS} tabs × ${INNER_POOL} inner`);
+    console.log(`══════════════════════════════════════════════════════════`);
+    console.log(`n_orb = ${result.n}    n_aux = ${result.nAux}`);
+    console.log(`Slice sizes (aux entries): [${result.slicesPerTab.join(", ")}]`);
+    console.log(`Per-tab B-slice: ~${result.masterSliceMB.toFixed(1)} MB`);
+    console.log();
+    console.log(`Integrals:     ${(result.integMs / 1000).toFixed(2).padStart(7)} s`);
+    console.log(`Aux-DF build:  ${(result.dfMs / 1000).toFixed(2).padStart(7)} s`);
+    console.log(`Swarm SCF (${result.iter} iters): ${(result.swMs / 1000).toFixed(2).padStart(7)} s  converged=${result.converged}`);
+    console.log(`Total:         ${((result.integMs + result.dfMs + result.swMs) / 1000).toFixed(2).padStart(7)} s`);
+    console.log();
+    console.log(`E = ${result.energy.toFixed(8)} Ha`);
+    console.log(`Trajectory:  first → ${result.firstFive.map((e: number) => e.toFixed(2)).join(", ")}`);
+    console.log(`             last  → ${result.lastFive.map((e: number) => e.toFixed(6)).join(", ")}`);
+    console.log(`══════════════════════════════════════════════════════════\n`);
+    /* eslint-enable no-console */
+
+    expect(Number.isFinite(result.energy)).toBe(true);
+    expect(result.converged).toBe(true);
+    // Real hexacene HF/STO-3G ~ -990 Ha; approximate linear geometry
+    // may shift; allow a wide range that catches divergence.
+    expect(result.energy).toBeLessThan(-500);
+    expect(result.energy).toBeGreaterThan(-2000);
+
+    await ctx.close();
+  });
+});
