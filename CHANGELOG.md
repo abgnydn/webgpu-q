@@ -5,6 +5,91 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.9.0] — 2026-05-29
+
+The **multi-tab swarm** release. The browser-tab swarm HF SCF
+architecture is end-to-end proven from H₂O (n=24) through C₆₀
+buckminsterfullerene (n=300), and the same code path makes naphthalene
+cc-pVDZ HF run **5.5× faster** than the v0.8.0 single-tab baseline by
+combining single-tab WASM perf wins with cross-tab parallelism.
+
+### Headline numbers (M2 Pro, Chromium, COI enabled)
+
+| molecule | basis | n | best path | time | E (Ha) |
+|---|---|---:|---|---:|---:|
+| H₂O | cc-pVDZ | 24 | 1-tab | 0.025 s | -76.027 |
+| benzene | cc-pVDZ | 120 | 2-tab swarm | 5.5 s | -230.7227 |
+| **naphthalene** | **cc-pVDZ** | **190** | **4-tab × 2-inner swarm** | **14 s** ⬇️ from 77 s | **-383.3846** |
+| anthracene | STO-3G | 80 | 4-tab swarm | 8 s | -526.9232 |
+| pentacene | STO-3G | 124 | 4-tab × 2-inner swarm | 38 s | -821.6327 |
+| **C₆₀** | **STO-3G** | **300** | **4-tab × 2-inner swarm** | **730 s (12 min)** | **-2244.1018** |
+
+C₆₀ is the iconic showcase — the most recognizable molecule in
+chemistry, full HF SCF in 4 same-origin browser tabs on a 16 GB Mac,
+each tab holding only 454 MB of the 1.82 GB B-tensor.
+
+### Single-tab WASM/SIMD perf (8 commits)
+
+Cumulative on naphthalene cc-pVDZ: SCF **43 s → 17.6 s** on a clean
+profile run (-59%), end-to-end **77 s → 28 s** (2.7×) before the
+swarm even kicks in.
+
+- `10cfe14` perf(df): parallel V build + parallel B back-sub on
+  Cholesky path — naphthalene 77 s → 36 s (2.2×)
+- `3123505` perf(df): release V tensor SAB before SCF — peak SAB 620 → 315 MB
+- `563e8d1` diag(hf): per-iter SCF profiling via opts.profileCallback
+- `d9b633a` perf(hf): pre-warm JK_DF workers before SCF iter loop
+- `5cacb7e` perf(jk): reuse JK_DF worker scratch buffers — SCF 43 → 20 s
+- `3e020e4` perf(jk): exploit K symmetry in build_jk_df_slice — SCF 20 → 17.6 s
+- `73f5d2b` perf(jk): 4× SIMD unroll on X-build inner loop
+- `d097625` diag(jk): worker-count sweep — find optimal poolSize per hardware
+
+### Multi-tab swarm architecture (10 commits)
+
+The single-tab SAB ceiling is the limiting factor for direct browser
+quantum chemistry; the swarm breaks through by partitioning the
+B-tensor by aux index P across N same-origin tabs and running each
+SCF iter as broadcast-D → parallel-JK → gather-J/K via BroadcastChannel.
+
+- `78146ec` diag(swarm): multi-tab SAB partitioning MVP — 4 tabs × 200 MB SAB, BroadcastChannel coord 68 ms round-trip
+- `9103ed6` diag(jk): prove P-partition correctness for distributed JK_DF — bit-exact at 2/3/4/8 splits
+- `ba1c272` feat(swarm): distribute JK_DF build across 2 tabs via BroadcastChannel — 2-tab JK matches single-tab ref to 10⁻¹⁵
+- `07c09be` feat(swarm): full distributed HF SCF across 2 browser tabs — benzene end-to-end, bit-identical energy
+- `22ae86a` feat(swarm): scale swarm HF SCF to 4 tabs on naphthalene cc-pVDZ
+- `ae83213` perf(swarm): inner-parallelism inside each worker tab — naphthalene 24 → 14 s (40% faster)
+- `416dbe4` diag(swarm): topology sweep — 4 tabs × 2 inner beats 2 tabs × 4 inner at the same total thread count
+- `a14f134` + `dcd8ee7` swarm anthracene STO-3G — 4-tab convergence to -526.92 Ha
+- `3e15ab5` feat(swarm): pentacene C₂₂H₁₄ HF SCF in browser swarm — 5 fused rings, 124 basis, 35 iters
+- `9298d0e` **feat(swarm): C₆₀ buckminsterfullerene HF SCF in browser tabs** — 300 basis, 9 iters, -2244.10 Ha
+
+### Chemistry method (2 commits)
+
+- `b450896` feat(hf): diisStartIter option for delayed DIIS activation — unblocks hard-converging cases (recipe for anthracene cc-pVDZ: `damping: 0.2, diisStartIter: 8`)
+- `213f75d` test(swarm): anthracene cc-pVDZ with delayed-DIIS recipe — validates the fix on the molecule it was designed for
+
+### Infrastructure / CI (2 commits)
+
+- `ecec5e5` ci(swarm): offload swarm benches to GitHub Actions runners — nightly + manual deep benches, zero local resource cost. Three jobs: swarm-quick (always), swarm-deep (nightly + manual), swarm-c60 (manual-only)
+- `41f9ea3` fix(numbers): rebase two drifted claims — unblocks CI lint+test workflow
+
+### Known limitations
+
+- **Anthracene cc-pVDZ RHF**: convergence is tricky; the
+  `diisStartIter` recipe is the working tuning. SOSCF, ADIIS, or UHF
+  spin-symmetry-break are the conventional alternatives if
+  `diisStartIter` doesn't generalize.
+- **C₆₀ in Ubuntu CI runner**: the V tensor build hits a WASM trap
+  during SAB allocation around ~3 GB — Chromium's SAB ceiling on
+  Linux runners is configured tighter than on macOS. Local C₆₀ works
+  fine; CI C₆₀ is gated to manual trigger only.
+- **C₆₀ converges only at STO-3G**; cc-pVDZ at n=600+ exceeds even
+  the swarm-distributed master tab's V-build memory.
+- **Per-tab independent B-slice builder** not yet implemented —
+  master builds the full B then partitions. For molecules where the
+  full B exceeds the master's SAB ceiling (anthracene+ at cc-pVDZ,
+  C₆₀+ at any basis), an independent per-tab build remains the
+  next architectural step.
+
 ## [0.8.0] — 2026-05-28
 
 The **WASM + aux-DF** release. ~50 commits since v0.7.0 deliver the
