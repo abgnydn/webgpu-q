@@ -1,0 +1,49 @@
+webgpu-q
+Copyright 2026 Ahmet Barış Günaydın
+
+This product includes software developed by Ahmet Barış Günaydın
+(https://github.com/abgnydn/webgpu-q), distributed under the MIT
+License (see LICENSE).
+
+------------------------------------------------------------------------
+Portions of this software are derived from PySCF
+(https://github.com/pyscf/pyscf), distributed under the Apache License,
+Version 2.0:
+
+    Copyright 2014-2026 The PySCF Developers. All rights reserved.
+
+The complete Apache License 2.0 text covering these portions is
+included in this distribution as LICENSE-PYSCF.
+
+Files derived from PySCF (modifications by Ahmet Barış Günaydın are
+released under Apache 2.0 as required by §4(b) of that license):
+
+  - src/chemistry/ip-eom-ccsd.ts
+      σ-equations follow PySCF's eom_gccsd.ipccsd_matvec
+      (Tu-Wang-Li 2012 Eqs (8)-(9); Wooov / Wovoo intermediates from
+      PySCF eom_gccsd.py and gintermediates.py).
+
+  - src/chemistry/ea-eom-ccsd.ts
+      EA-EOM σ_1 + σ_2 follow PySCF's eom_gccsd intermediates
+      (full t2 dressing of Fvv/Foo/Wovvo plus the
+      Wvvvo / Wovoo blocks).
+
+  - src/chemistry/eom-ccsd.ts (singlet EE-EOM-CCSD)
+      σ_1 + σ_2 follow Wang-Tu-Wang 2014 Eqs (9)-(10) with PySCF's
+      eom_gccsd intermediates.
+
+Other modules reference PySCF *conventions* (basis set ordering,
+integral indexing, intermediate naming) but are independently
+implemented from primary sources (textbooks, the original method
+papers). Those are MIT-licensed as part of the webgpu-q work.
+
+------------------------------------------------------------------------
+WebAssembly modules in wasm-eri/ are MIT-licensed (Ahmet Barış
+Günaydın). The Rust source is in wasm-eri/src/lib.rs and the compiled
+WebAssembly binary in wasm-eri/pkg/.
+
+------------------------------------------------------------------------
+This NOTICE file is required by Apache License 2.0 §4(d) to preserve
+attribution for the PySCF-derived portions. It must be included in
+any redistribution of this software, in whole or in part, in source
+or binary form.
