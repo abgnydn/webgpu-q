@@ -95,7 +95,7 @@ jobs:
       - run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
-      - name: Acene-series swarm sweep (anthracene → heptacene)
+      - name: Acene-series swarm sweep (anthracene → octacene)
         run: |
           npx playwright test \
             e2e/swarm-hf-anthracene.spec.ts \
@@ -103,6 +103,7 @@ jobs:
             e2e/swarm-hf-pentacene.spec.ts \
             e2e/swarm-hf-hexacene.spec.ts \
             e2e/swarm-hf-heptacene.spec.ts \
+            e2e/swarm-hf-octacene.spec.ts \
             --reporter=list
       - name: Upload Playwright report on failure
         if: failure()
