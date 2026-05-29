@@ -91,10 +91,30 @@ export interface HFOpts {
    */
   readonly diisHistory?: number;
   /**
-   * Damping factor α ∈ (0, 1] for the legacy non-DIIS path.
-   * D_new ← α · D_new + (1 − α) · D_old. Default 0.5.
+   * Damping factor α ∈ (0, 1] for the non-DIIS phase. D ← α · D_new +
+   * (1 − α) · D_old. Default 0.5. Used in pure non-DIIS runs AND
+   * during the iter-1..diisStartIter-1 warm-up phase before DIIS
+   * kicks in. For hard-converging cases (anthracene cc-pVDZ etc.)
+   * α ≈ 0.2 + diisStartIter = 5-10 is a typical recipe.
    */
   readonly damping?: number;
+  /**
+   * Start DIIS extrapolation at this iter (1 = immediate, default).
+   * For iters 1..diisStartIter-1, use plain damped Roothaan-Hall
+   * even when useDIIS=true. This gives the SCF a few "guided"
+   * iters with a stable D before turning on the more aggressive
+   * Pulay extrapolation. The Fock matrices from the damped phase
+   * still populate the DIIS history so extrapolation has a usable
+   * subspace the moment it activates.
+   *
+   * Targets the failure mode seen on anthracene cc-pVDZ: iter 4
+   * has a sensible energy (-468 Ha), then iter 5's diagonalization
+   * picks a different orbital occupation pattern (HOMO/LUMO near-
+   * degeneracy + symmetry breaking) and energy jumps to +801 Ha.
+   * Heavy damping in the early phase keeps D close enough to the
+   * iter-4 state that the orbital ordering stays stable.
+   */
+  readonly diisStartIter?: number;
   /**
    * Virtual-orbital level shift (Hartree). When > 0, adds
    * `levelShift · P_v` to the orthogonal-basis Fock matrix each
@@ -231,6 +251,7 @@ export function runRHFSCF(
 
     let F_use: Float64Array = F;
     let errMax = 0;
+    const diisActive = useDIIS && iter >= (opts.diisStartIter ?? 1);
 
     if (useDIIS) {
       // ── DIIS error vector: e = X^T (FDS − SDF) X ──────────
@@ -244,6 +265,9 @@ export function runRHFSCF(
       }
 
       // ── Append to history (drop oldest if over capacity) ──
+      // Always track history even during the damped warm-up phase
+      // so the extrapolator has a usable subspace the moment it
+      // activates at iter = diisStartIter.
       diisF.push(F);
       diisE.push(e);
       if (diisF.length > diisMaxHistory) {
@@ -251,8 +275,9 @@ export function runRHFSCF(
         diisE.shift();
       }
 
-      // ── DIIS extrapolation when we have enough history ────
-      if (diisF.length >= 2) {
+      // ── DIIS extrapolation when we have enough history AND
+      //    we're past the optional damped warm-up phase. ──────
+      if (diisActive && diisF.length >= 2) {
         const c = solveDIISCoeffs(diisE, n);
         if (c !== null) {
           const F_ext = new Float64Array(n * n);
@@ -301,17 +326,19 @@ export function runRHFSCF(
     }
     dNorm = Math.sqrt(dNorm);
 
-    if (useDIIS) {
+    if (diisActive) {
       D = D_new;
     } else {
-      // Legacy path: blend with previous density.
+      // Pure-damping phase: blend with previous density. Used both
+      // for useDIIS=false and during iters 1..diisStartIter-1 of a
+      // useDIIS=true run with a delayed-DIIS warm-up.
       for (let i = 0; i < n * n; i++) {
         D[i] = damping * D_new[i]! + (1 - damping) * D[i]!;
       }
     }
 
     // Convergence: energy AND (DIIS error OR density change)
-    const residOk = useDIIS ? errMax < dTol : dNorm < dTol;
+    const residOk = diisActive ? errMax < dTol : dNorm < dTol;
     if (Math.abs(E - E_old) < eTol && residOk) {
       converged = true;
       E_old = E;
@@ -461,14 +488,19 @@ export async function runRHFSCFAsync(
 
     let F_use: Float64Array = F;
     let errMax = 0;
+    const diisActive = useDIIS && iter >= (opts.diisStartIter ?? 1);
     if (useDIIS) {
+      // Always populate DIIS history so the extrapolator has a usable
+      // subspace the moment diisStartIter is reached. Only the
+      // application of extrapolation (and the density-update branch)
+      // is gated by diisActive.
       const e = buildDIISError(F, D, S_AO, X, n);
       for (let i = 0; i < n * n; i++) {
         const a = Math.abs(e[i]!); if (a > errMax) errMax = a;
       }
       diisF.push(F); diisE.push(e);
       if (diisF.length > diisMaxHistory) { diisF.shift(); diisE.shift(); }
-      if (diisF.length >= 2) {
+      if (diisActive && diisF.length >= 2) {
         const c = solveDIISCoeffs(diisE, n);
         if (c !== null) {
           const F_ext = new Float64Array(n * n);
@@ -506,10 +538,13 @@ export async function runRHFSCFAsync(
       const d = D_new[i]! - D[i]!; dNorm += d * d;
     }
     dNorm = Math.sqrt(dNorm);
-    if (useDIIS) D = D_new;
+    // During the damped warm-up phase (iter < diisStartIter) keep
+    // the running D close to D_old; flip to full D_new only once
+    // DIIS extrapolation is active and has driven F near the basin.
+    if (diisActive) D = D_new;
     else for (let i = 0; i < n * n; i++) D[i] = damping * D_new[i]! + (1 - damping) * D[i]!;
 
-    const residOk = useDIIS ? errMax < dTol : dNorm < dTol;
+    const residOk = diisActive ? errMax < dTol : dNorm < dTol;
     if (prof) {
       const tEnd = performance.now();
       prof(iter, {
