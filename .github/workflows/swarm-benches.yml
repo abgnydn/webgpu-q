@@ -111,6 +111,18 @@ jobs:
           retention-days: 14
 
   swarm-c60:
+    # NOTE — currently fails on Ubuntu runners with "Error: unreachable"
+    # during the parallel V tensor build. Diagnosis:
+    #   - C₆₀ STO-3G has n=300, n_aux=2520 → V tensor = 1.82 GB
+    #   - With Ubuntu's hardwareConcurrency = 4, default pool = 3
+    #   - Each worker builds n²·n_aux/3 = 76 M integrals
+    #   - Worker's WASM kernel allocates Vec<f64> of size
+    #     mus.len() × n × n_aux × 4 (packed [μ,ν,P,v]) = 2.4 GB
+    #   - macOS Chrome WASM heap cap ≈ 4 GB → succeeds locally
+    #   - Ubuntu Chrome heap cap ≈ 2 GB → Rust panics, traps
+    # Real fix is to rewrite eri_3idx_build_slice to stream into the
+    # shared SAB without intermediate Vec — substantial kernel work,
+    # tracked separately. For now this job is gated to manual trigger.
     name: Swarm C₆₀ buckyball (the headline)
     runs-on: ubuntu-latest
     timeout-minutes: 45  # M2 Pro: 12 min; Ubuntu 4-core may take 2-3× longer
