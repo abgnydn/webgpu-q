@@ -7,26 +7,29 @@
 
 ## Abstract
 
-We present **webgpu-q**, the first electronic-structure stack — Hartree–Fock
+We present **webgpu-q**, an electronic-structure stack — Hartree–Fock
 (RHF/UHF), MP2, CCSD, CCSD(T), density-functional theory across the
 LDA/GGA/hybrid ladder, and EE/IP/EA-EOM-CCSD — that runs entirely inside a
-web browser with no installation, no server, and no CUDA. Numerical hot
+web browser with no installation, no server, and no CUDA. We are not aware
+of a prior in-browser implementation at this method coverage. Numerical hot
 paths (electron-repulsion integrals, the auxiliary-basis density-fitting
 B-tensor, the Fock build) are hand-written in Rust compiled to WebAssembly
-with SIMD128; the research harness, memory bookkeeping, and the
-distribution layer are the novel contributions. We further introduce a
-**browser-tab swarm**: the density-fitted Fock build is partitioned by
-auxiliary index across N same-origin browser tabs that coordinate over
-`BroadcastChannel` and `SharedArrayBuffer`, with the partial Coulomb and
-exchange matrices summed bit-for-bit. The swarm breaks the single-tab
-memory ceiling that otherwise caps browser quantum chemistry, and scales
-Hartree–Fock to **C₆₀ buckminsterfullerene (300 basis functions, STO-3G)**
-on a 16 GB consumer laptop — distributing the 1.82 GB three-index tensor
-across four tabs at 454 MB each. All energies are validated bit-for-bit
-against PySCF where the methods overlap. Where the project overlaps native
-suites (PySCF, Psi4, ORCA) it is 2–6× slower; in its own category —
-quantum chemistry delivered as a URL — it has, to our knowledge, no
-published peer.
+with SIMD128; the methods themselves are ported from PySCF with
+attribution, so the contributions are the delivery mechanism, the SIMD
+kernels, and the distribution layer. We introduce a **browser-tab swarm**:
+the density-fitted Fock build is partitioned by auxiliary index across N
+same-origin browser tabs that coordinate over `BroadcastChannel` and
+`SharedArrayBuffer`, and the partial Coulomb and exchange matrices are
+summed to reproduce the single-tab build to a relative error of order
+10⁻¹⁵. The swarm raises the single-tab memory ceiling that otherwise caps
+browser quantum chemistry, and scales Hartree–Fock to **C₆₀
+buckminsterfullerene (300 basis functions, STO-3G)** on a 16 GB consumer
+laptop, distributing the 1.82 GB three-index tensor across four tabs at
+454 MB each. Energies are validated against PySCF — bit-for-bit where the
+algorithm is identical, and to ≤ 50 µHa (HF) / ≤ 0.25 mHa (CCSD(T) vs FCI)
+otherwise. Where it overlaps native suites (PySCF, Psi4, ORCA) it is 2–6×
+slower; its contribution is not speed but delivery — full quantum chemistry
+reachable from a URL.
 
 ---
 
@@ -218,10 +221,11 @@ The naphthalene swarm (14 s) is faster than the optimized single-tab
 parallel path (28 s) because four independent V8 processes incur less
 coordination overhead than one process scheduling eight SAB workers.
 
-**C₆₀ is the headline.** Buckminsterfullerene's full HF SCF converges in 9
-iterations inside four browser tabs; the 1.82 GB three-index tensor is
-distributed at 454 MB per tab, well under any single tab's ~2 GB
-SharedArrayBuffer ceiling.
+The largest case, C₆₀ buckminsterfullerene, is the clearest demonstration
+of the swarm's purpose: its full HF SCF converges in 9 iterations inside
+four browser tabs, with the 1.82 GB three-index tensor distributed at
+454 MB per tab — well under any single tab's ~2 GB SharedArrayBuffer
+ceiling, which a single-tab build cannot satisfy (§3.4).
 
 ![HF SCF wall-time vs basis-function count across the acene series and C₆₀,
 colored by basis set, log-time axis. The swarm reaches C₆₀ (300 basis
@@ -309,6 +313,14 @@ basin-selection issue reported in §4. The committed
 `experiments/results/<date>/` artifacts are the source of every number in
 this paper.
 
+**Generative-AI disclosure.** Portions of the software, its documentation,
+and this manuscript were drafted with the assistance of a large language
+model used as a coding and writing aid. All AI-assisted output was
+reviewed by the author; correctness of code was enforced by the test
+suite, brute-force diagnostics, and PySCF cross-validation described in
+§3.1, and every quantitative claim in this paper is traceable to a
+committed experiment artifact rather than to model output.
+
 **Statements.** Sole author; no competing interests; no external funding.
 A Zenodo DOI will be minted on release for citation.
 
@@ -317,8 +329,11 @@ A Zenodo DOI will be minted on release for citation.
 A full electronic-structure stack runs in a browser tab, validated against
 PySCF, and a browser-tab swarm scales it to C₆₀ without native code, a
 data-center GPU, or an install. Where it overlaps native suites it is
-2–6× slower; in its own category it is, as far as we can find, the only
-entry. The entire artifact is a URL; a referee can re-run every number.
+2–6× slower; its value lies elsewhere — in removing the install, hardware,
+and cost barriers between a learner and a real calculation, and in showing
+that the browser's memory ceiling is not a hard limit but one that a tab
+swarm can raise. The entire artifact is a URL, and a referee can re-run
+every number reported here.
 
 ---
 
