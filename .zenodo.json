@@ -1,0 +1,33 @@
+{
+  "title": "webgpu-q: Browser-native quantum chemistry and a browser-tab swarm that scales Hartree–Fock to C₆₀",
+  "upload_type": "software",
+  "access_right": "open",
+  "license": "MIT",
+  "language": "eng",
+  "creators": [
+    {
+      "name": "Günaydın, Ahmet Barış",
+      "affiliation": "Independent researcher"
+    }
+  ],
+  "description": "<p><strong>webgpu-q</strong> is an electronic-structure stack — Hartree–Fock (RHF/UHF), MP2, CCSD, CCSD(T), density-functional theory across the LDA/GGA/hybrid ladder, and EE/IP/EA-EOM-CCSD — that runs entirely inside a web browser with no installation, no server, and no CUDA. Numerical hot paths (electron-repulsion integrals, the auxiliary-basis density-fitting B-tensor, the Fock build) are hand-written in Rust compiled to WebAssembly with SIMD128; the methods are ported from PySCF with attribution, so the contributions are the delivery mechanism, the SIMD kernels, and the distribution layer.</p><p>A <strong>browser-tab swarm</strong> partitions the density-fitted Fock build by auxiliary index across N same-origin browser tabs coordinating over BroadcastChannel and SharedArrayBuffer; the partial Coulomb and exchange matrices sum to reproduce the single-tab build to a relative error of order 1e-15. The swarm raises the single-tab memory ceiling and scales Hartree–Fock to C₆₀ buckminsterfullerene (300 basis functions, STO-3G) on a 16 GB consumer laptop, distributing the 1.82 GB three-index tensor across four tabs at 454 MB each. Energies are validated against PySCF (bit-for-bit where the algorithm is identical; ≤ 50 µHa for HF and ≤ 0.25 mHa for CCSD(T) vs FCI otherwise).</p><p>This deposit archives the source and a manuscript draft (paper/webgpu-q-manuscript.pdf). The repository carries 845+ unit tests under continuous integration plus end-to-end browser benchmarks; every reported number is traceable to a committed experiment artifact under experiments/results/.</p>",
+  "keywords": [
+    "WebGPU",
+    "WebAssembly",
+    "quantum chemistry",
+    "Hartree-Fock",
+    "coupled cluster",
+    "CCSD(T)",
+    "EOM-CCSD",
+    "density functional theory",
+    "density fitting",
+    "browser-tab swarm",
+    "distributed computing",
+    "matrix product states",
+    "DMRG",
+    "in-browser computation",
+    "reproducible research",
+    "buckminsterfullerene"
+  ],
+  "notes": "Methods ported from PySCF are Apache-2.0 (see LICENSE-PYSCF and NOTICE); original code is MIT. Generative AI was used as a coding and writing aid; all output was author-reviewed and validated against PySCF and the test suite (see the manuscript's AI-usage disclosure)."
+}

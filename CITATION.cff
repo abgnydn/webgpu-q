@@ -10,16 +10,19 @@ authors:
 repository-code: "https://github.com/abgnydn/webgpu-q"
 url: "https://webgpu-q.vercel.app"
 license: MIT
-version: 0.4.1
-date-released: 2026-05-14
+version: 0.9.0
+date-released: 2026-06-01
 keywords:
   - WebGPU
+  - WebAssembly
   - quantum chemistry
   - coupled cluster
   - CCSD(T)
   - EOM-CCSD
   - density functional theory
   - density fitting
+  - browser-tab swarm
+  - distributed computing
   - matrix product states
   - DMRG
   - kernel fusion
@@ -37,13 +40,17 @@ abstract: >-
   space on H2 STO-3G to 10⁻⁵ Ha. Many-body sector covers GPU
   statevector simulation (F ≥ 0.999999 vs CPU), MPS / DMRG with
   Lanczos and MPO (N = 128 TFIM/Heisenberg in browser), and kernel
-  fusion (4.18× headline).
+  fusion (4.18× headline). A browser-tab swarm partitions the
+  density-fitted Fock build by auxiliary index across N same-origin
+  tabs (BroadcastChannel + SharedArrayBuffer), reproducing the
+  single-tab build to ~1e-15 and scaling Hartree-Fock to C60
+  (300 basis functions, STO-3G) across four tabs on a 16 GB laptop.
 preferred-citation:
   type: software
-  title: "webgpu-q v0.4.1"
+  title: "webgpu-q v0.9.0"
   authors:
     - family-names: Günaydın
       given-names: Ahmet Barış
   year: 2026
-  version: 0.4.1
+  version: 0.9.0
   url: "https://github.com/abgnydn/webgpu-q"
