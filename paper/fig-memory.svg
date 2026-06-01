@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="540" viewBox="0 0 820 540" font-family="Iowan Old Style, Charter, Georgia, serif">
+  <rect width="820" height="540" fill="#ffffff"/>
+
+  <text x="60" y="42" font-size="22" font-weight="700" fill="#1a1a1a">How the tab swarm breaks the single-tab memory wall</text>
+  <text x="60" y="66" font-size="14" fill="#666">Per-molecule memory: single-tab build requirement vs per-tab footprint in a 4-tab swarm. Log scale.</text>
+
+  <!-- Plot frame -->
+  <line x1="110" y1="90" x2="110" y2="460" stroke="#333" stroke-width="1.5"/>
+  <line x1="110" y1="460" x2="760" y2="460" stroke="#333" stroke-width="1.5"/>
+
+  <!-- Y axis: log10 MB. y(MB)=460-(log10(MB)-1.3)/2.25*370 ; 20 MB..3.5 GB -->
+  <!-- ticks: 32(1.505)->416 ; 100(2)->378? recompute -->
+  <!-- y(MB)=460-(log10(MB)-1.3)/2.25*370 -->
+  <!-- 32 MB: log1.505 -> 460-(.205/2.25)*370=460-34=426 -->
+  <!-- 100 MB: log2 -> 460-(.7/2.25)*370=460-115=345 -->
+  <!-- 316 MB: log2.5 -> 460-(1.2/2.25)*370=460-197=263 -->
+  <!-- 1000 MB: log3 -> 460-(1.7/2.25)*370=460-280=180 -->
+  <!-- 3162 MB: log3.5 -> 460-(2.2/2.25)*370=460-362=98 -->
+  <g font-size="12" fill="#444">
+    <line x1="106" y1="426" x2="110" y2="426" stroke="#333"/><text x="100" y="430" text-anchor="end">32 MB</text>
+    <line x1="106" y1="345" x2="760" y2="345" stroke="#f0f0f0"/><line x1="106" y1="345" x2="110" y2="345" stroke="#333"/><text x="100" y="349" text-anchor="end">100 MB</text>
+    <line x1="106" y1="263" x2="760" y2="263" stroke="#f0f0f0"/><line x1="106" y1="263" x2="110" y2="263" stroke="#333"/><text x="100" y="267" text-anchor="end">316 MB</text>
+    <line x1="106" y1="180" x2="760" y2="180" stroke="#f0f0f0"/><line x1="106" y1="180" x2="110" y2="180" stroke="#333"/><text x="100" y="184" text-anchor="end">1 GB</text>
+    <line x1="106" y1="98"  x2="760" y2="98"  stroke="#f0f0f0"/><line x1="106" y1="98"  x2="110" y2="98"  stroke="#333"/><text x="100" y="102" text-anchor="end">3.2 GB</text>
+  </g>
+
+  <!-- Single-tab SAB ceiling band ~2 GB.  y(2048)=460-(3.311-1.3)/2.25*370=460-331=129 -->
+  <rect x="110" y="90" width="650" height="39" fill="#c0392b" opacity="0.09"/>
+  <line x1="110" y1="129" x2="760" y2="129" stroke="#c0392b" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="752" y="116" font-size="12" fill="#c0392b" text-anchor="end" font-style="italic">single-tab SharedArrayBuffer ceiling ≈ 2 GB</text>
+
+  <!-- Molecules. x: naphthalene 250, pentacene 440, C60 630 -->
+  <!-- single-tab build peak (gray/red dot) and per-tab slice (teal dot), connected -->
+
+  <!-- naphthalene: single 600 MB log2.778 -> y=460-(1.478/2.25)*370=217 ; per-tab 76 MB log1.881 -> y=460-(.581/2.25)*370=364 -->
+  <g>
+    <line x1="250" y1="217" x2="250" y2="364" stroke="#888" stroke-width="2"/>
+    <polygon points="246,228 254,228 250,217" fill="#555"/>
+    <circle cx="250" cy="217" r="7" fill="#555"/>
+    <circle cx="250" cy="364" r="7" fill="#1f7a7a"/>
+    <text x="250" y="478" font-size="13" fill="#222" text-anchor="middle">naphthalene</text>
+    <text x="250" y="494" font-size="11" fill="#888" text-anchor="middle">cc-pVDZ · n=190</text>
+    <text x="268" y="214" font-size="11" fill="#555">~600 MB build</text>
+    <text x="268" y="368" font-size="11" fill="#1f7a7a">76 MB / tab</text>
+  </g>
+
+  <!-- pentacene: single 270 MB log2.431 -> y=460-(1.131/2.25)*370=274 ; per-tab 34 MB log1.531 -> y=460-(.231/2.25)*370=422 -->
+  <g>
+    <line x1="440" y1="274" x2="440" y2="422" stroke="#888" stroke-width="2"/>
+    <circle cx="440" cy="274" r="7" fill="#555"/>
+    <circle cx="440" cy="422" r="7" fill="#1f7a7a"/>
+    <text x="440" y="478" font-size="13" fill="#222" text-anchor="middle">pentacene</text>
+    <text x="440" y="494" font-size="11" fill="#888" text-anchor="middle">STO-3G · n=124</text>
+    <text x="458" y="271" font-size="11" fill="#555">~270 MB build</text>
+    <text x="458" y="426" font-size="11" fill="#1f7a7a">34 MB / tab</text>
+  </g>
+
+  <!-- C60: single build peak ~3000 MB log3.477 -> y=460-(2.177/2.25)*370=102 (ABOVE ceiling) ; per-tab 454 MB log2.657 -> y=460-(1.357/2.25)*370=237 -->
+  <g>
+    <line x1="630" y1="102" x2="630" y2="237" stroke="#c0392b" stroke-width="2.5"/>
+    <circle cx="630" cy="102" r="9" fill="#c0392b" stroke="#7b241c" stroke-width="2"/>
+    <circle cx="630" cy="237" r="9" fill="#1f7a7a" stroke="#0f4f4f" stroke-width="1.5"/>
+    <text x="630" y="478" font-size="13" fill="#222" text-anchor="middle" font-weight="700">C₆₀</text>
+    <text x="630" y="494" font-size="11" fill="#888" text-anchor="middle">STO-3G · n=300</text>
+    <text x="648" y="99"  font-size="11.5" fill="#c0392b" font-weight="700">~3 GB — OOMs 1 tab</text>
+    <text x="648" y="241" font-size="11.5" fill="#1f7a7a" font-weight="700">454 MB / tab — fits</text>
+  </g>
+
+  <!-- Legend -->
+  <g font-size="13" fill="#222">
+    <circle cx="150" cy="512" r="6" fill="#555"/><text x="162" y="516">single-tab build requirement (V + B)</text>
+    <circle cx="430" cy="512" r="6" fill="#1f7a7a"/><text x="442" y="516">per-tab footprint (4-tab swarm)</text>
+  </g>
+</svg>

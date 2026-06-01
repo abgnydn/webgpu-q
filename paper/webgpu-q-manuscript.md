@@ -118,13 +118,50 @@ reproduces the full result. We verified this empirically: at 2/3/4/8
 partitions the partial-sum Fock matrices match the single-slab build to
 relative error ≲ 10⁻¹⁵ (f64 accumulator-reorder noise).
 
-The swarm assigns each tab a P-slice of the B-tensor. Each SCF iteration:
-the master broadcasts the density matrix `D` over `BroadcastChannel`; every
-tab computes its partial `(J,K)` on its private B-slice (optionally with
-inner SAB-worker parallelism); the master gathers and sums. A
-`customJKBuilder` callback injects this into the otherwise-unchanged SCF
-loop. Same-machine multi-tab SAB sharing is used for large payloads;
-`BroadcastChannel` carries control and slice distribution.
+**Setup (once).** The master computes the full B-tensor, partitions the
+auxiliary index range `[0, n_aux)` into N disjoint slices, and ships slice
+`T` to worker tab `T`. Each worker acknowledges receipt; the master then
+holds only its own slice. (A per-tab *independent* build — each tab forming
+only its aux-slice from scratch, so the full B never resides on any single
+tab — is designed but not yet implemented; §4.)
+
+**Per SCF iteration.** The master drives an otherwise-unchanged Roothaan–
+Hall/DIIS loop, with the Fock build replaced by a `customJKBuilder`
+callback:
+
+```
+master:                                worker T (×N):
+  broadcast D  ───────────────────────▶  receive D
+  compute own partial (J_0, K_0)         compute partial (J_T, K_T)
+    on slice 0                             on slice T  (×2 inner
+                                            SAB workers)
+  await N−1 partials  ◀────────────────  post (J_T, K_T)
+  J = Σ_T J_T ;  K = Σ_T K_T
+  G = J − ½K  →  resume SCF
+```
+
+Because each `(J_T, K_T)` is the contribution of a disjoint P-range and the
+Fock build is linear in P (§2.4 equations), the summed `(J, K)` equals the
+single-slab result up to f64 accumulator-reorder noise. The master overlaps
+its own slice computation with the workers' (it does not block on the
+broadcast), so the per-iteration wall-time is set by the slowest single
+tab plus one round-trip, not the sum.
+
+**Transport.** Control messages (the `D` broadcast, the partial-result
+gather, slice-distribution acknowledgements) travel over
+`BroadcastChannel`. For same-machine multi-tab runs the large B-slice
+payloads and per-iteration halo-free state are shared zero-copy via
+`SharedArrayBuffer`; `BroadcastChannel`'s structured-clone is reserved for
+the small `D` (n×n f64) and the `(J, K)` partials. A WebRTC transport
+(via a PeerJS broker with STUN) carries the same protocol across machines,
+at the cost of structured-clone serialization on every message.
+
+**Topology.** The per-tab JK build itself parallelizes across inner
+SAB workers. On a 10-core M2 Pro, a 4-tab × 2-inner-worker layout
+(8 compute threads spread over 4 V8 processes) outperformed both
+1-tab × 8-worker and 2-tab × 4-worker at equal thread count — independent
+processes incur less scheduling contention than one process driving eight
+workers against a shared WASM heap.
 
 ## 3. Results
 
@@ -187,6 +224,14 @@ reaches C₆₀ (n=300). The master-builds-then-partitions design peaks at
 ~3 GB during the V+B build for C₆₀; a per-tab independent B-build (each tab
 builds only its aux-slice from scratch) would lower the per-tab peak and is
 designed but not yet implemented.
+
+![Per-molecule memory on a log scale: the single-tab build requirement
+(V+B, grey) vs the per-tab footprint in a 4-tab swarm (teal), with the
+~2 GB single-tab SharedArrayBuffer ceiling as a shaded band. naphthalene
+and pentacene fit a single tab; C₆₀'s ~3 GB build requirement exceeds the
+ceiling — it cannot run in one tab — but its 454 MB per-tab slice in the
+4-tab swarm sits well under, which is what makes browser-tab C₆₀ Hartree–
+Fock possible.](fig-memory.png)
 
 ## 4. Honest limitations
 
