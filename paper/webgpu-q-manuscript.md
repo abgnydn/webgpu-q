@@ -174,6 +174,20 @@ below chemical accuracy of 1.594 mHa). The distributed swarm Fock build
 matches the single-tab reference to ≲ 10⁻¹² Ha end-to-end (benzene,
 naphthalene).
 
+Correctness is enforced continuously: the repository carries 845+ unit
+tests (run on every push under continuous integration) plus a suite of
+end-to-end browser benchmarks driven through headless Chromium. The
+EOM-CCSD family is gated by *full-tensor* brute-force diagnostics — the
+complete σ-matrix is differenced element-by-element against an exact
+reference (e.g. a 14×14 LiH M_mine − M_exact diff), not by block-max
+metrics that can hide structural bugs. Methods ported from PySCF were
+accepted only after this element-wise diff collapsed to numerical noise.
+DMRG/MPS results are cross-checked against ITensor at N=8 to f64
+precision, and 1D-model limits against the analytic Pfeuty (TFIM) and
+Bethe (Heisenberg) results. The swarm's auxiliary-index partitioning was
+verified to reproduce the single-slab Fock build to relative error ≲
+10⁻¹⁵ at 2-, 3-, 4-, and 8-way splits before any multi-tab run.
+
 ### 3.2 Single-tab performance (M2 Pro, Chromium, COI enabled)
 
 Naphthalene cc-pVDZ (n=190) HF SCF, cumulative single-tab optimization:
@@ -263,7 +277,42 @@ characterized compute target [WebGPU-dispatch-2026]. The intersection —
 in-browser electronic structure, and browser-tab distribution of it — is,
 to our knowledge, unpublished.
 
-## 6. Conclusion
+## 6. Software availability and reproducibility
+
+**Source.** The complete source is at `github.com/abgnydn/webgpu-q`,
+public, MIT-licensed for original code; portions ported from PySCF are
+Apache-2.0 with per-file attribution consolidated in a root `NOTICE`
+(Apache-2.0 §4(d)). The WebAssembly integral kernels are Rust in
+`wasm-eri/`; the swarm in `src/parallel/`; the chemistry in
+`src/chemistry/`.
+
+**Running it.** No installation, no account, no GPU driver: the simulator
+runs in any WebGPU-capable Chromium with cross-origin isolation
+(COOP/COEP) enabled. The swarm requires N same-origin tabs; for the
+cross-machine variant a PeerJS broker + STUN suffices. A reader can
+reproduce a single-molecule HF run from a browser tab; the multi-tab
+swarm runs are reproduced by opening N tabs of the same origin.
+
+**Reproducibility harness.** Every experiment emits a JSON artifact
+recording the git commit SHA, `navigator.userAgent`, `adapter.info`
+(vendor/architecture/device), WebGPU device limits, OS, a UTC ISO-8601
+timestamp, and the echoed `protocol`, `hypothesis`, `seed`, `warmup`,
+`trials`, and `pass_bar`. No `Math.random()` appears on any experiment
+path — every random draw is a named deterministic seed. Wall-clock is
+measured with `performance.now()` bracketed by forced GPU sync (a mapped
+readback) because `queue.submit` is non-blocking; 5 warmup samples are
+discarded and 20 retained, reporting median/p10/p90/p99/std/IQR. Failing
+configurations are committed with `status:"fail"` and a diagnosis rather
+than silently rerun — the honest-negative discipline that surfaced, for
+example, the acene multireference wall and the anthracene cc-pVDZ
+basin-selection issue reported in §4. The committed
+`experiments/results/<date>/` artifacts are the source of every number in
+this paper.
+
+**Statements.** Sole author; no competing interests; no external funding.
+A Zenodo DOI will be minted on release for citation.
+
+## 7. Conclusion
 
 A full electronic-structure stack runs in a browser tab, validated against
 PySCF, and a browser-tab swarm scales it to C₆₀ without native code, a
@@ -286,7 +335,10 @@ entry. The entire artifact is a URL; a referee can re-run every number.
 
 ---
 
-*Draft v0.1 — generated from verified session artifacts 2026-06. Numbers
-sourced from committed `experiments/results/` JSON and e2e bench logs. To
-be converted to LaTeX (likely RevTeX or JCTC/SoftwareX template) before
-submission.*
+*Draft v0.3 — abstract, methods (incl. full swarm protocol §2.4),
+validation w/ test-coverage, results + two figures, honest limitations,
+software-availability + reproducibility, related work. Numbers sourced
+from committed `experiments/results/` JSON and e2e bench logs. Remaining
+before submission: LaTeX conversion (JOSS / SoftwareX / a chem-software
+track), reference formatting, optional third figure (per-iteration swarm
+sequence). Content is submittable-complete.*
