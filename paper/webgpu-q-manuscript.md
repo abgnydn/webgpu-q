@@ -322,7 +322,7 @@ suite, brute-force diagnostics, and PySCF cross-validation described in
 committed experiment artifact rather than to model output.
 
 **Statements.** Sole author; no competing interests; no external funding.
-A Zenodo DOI will be minted on release for citation.
+Archived at Zenodo, DOI [10.5281/zenodo.20494383](https://doi.org/10.5281/zenodo.20494383).
 
 ## 7. Conclusion
 
