@@ -172,6 +172,14 @@ iterations inside four browser tabs; the 1.82 GB three-index tensor is
 distributed at 454 MB per tab, well under any single tab's ~2 GB
 SharedArrayBuffer ceiling.
 
+![HF SCF wall-time vs basis-function count across the acene series and C₆₀,
+colored by basis set, log-time axis. The swarm reaches C₆₀ (300 basis
+functions); the open marker shows naphthalene's single-tab time (28 s)
+above its swarm time (14 s), a 2× intra-machine gain. Note the single-tab
+SharedArrayBuffer ceiling is basis-dependent (~n=220 for cc-pVDZ, higher
+for STO-3G), so it is stated in text rather than drawn as one
+line.](fig-scaling.png)
+
 ### 3.4 The memory wall and where it moves
 
 A single tab caps at ≈ naphthalene (n≈220) cc-pVDZ; the 4-tab swarm
