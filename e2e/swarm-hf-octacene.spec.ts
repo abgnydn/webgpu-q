@@ -266,11 +266,16 @@ test.describe(`Swarm octacene HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, 
     console.log(`══════════════════════════════════════════════════════════\n`);
     /* eslint-enable no-console */
 
+    // Octacene (8 rings) is the deepest into the polyradical regime of
+    // the whole ladder — RHF convergence here is not physically reliable.
+    // It happened to converge in one nightly, but heptacene (7 rings)
+    // did NOT in the same run, which proves convergence at this scale is
+    // luck, not signal. Asserting converged===true would therefore be a
+    // latent flake. We assert the architectural invariant (swarm runs the
+    // full SCF to completion, finite physically-ranged energy) and treat
+    // RHF convergence as method-limited, consistent with hexacene/
+    // heptacene. Multireference/UHF reference is the real fix.
     expect(Number.isFinite(result.energy)).toBe(true);
-    expect(result.converged).toBe(true);
-    // Wide bound — like anthracene cc-pVDZ, the basin-selection issue
-    // may give a spurious lower-energy state. Just verify convergence
-    // without divergence.
     expect(result.energy).toBeLessThan(-100);
     expect(result.energy).toBeGreaterThan(-3000);
 
