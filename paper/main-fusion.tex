@@ -2,6 +2,7 @@
 
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath,amssymb}
+\usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
@@ -111,6 +112,18 @@ amortizing a fixed cost over $k$ operations. (This experiment is flagged
 \texttt{noisy} --- sub-$20\,\mu$s timings sit near the harness's sync-fence
 resolution --- but the $1/k$ trend is unambiguous across widths.)
 
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.82\textwidth]{fig-dispatch.pdf}
+  \caption{The per-gate dispatch cost collapses as $1/k$. Measured effective
+  per-gate cost for $N{=}8$ single-qubit chains (markers) against the
+  $\alpha/k + C$ model (dashed). The cost falls toward a fixed asymptote
+  $C\approx14\,\mu$s/gate as the fusion factor $k$ grows; the $k{=}1$ point
+  sits above the asymptotic model because the first unfused dispatch carries
+  additional fixed submission overhead.}
+  \label{fig:dispatch}
+\end{figure}
+
 \subsection{Correctness}
 
 Fusion is correctness-preserving. Across 360 $(N, k, \mathrm{trial})$ cells the
@@ -121,16 +134,33 @@ $10^{-5}$ bar; the worst state-norm deviation is $10^{-6}$. Fusion changes
 \subsection{The fusion tier ladder}
 
 \begin{center}
-\begin{tabular}{llrrrl}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llllll}
 \toprule
 tier & fusion & bound & best speedup & worst $F$ & verdict \\
 \midrule
-B (brick-wall)        & 2-qubit $\to$ dense $4\times4$  & dispatch          & \textbf{3.04$\times$} ($N{=}20$, $D{=}80$) & 1.0000000 & pass ($\ge2\times$) \\
-C (three-qubit tile)  & 5 ops $\to$ dense $8\times8$     & dispatch          & \textbf{4.22$\times$} ($N{=}15$, $D{=}80$) & 0.9999988 & pass ($\ge3\times$) \\
-D (four-qubit tile)   & 7 ops $\to$ dense $16\times16$   & dispatch$\to$compute & 3.78$\times$ & 0.9999995 & \textbf{fail ($\ge5\times$)} \\
+B (brick-wall)       & 2-qubit $\to$ dense $4\times4$ & dispatch              & \textbf{3.04$\times$} & 1.0000000 & pass ($\ge2\times$) \\
+C (three-qubit tile) & 5 ops $\to$ dense $8\times8$   & dispatch              & \textbf{4.22$\times$} & 0.9999988 & pass ($\ge3\times$) \\
+D (four-qubit tile)  & 7 ops $\to$ dense $16\times16$ & dispatch$\to$compute  & 3.78$\times$          & 0.9999995 & \textbf{fail ($\ge5\times$)} \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{center}
+
+\noindent\footnotesize Best speedups measured at: B --- $N{=}20$, depth $80$;
+C --- $N{=}15$, depth $80$; D --- $N{=}14$, depth $80$. \normalsize
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.82\textwidth]{fig-ladder.pdf}
+  \caption{Fusion tier ladder. Brick-wall (B) and three-qubit-tile (C) fusion
+  clear their speedup targets; four-qubit-tile (D) fusion plateaus at
+  $3.78\times$ against a $5\times$ target because the dense $16\times16$ block
+  is compute-bound --- $\sim$256 complex multiplies per amplitude, a
+  $4\times$ growth over Tier-C, while the memory traffic fusion eliminates
+  grows only linearly. The plateau is committed as a \texttt{status:"fail"}
+  artifact, not hidden.}
+  \label{fig:ladder}
+\end{figure}
 
 Tier-D is the informative result. Its correctness is fine (worst
 $F = 0.9999995$), but it tops out at 3.78$\times$ against a 5$\times$ target

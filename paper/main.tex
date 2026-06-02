@@ -236,6 +236,19 @@ partitioning was verified to reproduce the single-slab Fock build to relative
 error $\lesssim 10^{-15}$ at 2-, 3-, 4-, and 8-way splits before any multi-tab
 run.
 
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.92\textwidth]{fig-validation.pdf}
+  \caption{Accuracy ladder. Each bar is the absolute energy error against its
+  reference on a log axis; the dashed line is the Pople chemical-accuracy
+  threshold (1\,kcal/mol $=1.594$\,mHa). The two algorithmic-precision checks
+  (swarm Fock build vs single-tab, $\sim$1e-12\,Ha; GPU$\leftrightarrow$CPU f32
+  reduction, $\sim$1e-10\,Ha) sit six to nine orders below it, and the method
+  errors (HF vs PySCF $\le 50\,\mu$Ha, CCSD(T) vs FCI $\le 0.25$\,mHa) remain
+  sub-chemical.}
+  \label{fig:validation}
+\end{figure}
+
 \subsection{Single-tab performance (M2 Pro, Chromium, COI enabled)}
 
 Naphthalene cc-pVDZ ($n=190$) HF SCF, cumulative single-tab optimization:
@@ -255,6 +268,18 @@ $4\times$ SIMD unroll on X-build       & iters 4--13 $-17\%$ \\
 
 End-to-end naphthalene HF: \textbf{77\,s $\to$ 28\,s} single-tab
 ($2.7\times$) before any swarm.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.88\textwidth]{fig-optimization.pdf}
+  \caption{Cumulative single-tab kernel optimization on naphthalene cc-pVDZ.
+  Reusing per-thread JK scratch buffers across SCF iterations and exploiting
+  the $K[\mu,\nu]=K[\nu,\mu]$ symmetry are the two largest wins; the $4\times$
+  SIMD X-build unroll removes a further $\sim$17\% on the JK-dominated
+  iterations. End-to-end HF wall falls $77\,\mathrm{s}\to28\,\mathrm{s}$
+  ($2.7\times$) before any swarm parallelism.}
+  \label{fig:optimization}
+\end{figure}
 
 \subsection{Swarm scaling across the acene series and to \texorpdfstring{\Csixty{}}{C60}}
 
