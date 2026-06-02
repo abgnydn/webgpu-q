@@ -347,34 +347,39 @@ every number reported here.
 
 ## References
 
-Citation metadata (authors, venues, years) collected from the sources;
-page numbers to be finalized against the publisher of record before
-submission. Entries marked *(software)* are cited by repository/archive.
+All entries verified against the publisher/abstracting source; DOIs
+included where confirmed (verified 2026-06).
 
-[1] X. Wu, Q. Sun, et al. "Enhancing GPU-acceleration in the Python-based
-Simulations of Chemistry Framework (GPU4PySCF)." arXiv:2407.09700 (2024).
+[1] R. Wu, Q. Sun, et al. "Enhancing GPU acceleration in the Python-based
+Simulations of Chemistry Framework." *Journal of Physical Chemistry A*
+(2024), DOI 10.1021/acs.jpca.4c05876; preprint arXiv:2407.09700.
 
-[2] M. Manathunga, et al. "QUICK: A GPU-enabled ab initio quantum chemistry
-software package." *Software*, github.com/merzlab/QUICK.
+[2] M. Manathunga, Y. Miao, D. Mu, A. W. Götz, K. M. Merz. "Parallel
+Implementation of Density Functional Theory Methods in the Quantum
+Interaction Computational Kernel (QUICK) Program." *Journal of Chemical
+Theory and Computation* 16:4315–4326 (2020), DOI 10.1021/acs.jctc.0c00290.
 
-[3] X. Li, et al. "VeloxChem: GPU-Accelerated Fock Matrix Construction."
-*Journal of Chemical Theory and Computation* (2025), PMC11744785.
+[3] X. Li, M. Linares, P. Norman. "VeloxChem: GPU-Accelerated Fock Matrix
+Construction Enabling Complex Polarization Propagator Simulations of
+Circular Dichroism Spectra of G-Quadruplexes." *Journal of Physical
+Chemistry A* 129(2):633–642 (2025), DOI 10.1021/acs.jpca.4c07510.
 
-[4] E. Lavoie and L. Hendren. "Pando: Personal Volunteer Computing in
+[4] E. Lavoie, L. Hendren. "Pando: Personal Volunteer Computing in
 Browsers." arXiv:1803.08426 (2018).
 
 [5] E. Lavoie, L. Hendren, et al. "Genet: A Quickly Scalable Fat-Tree
 Overlay for Personal Volunteer Computing using WebRTC." arXiv:1904.11402
 (2019).
 
-[6] S. R. Wilkinson and J. Almeida. "QMachine: commodity supercomputing in
-web browsers." *BMC Bioinformatics* 15:176 (2014), PMC4063228.
+[6] S. R. Wilkinson, J. S. Almeida. "QMachine: commodity supercomputing in
+web browsers." *BMC Bioinformatics* 15:176 (2014), DOI 10.1186/1471-2105-15-176.
 
 [7] "Characterizing WebGPU Dispatch Overhead for LLM Inference Across Four
 GPU Vendors, Three Backends, and Three Browsers." arXiv:2604.02344 (2026).
 
 [8] Q. Sun, et al. "PySCF: the Python-based Simulations of Chemistry
-Framework." *WIREs Computational Molecular Science* 8:e1340 (2018).
+Framework." *WIREs Computational Molecular Science* 8:e1340 (2018),
+DOI 10.1002/wcms.1340.
 
 [9] U. Schollwöck. "The density-matrix renormalization group in the age of
 matrix product states." *Annals of Physics* 326(1):96–192 (2011).
