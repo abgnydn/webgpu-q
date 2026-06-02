@@ -47,7 +47,8 @@ what it unlocks*, not by ladder position.
   frequencies + IR + Raman + thermo → polarizability + hyperpolarizability
   → UHF + ΔSCF ionization potentials + electron affinities → molecular SI
   report page (`/molecule.html`)
-- ✓ 309+ unit tests, 11 e2e specs, all green; CI live
+- ✓ Reference-grounded validation green in CI (PySCF / FCI / ITensor /
+  Pfeuty-Bethe gates); e2e browser benches across all levels
 
 ### Next: chemistry-track tier roadmap
 
@@ -119,9 +120,12 @@ highest-leverage demonstration.
 hyperscope), `/molecule.html` (SI report), `/experiments/` (E1–E33+).
 **Standing preference: do NOT auto-deploy** — deploy only when explicitly asked.
 
-**Test surface**: vitest ~640 pass + 2 pre-existing untracked
-`tests/numbers.test.ts` drift detectors. `npx tsc --noEmit` clean.
-`npm run lint` clean. `npx playwright test` 11+ specs green.
+**Validation surface** (what's checked, not how many): reference-grounded
+gates green in CI — bit-exact / sub-µHa vs PySCF, EOM-CCSD full-tensor
+brute-force diffs (14×14 LiH), CCSD(T) sub-mHa vs FCI, ITensor N=8 and
+Pfeuty/Bethe 1D limits, swarm partition-sum vs single-slab below 1e-12.
+`npx tsc --noEmit` clean, `npm run lint` clean, vitest green, e2e browser
+benches (`e2e/`) cover all levels + the swarm/acene series.
 
 **Honest negatives / open work** (each its own session):
 - IP-EOM-CCSD: **PySCF-ported (2026-05-22)**. σ_1 + σ_2 follow

@@ -40,6 +40,18 @@ Sean~R. Wilkinson and Jonas~S. Almeida.
 \newblock {\em BMC Bioinformatics}, 15:176, 2014.
 \newblock DOI: 10.1186/1471-2105-15-176.
 
+\bibitem{webmo}
+William~F. Polik and J.~R. Schmidt.
+\newblock {WebMO}: Web-based computational chemistry calculations in education and research.
+\newblock {\em WIREs Computational Molecular Science}, 12(1):e1554, 2022.
+\newblock DOI: 10.1002/wcms.1554.
+
+\bibitem{molcalc}
+Jan~H. Jensen and Jimmy~C. Kromann.
+\newblock The molecule calculator: A web application for fast quantum mechanics-based estimation of molecular properties.
+\newblock {\em Journal of Chemical Education}, 90(8):1093--1095, 2013.
+\newblock DOI: 10.1021/ed400164n.
+
 \bibitem{schollwock}
 Ulrich Schollw{\"o}ck.
 \newblock The density-matrix renormalization group in the age of matrix product states.

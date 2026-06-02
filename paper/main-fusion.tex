@@ -36,8 +36,9 @@ both at fidelity $F \ge 0.99999$ vs the unfused statevector. Four-qubit-tile
 (Tier-D) fusion is an \textbf{honest negative} --- it tops out at 3.78$\times$
 because it crosses from the dispatch-bound into the compute-bound regime, where
 the per-block complex-multiply count grows faster than the memory traffic
-fusion saves. Fusion is correctness-preserving (360/360 test cells pass, worst
-$1-F = 2.4\times10^{-6}$) and pushes the fused statevector update toward
+fusion saves. Fusion is correctness-preserving --- across 360 $(N,k,\text{trial})$
+configurations the worst fidelity loss against the unfused statevector is
+$1-F = 2.4\times10^{-6}$ --- and pushes the fused statevector update toward
 memory-bandwidth-bound throughput. All results run in a browser tab with no
 installation; every number is backed by a committed, environment-stamped JSON
 artifact. We do not benchmark against native GPU simulators
