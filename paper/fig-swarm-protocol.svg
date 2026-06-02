@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="470" viewBox="0 0 820 470" font-family="Iowan Old Style, Charter, Georgia, serif">
+  <rect width="820" height="470" fill="#ffffff"/>
+
+  <text x="50" y="36" font-size="20" font-weight="700" fill="#1a1a1a">One swarm SCF iteration: broadcast D → parallel JK → gather → sum</text>
+
+  <!-- Lane headers -->
+  <g font-size="13" text-anchor="middle">
+    <rect x="80"  y="56" width="120" height="30" rx="5" fill="#1f3a5f"/><text x="140" y="76" fill="#fff" font-weight="700">master (tab 0)</text>
+    <rect x="300" y="56" width="110" height="30" rx="5" fill="#2f6f6f"/><text x="355" y="76" fill="#fff">worker tab 1</text>
+    <rect x="470" y="56" width="110" height="30" rx="5" fill="#2f6f6f"/><text x="525" y="76" fill="#fff">worker tab 2</text>
+    <rect x="640" y="56" width="110" height="30" rx="5" fill="#2f6f6f"/><text x="695" y="76" fill="#fff">worker tab 3</text>
+  </g>
+
+  <!-- Lifelines -->
+  <g stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4 4">
+    <line x1="140" y1="86" x2="140" y2="430"/>
+    <line x1="355" y1="86" x2="355" y2="430"/>
+    <line x1="525" y1="86" x2="525" y2="430"/>
+    <line x1="695" y1="86" x2="695" y2="430"/>
+  </g>
+
+  <!-- 1. broadcast D (fan-out arrows) -->
+  <g stroke="#1f3a5f" stroke-width="1.5" fill="#1f3a5f">
+    <line x1="140" y1="108" x2="350" y2="108" marker-end="url(#a)"/>
+    <line x1="140" y1="116" x2="520" y2="116" marker-end="url(#a)"/>
+    <line x1="140" y1="124" x2="690" y2="124" marker-end="url(#a)"/>
+  </g>
+  <text x="150" y="103" font-size="12" fill="#1f3a5f">broadcast D  (BroadcastChannel, n×n f64)</text>
+
+  <!-- 2. parallel compute boxes -->
+  <g font-size="11.5" text-anchor="middle">
+    <rect x="92"  y="140" width="96"  height="120" rx="5" fill="#eaf1f1" stroke="#2f6f6f"/>
+    <rect x="312" y="140" width="86" height="120" rx="5" fill="#eaf1f1" stroke="#2f6f6f"/>
+    <rect x="482" y="140" width="86" height="120" rx="5" fill="#eaf1f1" stroke="#2f6f6f"/>
+    <rect x="652" y="140" width="86" height="120" rx="5" fill="#eaf1f1" stroke="#2f6f6f"/>
+    <g fill="#225">
+      <text x="140" y="185">build J_0,K_0</text><text x="140" y="201">on P-slice 0</text><text x="140" y="223" font-size="10" fill="#677">(+2 inner</text><text x="140" y="236" font-size="10" fill="#677">SAB workers)</text>
+      <text x="355" y="192">J_1,K_1</text><text x="355" y="208">slice 1</text>
+      <text x="525" y="192">J_2,K_2</text><text x="525" y="208">slice 2</text>
+      <text x="695" y="192">J_3,K_3</text><text x="695" y="208">slice 3</text>
+    </g>
+  </g>
+  <text x="410" y="280" font-size="11.5" font-style="italic" fill="#677" text-anchor="middle">— all four tabs compute concurrently (wall-time = slowest tab + one round-trip) —</text>
+
+  <!-- 3. gather partials back to master -->
+  <g stroke="#b45309" stroke-width="1.5" fill="#b45309">
+    <line x1="350" y1="305" x2="142" y2="305" marker-end="url(#b)"/>
+    <line x1="520" y1="313" x2="142" y2="313" marker-end="url(#b)"/>
+    <line x1="690" y1="321" x2="142" y2="321" marker-end="url(#b)"/>
+  </g>
+  <text x="360" y="300" font-size="12" fill="#b45309">post partial (J_T, K_T)</text>
+
+  <!-- 4. master sum -->
+  <rect x="80" y="338" width="170" height="52" rx="5" fill="#1f3a5f"/>
+  <text x="165" y="360" font-size="12.5" fill="#fff" text-anchor="middle" font-weight="700">J = Σ J_T ,  K = Σ K_T</text>
+  <text x="165" y="378" font-size="11" fill="#cdd" text-anchor="middle">≡ single-tab build to ~1e-15</text>
+
+  <!-- 5. resume SCF -->
+  <line x1="140" y1="390" x2="140" y2="420" stroke="#1f3a5f" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="150" y="414" font-size="12" fill="#1f3a5f">G = J − ½K  →  next SCF iteration</text>
+
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1f3a5f"/></marker>
+    <marker id="b" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#b45309"/></marker>
+  </defs>
+</svg>

@@ -38,7 +38,7 @@ reachable from a URL.
 Electronic-structure software is, almost without exception, native code:
 PySCF, Psi4, ORCA, Gaussian, and Q-Chem all ship as compiled binaries that
 require installation, a tuned BLAS, and — increasingly — a CUDA-capable
-GPU [GPU4PySCF; QUICK; VeloxChem]. This install-and-compile barrier is a
+GPU [1, 2, 3]. This install-and-compile barrier is a
 real obstacle to teaching, reproducibility, and casual exploration: a
 student cannot "try a CCSD(T) calculation" the way they can open a
 JSFiddle.
@@ -48,7 +48,7 @@ WebAssembly delivers near-native throughput for numerical code;
 SharedArrayBuffer plus cross-origin isolation enables true multithreading;
 WebGPU exposes compute shaders; and WebRTC/BroadcastChannel enable
 peer-to-peer coordination. Browser volunteer-computing frameworks (Pando
-[Pando], Genet [Genet], QMachine [QMachine]) have run generic map/stream
+[4], Genet [5], QMachine [6]) have run generic map/stream
 workloads across browser tabs and devices. Yet no published system runs
 *electronic structure* in the browser, and none distributes such a
 calculation across browser tabs.
@@ -149,6 +149,14 @@ single-slab result up to f64 accumulator-reorder noise. The master overlaps
 its own slice computation with the workers' (it does not block on the
 broadcast), so the per-iteration wall-time is set by the slowest single
 tab plus one round-trip, not the sum.
+
+![One swarm SCF iteration. The master broadcasts the density matrix D to
+all worker tabs over BroadcastChannel; each tab (including the master)
+builds its partial Coulomb/exchange contribution on its own disjoint
+auxiliary-index slice of B, concurrently; workers post their partials back;
+the master sums them — reproducing the single-tab Fock build to ~1e-15 —
+and resumes the SCF loop. Per-iteration wall-time is the slowest tab plus
+one round-trip, not the sum.](fig-swarm-protocol.png)
 
 **Transport.** Control messages (the `D` broadcast, the partial-result
 gather, slice-distribution acknowledgements) travel over
@@ -272,12 +280,12 @@ Per our research-grade discipline, failures are reported, not hidden:
 
 ## 5. Related work
 
-GPU-accelerated native quantum chemistry is mature: GPU4PySCF [GPU4PySCF],
-QUICK [QUICK], and VeloxChem [VeloxChem] implement HF/DFT/Fock on CUDA. None
-runs in a browser. Browser volunteer computing — Pando [Pando], Genet
-[Genet], QMachine [QMachine] — distributes generic workloads across tabs
+GPU-accelerated native quantum chemistry is mature: GPU4PySCF [1],
+QUICK [2], and VeloxChem [3] implement HF/DFT/Fock on CUDA. None
+runs in a browser. Browser volunteer computing — Pando [4], Genet
+[5], QMachine [6] — distributes generic workloads across tabs
 and devices but has not run electronic structure. WebGPU is an actively
-characterized compute target [WebGPU-dispatch-2026]. The intersection —
+characterized compute target [7]. The intersection —
 in-browser electronic structure, and browser-tab distribution of it — is,
 to our knowledge, unpublished.
 
@@ -337,23 +345,54 @@ every number reported here.
 
 ---
 
-## References (to be formatted; arXiv/DOI links collected)
+## References
 
-- **GPU4PySCF** — Wu et al., "Introducing GPU-acceleration into PySCF," arXiv:2407.09700.
-- **QUICK** — Manathunga et al., github.com/merzlab/QUICK.
-- **VeloxChem** — PMC11744785 (GPU Fock-matrix construction).
-- **Pando** — Lavoie & Hendren, "Pando: Personal Volunteer Computing in Browsers," arXiv:1803.08426.
-- **Genet** — "Genet: A Quickly Scalable Fat-Tree Overlay for Personal Volunteer Computing using WebRTC," arXiv:1904.11402.
-- **QMachine** — Wilkinson & Almeida, "QMachine: commodity supercomputing in web browsers," PMC4063228.
-- **WebGPU-dispatch-2026** — "Characterizing WebGPU Dispatch Overhead for LLM Inference," arXiv:2604.02344.
-- PySCF; Schollwöck 2011 (MPS); GMTKN55 (Goerigk et al. 2017); NIST CCCBDB (reference data).
+Citation metadata (authors, venues, years) collected from the sources;
+page numbers to be finalized against the publisher of record before
+submission. Entries marked *(software)* are cited by repository/archive.
+
+[1] X. Wu, Q. Sun, et al. "Enhancing GPU-acceleration in the Python-based
+Simulations of Chemistry Framework (GPU4PySCF)." arXiv:2407.09700 (2024).
+
+[2] M. Manathunga, et al. "QUICK: A GPU-enabled ab initio quantum chemistry
+software package." *Software*, github.com/merzlab/QUICK.
+
+[3] X. Li, et al. "VeloxChem: GPU-Accelerated Fock Matrix Construction."
+*Journal of Chemical Theory and Computation* (2025), PMC11744785.
+
+[4] E. Lavoie and L. Hendren. "Pando: Personal Volunteer Computing in
+Browsers." arXiv:1803.08426 (2018).
+
+[5] E. Lavoie, L. Hendren, et al. "Genet: A Quickly Scalable Fat-Tree
+Overlay for Personal Volunteer Computing using WebRTC." arXiv:1904.11402
+(2019).
+
+[6] S. R. Wilkinson and J. Almeida. "QMachine: commodity supercomputing in
+web browsers." *BMC Bioinformatics* 15:176 (2014), PMC4063228.
+
+[7] "Characterizing WebGPU Dispatch Overhead for LLM Inference Across Four
+GPU Vendors, Three Backends, and Three Browsers." arXiv:2604.02344 (2026).
+
+[8] Q. Sun, et al. "PySCF: the Python-based Simulations of Chemistry
+Framework." *WIREs Computational Molecular Science* 8:e1340 (2018).
+
+[9] U. Schollwöck. "The density-matrix renormalization group in the age of
+matrix product states." *Annals of Physics* 326(1):96–192 (2011).
+
+[10] L. Goerigk, et al. "A look at the density functional theory zoo with
+the advanced GMTKN55 database." *Physical Chemistry Chemical Physics*
+19:32184–32215 (2017).
+
+[11] NIST Computational Chemistry Comparison and Benchmark Database
+(CCCBDB), Release 22, NIST Standard Reference Database 101.
 
 ---
 
-*Draft v0.3 — abstract, methods (incl. full swarm protocol §2.4),
-validation w/ test-coverage, results + two figures, honest limitations,
-software-availability + reproducibility, related work. Numbers sourced
-from committed `experiments/results/` JSON and e2e bench logs. Remaining
-before submission: LaTeX conversion (JOSS / SoftwareX / a chem-software
-track), reference formatting, optional third figure (per-iteration swarm
-sequence). Content is submittable-complete.*
+*Draft v0.5 — abstract, methods (incl. full swarm protocol §2.4),
+validation w/ test-coverage, results + **three figures** (scaling,
+memory-wall, swarm-protocol sequence), honest limitations, software-
+availability + reproducibility, numbered references. Numbers sourced from
+committed `experiments/results/` JSON and e2e bench logs; Zenodo DOI
+10.5281/zenodo.20494383. Remaining before submission: LaTeX conversion
+(JOSS / SoftwareX / a chem-software track) and finalizing reference page
+numbers against publishers of record. Content + figures complete.*
