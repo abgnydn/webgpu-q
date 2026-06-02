@@ -16,6 +16,16 @@ Ali Javadi-Abhari, Matthew Treinish, Kevin Krsulich, Christopher~J. Wood, Jake L
 \newblock Characterizing {WebGPU} dispatch overhead for {LLM} inference across four {GPU} vendors, three backends, and three browsers.
 \newblock {\em arXiv preprint}, arXiv:2604.02344, 2026.
 
+\bibitem{fusionfitness}
+Ahmet~Bar{\i}{\c{s}} G{\"u}nayd{\i}n.
+\newblock Single-kernel fusion for sequential fitness evaluation via {WebGPU} compute shaders, 2026.
+\newblock Concept DOI: 10.5281/zenodo.19331833.
+
+\bibitem{fusiontransformer}
+Ahmet~Bar{\i}{\c{s}} G{\"u}nayd{\i}n.
+\newblock Single-kernel fusion for autoregressive transformer decoding via {WebGPU} compute shaders, 2026.
+\newblock Concept DOI: 10.5281/zenodo.19344276.
+
 \bibitem{webgpuspec}
 {W3C GPU for the Web Working Group}.
 \newblock {WebGPU}.

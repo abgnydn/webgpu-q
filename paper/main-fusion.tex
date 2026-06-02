@@ -64,8 +64,16 @@ dispatches collapses it. The contribution is not a new simulation algorithm ---
 statevector simulation is textbook --- but a quantification of the WebGPU
 dispatch ceiling for sequential workloads~\cite{webgpudispatch} and a
 fidelity-validated demonstration of how far kernel fusion moves it, including
-the regime where fusion stops paying off. The work runs entirely in a browser
-tab.
+the regime where fusion stops paying off. Single-kernel fusion has previously
+removed this overhead for two other sequential WebGPU workloads --- evolutionary
+fitness evaluation, at $159$--$720\times$~\cite{fusionfitness}, and
+autoregressive transformer decoding, at $66$--$458\times$~\cite{fusiontransformer}
+--- both of which are deeply dispatch-bound. Quantum-circuit statevector
+simulation is a third domain, and, as we show, one that reaches
+memory-bandwidth saturation early: the same technique that delivers
+hundreds-fold speedups on dispatch-bound work caps at a few-fold here. Locating
+where a workload sits on that dispatch-bound-to-bandwidth-bound spectrum is the
+point. The work runs entirely in a browser tab.
 
 \section{Methods}
 
@@ -216,7 +224,14 @@ against them directly (\S4). Kernel/operator fusion to amortize launch overhead
 is standard in GPU machine-learning runtimes; the contribution here is its
 quantification and fidelity-validated application to ordered quantum-gate
 chains under the specific constraints of WebGPU~\cite{webgpuspec} in a browser
-tab.
+tab. This is the third domain in which we characterize single-kernel WebGPU
+fusion: prior work established the framework for evolutionary fitness
+evaluation~\cite{fusionfitness} and autoregressive transformer
+decoding~\cite{fusiontransformer}, both deeply dispatch-bound and so reaching
+$10^2$--$10^3\times$ speedups. The present domain is the instructive opposite
+end of the spectrum --- statevector updates saturate memory bandwidth quickly,
+so fusion's payoff is bounded at a few-fold and the Tier-D plateau (\S3.3)
+marks the crossover explicitly.
 
 \section{Software availability and reproducibility}
 
