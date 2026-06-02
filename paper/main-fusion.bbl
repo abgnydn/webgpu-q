@@ -1,0 +1,24 @@
+\begin{thebibliography}{1}
+
+\bibitem{cuquantum}
+Harun Bayraktar, Ali Charara, David Clark, Saul Cohen, Timothy~B. Costa, et~al.
+\newblock {cuQuantum} {SDK}: A high-performance library for accelerating quantum science.
+\newblock In {\em 2023 IEEE International Conference on Quantum Computing and Engineering (QCE)}, pages 1050--1061, 2023.
+\newblock DOI: 10.1109/QCE57702.2023.00119. Preprint arXiv:2308.01999.
+
+\bibitem{qiskit}
+Ali Javadi-Abhari, Matthew Treinish, Kevin Krsulich, Christopher~J. Wood, Jake Lishman, Julien Gacon, Simon Martiel, Paul~D. Nation, Lev~S. Bishop, Andrew~W. Cross, Blake~R. Johnson, and Jay~M. Gambetta.
+\newblock Quantum computing with {Q}iskit, 2024.
+\newblock DOI: 10.48550/arXiv.2405.08810. arXiv:2405.08810. Aer GPU statevector backend.
+
+\bibitem{webgpudispatch}
+{Anonymous}.
+\newblock Characterizing {WebGPU} dispatch overhead for {LLM} inference across four {GPU} vendors, three backends, and three browsers.
+\newblock {\em arXiv preprint}, arXiv:2604.02344, 2026.
+
+\bibitem{webgpuspec}
+{W3C GPU for the Web Working Group}.
+\newblock {WebGPU}.
+\newblock W3C Working Draft, \url{https://www.w3.org/TR/webgpu/}, 2025.
+
+\end{thebibliography}
