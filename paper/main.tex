@@ -58,9 +58,12 @@ buckminsterfullerene (300 basis functions, STO-3G)} on a 16\,GB consumer
 laptop, distributing the 1.82\,GB three-index tensor across four tabs at
 454\,MB each. Energies are validated against PySCF --- bit-for-bit where the
 algorithm is identical, and to $\le 50\,\mu$Ha (HF) / $\le 0.25$\,mHa
-(CCSD(T) vs FCI) otherwise. Where it overlaps native suites (PySCF, Psi4,
-ORCA) it is 2--6$\times$ slower; its contribution is not speed but delivery
---- full quantum chemistry reachable from a URL.
+(CCSD(T) vs FCI) otherwise. Speed is workload-dependent and is not the
+contribution: against PySCF (the only suite we benchmark), the WebAssembly+SIMD
+path is comparable-to-faster on minimal-basis HF/MP2/CCSD for small molecules
+but up to $\sim$two orders of magnitude slower on large correlated calculations,
+where native vectorized BLAS dominates. The contribution is delivery --- full
+quantum chemistry reachable from a URL.
 \end{abstract}
 
 \section{Introduction}
@@ -120,9 +123,9 @@ three-index $(\mu\nu|P)$ and two-index $(P|Q)$ density-fitting integrals, and
 the Fock $J$/$K$ contraction are implemented in Rust compiled to
 \texttt{wasm32-unknown-unknown} with \texttt{simd128} (f64x2). Per-thread
 scratch buffers are reused across SCF iterations to avoid GC churn; the K-build
-exploits the $K[\mu,\nu] = K[\nu,\mu]$ symmetry; the X-build inner loop is
-$4\times$-unrolled. Workers are pre-warmed before the SCF loop so iteration 1
-does not pay WASM JIT + heap-growth cost on the critical path.
+exploits the $K[\mu,\nu] = K[\nu,\mu]$ symmetry; the inner contraction loops use
+2-lane f64 (f64x2) SIMD. Workers are pre-warmed before the SCF loop so iteration
+1 does not pay WASM JIT + heap-growth cost on the critical path.
 
 \subsection{Auxiliary-basis density fitting}
 
@@ -217,9 +220,11 @@ a shared WASM heap.
 Where methods overlap, energies match PySCF bit-for-bit. HF agrees to
 $\le 50\,\mu$Ha with spherical-d; CCSD(T) reproduces FCI to $\le 0.25$\,mHa on
 STO-3G systems; GPU$\leftrightarrow$CPU agreement is $\approx 10^{-10}$\,Ha
-(f32 reduction noise, six orders below chemical accuracy of 1.594\,mHa). The
-distributed swarm Fock build matches the single-tab reference to
-$\lesssim 10^{-12}$\,Ha end-to-end (benzene, naphthalene).
+(f32 reduction noise, six orders below chemical accuracy of 1.594\,mHa).
+End-to-end, the distributed-swarm and single-tab SCF energies agree to within
+the $10^{-7}$\,Ha convergence tolerance (benzene, naphthalene); the underlying
+partitioned Fock build reproduces the single-slab build far more tightly
+(below the $10^{-12}$ pass bar, next paragraph).
 
 Correctness is enforced continuously: the repository carries 845+ unit tests
 (run on every push under continuous integration) plus a suite of end-to-end
@@ -232,9 +237,9 @@ accepted only after this element-wise diff collapsed to numerical noise.
 DMRG/MPS results are cross-checked against ITensor at $N=8$ to f64
 precision~\cite{schollwock}, and 1D-model limits against the analytic Pfeuty
 (TFIM) and Bethe (Heisenberg) results. The swarm's auxiliary-index
-partitioning was verified to reproduce the single-slab Fock build to relative
-error $\lesssim 10^{-15}$ at 2-, 3-, 4-, and 8-way splits before any multi-tab
-run.
+partitioning was verified to reproduce the single-slab Fock build to below the
+committed $10^{-12}$ relative-error pass bar --- observed $\lesssim 10^{-15}$
+--- at 2-, 3-, 4-, and 8-way splits before any multi-tab run.
 
 \begin{figure}[ht]
   \centering
@@ -260,28 +265,32 @@ optimization & SCF wall \\
 \midrule
 parallel V-build + B back-substitution & baseline \\
 reuse JK worker scratch buffers        & 43\,s $\to$ 20\,s \\
-exploit K symmetry                     & 20\,s $\to$ 17.6\,s \\
-$4\times$ SIMD unroll on X-build       & iters 4--13 $-17\%$ \\
+exploit K symmetry                     & 20\,s $\to$ 17\,s \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-End-to-end naphthalene HF: \textbf{77\,s $\to$ 28\,s} single-tab
-($2.7\times$) before any swarm.
+These two kept optimizations cut the naphthalene SCF wall from 43\,s to 17\,s
+($\approx 2.5\times$); the optimized single-tab end-to-end HF runs in
+$\approx 28$\,s, which the 4-tab swarm halves to 14\,s (\S\ref{sec:scaling}).
+(A $4\times$ unroll of the SIMD inner loop was also attempted and reverted ---
+17.88 vs 18.01\,s on benzene, within $\pm1\%$ noise --- since the 2-lane f64
+SIMD already saturates the pipeline at these problem sizes.)
 
 \begin{figure}[ht]
   \centering
   \includegraphics[width=0.88\textwidth]{fig-optimization.pdf}
-  \caption{Cumulative single-tab kernel optimization on naphthalene cc-pVDZ.
-  Reusing per-thread JK scratch buffers across SCF iterations and exploiting
-  the $K[\mu,\nu]=K[\nu,\mu]$ symmetry are the two largest wins; the $4\times$
-  SIMD X-build unroll removes a further $\sim$17\% on the JK-dominated
-  iterations. End-to-end HF wall falls $77\,\mathrm{s}\to28\,\mathrm{s}$
-  ($2.7\times$) before any swarm parallelism.}
+  \caption{Single-tab Fock-build optimization on naphthalene cc-pVDZ. Reusing
+  per-thread JK scratch buffers across SCF iterations and exploiting the
+  $K[\mu,\nu]=K[\nu,\mu]$ symmetry cut the SCF wall from 43\,s to 17\,s
+  ($\approx 2.5\times$). The optimized single-tab end-to-end HF runs in
+  $\approx 28$\,s; the 4-tab swarm halves that to 14\,s
+  (\S\ref{sec:scaling}).}
   \label{fig:optimization}
 \end{figure}
 
 \subsection{Swarm scaling across the acene series and to \texorpdfstring{\Csixty{}}{C60}}
+\label{sec:scaling}
 
 All energies converged, run-to-run reproducible, on a 16\,GB M2 Pro:
 
@@ -290,7 +299,7 @@ All energies converged, run-to-run reproducible, on a 16\,GB M2 Pro:
 \toprule
 molecule & basis & $n$ & $n_{\mathrm{aux}}$ & path & wall & $E$ (Ha) \\
 \midrule
-benzene      & cc-pVDZ & 120 & 662  & 2-tab               & 5.5\,s & $-230.72269$ \\
+benzene      & cc-pVDZ & 120 & 662  & 2-tab               & 5.5\,s & $-230.72273$ \\
 naphthalene  & cc-pVDZ & 190 & 1048 & 4-tab $\times$ 2-inner & 14\,s  & $-383.38458$ \\
 anthracene   & STO-3G  & 80  & 708  & 4-tab               & 8\,s   & $-526.92320$ \\
 pentacene    & STO-3G  & 124 & 1091 & 4-tab $\times$ 2-inner & 38\,s  & $-821.63271$ \\
@@ -410,7 +419,11 @@ are committed with \texttt{status:"fail"} and a diagnosis rather than silently
 rerun --- the honest-negative discipline that surfaced, for example, the acene
 multireference wall and the anthracene cc-pVDZ basin-selection issue reported in
 \S\ref{sec:limitations}. The committed \texttt{experiments/results/<date>/}
-artifacts are the source of every number in this paper.
+artifacts are the source of the level-1/2/3 and validation numbers; the swarm
+scaling figures (\S\ref{sec:scaling}) are produced by the end-to-end browser
+benchmark specs under \texttt{e2e/} (each spec fixes the molecule, basis, and
+tab topology and asserts convergence), and we are extending those specs to emit
+the same environment-stamped JSON artifact per run.
 
 \paragraph{Generative-AI disclosure.} Portions of the software, its
 documentation, and this manuscript were drafted with the assistance of a large
@@ -428,12 +441,12 @@ funding. Archived at Zenodo, DOI
 
 A full electronic-structure stack runs in a browser tab, validated against
 PySCF, and a browser-tab swarm scales it to \Csixty{} without native code, a
-data-center GPU, or an install. Where it overlaps native suites it is
-2--6$\times$ slower; its value lies elsewhere --- in removing the install,
-hardware, and cost barriers between a learner and a real calculation, and in
-showing that the browser's memory ceiling is not a hard limit but one that a
-tab swarm can raise. The entire artifact is a URL, and a referee can re-run
-every number reported here.
+data-center GPU, or an install. It does not aim to beat native suites on raw
+speed --- on large correlated calculations it is far slower --- and its value
+lies elsewhere: in removing the install, hardware, and cost barriers between a
+learner and a real calculation, and in showing that the browser's memory
+ceiling is not a hard limit but one that a tab swarm can raise. The entire
+artifact is a URL, and a referee can re-run every number reported here.
 
 \bibliographystyle{unsrt}
 \bibliography{refs}

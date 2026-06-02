@@ -37,17 +37,17 @@ fig.tight_layout(); fig.savefig("fig-validation.pdf"); plt.close(fig)
 
 # CHEM FIG 2: single-tab optimization
 fig,ax=plt.subplots(figsize=(7.0,3.6))
-steps=["parallel\nbaseline","+ reuse JK\nscratch","+ exploit K\nsymmetry","+ 4× SIMD\nX-unroll"]
-wall=[43,20,17.6,14.6]
-ax.bar(range(4),wall,color=[GREY,TEAL,TEAL,NAVY],width=0.6,zorder=3)
+steps=["parallel\nbaseline","+ reuse JK\nscratch","+ exploit K\nsymmetry"]
+wall=[43,20,17]
+ax.bar(range(3),wall,color=[GREY,TEAL,NAVY],width=0.55,zorder=3)
 for i,w in enumerate(wall):
-    ax.text(i,w+0.9,f"{w:.0f} s" if w==int(w) else f"{w:.1f} s",ha="center",fontsize=10,fontweight="bold")
-ax.set_xticks(range(4)); ax.set_xticklabels(steps,fontsize=9.5)
-ax.set_ylabel("naphthalene cc-pVDZ JK/SCF wall (s)"); ax.set_ylim(0,52)
-ax.set_title("Cumulative single-tab kernel optimization")
-ax.text(0.0,48.5,f"end-to-end naphthalene HF: 77 s {ARR} 28 s  (2.7×) before any swarm",
+    ax.text(i,w+0.9,f"{w:.0f} s",ha="center",fontsize=10,fontweight="bold")
+ax.set_xticks(range(3)); ax.set_xticklabels(steps,fontsize=9.5)
+ax.set_ylabel("naphthalene cc-pVDZ SCF wall (s)"); ax.set_ylim(0,52); ax.set_xlim(-0.6,2.6)
+ax.set_title("Single-tab Fock-build optimization")
+ax.text(-0.55,48.5,f"two kept optimizations: 43 s {ARR} 17 s on the SCF wall (~2.5×)",
         fontsize=9.5,style="italic",color="#555")
-ax.text(0.0,-0.32,"4× SIMD step measured as −17% on the JK-dominated iters 4–13",
+ax.text(0.0,-0.30,"optimized single-tab end-to-end HF ≈28 s; the 4-tab swarm halves it to 14 s (2×, §3.3)",
         transform=ax.transAxes,fontsize=8.5,color="#777")
 clean(ax); ax.grid(axis="x",visible=False)
 fig.tight_layout(); fig.savefig("fig-optimization.pdf"); plt.close(fig)

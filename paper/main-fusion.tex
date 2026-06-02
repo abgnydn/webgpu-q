@@ -155,7 +155,7 @@ D (four-qubit tile)  & 7 ops $\to$ dense $16\times16$ & dispatch$\to$compute  & 
 \end{center}
 
 \noindent\footnotesize Best speedups measured at: B --- $N{=}20$, depth $80$;
-C --- $N{=}15$, depth $80$; D --- $N{=}14$, depth $80$. \normalsize
+C --- $N{=}15$, depth $80$; D --- $N{=}20$, depth $80$. \normalsize
 
 \begin{figure}[ht]
   \centering
@@ -163,18 +163,20 @@ C --- $N{=}15$, depth $80$; D --- $N{=}14$, depth $80$. \normalsize
   \caption{Fusion tier ladder. Brick-wall (B) and three-qubit-tile (C) fusion
   clear their speedup targets; four-qubit-tile (D) fusion plateaus at
   $3.78\times$ against a $5\times$ target because the dense $16\times16$ block
-  is compute-bound --- $\sim$256 complex multiplies per amplitude, a
-  $4\times$ growth over Tier-C, while the memory traffic fusion eliminates
-  grows only linearly. The plateau is committed as a \texttt{status:"fail"}
-  artifact, not hidden.}
+  is compute-bound --- $256$ complex multiplies per $16$-amplitude tile
+  ($16$ per amplitude), a $4\times$ growth in per-tile arithmetic over
+  Tier-C's $8\times8$ block ($64$ per tile), while the memory traffic fusion
+  eliminates grows only $2\times$. The plateau is committed as a
+  \texttt{status:"fail"} artifact, not hidden.}
   \label{fig:ladder}
 \end{figure}
 
 Tier-D is the informative result. Its correctness is fine (worst
 $F = 0.9999995$), but it tops out at 3.78$\times$ against a 5$\times$ target
-because the four-qubit dense block performs $\sim$256 complex multiplies per
-amplitude --- a 4$\times$ growth over Tier-C --- while the memory traffic that
-fusion eliminates grows only linearly. Tier-D crosses out of the
+because the four-qubit dense block performs $256$ complex multiplies per
+$16$-amplitude tile ($16$ per amplitude) --- a $4\times$ growth in per-tile
+arithmetic over Tier-C's $64$, against only a $2\times$ growth in the memory
+traffic that fusion eliminates. Tier-D crosses out of the
 dispatch-bound regime into the compute-bound one, where collapsing dispatches
 no longer helps. This locates the boundary of the technique rather than hiding
 it.
@@ -185,9 +187,11 @@ In the dispatch-bound regime (small $N$, long circuits) fused same-qubit chains
 at $k=32$ reach 2.62$\times$ ($N=14$, depth 160). As $N$ grows the workload
 becomes memory-bandwidth-bound: the fused statevector update's effective
 bandwidth rises with $N$ (reaching the hundreds of GB/s range on this device),
-and the fused-vs-unfused speedup compresses toward 1.25$\times$ at $N=20$ ---
-exactly the expected crossover, since once a kernel saturates memory bandwidth
-there is no dispatch overhead left to remove. The goal of fusion is to reach
+and at fixed low depth the fused-vs-unfused speedup compresses toward
+1.25$\times$ at $N=20$ (depth 40) --- the expected crossover, since once a
+kernel saturates memory bandwidth there is no dispatch overhead left to remove.
+At longer depth the dispatch term still dominates and the gain persists (the
+$N=20$, depth-160 cell remains $\sim$2.6$\times$). The goal of fusion is to reach
 that bandwidth-bound ceiling, not to exceed it.
 
 \section{Honest limitations}
