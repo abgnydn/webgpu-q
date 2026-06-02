@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { writeSwarmArtifact } from "./lib/swarm-artifact";
 
 // Pentacene C₂₂H₁₄ STO-3G via 4-tab swarm — 5 linearly-fused benzene
 // rings. 124 basis functions, n_aux ~ 600-700, B-tensor ~80 MB total.
@@ -245,6 +246,12 @@ test.describe(`Swarm pentacene HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`,
 
     expect(Number.isFinite(result.energy)).toBe(true);
     expect(result.converged).toBe(true);
+
+    await writeSwarmArtifact(
+      pages[0]!,
+      { molecule: "pentacene", formula: "C22H14", basis: "STO-3G", nTabs: N_TABS, innerPool: INNER_POOL },
+      result,
+    );
 
     await ctx.close();
   });

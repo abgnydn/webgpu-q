@@ -1,0 +1,51 @@
+{
+  "meta": {
+    "protocol": "swarm-hf-anthracene",
+    "molecule": "anthracene",
+    "formula": "C14H10",
+    "basis": "STO-3G",
+    "nTabs": 4,
+    "innerPool": 1,
+    "hypothesis": "Partitioning the density-fitted Fock build by auxiliary index across N same-origin tabs reproduces the single-tab energy and runs to convergence.",
+    "passBar": "converged === true && Number.isFinite(energy)",
+    "warmup": 0,
+    "trials": 1,
+    "timingNote": "Single representative run on a 16 GB M2 Pro (Chromium, cross-origin isolated). Per-phase wall-time; energy is deterministic. Not the 5-warmup/20-trial GPU-kernel protocol."
+  },
+  "env": {
+    "gitSha": "2540b86",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "adapterInfo": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "platform": "darwin",
+    "timestamp": "2026-06-02T08:55:26.410Z"
+  },
+  "rows": [
+    {
+      "n": 80,
+      "nAux": 708,
+      "iter": 19,
+      "converged": true,
+      "energyHa": -526.9231972832589,
+      "integralsMs": 2129,
+      "auxDFMs": 18176,
+      "swarmScfMs": 2097,
+      "totalMs": 22403,
+      "totalSec": 22.4,
+      "perTabSliceMB": 9.1,
+      "fullBTensorGB": 0.036,
+      "slicesPerTab": [
+        177,
+        177,
+        177,
+        177
+      ]
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "anthracene STO-3G: E=-526.92319728 Ha in 19 iters across 4 tabs."
+}

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { writeSwarmArtifact } from "./lib/swarm-artifact";
 
 // Full distributed HF SCF across 2 browser tabs via BroadcastChannel.
 //
@@ -239,6 +240,12 @@ test.describe("Full distributed HF SCF across tabs", () => {
     /* eslint-enable no-console */
 
     expect(result.deltaE).toBeLessThan(1e-7);  // energies match to convergence tolerance
+
+    await writeSwarmArtifact(
+      master,
+      { molecule: "benzene", formula: "C6H6", basis: "cc-pVDZ", nTabs: 2, innerPool: 1 },
+      { ...result, energy: result.swEnergy, iter: result.swIter, converged: result.deltaE < 1e-7 },
+    );
 
     await ctx.close();
   });

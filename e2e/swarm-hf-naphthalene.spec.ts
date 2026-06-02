@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { writeSwarmArtifact } from "./lib/swarm-artifact";
 
 // Swarm HF SCF scaled to N tabs on naphthalene cc-pVDZ.
 // Each worker tab gets a distinct aux-index slice of B (assigned by
@@ -242,6 +243,12 @@ test.describe(`Swarm HF SCF scaled to ${N_WORKERS_TOTAL} tabs`, () => {
     /* eslint-enable no-console */
 
     expect(result.deltaE).toBeLessThan(1e-7);
+
+    await writeSwarmArtifact(
+      pages[0]!,
+      { molecule: "naphthalene", formula: "C10H8", basis: "cc-pVDZ", nTabs: N_WORKERS_TOTAL, innerPool: INNER_POOL },
+      { ...result, energy: result.swEnergy, iter: result.swIter, converged: result.deltaE < 1e-7 },
+    );
 
     await ctx.close();
   });

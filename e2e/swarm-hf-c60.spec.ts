@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { writeSwarmArtifact } from "./lib/swarm-artifact";
 
 // C₆₀ buckminsterfullerene HF SCF via 4-tab swarm. 60 carbons on a
 // truncated icosahedron, 300 basis functions at STO-3G. The most
@@ -262,6 +263,12 @@ test.describe(`Swarm C₆₀ HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, (
 
     expect(Number.isFinite(result.energy)).toBe(true);
     expect(result.converged).toBe(true);
+
+    await writeSwarmArtifact(
+      pages[0]!,
+      { molecule: "c60", formula: "C60", basis: "STO-3G", nTabs: N_TABS, innerPool: INNER_POOL },
+      result,
+    );
 
     await ctx.close();
   });

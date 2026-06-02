@@ -71,6 +71,14 @@ jobs:
             e2e/swarm-hf-distributed.spec.ts \
             e2e/swarm-hf-naphthalene.spec.ts \
             --reporter=list
+      - name: Upload swarm result artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swarm-quick-artifacts
+          path: experiments/results/**/swarm/*.json
+          retention-days: 30
+          if-no-files-found: warn
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -105,6 +113,14 @@ jobs:
             e2e/swarm-hf-heptacene.spec.ts \
             e2e/swarm-hf-octacene.spec.ts \
             --reporter=list
+      - name: Upload swarm result artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swarm-deep-artifacts
+          path: experiments/results/**/swarm/*.json
+          retention-days: 30
+          if-no-files-found: warn
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4

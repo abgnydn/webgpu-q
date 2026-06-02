@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "protocol": "swarm-hf-naphthalene",
+    "molecule": "naphthalene",
+    "formula": "C10H8",
+    "basis": "cc-pVDZ",
+    "nTabs": 4,
+    "innerPool": 2,
+    "hypothesis": "Partitioning the density-fitted Fock build by auxiliary index across N same-origin tabs reproduces the single-tab energy and runs to convergence.",
+    "passBar": "converged === true && Number.isFinite(energy)",
+    "warmup": 0,
+    "trials": 1,
+    "timingNote": "Single representative run on a 16 GB M2 Pro (Chromium, cross-origin isolated). Per-phase wall-time; energy is deterministic. Not the 5-warmup/20-trial GPU-kernel protocol."
+  },
+  "env": {
+    "gitSha": "2540b86",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "adapterInfo": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "platform": "darwin",
+    "timestamp": "2026-06-02T09:00:36.870Z"
+  },
+  "rows": [
+    {
+      "n": 190,
+      "nAux": 1048,
+      "iter": 13,
+      "converged": true,
+      "energyHa": -383.38457825430714,
+      "refEnergyHa": -383.38457825430226,
+      "swarmVsRefDeltaHa": 4.888534022029489e-12,
+      "swarmScfMs": 11955,
+      "singleTabRefMs": 22577,
+      "totalMs": 11955,
+      "totalSec": 11.96,
+      "perTabSliceMB": 75.7,
+      "fullBTensorGB": 0.303,
+      "slicesPerTab": [
+        262,
+        262,
+        262,
+        262
+      ]
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "naphthalene cc-pVDZ: E=-383.38457825 Ha in 13 iters across 4 tabs; swarm vs single-tab |ΔE|=4.89e-12 Ha."
+}

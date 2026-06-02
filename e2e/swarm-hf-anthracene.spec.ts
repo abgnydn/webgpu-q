@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { writeSwarmArtifact } from "./lib/swarm-artifact";
 
 // Anthracene C₁₄H₁₀ cc-pVDZ swarm HF SCF — the actual memory-wall
 // stress test. n=274; B ≈ 900 MB. Single-tab earlier attempts OOM'd
@@ -251,6 +252,12 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
 
     expect(Number.isFinite(result.energy)).toBe(true);
     expect(result.converged).toBe(true);
+
+    await writeSwarmArtifact(
+      pages[0]!,
+      { molecule: "anthracene", formula: "C14H10", basis: "STO-3G", nTabs: N_TABS, innerPool: 1 },
+      result,
+    );
 
     await ctx.close();
   });

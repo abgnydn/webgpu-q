@@ -224,10 +224,11 @@ Where methods overlap, energies match PySCF bit-for-bit. HF agrees to
 $\le 50\,\mu$Ha with spherical-d; CCSD(T) reproduces FCI to $\le 0.25$\,mHa on
 STO-3G systems; GPU$\leftrightarrow$CPU agreement is $\approx 10^{-10}$\,Ha
 (f32 reduction noise, six orders below chemical accuracy of 1.594\,mHa).
-End-to-end, the distributed-swarm and single-tab SCF energies agree to within
-the $10^{-7}$\,Ha convergence tolerance (benzene, naphthalene); the underlying
-partitioned Fock build reproduces the single-slab build far more tightly
-(below the $10^{-12}$ pass bar, next paragraph).
+End-to-end, the distributed-swarm energy reproduces the single-tab reference to
+$4.5\times10^{-13}$\,Ha on benzene (the committed swarm artifact records both
+energies), far inside the $10^{-7}$ convergence tolerance the spec asserts; the
+partitioned Fock build itself matches the single-slab build below the
+$10^{-12}$ pass bar (next paragraph).
 
 Correctness is enforced by reference-grounded gates that run in continuous
 integration on every push (alongside the end-to-end browser benchmarks driven
@@ -274,11 +275,13 @@ exploit K symmetry                     & 20\,s $\to$ 17\,s \\
 \end{center}
 
 These two kept optimizations cut the naphthalene SCF wall from 43\,s to 17\,s
-($\approx 2.5\times$); the optimized single-tab end-to-end HF runs in
-$\approx 28$\,s, which the 4-tab swarm halves to 14\,s (\S\ref{sec:scaling}).
-(A $4\times$ unroll of the SIMD inner loop was also attempted and reverted ---
-17.88 vs 18.01\,s on benzene, within $\pm1\%$ noise --- since the 2-lane f64
-SIMD already saturates the pipeline at these problem sizes.)
+($\approx 2.5\times$). On the same molecule the 4-tab swarm then runs the
+distributed SCF in 12.0\,s versus 22.6\,s for the single-tab parallel build
+($1.9\times$; both recorded in the committed naphthalene artifact,
+\S\ref{sec:scaling}). (A $4\times$ unroll of the SIMD inner loop was also
+attempted and reverted --- 17.88 vs 18.01\,s on benzene, within $\pm1\%$ noise
+--- since the 2-lane f64 SIMD already saturates the pipeline at these problem
+sizes.)
 
 \begin{figure}[ht]
   \centering
@@ -286,8 +289,8 @@ SIMD already saturates the pipeline at these problem sizes.)
   \caption{Single-tab Fock-build optimization on naphthalene cc-pVDZ. Reusing
   per-thread JK scratch buffers across SCF iterations and exploiting the
   $K[\mu,\nu]=K[\nu,\mu]$ symmetry cut the SCF wall from 43\,s to 17\,s
-  ($\approx 2.5\times$). The optimized single-tab end-to-end HF runs in
-  $\approx 28$\,s; the 4-tab swarm halves that to 14\,s
+  ($\approx 2.5\times$). The 4-tab swarm then runs the distributed SCF in
+  $\approx 12$\,s versus $\approx 23$\,s single-tab parallel
   (\S\ref{sec:scaling}).}
   \label{fig:optimization}
 \end{figure}
@@ -295,24 +298,37 @@ SIMD already saturates the pipeline at these problem sizes.)
 \subsection{Swarm scaling across the acene series and to \texorpdfstring{\Csixty{}}{C60}}
 \label{sec:scaling}
 
-All energies converged, run-to-run reproducible, on a 16\,GB M2 Pro:
+All energies converged and are deterministic run-to-run, on a 16\,GB M2 Pro:
 
 \begin{center}
 \begin{tabular}{llrrlrr}
 \toprule
-molecule & basis & $n$ & $n_{\mathrm{aux}}$ & path & wall & $E$ (Ha) \\
+molecule & basis & $n$ & $n_{\mathrm{aux}}$ & path & SCF wall$^\dagger$ & $E$ (Ha) \\
 \midrule
-benzene      & cc-pVDZ & 120 & 662  & 2-tab               & 5.5\,s & $-230.72273$ \\
-naphthalene  & cc-pVDZ & 190 & 1048 & 4-tab $\times$ 2-inner & 14\,s  & $-383.38458$ \\
-anthracene   & STO-3G  & 80  & 708  & 4-tab               & 8\,s   & $-526.92320$ \\
-pentacene    & STO-3G  & 124 & 1091 & 4-tab $\times$ 2-inner & 38\,s  & $-821.63271$ \\
+benzene      & cc-pVDZ & 120 & 662  & 2-tab               & 5.6\,s & $-230.72269$ \\
+naphthalene  & cc-pVDZ & 190 & 1048 & 4-tab $\times$ 2-inner & 12\,s  & $-383.38458$ \\
+anthracene   & STO-3G  & 80  & 708  & 4-tab               & 2.1\,s & $-526.92320$ \\
+pentacene    & STO-3G  & 124 & 1091 & 4-tab $\times$ 2-inner & 40\,s  & $-821.63271$ \\
 \textbf{\Csixty{}} & STO-3G & 300 & 2520 & 4-tab $\times$ 2-inner & 730\,s & $\mathbf{-2244.10176}$ \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-The naphthalene swarm (14\,s) is faster than the optimized single-tab parallel
-path (28\,s) because four independent V8 processes incur less coordination
+\noindent\footnotesize $^\dagger$Wall is the distributed SCF loop (the
+per-iteration broadcast-$D$ / parallel-$(J,K)$ / gather), the swarm's actual
+work; the one-time integral and auxiliary-DF build is excluded (it is
+machine-load sensitive). Energies, $n$, $n_{\mathrm{aux}}$, and iteration
+counts are deterministic and each row is backed by an environment-stamped JSON
+artifact under \texttt{experiments/results/<date>/swarm/} with the full
+per-phase breakdown. Benzene, anthracene, naphthalene, and pentacene artifacts
+are committed (M2 Pro); naphthalene also reproduces on the CI runner. \Csixty{}
+is from a local high-memory run --- its $\sim$3\,GB build exceeds the CI
+runner's $\sim$2\,GB WASM-heap cap, so a CI-reproducible \Csixty{} artifact
+awaits the streaming-kernel rewrite noted in \S\ref{sec:limitations}.
+\normalsize
+
+The naphthalene swarm (12\,s) is faster than the single-tab parallel path
+(22.6\,s) because four independent V8 processes incur less coordination
 overhead than one process scheduling eight SAB workers.
 
 The largest case, \Csixty{} buckminsterfullerene, is the clearest
@@ -325,12 +341,12 @@ ceiling, which a single-tab build cannot satisfy (\S\ref{sec:memwall}).
   \centering
   \includegraphics[width=0.95\textwidth]{fig-scaling.pdf}
   \caption{HF SCF wall-time vs basis-function count across the acene series and
-  \Csixty{}, colored by basis set, log-time axis. The swarm reaches \Csixty{}
-  (300 basis functions); the open marker shows naphthalene's single-tab time
-  (28\,s) above its swarm time (14\,s), a $2\times$ intra-machine gain. Note
-  the single-tab SharedArrayBuffer ceiling is basis-dependent ($\sim n=220$ for
-  cc-pVDZ, higher for STO-3G), so it is stated in text rather than drawn as one
-  line.}
+  \Csixty{}, colored by basis set, log-time axis; each point is from a
+  committed swarm artifact. The swarm reaches \Csixty{} (300 basis functions);
+  the open marker shows naphthalene's single-tab parallel SCF (22.6\,s) above
+  its 4-tab swarm SCF (12\,s), a $1.9\times$ intra-machine gain. The single-tab
+  SharedArrayBuffer ceiling is basis-dependent ($\sim n=220$ for cc-pVDZ,
+  higher for STO-3G), so it is stated in text rather than drawn as one line.}
   \label{fig:scaling}
 \end{figure}
 
@@ -431,10 +447,11 @@ rerun --- the honest-negative discipline that surfaced, for example, the acene
 multireference wall and the anthracene cc-pVDZ basin-selection issue reported in
 \S\ref{sec:limitations}. The committed \texttt{experiments/results/<date>/}
 artifacts are the source of the level-1/2/3 and validation numbers; the swarm
-scaling figures (\S\ref{sec:scaling}) are produced by the end-to-end browser
-benchmark specs under \texttt{e2e/} (each spec fixes the molecule, basis, and
-tab topology and asserts convergence), and we are extending those specs to emit
-the same environment-stamped JSON artifact per run.
+scaling table (\S\ref{sec:scaling}) is produced by the end-to-end browser
+benchmark specs under \texttt{e2e/}, each of which now emits the same
+environment-stamped JSON artifact per run (git SHA, \texttt{adapter.info},
+energy, $n$, $n_{\mathrm{aux}}$, iterations, and per-phase wall-time) under
+\texttt{experiments/results/<date>/swarm/}.
 
 \paragraph{Generative-AI disclosure.} Portions of the software, its
 documentation, and this manuscript were drafted with the assistance of a large

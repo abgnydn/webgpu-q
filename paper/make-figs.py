@@ -47,7 +47,7 @@ ax.set_ylabel("naphthalene cc-pVDZ SCF wall (s)"); ax.set_ylim(0,52); ax.set_xli
 ax.set_title("Single-tab Fock-build optimization")
 ax.text(-0.55,48.5,f"two kept optimizations: 43 s {ARR} 17 s on the SCF wall (~2.5×)",
         fontsize=9.5,style="italic",color="#555")
-ax.text(0.0,-0.30,"optimized single-tab end-to-end HF ≈28 s; the 4-tab swarm halves it to 14 s (2×, §3.3)",
+ax.text(0.0,-0.30,"4-tab swarm then runs the distributed SCF in ~12 s vs ~23 s single-tab parallel (§3.3)",
         transform=ax.transAxes,fontsize=8.5,color="#777")
 clean(ax); ax.grid(axis="x",visible=False)
 fig.tight_layout(); fig.savefig("fig-optimization.pdf"); plt.close(fig)
@@ -87,4 +87,34 @@ ax.annotate("compute-bound plateau\n(honest negative)",(2,3.78),
             arrowprops=dict(arrowstyle="->",color=AMBER,lw=1.2))
 clean(ax); ax.grid(axis="x",visible=False)
 fig.tight_layout(); fig.savefig("fig-ladder.pdf"); plt.close(fig)
+
+# CHEM FIG 3: swarm scaling (wall vs n), sourced from committed artifacts
+fig,ax=plt.subplots(figsize=(7.4,3.9))
+# (n, swarm-SCF wall s) from experiments/results/.../swarm/*.json
+ccpvdz=[("benzene",120,5.6),("naphthalene",190,12.0)]      # cc-pVDZ
+sto3g =[("anthracene",80,2.1),("pentacene",124,40.0),("C60",300,730.0)]  # STO-3G
+for name,n,w in ccpvdz:
+    ax.plot(n,w,"o",color=TEAL,ms=9,zorder=5)
+    ax.annotate((r"$\mathbf{C_{60}}$"+f"\n{w:g} s" if name=="C60" else f"{name}\n{w:g} s"),(n,w),textcoords="offset points",xytext=(8,-4),fontsize=8.5,color=TEAL)
+for name,n,w in sto3g:
+    c=AMBER if name=="C60" else NAVY
+    ax.plot(n,w,"o",color=c,ms=11 if name=="C60" else 9,zorder=5)
+    dy=8 if name in ("anthracene",) else -16
+    ax.annotate(f"{name}\n{w:g} s",(n,w),textcoords="offset points",xytext=(8,dy),fontsize=8.5,
+                color=c,fontweight="bold" if name=="C60" else "normal")
+# naphthalene single-tab parallel reference (open marker)
+ax.plot(190,22.6,"o",mfc="none",mec=GREY,ms=9,mew=1.5,zorder=4)
+ax.annotate("naphthalene\nsingle-tab 22.6 s",(190,22.6),textcoords="offset points",xytext=(-60,2),fontsize=8,color="#888")
+ax.set_yscale("log"); ax.set_xlim(60,330); ax.set_ylim(1.2,1200)
+ax.set_xlabel("basis functions  n"); ax.set_ylabel("swarm SCF wall (s, log scale)")
+ax.set_title("Browser-tab swarm HF: SCF wall vs system size")
+from matplotlib.lines import Line2D
+ax.legend(handles=[Line2D([],[],marker="o",ls="",color=TEAL,label="cc-pVDZ"),
+                   Line2D([],[],marker="o",ls="",color=NAVY,label="STO-3G"),
+                   Line2D([],[],marker="o",ls="",mfc="none",mec=GREY,label="single-tab ref")],
+          fontsize=9,frameon=False,loc="upper left")
+ax.text(0.99,0.03,"each point from a committed swarm artifact; C60 from a local high-memory run",
+        transform=ax.transAxes,ha="right",fontsize=7.8,color="#999")
+clean(ax)
+fig.tight_layout(); fig.savefig("fig-scaling.pdf"); plt.close(fig)
 print("OK")

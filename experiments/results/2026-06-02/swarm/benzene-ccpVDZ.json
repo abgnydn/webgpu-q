@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "protocol": "swarm-hf-benzene",
+    "molecule": "benzene",
+    "formula": "C6H6",
+    "basis": "cc-pVDZ",
+    "nTabs": 2,
+    "innerPool": 1,
+    "hypothesis": "Partitioning the density-fitted Fock build by auxiliary index across N same-origin tabs reproduces the single-tab energy and runs to convergence.",
+    "passBar": "converged === true && Number.isFinite(energy)",
+    "warmup": 0,
+    "trials": 1,
+    "timingNote": "Single representative run on a 16 GB M2 Pro (Chromium, cross-origin isolated). Per-phase wall-time; energy is deterministic. Not the 5-warmup/20-trial GPU-kernel protocol."
+  },
+  "env": {
+    "gitSha": "2540b86",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "adapterInfo": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "platform": "darwin",
+    "timestamp": "2026-06-02T08:55:46.613Z"
+  },
+  "rows": [
+    {
+      "n": 120,
+      "nAux": 662,
+      "iter": 9,
+      "converged": true,
+      "energyHa": -230.72268590655693,
+      "refEnergyHa": -230.72268590655648,
+      "swarmVsRefDeltaHa": 4.547473508864641e-13,
+      "swarmScfMs": 5644,
+      "singleTabRefMs": 11363,
+      "totalMs": 5644,
+      "totalSec": 5.64,
+      "fullBTensorGB": 0.076
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "benzene cc-pVDZ: E=-230.72268591 Ha in 9 iters across 2 tabs; swarm vs single-tab |ΔE|=4.55e-13 Ha."
+}
