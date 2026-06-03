@@ -11,8 +11,8 @@ doi: 10.5281/zenodo.20494383
 repository-code: "https://github.com/abgnydn/webgpu-q"
 url: "https://webgpu-q.vercel.app"
 license: MIT
-version: 0.9.1
-date-released: 2026-06-02
+version: 0.9.2
+date-released: 2026-06-03
 keywords:
   - WebGPU
   - WebAssembly
@@ -48,11 +48,11 @@ abstract: >-
   (300 basis functions, STO-3G) across four tabs on a 16 GB laptop.
 preferred-citation:
   type: software
-  title: "webgpu-q v0.9.1"
+  title: "webgpu-q v0.9.2"
   authors:
     - family-names: Günaydın
       given-names: Ahmet Barış
   year: 2026
-  version: 0.9.1
+  version: 0.9.2
   doi: 10.5281/zenodo.20494383
   url: "https://doi.org/10.5281/zenodo.20494383"

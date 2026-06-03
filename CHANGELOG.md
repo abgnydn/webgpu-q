@@ -5,6 +5,71 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.9.2] — 2026-06-03
+
+A **paper-hardening and reproducibility** release. No method or kernel
+changed; the two manuscripts and the deposit metadata were audited against
+the repository and every quantitative claim was either tied to a committed
+artifact or honestly caveated.
+
+### Reproducibility — the swarm scaling table is now artifact-backed
+
+- Added a swarm-artifact emitter (`e2e/lib/swarm-artifact.ts`) and wired it
+  into the swarm specs. Each molecule writes an environment-stamped JSON
+  (`{ meta, env, rows, status, diagnosis }`) under
+  `experiments/results/<date>/swarm/` with git SHA, user-agent, adapter info,
+  basis-function and auxiliary counts, iterations, per-phase wall, and the
+  converged energy.
+- Ran benzene → naphthalene → anthracene → pentacene → **C₆₀** and committed
+  the artifacts. Correcting the paper table from measured data caught a wrong
+  benzene energy before it shipped. **C₆₀ STO-3G confirmed: E = −2244.10176303
+  Ha, n = 300, n_aux = 2520, 9 SCF iterations, 1.81 GB B-tensor at 454 MB/tab,
+  swarm-SCF wall 539 s** on a 16 GB M2 Pro across four tabs.
+- The scaling table's "wall" is now defined as the swarm-SCF loop (the stable,
+  reproducible quantity; cold integral/DF builds are machine-load noisy) and
+  this is footnoted. C₆₀ remains gated to a local high-memory run — Ubuntu CI's
+  ~2 GB WASM heap cap is below the build peak until `eri_3idx_build_slice` is
+  rewritten to stream (documented honest limitation, not a number).
+
+### Manuscript audit — corrected and grounded
+
+- Removed falsifiable / embarrassing claims surfaced by an against-the-repo
+  audit: a bogus "2–6× slower" figure, a reverted SIMD attempt presented as a
+  win, and overstated tolerances.
+- Fixed a units error in the fusion paper (multiply count is **per
+  16-amplitude tile (16/amp)**, not per amplitude) and corrected the Tier-D
+  system size.
+- Grounded the novelty claim against prior server-side browser front-ends
+  (WebMO, MolCalc) with a dated literature search, and cited the two prior
+  WebGPU single-kernel-fusion preprints for cross-domain framing.
+
+### No vanity metrics
+
+- Replaced test-count / lines-of-code framing in both papers, the README-facing
+  deposit description (`.zenodo.json`), and `CLAUDE.md` with a
+  capability-and-validation surface: what is checked against which reference,
+  not how many tests exist.
+
+### Figures
+
+- Regenerated all five matplotlib figures from the committed artifacts;
+  `fig-scaling` now plots the measured swarm-SCF walls (C₆₀ at 539 s).
+
+## [0.9.1] — 2026-06-02
+
+Submittable manuscripts with verified, DOI-bearing references.
+
+- Authored both papers in LaTeX (`pdflatex` + `bibtex`): `main.tex` (the
+  electronic-structure stack and browser-tab swarm, 10 pp) and
+  `main-fusion.tex` (the kernel-fusion companion, 6 pp), replacing the earlier
+  pandoc drafts.
+- Verified every reference and recorded DOIs; added data figures (validation
+  ladder, single-tab optimization, dispatch-cost collapse, tier ladder, swarm
+  protocol) via `paper/make-figs.py`, and fixed the fusion tier-ladder table
+  overflowing the column.
+- Wired in the Zenodo concept DOI `10.5281/zenodo.20494383` (README badge,
+  `CITATION.cff`) and reconciled version metadata.
+
 ## [0.9.0] — 2026-05-29
 
 The **multi-tab swarm** release. The browser-tab swarm HF SCF
