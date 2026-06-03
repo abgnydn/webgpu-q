@@ -92,7 +92,7 @@ fig.tight_layout(); fig.savefig("fig-ladder.pdf"); plt.close(fig)
 fig,ax=plt.subplots(figsize=(7.4,3.9))
 # (n, swarm-SCF wall s) from experiments/results/.../swarm/*.json
 ccpvdz=[("benzene",120,5.6),("naphthalene",190,12.0)]      # cc-pVDZ
-sto3g =[("anthracene",80,2.1),("pentacene",124,40.0),("C60",300,730.0)]  # STO-3G
+sto3g =[("anthracene",80,2.1),("pentacene",124,40.0),("C60",300,539.0)]  # STO-3G
 for name,n,w in ccpvdz:
     ax.plot(n,w,"o",color=TEAL,ms=9,zorder=5)
     ax.annotate((r"$\mathbf{C_{60}}$"+f"\n{w:g} s" if name=="C60" else f"{name}\n{w:g} s"),(n,w),textcoords="offset points",xytext=(8,-4),fontsize=8.5,color=TEAL)

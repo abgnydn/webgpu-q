@@ -1,0 +1,51 @@
+{
+  "meta": {
+    "protocol": "swarm-hf-c60",
+    "molecule": "c60",
+    "formula": "C60",
+    "basis": "STO-3G",
+    "nTabs": 4,
+    "innerPool": 2,
+    "hypothesis": "Partitioning the density-fitted Fock build by auxiliary index across N same-origin tabs reproduces the single-tab energy and runs to convergence.",
+    "passBar": "converged === true && Number.isFinite(energy)",
+    "warmup": 0,
+    "trials": 1,
+    "timingNote": "Single representative run on a 16 GB M2 Pro (Chromium, cross-origin isolated). Per-phase wall-time; energy is deterministic. Not the 5-warmup/20-trial GPU-kernel protocol."
+  },
+  "env": {
+    "gitSha": "ecef9e8",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "adapterInfo": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "platform": "darwin",
+    "timestamp": "2026-06-03T06:12:47.093Z"
+  },
+  "rows": [
+    {
+      "n": 300,
+      "nAux": 2520,
+      "iter": 9,
+      "converged": true,
+      "energyHa": -2244.1017630257775,
+      "integralsMs": 22983,
+      "auxDFMs": 129178,
+      "swarmScfMs": 539000,
+      "totalMs": 691161,
+      "totalSec": 691.16,
+      "perTabSliceMB": 453.6,
+      "fullBTensorGB": 1.814,
+      "slicesPerTab": [
+        630,
+        630,
+        630,
+        630
+      ]
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "c60 STO-3G: E=-2244.10176303 Ha in 9 iters across 4 tabs."
+}

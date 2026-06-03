@@ -309,7 +309,7 @@ benzene      & cc-pVDZ & 120 & 662  & 2-tab               & 5.6\,s & $-230.72269
 naphthalene  & cc-pVDZ & 190 & 1048 & 4-tab $\times$ 2-inner & 12\,s  & $-383.38458$ \\
 anthracene   & STO-3G  & 80  & 708  & 4-tab               & 2.1\,s & $-526.92320$ \\
 pentacene    & STO-3G  & 124 & 1091 & 4-tab $\times$ 2-inner & 40\,s  & $-821.63271$ \\
-\textbf{\Csixty{}} & STO-3G & 300 & 2520 & 4-tab $\times$ 2-inner & 730\,s & $\mathbf{-2244.10176}$ \\
+\textbf{\Csixty{}} & STO-3G & 300 & 2520 & 4-tab $\times$ 2-inner & 539\,s & $\mathbf{-2244.10176}$ \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -320,12 +320,11 @@ work; the one-time integral and auxiliary-DF build is excluded (it is
 machine-load sensitive). Energies, $n$, $n_{\mathrm{aux}}$, and iteration
 counts are deterministic and each row is backed by an environment-stamped JSON
 artifact under \texttt{experiments/results/<date>/swarm/} with the full
-per-phase breakdown. Benzene, anthracene, naphthalene, and pentacene artifacts
-are committed (M2 Pro); naphthalene also reproduces on the CI runner. \Csixty{}
-is from a local high-memory run --- its $\sim$3\,GB build exceeds the CI
-runner's $\sim$2\,GB WASM-heap cap, so a CI-reproducible \Csixty{} artifact
-awaits the streaming-kernel rewrite noted in \S\ref{sec:limitations}.
-\normalsize
+per-phase breakdown. All five rows are committed (M2 Pro local runs);
+naphthalene also reproduces on the CI runner. \Csixty{} runs only locally ---
+its $\sim$1.8\,GB B-tensor build peaks above the CI runner's $\sim$2\,GB
+WASM-heap cap, so CI reproduction awaits the streaming-kernel rewrite noted in
+\S\ref{sec:limitations}. \normalsize
 
 The naphthalene swarm (12\,s) is faster than the single-tab parallel path
 (22.6\,s) because four independent V8 processes incur less coordination
