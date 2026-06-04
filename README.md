@@ -18,7 +18,7 @@
 <img alt="typescript" src="https://img.shields.io/badge/typescript-strict-3178c6?style=flat-square&labelColor=0b1224"/>
 <img alt="webgpu" src="https://img.shields.io/badge/WebGPU-required-ff7849?style=flat-square&labelColor=0b1224"/>
 <img alt="install-free" src="https://img.shields.io/badge/install-0%20bytes-eab308?style=flat-square&labelColor=0b1224"/>
-<a href="https://doi.org/10.5281/zenodo.20494383"><img alt="DOI" src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20494383-3b82f6?style=flat-square&labelColor=0b1224"/></a>
+<a href="https://doi.org/10.5281/zenodo.20494382"><img alt="DOI" src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20494382-3b82f6?style=flat-square&labelColor=0b1224"/></a>
 
 </div>
 
@@ -391,9 +391,9 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 
 See [`CITATION.cff`](./CITATION.cff). For papers:
 
-> Günaydın, A.B. (2026). _webgpu-q v0.9.2_. Zenodo. https://doi.org/10.5281/zenodo.20494383
+> Günaydın, A.B. (2026). _webgpu-q v0.9.2_. Zenodo. https://doi.org/10.5281/zenodo.20527479
 
-Archived on Zenodo — DOI [10.5281/zenodo.20494383](https://doi.org/10.5281/zenodo.20494383) (concept DOI, resolves to the latest version).
+Archived on Zenodo — concept DOI [10.5281/zenodo.20494382](https://doi.org/10.5281/zenodo.20494382) (resolves to the latest version); this release is [10.5281/zenodo.20527479](https://doi.org/10.5281/zenodo.20527479).
 
 </td>
 <td valign="top" width="33%">

@@ -7,7 +7,7 @@ authors:
     given-names: Ahmet Barış
     email: hi@barisgunaydin.com
     affiliation: Independent researcher
-doi: 10.5281/zenodo.20494383
+doi: 10.5281/zenodo.20494382
 repository-code: "https://github.com/abgnydn/webgpu-q"
 url: "https://webgpu-q.vercel.app"
 license: MIT
@@ -54,5 +54,5 @@ preferred-citation:
       given-names: Ahmet Barış
   year: 2026
   version: 0.9.2
-  doi: 10.5281/zenodo.20494383
-  url: "https://doi.org/10.5281/zenodo.20494383"
+  doi: 10.5281/zenodo.20527479
+  url: "https://doi.org/10.5281/zenodo.20527479"

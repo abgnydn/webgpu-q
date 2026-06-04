@@ -55,6 +55,17 @@ artifact or honestly caveated.
 - Regenerated all five matplotlib figures from the committed artifacts;
   `fig-scaling` now plots the measured swarm-SCF walls (C₆₀ at 539 s).
 
+### DOI correction
+
+- Fixed the Zenodo identifier everywhere: the value wired in at v0.9.1
+  (`10.5281/zenodo.20494383`) is actually the **version DOI of v0.9.0**, not
+  the concept DOI, so the badge / citation had been pinned to the first
+  release instead of tracking latest. Corrected to the true **concept DOI
+  `10.5281/zenodo.20494382`** (all versions, resolves to latest) for the badge,
+  `CITATION.cff` top-level, and both manuscript archive lines; the
+  `preferred-citation` and the README "this release" link now carry the
+  **v0.9.2 version DOI `10.5281/zenodo.20527479`**.
+
 ## [0.9.1] — 2026-06-02
 
 Submittable manuscripts with verified, DOI-bearing references.

@@ -330,7 +330,7 @@ suite, brute-force diagnostics, and PySCF cross-validation described in
 committed experiment artifact rather than to model output.
 
 **Statements.** Sole author; no competing interests; no external funding.
-Archived at Zenodo, DOI [10.5281/zenodo.20494383](https://doi.org/10.5281/zenodo.20494383).
+Archived at Zenodo, concept DOI [10.5281/zenodo.20494382](https://doi.org/10.5281/zenodo.20494382).
 
 ## 7. Conclusion
 
@@ -397,7 +397,7 @@ the advanced GMTKN55 database." *Physical Chemistry Chemical Physics*
 validation w/ test-coverage, results + **three figures** (scaling,
 memory-wall, swarm-protocol sequence), honest limitations, software-
 availability + reproducibility, numbered references. Numbers sourced from
-committed `experiments/results/` JSON and e2e bench logs; Zenodo DOI
-10.5281/zenodo.20494383. Remaining before submission: LaTeX conversion
+committed `experiments/results/` JSON and e2e bench logs; Zenodo concept DOI
+10.5281/zenodo.20494382. Remaining before submission: LaTeX conversion
 (JOSS / SoftwareX / a chem-software track) and finalizing reference page
 numbers against publishers of record. Content + figures complete.*
