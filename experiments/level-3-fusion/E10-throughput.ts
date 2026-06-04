@@ -45,8 +45,23 @@ export interface E10Row {
   readonly speedup: number;
   readonly unfusedNoisy: boolean;
   readonly fusedNoisy: boolean;
-  /** Effective GB/s for the fused path (lower bound on bandwidth used). */
+  /**
+   * LOGICAL effective GB/s: 16·D·2^N / t, i.e. the statevector traffic of all
+   * D gates as if each did its own full read+write pass. This is the bandwidth
+   * an unfused per-gate path would have to sustain to match the fused time, so
+   * it can (and does) exceed DRAM peak — fusion applies the whole k-chain in
+   * registers and only touches DRAM once per fused dispatch.
+   */
   readonly fusedEffectiveGbps: number;
+  /**
+   * PHYSICAL DRAM GB/s actually moved by the fused path: 16·ceil(D/k)·2^N / t,
+   * one full read+write pass per fused dispatch. This is the real memory
+   * traffic; compare it to the device's DRAM peak to see how bandwidth-bound
+   * the kernel is. At N≤20 the fused time is floor-limited by the harness sync
+   * fence (~3 ms regardless of state size), so physical utilization stays well
+   * below peak — true saturation is an asymptotic, large-N regime.
+   */
+  readonly fusedPhysicalGbps: number;
 }
 
 export interface E10Summary {
@@ -129,10 +144,15 @@ export async function runE10(
         const fusedGatesPerSec = D / fuS.median;
         const speedup = unS.median / fuS.median;
 
-        // Effective bandwidth for the fused path:
-        //   work = D gates × 2^N amplitudes × 8 B read + 8 B write = 16 · D · 2^N bytes
+        // Logical effective bandwidth: all D gates as if each did a full
+        //   read+write pass = 16 · D · 2^N bytes. Exceeds DRAM peak because
+        //   fusion keeps the k-chain in registers (this is the work it avoids).
         const bytes = 16 * D * nStates;
         const fusedEffectiveGbps = bytes / fuS.median / 1e9;
+        // Physical DRAM traffic: one read+write pass per fused dispatch =
+        //   16 · ceil(D/k) · 2^N bytes. This is the real bandwidth used.
+        const fusedPasses = Math.ceil(D / chainK);
+        const fusedPhysicalGbps = (16 * fusedPasses * nStates) / fuS.median / 1e9;
 
         rows.push({
           nQubits: n,
@@ -146,6 +166,7 @@ export async function runE10(
           unfusedNoisy: unS.noisy,
           fusedNoisy: fuS.noisy,
           fusedEffectiveGbps,
+          fusedPhysicalGbps,
         });
 
 
@@ -154,7 +175,7 @@ export async function runE10(
           + `unfused=${(unfusedGatesPerSec / 1e6).toFixed(2)} Mgates/s, `
           + `fused=${(fusedGatesPerSec / 1e6).toFixed(2)} Mgates/s, `
           + `speedup=${speedup.toFixed(2)}× `
-          + `BW≈${fusedEffectiveGbps.toFixed(1)} GB/s `
+          + `logicalBW≈${fusedEffectiveGbps.toFixed(1)} physBW≈${fusedPhysicalGbps.toFixed(1)} GB/s `
           + `${unS.noisy || fuS.noisy ? "[NOISY]" : ""}`,
         );
       }
@@ -191,7 +212,7 @@ export async function runE10(
     hypothesis:
       `Fused same-qubit chains at K=${chainK} beat unfused by ≥ 2× in the dispatch-bound regime `
       + `(small N), and deliver a measurable positive speedup (≥ 1.05×) at N=20 `
-      + `(memory-bandwidth-bound regime).`,
+      + `(where the per-dispatch-overhead headroom is smallest).`,
     passBar: `max speedup ≥ 2.0× on any (N, D) cell AND speedup at N=20 ≥ 1.05×`,
     seed: "E4_OVERHEAD (xor E10)",
     warmup,
@@ -205,7 +226,9 @@ export async function runE10(
   const diagnosis = status === "pass"
     ? `best speedup ${best.speedup.toFixed(2)}× at N=${best.nQubits} D=${best.depth}. `
       + `N=20: ${atN20 ? atN20.speedup.toFixed(2) + "×" : "n/a"}. `
-      + `fused peak BW ≈ ${Math.max(...rows.map((r) => r.fusedEffectiveGbps)).toFixed(1)} GB/s.${noisyNote}`
+      + `fused logical BW ≈ ${Math.max(...rows.map((r) => r.fusedEffectiveGbps)).toFixed(1)} GB/s, `
+      + `physical ≈ ${Math.max(...rows.map((r) => r.fusedPhysicalGbps)).toFixed(1)} GB/s `
+      + `(floor-limited at N≤20: fused time pinned at the ~3 ms sync fence, so not yet DRAM-bound).${noisyNote}`
     : noisyBlocker
       ? `>50% of cells NOISY.${noisyNote}`
       : `best speedup ${best.speedup.toFixed(2)}× (bar ≥ 2.0×). `

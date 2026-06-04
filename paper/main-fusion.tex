@@ -70,11 +70,15 @@ removed this overhead for two other sequential WebGPU workloads --- evolutionary
 fitness evaluation, at $159$--$720\times$~\cite{fusionfitness}, and
 autoregressive transformer decoding, at $66$--$458\times$~\cite{fusiontransformer}
 --- both of which are deeply dispatch-bound. Quantum-circuit statevector
-simulation is a third domain, and, as we show, one that reaches
-memory-bandwidth saturation early: the same technique that delivers
-hundreds-fold speedups on dispatch-bound work caps at a few-fold here. Locating
-where a workload sits on that dispatch-bound-to-bandwidth-bound spectrum is the
-point. The work runs entirely in a browser tab.
+simulation is a third domain, and, as we show, one that sits far closer to the
+bandwidth-bound end of that spectrum: each gate already moves the entire
+$2^N$-amplitude statevector, so the per-dispatch overhead is a much smaller
+fraction of the work than in those deeply dispatch-bound workloads, and
+dense-tile fusion additionally crosses into a compute-bound regime
+(\S\ref{sec:tierladder}). The same technique that delivers hundreds-fold
+speedups there therefore caps at a few-fold here. Locating where a workload sits
+on that dispatch-bound-to-bandwidth-bound spectrum is the point. The work runs
+entirely in a browser tab.
 
 \section{Methods}
 
@@ -141,6 +145,7 @@ $10^{-5}$ bar; the worst state-norm deviation is $10^{-6}$. Fusion changes
 \emph{when} arithmetic happens, not \emph{what} it computes.
 
 \subsection{The fusion tier ladder}
+\label{sec:tierladder}
 
 \begin{center}
 \resizebox{\textwidth}{!}{%
@@ -185,22 +190,46 @@ it.
 \subsection{Toward bandwidth-bound throughput}
 
 In the dispatch-bound regime (small $N$, long circuits) fused same-qubit chains
-at $k=32$ reach 2.62$\times$ ($N=14$, depth 160). As $N$ grows the workload
-becomes memory-bandwidth-bound: the fused statevector update's effective
-bandwidth rises with $N$ (reaching the hundreds of GB/s range on this device),
-and at fixed low depth the fused-vs-unfused speedup compresses toward
-1.25$\times$ at $N=20$ (depth 40) --- the expected crossover, since once a
-kernel saturates memory bandwidth there is no dispatch overhead left to remove.
-At longer depth the dispatch term still dominates and the gain persists (the
-$N=20$, depth-160 cell remains $\sim$2.6$\times$). The goal of fusion is to reach
-that bandwidth-bound ceiling, not to exceed it.
+at $k=32$ reach 2.62$\times$ ($N=14$, depth 160). It is tempting to read the
+fused path's \emph{logical} effective throughput --- the statevector traffic of
+all $D$ gates, $16\,D\,2^N/t$, which rises to 866\,GB/s at $N=20$, depth 160 ---
+as memory-bandwidth saturation. It is not: that figure exceeds this device's
+$\approx$200\,GB/s DRAM bandwidth by $4.3\times$ precisely \emph{because} fusion
+is working --- a $k=32$ chain reads each amplitude from DRAM once, applies all
+32 gates in registers, and writes once, so it does the work of 866\,GB/s of
+naive per-gate traffic while moving only one read+write pass per fused dispatch.
+The \emph{physical} DRAM bandwidth, $16\lceil D/k\rceil 2^N/t$, peaks at just
+$\sim$27\,GB/s --- \textbf{13.5\% of the device bound} --- so the fused kernel is
+\emph{not} bandwidth-saturated in this regime. The tell is in the artifact:
+the fused wall-time is pinned at $\sim$3\,ms across $N=10$ to $N=20$ (a
+$1000\times$ range of state sizes), i.e.\ floor-limited by the harness sync
+fence rather than by memory traffic. The fused-vs-unfused speedup compresses
+toward 1.25$\times$ at low depth ($N=20$, depth 40) because few dispatches remain
+to remove, not because bandwidth is saturated; at longer depth the dispatch term
+still dominates and the gain persists ($N=20$, depth 160 stays $\sim$2.6$\times$).
+True DRAM saturation is the asymptotic ceiling fusion drives \emph{toward} as
+$N$ grows past the floor regime; demonstrating it empirically --- at statevector
+sizes where the per-pass compute time dwarfs the $\sim$3\,ms fence --- is future
+work (\S\ref{sec:fusionlimits}). All figures here are derived from the committed
+\texttt{E10-throughput} artifact's $(N,D,k,t)$ fields.
 
 \section{Honest limitations}
+\label{sec:fusionlimits}
 
 \begin{itemize}
-  \item \textbf{Tier-D plateau (\S3.3)} --- fusion past three-qubit tiles is
-  compute-bound and does not reach the 5$\times$ target. Committed as a
-  \texttt{status:"fail"} artifact with the compute-vs-memory diagnosis.
+  \item \textbf{Tier-D plateau (\S\ref{sec:tierladder})} --- fusion past
+  three-qubit tiles is compute-bound and does not reach the 5$\times$ target.
+  Committed as a \texttt{status:"fail"} artifact with the compute-vs-memory
+  diagnosis.
+  \item \textbf{Bandwidth saturation is asserted asymptotically, not measured.}
+  At the widths we test ($N\le20$) the fused wall-time is floor-limited by the
+  harness sync fence ($\sim$3\,ms, constant across a $1000\times$ range of state
+  sizes), so physical DRAM utilization peaks at only $\sim$13.5\% of the device
+  bound. We therefore do \emph{not} claim the fused kernel saturates memory
+  bandwidth in the measured regime; establishing the true asymptotic ceiling
+  needs statevector
+  sizes large enough that per-pass compute dwarfs the fence ($N\gtrsim24$), a
+  measurement we have not yet run.
   \item \textbf{No native-simulator head-to-head.} We measure fusion against
   this simulator's own unfused dispatch path. We did \emph{not} benchmark
   cuQuantum custatevec~\cite{cuquantum} or Qiskit Aer GPU~\cite{qiskit} ---
@@ -234,9 +263,11 @@ fusion: prior work established the framework for evolutionary fitness
 evaluation~\cite{fusionfitness} and autoregressive transformer
 decoding~\cite{fusiontransformer}, both deeply dispatch-bound and so reaching
 $10^2$--$10^3\times$ speedups. The present domain is the instructive opposite
-end of the spectrum --- statevector updates saturate memory bandwidth quickly,
-so fusion's payoff is bounded at a few-fold and the Tier-D plateau (\S3.3)
-marks the crossover explicitly.
+end of the spectrum --- each statevector gate already moves the full amplitude
+array, so the workload is far less dispatch-bound to begin with, and dense-tile
+fusion crosses into compute-bound at Tier-D (\S\ref{sec:tierladder}) --- so
+fusion's payoff is bounded at a few-fold, and that plateau marks the crossover
+explicitly.
 
 \section{Software availability and reproducibility}
 
