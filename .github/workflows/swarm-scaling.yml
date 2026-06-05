@@ -1,0 +1,64 @@
+name: Swarm scaling wall
+
+# The headline: a streaming browser-tab swarm scaling Hartree–Fock PAST the 2 GB
+# single-ArrayBuffer wall. Once the full density-fitting B-tensor exceeds 2^31-1
+# bytes it cannot be one allocation on any single tab — impossible single-tab —
+# yet the swarm runs it, each tab self-building only its mode-slice (streaming,
+# no full V or full B anywhere). Correctness is checked against the exact
+# non-interacting energy oracle M·E(H2), valid at scales with no single-tab
+# reference.
+#
+# The N tabs are separate renderer processes, so with N ≤ runner cores their
+# slice builds run in parallel — the per-tab integral recompute costs CPU, not
+# wall-time. Ubuntu runner = 4 cores / 16 GB, so TABS=4.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ladder:
+        description: "Comma-separated H2 counts (e.g. 16,40,49). 40 ≈ 2.56 GB B (crosses the wall)."
+        type: string
+        default: "16,40"
+      tabs:
+        description: "Number of swarm tabs (≤ 4 cores → parallel builds)."
+        type: string
+        default: "4"
+  schedule:
+    - cron: "0 10 * * 0"   # weekly, Sunday 10:00 UTC
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scaling-wall:
+    name: Streaming swarm past the 2 GB ArrayBuffer wall
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Scaling ladder (streaming swarm vs M·E(H2) oracle)
+        env:
+          LADDER: ${{ github.event.inputs.ladder || '16,40' }}
+          TABS: ${{ github.event.inputs.tabs || '4' }}
+          BASIS: cc-pvdz
+        run: |
+          node -e "console.log('Free MB:', Math.round(require('os').freemem()/1e6), '/ total', Math.round(require('os').totalmem()/1e6))"
+          npx playwright test e2e/swarm-hf-scaling-ladder.spec.ts --reporter=list
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swarm-scaling-report
+          path: e2e/.report
+          retention-days: 14
