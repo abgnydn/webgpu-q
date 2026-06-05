@@ -12,8 +12,9 @@
 import { describe, expect, test } from "vitest";
 import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
-import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
+import { runRHFSCF, runRHFSCFAsync } from "../../src/chemistry/hf-scf.js";
 import { buildJK_DF } from "../../src/chemistry/df.js";
+import type { DFResult } from "../../src/chemistry/df.js";
 import {
   buildAuxBasisDF,
   buildAuxBasisDFStreaming,
@@ -100,5 +101,57 @@ describe("streaming mode-partitioned aux-DF build", () => {
     expect(dK).toBeLessThan(1e-12);
     // The streaming footprint never reaches the full n²·n_aux tensor.
     expect(maxSliceVFloats).toBeLessThan(n * n * aux.length);
+  });
+
+  test("full DF-HF SCF from independently-built mode-slices == single-tab SCF", async () => {
+    // Increment 2: a complete RHF SCF where the Fock build is driven entirely
+    // by mode-slices each "tab" builds independently (no shared full tensor).
+    const { shells, nuclei } = moleculeToShellsNuclei(H2O);
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const nElec = 10;
+
+    const direct = runRHFSCF(integrals, nElec); // exact HF reference
+
+    const aux = generateAutoAux(shells, 1);
+
+    // A customJKBuilder that sums partial (J,K) from a set of DF slices —
+    // exactly the swarm's per-iteration contract, here in one process.
+    const jkFromSlices = (slices: DFResult[]) =>
+      async (D: Float64Array): Promise<{ J: Float64Array; K: Float64Array }> => {
+        const N = D.length;
+        const J = new Float64Array(N);
+        const K = new Float64Array(N);
+        for (const s of slices) {
+          const part = buildJK_DF(s, D);
+          for (let i = 0; i < N; i++) { J[i] = J[i]! + part.J[i]!; K[i] = K[i]! + part.K[i]!; }
+        }
+        return { J, K };
+      };
+
+    // Single "tab": full mode range.
+    const full = await buildAuxBasisDFStreaming(shells, aux, 1e-10);
+    const single = await runRHFSCFAsync(integrals, nElec, { customJKBuilder: jkFromSlices([full]) });
+
+    // Four "tabs": disjoint mode ranges, each built independently from scratch.
+    const nKept = full.nAux;
+    const T = 4;
+    const slices: DFResult[] = [];
+    for (let t = 0; t < T; t++) {
+      const a = Math.floor((t * nKept) / T);
+      const b = Math.floor(((t + 1) * nKept) / T);
+      slices.push(await buildAuxBasisDFStreaming(shells, aux, 1e-10, { modeStart: a, modeEnd: b }));
+    }
+    const swarm = await runRHFSCFAsync(integrals, nElec, { customJKBuilder: jkFromSlices(slices) });
+
+    const dPartition = Math.abs(swarm.energy - single.energy);
+    const dfError = Math.abs(single.energy - direct.energy);
+    console.log(`[df-streaming-scf] direct HF   = ${direct.energy.toFixed(10)} Ha`);
+    console.log(`[df-streaming-scf] 1-tab DF-HF = ${single.energy.toFixed(10)} Ha (DF err ${dfError.toExponential(2)})`);
+    console.log(`[df-streaming-scf] ${T}-tab DF-HF = ${swarm.energy.toFixed(10)} Ha (vs 1-tab Δ ${dPartition.toExponential(2)})`);
+    expect(swarm.converged).toBe(true);
+    // Capability claim: partitioning the build across tabs changes nothing.
+    expect(dPartition).toBeLessThan(1e-9);
+    // Sanity: DF-HF tracks exact HF to the fitting error (auto-aux level 1).
+    expect(dfError).toBeLessThan(5e-2);
   });
 });
