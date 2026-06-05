@@ -387,6 +387,9 @@ export async function buildAuxBasisDF(
  *  full 3-index tensor is never materialized on any single tab. */
 export interface StreamingDFResult extends DFResult {
   readonly peakVFloats: number;
+  /** Total kept modes across ALL tabs (this slice holds `nAux` of them). Lets a
+   *  tab know the full B-tensor size (n²·nKeptTotal·8) without ever building it. */
+  readonly nKeptTotal: number;
 }
 
 /**
@@ -512,7 +515,7 @@ export async function buildAuxBasisDFStreaming(
     }
   }
 
-  return { B, nAux: mLocal, threshold: metricRegularization, n, peakVFloats };
+  return { B, nAux: mLocal, threshold: metricRegularization, n, peakVFloats, nKeptTotal: nKept };
 }
 
 /** Result of {@link buildAuxBasisDFStreamingCooperative}: one DF mode-slice per
@@ -655,6 +658,7 @@ export async function buildAuxBasisDFStreamingCooperative(
 
   const slices: StreamingDFResult[] = ranges.map((rg, t) => ({
     B: Bt[t]!, nAux: rg.end - rg.start, threshold: metricRegularization, n, peakVFloats,
+    nKeptTotal: nKept,
   }));
   return { slices, nKept, peakVFloats, kernelCalls };
 }
