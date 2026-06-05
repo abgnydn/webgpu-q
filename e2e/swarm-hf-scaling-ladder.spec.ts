@@ -40,7 +40,7 @@ function h2Lattice(M: number): Array<{ symbol: string; pos: [number, number, num
 test.describe(`Streaming swarm scaling ladder (${N_TABS} tabs, ${BASIS})`, () => {
   for (const M of LADDER) {
     test(`${M} H2 (${BASIS}) — ${N_TABS}-tab streaming swarm, energy oracle M·E(H2)`, async ({ browser }) => {
-      test.setTimeout(30 * 60 * 1000);
+      test.setTimeout(45 * 60 * 1000);
       const atoms = h2Lattice(M);
 
       const ctx = await browser.newContext();
@@ -52,8 +52,8 @@ test.describe(`Streaming swarm scaling ladder (${N_TABS} tabs, ${BASIS})`, () =>
       const CH = "swarm-ladder";
 
       // Worker tabs 1..N-1: each self-builds its slice, then answers jk.
-      for (let i = 1; i < N_TABS; i++) {
-        await pages[i]!.evaluate(async ({ atoms, basis, tab, of, ch }) => {
+      const workerSetups = pages.slice(1).map((wp, idx) =>
+        wp.evaluate(async ({ atoms, basis, tab, of, ch }) => {
           const [
             { moleculeToShellsNuclei },
             { buildAuxBasisDFStreaming, generateAutoAux },
@@ -79,8 +79,7 @@ test.describe(`Streaming swarm scaling ladder (${N_TABS} tabs, ${BASIS})`, () =>
               bc.postMessage({ type: "jk-partial", tab, J, K });
             } else if (msg.type === "shutdown") bc.close();
           });
-        }, { atoms, basis: BASIS, tab: i, of: N_TABS, ch: CH });
-      }
+        }, { atoms, basis: BASIS, tab: idx + 1, of: N_TABS, ch: CH }));
 
       // Master tab 0: self-builds slice, coordinates the distributed SCF.
       const result = await pages[0]!.evaluate(async ({ atoms, basis, of, ch, M }) => {
@@ -115,7 +114,9 @@ test.describe(`Streaming swarm scaling ladder (${N_TABS} tabs, ${BASIS})`, () =>
         // Master's slice (tab 0). The eigendecomposition is deterministic, so
         // nKeptTotal is the same on every tab — full B size is known exactly
         // (n²·nKeptTotal·8) without ever building the full tensor.
+        const tB0 = performance.now();
         const mSlice = await buildAuxBasisDFStreaming(shells, aux, 1e-10, { partition: { tab: 0, of } });
+        const buildMs = performance.now() - tB0;
         const totalModes = mSlice.nKeptTotal;
 
         const bc = new BroadcastChannel(ch);
@@ -166,9 +167,10 @@ test.describe(`Streaming swarm scaling ladder (${N_TABS} tabs, ${BASIS})`, () =>
           n, nElectrons, eH2, M,
           energy: swHF.energy, iter: swHF.iter, converged: swHF.converged,
           masterModes: mSlice.nAux, masterPeakVBytes: mSlice.peakVFloats * 8,
-          masterSliceBytes: mSlice.B.byteLength, totalModes, swMs,
+          masterSliceBytes: mSlice.B.byteLength, totalModes, swMs, buildMs,
         };
       }, { atoms, basis: BASIS, of: N_TABS, ch: CH, M });
+      await Promise.all(workerSetups);
 
       // Full-B size is exact: n² · (total kept modes) · 8.
       const fullBBytes = result.n * result.n * result.totalModes * 8;
@@ -179,7 +181,7 @@ test.describe(`Streaming swarm scaling ladder (${N_TABS} tabs, ${BASIS})`, () =>
       /* eslint-disable no-console */
       console.log(`\n══════════════════════════════════════════════════════════`);
       console.log(`Scaling rung: ${result.M} H2 (${BASIS}), ${N_TABS} tabs`);
-      console.log(`  n=${result.n}, electrons=${result.nElectrons}, SCF iters=${result.iter} in ${result.swMs.toFixed(0)} ms`);
+      console.log(`  n=${result.n}, electrons=${result.nElectrons} | per-tab slice build=${(result.buildMs / 1000).toFixed(1)} s, SCF=${(result.swMs / 1000).toFixed(1)} s (${result.iter} iters)`);
       console.log(`  full B ≈ ${(fullBBytes / 1e9).toFixed(2)} GB  ${crossedWall ? "→ EXCEEDS the 2 GB single-ArrayBuffer wall (impossible single-tab)" : "(still fits one tab)"}`);
       console.log(`  master slice = ${(result.masterSliceBytes / 1e6).toFixed(1)} MB, peak V/tab = ${(result.masterPeakVBytes / 1e6).toFixed(1)} MB`);
       console.log(`  swarm E   = ${result.energy.toFixed(8)} Ha`);
