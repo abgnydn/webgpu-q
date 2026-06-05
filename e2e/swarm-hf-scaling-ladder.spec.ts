@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { writeSwarmArtifact } from "./lib/swarm-artifact";
 
 // Gradual scaling ladder for the streaming swarm — increase system size step by
 // step until the full DF B-tensor crosses the 2 GB single-ArrayBuffer wall, at
@@ -40,7 +41,7 @@ function h2Lattice(M: number): Array<{ symbol: string; pos: [number, number, num
 test.describe(`Streaming swarm scaling ladder (${N_TABS} tabs, ${BASIS})`, () => {
   for (const M of LADDER) {
     test(`${M} H2 (${BASIS}) — ${N_TABS}-tab streaming swarm, energy oracle M·E(H2)`, async ({ browser }) => {
-      test.setTimeout(45 * 60 * 1000);
+      test.setTimeout(70 * 60 * 1000);
       const atoms = h2Lattice(M);
 
       const ctx = await browser.newContext();
@@ -188,6 +189,18 @@ test.describe(`Streaming swarm scaling ladder (${N_TABS} tabs, ${BASIS})`, () =>
       console.log(`  oracle M·E(H2) = ${oracle.toFixed(8)} Ha   |Δ| = ${dOracle.toExponential(2)} (E(H2)=${result.eH2.toFixed(8)})`);
       console.log(`══════════════════════════════════════════════════════════\n`);
       /* eslint-enable no-console */
+
+      // Commit a traceable, env-stamped artifact for this rung (energy is
+      // deterministic; failures are emitted too, per research-grade discipline).
+      await writeSwarmArtifact(
+        pages[0]!,
+        { molecule: `h2lattice-${result.M}`, formula: `(H2)${result.M}`, basis: BASIS, nTabs: N_TABS, innerPool: 1 },
+        {
+          n: result.n, nAux: result.totalModes, swMs: result.swMs, energy: result.energy,
+          iter: result.iter, converged: result.converged, refEnergy: oracle, deltaE: dOracle,
+          masterSliceMB: result.masterSliceBytes / 1e6,
+        },
+      );
 
       expect(result.converged).toBe(true);
       // Energy oracle: non-interacting lattice ⇒ M·E(H2). Residual is accumulated

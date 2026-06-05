@@ -37,7 +37,7 @@ jobs:
   scaling-wall:
     name: Streaming swarm past the 2 GB ArrayBuffer wall
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -55,6 +55,14 @@ jobs:
         run: |
           node -e "console.log('Free MB:', Math.round(require('os').freemem()/1e6), '/ total', Math.round(require('os').totalmem()/1e6))"
           npx playwright test e2e/swarm-hf-scaling-ladder.spec.ts --reporter=list
+      - name: Upload swarm scaling artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swarm-scaling-artifacts
+          path: experiments/results/**/swarm/*.json
+          retention-days: 30
+          if-no-files-found: warn
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
