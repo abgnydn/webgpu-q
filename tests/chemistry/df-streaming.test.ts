@@ -196,4 +196,31 @@ describe("streaming mode-partitioned aux-DF build", () => {
     // Never materializes the full 3-index tensor.
     expect(coop.peakVFloats).toBeLessThan(n * n * aux.length);
   });
+
+  test("partition:{tab,of} — independent tabs self-tile the mode axis", async () => {
+    // The swarm one-liner: each tab calls with its index, no shared nKept.
+    const { shells, nuclei } = moleculeToShellsNuclei(H2O);
+    const n = shells.length;
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const D = runRHFSCF(integrals, 10).D;
+    const aux = generateAutoAux(shells, 1);
+
+    const full = await buildAuxBasisDFStreaming(shells, aux);
+    const refJK = buildJK_DF(full, D);
+
+    const OF = 5;
+    const J = new Float64Array(n * n);
+    const K = new Float64Array(n * n);
+    let totalModes = 0;
+    for (let tab = 0; tab < OF; tab++) {
+      // Exactly what a tab runs — no knowledge of the others or of nKept.
+      const slice = await buildAuxBasisDFStreaming(shells, aux, 1e-10, { partition: { tab, of: OF } });
+      totalModes += slice.nAux;
+      const part = buildJK_DF(slice, D);
+      for (let i = 0; i < J.length; i++) { J[i] = J[i]! + part.J[i]!; K[i] = K[i]! + part.K[i]!; }
+    }
+    expect(totalModes).toBe(full.nAux); // tiles cover every mode exactly once
+    expect(maxAbsDiff(refJK.J, J)).toBeLessThan(1e-12);
+    expect(maxAbsDiff(refJK.K, K)).toBeLessThan(1e-12);
+  });
 });

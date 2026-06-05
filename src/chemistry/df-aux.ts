@@ -414,7 +414,16 @@ export async function buildAuxBasisDFStreaming(
   orbitalShells: readonly CGShell[],
   auxShells?: readonly CGShell[],
   metricRegularization = 1e-10,
-  opts: { modeStart?: number; modeEnd?: number; muBlock?: number } = {},
+  opts: {
+    modeStart?: number;
+    modeEnd?: number;
+    muBlock?: number;
+    /** Swarm convenience: build this tab's contiguous share of the kept modes.
+     *  Each tab computes the (deterministic) eigendecomposition independently,
+     *  so they agree on nKept and tile it without coordination. Overrides
+     *  modeStart/modeEnd. */
+    partition?: { tab: number; of: number };
+  } = {},
 ): Promise<StreamingDFResult> {
   const mod = await loadWasm();
   const orb = packShells(orbitalShells);
@@ -432,8 +441,13 @@ export async function buildAuxBasisDFStreaming(
   for (let i = 0; i < nAux; i++) if (eig.values[i]! > metricRegularization) keptModes.push(i);
   const nKept = keptModes.length;
 
-  const modeStart = opts.modeStart ?? 0;
-  const modeEnd = opts.modeEnd ?? nKept;
+  let modeStart = opts.modeStart ?? 0;
+  let modeEnd = opts.modeEnd ?? nKept;
+  if (opts.partition) {
+    const { tab, of } = opts.partition;
+    modeStart = Math.floor((tab * nKept) / of);
+    modeEnd = Math.floor(((tab + 1) * nKept) / of);
+  }
   const mLocal = modeEnd - modeStart;
 
   // W[Q, m] = U[Q, i_m]·λ_{i_m}^(−1/2) for the local mode range — the only
