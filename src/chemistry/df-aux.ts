@@ -217,6 +217,19 @@ interface WasmEriModule {
     alphaAux: Float64Array, cAux: Float64Array,
     centerAux: Float64Array, angularAux: Int32Array,
   ): Float64Array;
+  /** Builds (μν|P) for μ ∈ `mus` only, all ν ≥ μ, all P. Returns a packed
+   *  [μ, ν, P, value, …] array of length 4·K — never the full n²·n_aux tensor.
+   *  Used by the streaming per-slice build so no tab materializes all of V. */
+  eri_3idx_build_slice(
+    mus: Uint32Array,
+    nOrbital: number, nAux: number,
+    nPrimsOrb: Uint32Array, primOffOrb: Uint32Array,
+    alphaOrb: Float64Array, cOrb: Float64Array,
+    centerOrb: Float64Array, angularOrb: Int32Array,
+    nPrimsAux: Uint32Array, primOffAux: Uint32Array,
+    alphaAux: Float64Array, cAux: Float64Array,
+    centerAux: Float64Array, angularAux: Int32Array,
+  ): Float64Array;
   form_b_tensor(
     n: number,
     nAux: number,
@@ -239,7 +252,24 @@ async function loadWasm(): Promise<WasmEriModule> {
     /* @vite-ignore */
     "../../wasm-eri/pkg/wasm_eri.js" as string,
   ) as WasmEriModule;
-  await mod.default();
+  // The wasm-bindgen `--target web` init resolves the .wasm via fetch(), which
+  // cannot read file:// URLs under Node (vitest). In Node only, read the bytes
+  // and hand them to default(); the browser/worker path is byte-for-byte
+  // unchanged. This makes the whole DF layer unit-testable without a browser.
+  const isNode = typeof process !== "undefined" && !!process.versions?.node;
+  if (isNode) {
+    const { readFile } = await import("node:fs/promises");
+    const { fileURLToPath } = await import("node:url");
+    const wasmPath = fileURLToPath(
+      new URL("../../wasm-eri/pkg/wasm_eri_bg.wasm", import.meta.url),
+    );
+    const bytes = await readFile(wasmPath);
+    await (mod as unknown as {
+      default(o: { module_or_path: BufferSource }): Promise<unknown>;
+    }).default({ module_or_path: bytes });
+  } else {
+    await mod.default();
+  }
   wasmModule = mod;
   return mod;
 }
@@ -349,6 +379,126 @@ export async function buildAuxBasisDF(
     threshold: metricRegularization,
     n,
   };
+}
+
+/** Result of {@link buildAuxBasisDFStreaming}: a DF tensor plus the peak number
+ *  of f64 V-tensor elements held at once during the build. For the streaming
+ *  path that peak is `muBlock·n·n_aux`, NOT `n²·n_aux` — the evidence that the
+ *  full 3-index tensor is never materialized on any single tab. */
+export interface StreamingDFResult extends DFResult {
+  readonly peakVFloats: number;
+}
+
+/**
+ * Streaming, integral-direct, mode-partitioned auxiliary-basis DF build.
+ *
+ * Fits the same Coulomb metric as {@link buildAuxBasisDF}, but produced so the
+ * full V[μν,Q] 3-index tensor is NEVER resident: V is built one μ-block at a
+ * time and immediately projected onto the regularized inverse-metric modes
+ *
+ *     B[μν,i] = Σ_Q V[μν,Q] · U[Q,i] · λ_i^(−1/2)      (i = kept eigen-modes),
+ *
+ * which is itself a valid DF tensor — Σ_i B[μν,i]B[λσ,i] = (μν|λσ)_fit, because
+ * Σ_i U[Q,i]·λ_i^(−1)·U[R,i] = (M⁻¹)[Q,R]. The mode index i is exactly the axis
+ * the JK build contracts over, so it is the natural axis to PARTITION across a
+ * swarm: pass `modeStart`/`modeEnd` and a tab builds only B[:, :, modeStart:modeEnd]
+ * — still without ever holding all of V. Partial JK over disjoint mode ranges
+ * sums to the full JK. With the default full mode range this is a single-tab
+ * drop-in whose peak V footprint is `muBlock·n·n_aux`.
+ *
+ * The eri_3idx_build_slice kernel returns only ν ≥ μ pairs, so each block fills
+ * the upper triangle of its B rows; the B slice is symmetrized at the end (the
+ * B slice is the kept output — full V is not).
+ */
+export async function buildAuxBasisDFStreaming(
+  orbitalShells: readonly CGShell[],
+  auxShells?: readonly CGShell[],
+  metricRegularization = 1e-10,
+  opts: { modeStart?: number; modeEnd?: number; muBlock?: number } = {},
+): Promise<StreamingDFResult> {
+  const mod = await loadWasm();
+  const orb = packShells(orbitalShells);
+  const aux = auxShells ? packShells(auxShells) : orb;
+  const n = orbitalShells.length;
+  const nAux = auxShells ? auxShells.length : n;
+
+  // 2-index metric → eigendecomposition (ascending λ, column-major U).
+  const M = mod.eri_2idx_build(
+    nAux, aux.nPrims, aux.primOff, aux.alpha, aux.c, aux.center, aux.angular,
+  );
+  const eig = eigsymmetric(M, nAux);
+  // Kept modes: λ_i > reg. U[Q,i] = eig.vectors[i*nAux + Q].
+  const keptModes: number[] = [];
+  for (let i = 0; i < nAux; i++) if (eig.values[i]! > metricRegularization) keptModes.push(i);
+  const nKept = keptModes.length;
+
+  const modeStart = opts.modeStart ?? 0;
+  const modeEnd = opts.modeEnd ?? nKept;
+  const mLocal = modeEnd - modeStart;
+
+  // W[Q, m] = U[Q, i_m]·λ_{i_m}^(−1/2) for the local mode range — the only
+  // sizeable broadcastable factor (n_aux × mLocal, independent of n).
+  const W = new Float64Array(nAux * mLocal);
+  for (let m = 0; m < mLocal; m++) {
+    const i = keptModes[modeStart + m]!;
+    const inv = 1.0 / Math.sqrt(eig.values[i]!);
+    const col = i * nAux;
+    for (let Q = 0; Q < nAux; Q++) W[Q * mLocal + m] = eig.vectors[col + Q]! * inv;
+  }
+
+  // Output: local mode slice B[(μ·n+ν)·mLocal + m]. Never the full tensor.
+  const B = new Float64Array(n * n * mLocal);
+  const muBlock = Math.max(1, opts.muBlock ?? 8);
+  const Vblk = new Float64Array(muBlock * n * nAux); // transient, reused per block
+  const peakVFloats = Vblk.length;
+
+  for (let mu0 = 0; mu0 < n; mu0 += muBlock) {
+    const mu1 = Math.min(mu0 + muBlock, n);
+    const rows = mu1 - mu0;
+    const mus = new Uint32Array(rows);
+    for (let r = 0; r < rows; r++) mus[r] = mu0 + r;
+
+    // Build V[μ∈block, ν≥μ, Q] as packed [μ,ν,P,val]; unpack into Vblk.
+    Vblk.fill(0, 0, rows * n * nAux);
+    const packed = mod.eri_3idx_build_slice(
+      mus, n, nAux,
+      orb.nPrims, orb.primOff, orb.alpha, orb.c, orb.center, orb.angular,
+      aux.nPrims, aux.primOff, aux.alpha, aux.c, aux.center, aux.angular,
+    );
+    const K = packed.length / 4;
+    for (let k = 0; k < K; k++) {
+      const base = k * 4;
+      const mu = packed[base]! | 0;
+      const nu = packed[base + 1]! | 0;
+      const P = packed[base + 2]! | 0;
+      Vblk[((mu - mu0) * n + nu) * nAux + P] = packed[base + 3]!;
+    }
+
+    // Project this block's upper-triangle (μ ≤ ν) onto the mode slice.
+    for (let r = 0; r < rows; r++) {
+      const mu = mu0 + r;
+      for (let nu = mu; nu < n; nu++) {
+        const vBase = (r * n + nu) * nAux;
+        const bBase = (mu * n + nu) * mLocal;
+        for (let m = 0; m < mLocal; m++) {
+          let s = 0;
+          for (let Q = 0; Q < nAux; Q++) s += Vblk[vBase + Q]! * W[Q * mLocal + m]!;
+          B[bBase + m] = s;
+        }
+      }
+    }
+  }
+
+  // Symmetrize: B[νμ] = B[μν] for μ < ν (B slice is the kept output).
+  for (let mu = 0; mu < n; mu++) {
+    for (let nu = mu + 1; nu < n; nu++) {
+      const up = (mu * n + nu) * mLocal;
+      const lo = (nu * n + mu) * mLocal;
+      for (let m = 0; m < mLocal; m++) B[lo + m] = B[up + m]!;
+    }
+  }
+
+  return { B, nAux: mLocal, threshold: metricRegularization, n, peakVFloats };
 }
 
 /** Pivoted-Cholesky variant of `buildAuxBasisDF`. Handles
