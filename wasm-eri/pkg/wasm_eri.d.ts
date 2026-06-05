@@ -38,6 +38,24 @@ export function build_jk_df(n: number, n_aux: number, b: Float64Array, d: Float6
 export function build_jk_df_slice(mus: Uint32Array, n: number, n_aux: number, b: Float64Array, d: Float64Array, gamma: Float64Array): Float64Array;
 
 /**
+ * Mode-basis DF projection for one μ-block — the streaming-swarm engine.
+ *
+ * Replaces the TypeScript projection triple-loop in df-aux.ts (the dominant
+ * cost of the streaming build at scale, ~n⁴). For each (μ,ν) pair in the block
+ * with ν ≥ μ, computes the kept-mode coefficients
+ *   B[μν, m] = Σ_Q V[μν, Q] · W[m, Q]      (W folds in U[:,mode]·λ^{-1/2})
+ * as contiguous f64x2 dot products. `w_cm` is COLUMN-MAJOR over modes
+ * (w_cm[m·n_aux + Q]) so each mode's coefficient vector is contiguous in Q.
+ *
+ * Inputs:
+ *   - `vblk`: [rows·n·n_aux], V[(r·n+ν)·n_aux + Q]; only ν ≥ μ is read.
+ *   - `w_cm`: [m_local·n_aux], w_cm[m·n_aux + Q] = U[Q, mode_m]·λ_m^{-1/2}.
+ *   - `mu0`: global index of the block's first μ row (for the ν ≥ μ mask).
+ * Returns [rows·n·m_local], filled for ν ≥ μ; the caller symmetrizes full B.
+ */
+export function df_project_block_modes(vblk: Float64Array, w_cm: Float64Array, rows: number, n: number, n_aux: number, m_local: number, mu0: number): Float64Array;
+
+/**
  * Build the 2-index AO ERI metric M[P, Q] = (P|Q) on the auxiliary
  * basis. Symmetric n_aux × n_aux matrix.
  *
@@ -187,6 +205,7 @@ export interface InitOutput {
     readonly build_gamma_df: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly build_jk_df: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly build_jk_df_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number];
+    readonly df_project_block_modes: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number];
     readonly eri_2idx_build: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => [number, number];
     readonly eri_3idx_build: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: number, x: number, y: number, z: number) => [number, number];
     readonly eri_3idx_build_slice: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: number, q: number, r: number, s: number, t: number, u: number, v: number, w: number, x: number, y: number, z: number, a1: number, b1: number) => [number, number];

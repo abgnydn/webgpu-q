@@ -87,6 +87,41 @@ export function build_jk_df_slice(mus, n, n_aux, b, d, gamma) {
 }
 
 /**
+ * Mode-basis DF projection for one μ-block — the streaming-swarm engine.
+ *
+ * Replaces the TypeScript projection triple-loop in df-aux.ts (the dominant
+ * cost of the streaming build at scale, ~n⁴). For each (μ,ν) pair in the block
+ * with ν ≥ μ, computes the kept-mode coefficients
+ *   B[μν, m] = Σ_Q V[μν, Q] · W[m, Q]      (W folds in U[:,mode]·λ^{-1/2})
+ * as contiguous f64x2 dot products. `w_cm` is COLUMN-MAJOR over modes
+ * (w_cm[m·n_aux + Q]) so each mode's coefficient vector is contiguous in Q.
+ *
+ * Inputs:
+ *   - `vblk`: [rows·n·n_aux], V[(r·n+ν)·n_aux + Q]; only ν ≥ μ is read.
+ *   - `w_cm`: [m_local·n_aux], w_cm[m·n_aux + Q] = U[Q, mode_m]·λ_m^{-1/2}.
+ *   - `mu0`: global index of the block's first μ row (for the ν ≥ μ mask).
+ * Returns [rows·n·m_local], filled for ν ≥ μ; the caller symmetrizes full B.
+ * @param {Float64Array} vblk
+ * @param {Float64Array} w_cm
+ * @param {number} rows
+ * @param {number} n
+ * @param {number} n_aux
+ * @param {number} m_local
+ * @param {number} mu0
+ * @returns {Float64Array}
+ */
+export function df_project_block_modes(vblk, w_cm, rows, n, n_aux, m_local, mu0) {
+    const ptr0 = passArrayF64ToWasm0(vblk, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArrayF64ToWasm0(w_cm, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.df_project_block_modes(ptr0, len0, ptr1, len1, rows, n, n_aux, m_local, mu0);
+    var v3 = getArrayF64FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 8, 8);
+    return v3;
+}
+
+/**
  * Build the 2-index AO ERI metric M[P, Q] = (P|Q) on the auxiliary
  * basis. Symmetric n_aux × n_aux matrix.
  *

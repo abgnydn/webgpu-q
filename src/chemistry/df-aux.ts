@@ -237,6 +237,13 @@ interface WasmEriModule {
     u: Float64Array,
     invSqrtLam: Float64Array,
   ): Float64Array;
+  /** Mode-basis DF projection for one μ-block (streaming swarm). Returns
+   *  [rows·n·m_local], B[μν,m]=Σ_Q V[μν,Q]·w_cm[m·n_aux+Q] for ν ≥ μ. */
+  df_project_block_modes(
+    vblk: Float64Array,
+    wCm: Float64Array,
+    rows: number, n: number, nAux: number, mLocal: number, mu0: number,
+  ): Float64Array;
   form_b_from_cholesky(
     n: number, nAux: number, r: number,
     v: Float64Array,
@@ -453,14 +460,15 @@ export async function buildAuxBasisDFStreaming(
   }
   const mLocal = modeEnd - modeStart;
 
-  // W[Q, m] = U[Q, i_m]·λ_{i_m}^(−1/2) for the local mode range — the only
-  // sizeable broadcastable factor (n_aux × mLocal, independent of n).
-  const W = new Float64Array(nAux * mLocal);
+  // W mode-major: Wcm[m·n_aux + Q] = U[Q, i_m]·λ_{i_m}^(−1/2). Mode-major so
+  // each mode's coefficient vector is contiguous in Q for the SIMD dot product.
+  const Wcm = new Float64Array(mLocal * nAux);
   for (let m = 0; m < mLocal; m++) {
     const i = keptModes[modeStart + m]!;
     const inv = 1.0 / Math.sqrt(eig.values[i]!);
     const col = i * nAux;
-    for (let Q = 0; Q < nAux; Q++) W[Q * mLocal + m] = eig.vectors[col + Q]! * inv;
+    const wBase = m * nAux;
+    for (let Q = 0; Q < nAux; Q++) Wcm[wBase + Q] = eig.vectors[col + Q]! * inv;
   }
 
   // Output: local mode slice B[(μ·n+ν)·mLocal + m]. Never the full tensor.
@@ -491,19 +499,12 @@ export async function buildAuxBasisDFStreaming(
       Vblk[((mu - mu0) * n + nu) * nAux + P] = packed[base + 3]!;
     }
 
-    // Project this block's upper-triangle (μ ≤ ν) onto the mode slice.
-    for (let r = 0; r < rows; r++) {
-      const mu = mu0 + r;
-      for (let nu = mu; nu < n; nu++) {
-        const vBase = (r * n + nu) * nAux;
-        const bBase = (mu * n + nu) * mLocal;
-        for (let m = 0; m < mLocal; m++) {
-          let s = 0;
-          for (let Q = 0; Q < nAux; Q++) s += Vblk[vBase + Q]! * W[Q * mLocal + m]!;
-          B[bBase + m] = s;
-        }
-      }
-    }
+    // Project this block onto the mode slice in WASM (SIMD f64x2 dot products);
+    // upper-triangle (ν ≥ μ) only — symmetrized below.
+    const Bblk = mod.df_project_block_modes(
+      Vblk.subarray(0, rows * n * nAux), Wcm, rows, n, nAux, mLocal, mu0,
+    );
+    B.set(Bblk, mu0 * n * mLocal);
   }
 
   // Symmetrize: B[νμ] = B[μν] for μ < ν (B slice is the kept output).
@@ -581,12 +582,13 @@ export async function buildAuxBasisDFStreamingCooperative(
   }
   const Wt = ranges.map(({ start, end }) => {
     const mLocal = end - start;
-    const W = new Float64Array(nAux * mLocal);
+    const W = new Float64Array(mLocal * nAux); // mode-major for the SIMD kernel
     for (let m = 0; m < mLocal; m++) {
       const i = keptModes[start + m]!;
       const inv = 1.0 / Math.sqrt(eig.values[i]!);
       const col = i * nAux;
-      for (let Q = 0; Q < nAux; Q++) W[Q * mLocal + m] = eig.vectors[col + Q]! * inv;
+      const wBase = m * nAux;
+      for (let Q = 0; Q < nAux; Q++) W[wBase + Q] = eig.vectors[col + Q]! * inv;
     }
     return W;
   });
@@ -620,25 +622,15 @@ export async function buildAuxBasisDFStreamingCooperative(
       Vblk[((mu - mu0) * n + nu) * nAux + P] = packed[base + 3]!;
     }
 
-    // Fan out: project this block into every tab's upper-triangle slice.
+    // Fan out: project this block into every tab's slice in WASM (one V build,
+    // reused across all tabs — the cooperative win).
+    const vsub = Vblk.subarray(0, rows * n * nAux);
     for (let t = 0; t < ranges.length; t++) {
       const { start, end } = ranges[t]!;
       const mLocal = end - start;
       if (mLocal === 0) continue;
-      const W = Wt[t]!;
-      const B = Bt[t]!;
-      for (let r = 0; r < rows; r++) {
-        const mu = mu0 + r;
-        for (let nu = mu; nu < n; nu++) {
-          const vBase = (r * n + nu) * nAux;
-          const bBase = (mu * n + nu) * mLocal;
-          for (let m = 0; m < mLocal; m++) {
-            let s = 0;
-            for (let Q = 0; Q < nAux; Q++) s += Vblk[vBase + Q]! * W[Q * mLocal + m]!;
-            B[bBase + m] = s;
-          }
-        }
-      }
+      const Bblk = mod.df_project_block_modes(vsub, Wt[t]!, rows, n, nAux, mLocal, mu0);
+      Bt[t]!.set(Bblk, mu0 * n * mLocal);
     }
   }
 

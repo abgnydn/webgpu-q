@@ -1162,6 +1162,76 @@ pub fn form_b_tensor_slice(
     b
 }
 
+/// Mode-basis DF projection for one μ-block — the streaming-swarm engine.
+///
+/// Replaces the TypeScript projection triple-loop in df-aux.ts (the dominant
+/// cost of the streaming build at scale, ~n⁴). For each (μ,ν) pair in the block
+/// with ν ≥ μ, computes the kept-mode coefficients
+///   B[μν, m] = Σ_Q V[μν, Q] · W[m, Q]      (W folds in U[:,mode]·λ^{-1/2})
+/// as contiguous f64x2 dot products. `w_cm` is COLUMN-MAJOR over modes
+/// (w_cm[m·n_aux + Q]) so each mode's coefficient vector is contiguous in Q.
+///
+/// Inputs:
+///   - `vblk`: [rows·n·n_aux], V[(r·n+ν)·n_aux + Q]; only ν ≥ μ is read.
+///   - `w_cm`: [m_local·n_aux], w_cm[m·n_aux + Q] = U[Q, mode_m]·λ_m^{-1/2}.
+///   - `mu0`: global index of the block's first μ row (for the ν ≥ μ mask).
+/// Returns [rows·n·m_local], filled for ν ≥ μ; the caller symmetrizes full B.
+#[wasm_bindgen]
+pub fn df_project_block_modes(
+    vblk: &[f64],
+    w_cm: &[f64],
+    rows: u32,
+    n: u32,
+    n_aux: u32,
+    m_local: u32,
+    mu0: u32,
+) -> Vec<f64> {
+    let rows = rows as usize;
+    let n = n as usize;
+    let nx = n_aux as usize;
+    let ml = m_local as usize;
+    let mu0 = mu0 as usize;
+    let mut b = vec![0.0_f64; rows * n * ml];
+    for r in 0..rows {
+        let mu = mu0 + r;
+        for nu in mu..n {
+            let v_base = (r * n + nu) * nx;
+            let b_base = (r * n + nu) * ml;
+            for m in 0..ml {
+                let w_base = m * nx;
+                let mut s = 0.0_f64;
+                #[cfg(target_feature = "simd128")]
+                unsafe {
+                    use std::arch::wasm32::*;
+                    let mut acc = f64x2_splat(0.0);
+                    let vp = vblk.as_ptr().add(v_base);
+                    let wp = w_cm.as_ptr().add(w_base);
+                    let mut q = 0;
+                    while q + 2 <= nx {
+                        let vv = v128_load(vp.add(q) as *const v128);
+                        let wv = v128_load(wp.add(q) as *const v128);
+                        acc = f64x2_add(acc, f64x2_mul(vv, wv));
+                        q += 2;
+                    }
+                    s = f64x2_extract_lane::<0>(acc) + f64x2_extract_lane::<1>(acc);
+                    while q < nx {
+                        s += *vp.add(q) * *wp.add(q);
+                        q += 1;
+                    }
+                }
+                #[cfg(not(target_feature = "simd128"))]
+                {
+                    for q in 0..nx {
+                        s += vblk[v_base + q] * w_cm[w_base + q];
+                    }
+                }
+                b[b_base + m] = s;
+            }
+        }
+    }
+    b
+}
+
 /// Form the density-fitting B tensor: B[μν, P] = Σ_Q V[μν, Q] · M⁻¹⸍²[Q, P]
 /// where M⁻¹⸍² = U · diag(λ⁻¹⸍²) · Uᵀ from the eigendecomposition of M.
 ///
