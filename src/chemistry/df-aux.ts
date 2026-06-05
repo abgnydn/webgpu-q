@@ -501,6 +501,150 @@ export async function buildAuxBasisDFStreaming(
   return { B, nAux: mLocal, threshold: metricRegularization, n, peakVFloats };
 }
 
+/** Result of {@link buildAuxBasisDFStreamingCooperative}: one DF mode-slice per
+ *  tab, plus build statistics that substantiate the no-redundancy / never-full-V
+ *  claims. */
+export interface CooperativeDFResult {
+  /** One mode-partitioned DF tensor per tab. In a real swarm each lives on its
+   *  own tab; summed, the partial (J,K) reproduce the single-tab build. */
+  readonly slices: StreamingDFResult[];
+  /** Effective DF rank (sum of slice mode counts). */
+  readonly nKept: number;
+  /** Peak f64 V elements held at once = one μ-block (`muBlock·n·n_aux`). */
+  readonly peakVFloats: number;
+  /** Number of eri_3idx_build_slice invocations. Cooperative = ceil(n/muBlock)
+   *  (each integral built ONCE and fanned out to all tabs), versus
+   *  `nTabs · ceil(n/muBlock)` if every tab built independently. */
+  readonly kernelCalls: number;
+}
+
+/**
+ * Cooperative streaming aux-DF build: the single-machine (CI) engine.
+ *
+ * Same mode-partitioned fit as {@link buildAuxBasisDFStreaming}, but each V
+ * μ-block is built EXACTLY ONCE and immediately projected onto every tab's mode
+ * slice, instead of every tab rebuilding all integrals. This removes the N×
+ * redundant integral cost of fully-independent per-tab builds — the right
+ * trade when the tabs share a machine (a CI runner, multiple same-origin tabs).
+ * Only one V μ-block is resident at a time; each tab keeps only its B slice.
+ *
+ * Returns one DF slice per tab. (In this single-process validator all slices
+ * are resident at once — their sum is the full B; the memory DISTRIBUTION is a
+ * property of the real per-tab browser deployment, where each tab holds just
+ * `slices[t]`.)
+ */
+export async function buildAuxBasisDFStreamingCooperative(
+  orbitalShells: readonly CGShell[],
+  auxShells: readonly CGShell[] | undefined,
+  nTabs: number,
+  metricRegularization = 1e-10,
+  muBlock = 8,
+): Promise<CooperativeDFResult> {
+  const mod = await loadWasm();
+  const orb = packShells(orbitalShells);
+  const aux = auxShells ? packShells(auxShells) : orb;
+  const n = orbitalShells.length;
+  const nAux = auxShells ? auxShells.length : n;
+
+  const M = mod.eri_2idx_build(
+    nAux, aux.nPrims, aux.primOff, aux.alpha, aux.c, aux.center, aux.angular,
+  );
+  const eig = eigsymmetric(M, nAux);
+  const keptModes: number[] = [];
+  for (let i = 0; i < nAux; i++) if (eig.values[i]! > metricRegularization) keptModes.push(i);
+  const nKept = keptModes.length;
+
+  // Contiguous mode partition across tabs; per-tab W[Q,m] = U[Q,mode]·λ^(−1/2).
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (let t = 0; t < nTabs; t++) {
+    ranges.push({
+      start: Math.floor((t * nKept) / nTabs),
+      end: Math.floor(((t + 1) * nKept) / nTabs),
+    });
+  }
+  const Wt = ranges.map(({ start, end }) => {
+    const mLocal = end - start;
+    const W = new Float64Array(nAux * mLocal);
+    for (let m = 0; m < mLocal; m++) {
+      const i = keptModes[start + m]!;
+      const inv = 1.0 / Math.sqrt(eig.values[i]!);
+      const col = i * nAux;
+      for (let Q = 0; Q < nAux; Q++) W[Q * mLocal + m] = eig.vectors[col + Q]! * inv;
+    }
+    return W;
+  });
+  const Bt = ranges.map(({ start, end }) => new Float64Array(n * n * (end - start)));
+
+  const muBlk = Math.max(1, muBlock);
+  const Vblk = new Float64Array(muBlk * n * nAux);
+  const peakVFloats = Vblk.length;
+  let kernelCalls = 0;
+
+  for (let mu0 = 0; mu0 < n; mu0 += muBlk) {
+    const mu1 = Math.min(mu0 + muBlk, n);
+    const rows = mu1 - mu0;
+    const mus = new Uint32Array(rows);
+    for (let r = 0; r < rows; r++) mus[r] = mu0 + r;
+
+    // Build this V μ-block ONCE (the cooperative win).
+    Vblk.fill(0, 0, rows * n * nAux);
+    const packed = mod.eri_3idx_build_slice(
+      mus, n, nAux,
+      orb.nPrims, orb.primOff, orb.alpha, orb.c, orb.center, orb.angular,
+      aux.nPrims, aux.primOff, aux.alpha, aux.c, aux.center, aux.angular,
+    );
+    kernelCalls++;
+    const Kp = packed.length / 4;
+    for (let k = 0; k < Kp; k++) {
+      const base = k * 4;
+      const mu = packed[base]! | 0;
+      const nu = packed[base + 1]! | 0;
+      const P = packed[base + 2]! | 0;
+      Vblk[((mu - mu0) * n + nu) * nAux + P] = packed[base + 3]!;
+    }
+
+    // Fan out: project this block into every tab's upper-triangle slice.
+    for (let t = 0; t < ranges.length; t++) {
+      const { start, end } = ranges[t]!;
+      const mLocal = end - start;
+      if (mLocal === 0) continue;
+      const W = Wt[t]!;
+      const B = Bt[t]!;
+      for (let r = 0; r < rows; r++) {
+        const mu = mu0 + r;
+        for (let nu = mu; nu < n; nu++) {
+          const vBase = (r * n + nu) * nAux;
+          const bBase = (mu * n + nu) * mLocal;
+          for (let m = 0; m < mLocal; m++) {
+            let s = 0;
+            for (let Q = 0; Q < nAux; Q++) s += Vblk[vBase + Q]! * W[Q * mLocal + m]!;
+            B[bBase + m] = s;
+          }
+        }
+      }
+    }
+  }
+
+  // Symmetrize each slice (B[νμ] = B[μν]).
+  for (let t = 0; t < ranges.length; t++) {
+    const mLocal = ranges[t]!.end - ranges[t]!.start;
+    if (mLocal === 0) continue;
+    const B = Bt[t]!;
+    for (let mu = 0; mu < n; mu++) {
+      for (let nu = mu + 1; nu < n; nu++) {
+        const up = (mu * n + nu) * mLocal;
+        const lo = (nu * n + mu) * mLocal;
+        for (let m = 0; m < mLocal; m++) B[lo + m] = B[up + m]!;
+      }
+    }
+  }
+
+  const slices: StreamingDFResult[] = ranges.map((rg, t) => ({
+    B: Bt[t]!, nAux: rg.end - rg.start, threshold: metricRegularization, n, peakVFloats,
+  }));
+  return { slices, nKept, peakVFloats, kernelCalls };
+}
+
 /** Pivoted-Cholesky variant of `buildAuxBasisDF`. Handles
  *  rank-deficient auxiliary metrics (e.g., auto-aux with cross-atom
  *  redundancy on multi-heavy-atom systems) without the spurious-mode

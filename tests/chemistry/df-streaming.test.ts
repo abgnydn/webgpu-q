@@ -18,6 +18,7 @@ import type { DFResult } from "../../src/chemistry/df.js";
 import {
   buildAuxBasisDF,
   buildAuxBasisDFStreaming,
+  buildAuxBasisDFStreamingCooperative,
   generateAutoAux,
 } from "../../src/chemistry/df-aux.js";
 
@@ -153,5 +154,46 @@ describe("streaming mode-partitioned aux-DF build", () => {
     expect(dPartition).toBeLessThan(1e-9);
     // Sanity: DF-HF tracks exact HF to the fitting error (auto-aux level 1).
     expect(dfError).toBeLessThan(5e-2);
+  });
+
+  test("cooperative build: integrals built ONCE, fanned out, slices sum to reference", async () => {
+    // Step 1 of the CI engine: build each V μ-block once and project to every
+    // tab's mode slice — no N× redundant integral work.
+    const { shells, nuclei } = moleculeToShellsNuclei(H2O);
+    const n = shells.length;
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, 10);
+    const D = hf.D;
+
+    const aux = generateAutoAux(shells, 1);
+    const ref = await buildAuxBasisDF(shells, aux);
+    const refJK = buildJK_DF(ref, D);
+
+    const muBlock = 4;
+    const nTabs = 4;
+    const coop = await buildAuxBasisDFStreamingCooperative(shells, aux, nTabs, 1e-10, muBlock);
+
+    // Sum partial (J,K) from the cooperatively-built tab slices.
+    const J = new Float64Array(n * n);
+    const K = new Float64Array(n * n);
+    for (const s of coop.slices) {
+      const part = buildJK_DF(s, D);
+      for (let i = 0; i < J.length; i++) { J[i] = J[i]! + part.J[i]!; K[i] = K[i]! + part.K[i]!; }
+    }
+    const dJ = maxAbsDiff(refJK.J, J);
+    const dK = maxAbsDiff(refJK.K, K);
+
+    const expectedCalls = Math.ceil(n / muBlock);          // one pass over μ
+    const independentCalls = nTabs * expectedCalls;        // what per-tab rebuild costs
+    console.log(`[df-coop] ${nTabs} tabs, max|ΔJ|=${dJ.toExponential(2)} max|ΔK|=${dK.toExponential(2)}`);
+    console.log(`[df-coop] kernelCalls=${coop.kernelCalls} (cooperative) vs ${independentCalls} (independent rebuild) — ${(independentCalls / coop.kernelCalls).toFixed(1)}× fewer`);
+    console.log(`[df-coop] peak V floats=${coop.peakVFloats} vs full tensor ${n * n * aux.length}`);
+
+    expect(dJ).toBeLessThan(1e-9);
+    expect(dK).toBeLessThan(1e-9);
+    // No redundancy: each integral built exactly once regardless of tab count.
+    expect(coop.kernelCalls).toBe(expectedCalls);
+    // Never materializes the full 3-index tensor.
+    expect(coop.peakVFloats).toBeLessThan(n * n * aux.length);
   });
 });
