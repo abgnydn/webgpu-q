@@ -317,6 +317,16 @@ function packShells(shells: readonly CGShell[]): {
   return { nPrims, primOff, alpha, c, center, angular };
 }
 
+/** CPU (f64 WASM) 2-index DF metric M[P,Q] = (P|Q), row-major n_aux × n_aux.
+ *  The reference the GPU f32 metric kernel (df-gpu.ts) is validated against. */
+export async function buildMetric2idxCPU(auxShells: readonly CGShell[]): Promise<Float64Array> {
+  const mod = await loadWasm();
+  const aux = packShells(auxShells);
+  return mod.eri_2idx_build(
+    auxShells.length, aux.nPrims, aux.primOff, aux.alpha, aux.c, aux.center, aux.angular,
+  );
+}
+
 /**
  * Build the density-fitting B-tensor from explicit 3-index and
  * 2-index integrals. Aux basis defaults to the orbital basis (Phase 1
