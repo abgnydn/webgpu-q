@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "protocol": "swarm-hf-h2lattice-40",
+    "molecule": "h2lattice-40",
+    "formula": "(H2)40",
+    "basis": "cc-pvdz",
+    "nTabs": 4,
+    "innerPool": 1,
+    "hypothesis": "Partitioning the density-fitted Fock build by auxiliary index across N same-origin tabs reproduces the single-tab energy and runs to convergence.",
+    "passBar": "converged === true && Number.isFinite(energy)",
+    "warmup": 0,
+    "trials": 1,
+    "timingNote": "Single representative run on a 16 GB M2 Pro (Chromium, cross-origin isolated). Per-phase wall-time; energy is deterministic. Not the 5-warmup/20-trial GPU-kernel protocol."
+  },
+  "env": {
+    "gitSha": "52ab041",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "adapterInfo": {
+      "vendor": "google",
+      "architecture": "swiftshader",
+      "device": "",
+      "description": ""
+    },
+    "platform": "linux",
+    "timestamp": "2026-06-08T07:23:37.371Z"
+  },
+  "rows": [
+    {
+      "n": 400,
+      "nAux": 2000,
+      "iter": 13,
+      "converged": true,
+      "energyHa": -45.14995979976486,
+      "refEnergyHa": -45.14993295265002,
+      "swarmVsRefDeltaHa": 0.000026847114838801645,
+      "swarmScfMs": 822629,
+      "totalMs": 822629,
+      "totalSec": 822.63,
+      "perTabSliceMB": 640,
+      "fullBTensorGB": 2.56
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "h2lattice-40 cc-pvdz: E=-45.14995980 Ha in 13 iters across 4 tabs; swarm vs single-tab |ΔE|=2.68e-5 Ha."
+}
