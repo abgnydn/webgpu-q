@@ -11,7 +11,7 @@
 
 import type { CGShell } from "./integrals-cg.js";
 import type { DFResult } from "./df.js";
-import { buildBFromV, buildAuxBasisDFStreaming } from "./df-aux.js";
+import { buildBFromV, buildAuxBasisDFStreaming, buildV3idxCPU } from "./df-aux.js";
 
 const METRIC_WGSL = /* wgsl */ `
 const PI: f32 = 3.141592653589793;
@@ -655,6 +655,49 @@ export async function buildV3idxGPU_sOnly(
   const out = new Float32Array(readBuf.getMappedRange().slice(0));
   readBuf.unmap(); device.destroy();
   return out;
+}
+
+// ── Hybrid 3-index build: GPU for s/p/d-aux columns, WASM for f+-aux ──────────
+// The WGSL kernel is d-only (maxL ≤ 2), so it can't build the f-aux columns that
+// the chemistry-grade extraL=1 aux basis needs. But V is column-indexed by aux
+// (layout (μ·n+ν)·nAux + P), so we can split: GPU builds the s/p/d-aux columns
+// (the majority, f32) and WASM builds the minority f+-aux columns (f64), then
+// concatenate along P in order [low, high]. buildBFromV builds the 2-index metric
+// over the FULL (reordered) aux set, so the two blocks couple correctly. This
+// gets extraL=1 accuracy with the GPU carrying the bulk of the integral work —
+// without writing an f-function WGSL kernel.
+const totalAngular = (s: CGShell): number => s.angular[0] + s.angular[1] + s.angular[2];
+
+/** Build V[μν,P] (f64) splitting aux columns: GPU for L ≤ 2, WASM for L > 2.
+ *  Returns the merged V AND the aux list reordered to match its column order
+ *  ([low-L aux…, high-L aux…]); pass that reordered list to buildBFromV. Falls
+ *  back to all-WASM if the orbitals themselves exceed d (GPU can't do them). */
+export async function buildV3idxHybrid(
+  orbShells: readonly CGShell[], auxShells: readonly CGShell[],
+): Promise<{ V: Float64Array; auxOrdered: CGShell[] }> {
+  const n = orbShells.length;
+  const nAux = auxShells.length;
+  const orbMaxL = Math.max(0, ...orbShells.map(totalAngular));
+  const low = auxShells.filter((s) => totalAngular(s) <= 2);
+  const high = auxShells.filter((s) => totalAngular(s) > 2);
+
+  // GPU can't touch orbitals beyond d → all WASM (no GPU benefit available).
+  if (orbMaxL > 2) return { V: await buildV3idxCPU(orbShells, auxShells), auxOrdered: [...auxShells] };
+  // No f-aux → the whole build is GPU-eligible.
+  if (high.length === 0) return { V: Float64Array.from(await buildV3idxGPU(orbShells, auxShells)), auxOrdered: [...auxShells] };
+  // No s/p/d-aux (degenerate) → all WASM.
+  if (low.length === 0) return { V: await buildV3idxCPU(orbShells, auxShells), auxOrdered: [...auxShells] };
+
+  // Split build, merge columns in order [low, high].
+  const nLow = low.length, nHigh = high.length;
+  const [Vg, Vh] = await Promise.all([buildV3idxGPU(orbShells, low), buildV3idxCPU(orbShells, high)]);
+  const V = new Float64Array(n * n * nAux);
+  for (let mn = 0; mn < n * n; mn++) {
+    const dst = mn * nAux, sl = mn * nLow, sh = mn * nHigh;
+    for (let p = 0; p < nLow; p++) V[dst + p] = Vg[sl + p]!;
+    for (let q = 0; q < nHigh; q++) V[dst + nLow + q] = Vh[sh + q]!;
+  }
+  return { V, auxOrdered: [...low, ...high] };
 }
 
 // ── Auto-selected DF build: GPU integrals where they win, WASM otherwise ──────

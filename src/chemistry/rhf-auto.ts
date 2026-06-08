@@ -3,7 +3,7 @@
 // What a computational chemist actually wants from one call: exact when it's
 // affordable, density-fitting when the exact 4-index ERI won't fit, and full
 // transparency about which path ran. This wires together the pieces that already
-// exist (exact ERI SCF, WASM aux-basis DF, the WGSL GPU DF build + GPU DF-JK)
+// exist (exact ERI SCF, WASM aux-basis DF, the hybrid GPU/WASM integral build)
 // behind a single size-gated decision, and REPORTS the method/engine/precision so
 // the number is never unattributed.
 //
@@ -11,9 +11,12 @@
 //   • n ≤ exactMaxN            → EXACT 4-index ERI (gold standard, f64).
 //   • n >  exactMaxN           → DENSITY FITTING (the exact ERI is O(n⁴) and
 //                                won't fit in a tab — DF is the enabling path).
-//        - default engine      = WASM, f64  (standard RI-JK, well-characterized).
-//        - opts.fast + d-regime= GPU, f32   (the WGSL integral build + GPU DF-JK;
-//                                ~6e-4 element-precision floor, disclosed).
+//        - default engine      = WASM, f64 (standard RI-JK, well-characterized).
+//        - opts.fast + d-regime= HYBRID: GPU f32 builds the s/p/d-aux columns,
+//                                WASM f64 the f-aux, f64 JK — GPU-accelerated AND
+//                                chemistry-grade (~0.2 mHa, the f32 block costs
+//                                ~8 µHa). Replaces the old d-only level-0 GPU path
+//                                that was ~30 mHa screening-only.
 //
 // exactMaxN default 80: the ERI is n⁴·8 bytes, ~256 MB at n=75 — past that a
 // browser tab can't hold it (naphthalene cc-pVDZ n≈180 → 10 GB).
@@ -21,14 +24,14 @@
 import { type CGShell } from "./integrals-cg.js";
 import { computeMolecularIntegrals, type Nucleus, type MolecularIntegrals } from "./cg-molecular.js";
 import { runRHFSCFAsync, type HFResult, type HFOpts } from "./hf-scf.js";
-import { generateAutoAux, buildAuxBasisDFStreaming } from "./df-aux.js";
-import { buildDFAuto } from "./df-gpu.js";
-import { makeGpuDFJK } from "./jk-df-gpu.js";
+import { generateAutoAux, buildAuxBasisDFStreaming, buildBFromV } from "./df-aux.js";
+import { buildV3idxHybrid } from "./df-gpu.js";
 
 export interface RHFAutoOpts {
   /** Largest n that still uses the exact 4-index ERI. Above it → DF. Default 80. */
   readonly exactMaxN?: number;
-  /** In the DF regime, prefer the GPU f32 path (faster, ~6e-4 floor) over WASM f64. */
+  /** In the DF regime, use the hybrid GPU/WASM integral build (GPU-accelerated,
+   *  still chemistry-grade) instead of pure WASM. Default false (pure f64 WASM). */
   readonly fast?: boolean;
   /** Force a path regardless of size: "exact" | "df". Default: auto by size. */
   readonly force?: "exact" | "df";
@@ -39,8 +42,8 @@ export interface RHFAutoOpts {
 /** How the energy was actually produced — record this in any artifact. */
 export interface RHFAutoProvenance {
   readonly method: "exact-eri" | "density-fitting";
-  readonly engine: "wasm" | "gpu";
-  readonly precision: "f64" | "f32";
+  readonly engine: "wasm" | "gpu" | "gpu+wasm";
+  readonly precision: "f64" | "f32" | "mixed";
   /** Number of auxiliary functions (DF only; 0 for exact). */
   readonly nAux: number;
   /** Expected method error vs the exact result, order of magnitude, human-readable. */
@@ -88,50 +91,35 @@ export async function runRHFAuto(
   // DF regime: skip the O(n⁴) ERI entirely — DF never needs it.
   const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true });
 
+  // extraL=1 aux (the cc-pVDZ sweet spot — adds f-aux for chemistry-grade
+  // accuracy; extraL=2 over-completes and breaks the metric orthogonalization).
+  const aux = generateAutoAux(shells, 1);
+
   const wantGPU = !!opts.fast && hasDFunctions(shells) &&
     !!(navigator as unknown as { gpu?: unknown }).gpu;
 
   if (wantGPU) {
-    // GPU f32: WGSL integral build for B + GPU DF-JK every SCF iteration. The
-    // f32 JK floor caps convergence near ~6e-4, so loosen tolerances to match.
-    // NOTE the accuracy ceiling: the WGSL 3-index kernel only handles up to d
-    // (maxL ≤ 2), so the GPU path is limited to the extraL=0 aux basis (no
-    // f-aux). On cc-pVDZ that level-0 aux is itself ~30 mHa from exact — so the
-    // GPU fast path trades chemistry-grade accuracy for speed/feasibility. Use
-    // it for large-system screening, not for chemical-accuracy numbers.
-    const auxGpu = generateAutoAux(shells, 0);
+    // GPU-accelerated AND chemically accurate: the HYBRID 3-index build does the
+    // s/p/d-aux columns on the GPU (f32) and the f-aux columns on WASM (f64),
+    // then projects in f64. Measured: the f32 low-aux block costs only ~8 µHa, so
+    // the result stays chemistry-grade (H2O 0.19 mHa vs exact) — unlike the
+    // d-only level-0 GPU path (~30 mHa) it replaces. JK stays f64 WASM for
+    // accuracy; the GPU carries the dominant integral-build cost.
     try {
-      const { df, path } = await buildDFAuto(shells, auxGpu, { gpu: true });
-      if (path === "gpu") {
-        const gpuJK = await makeGpuDFJK(df);
-        const customJKBuilder = async (D: Float64Array): Promise<{ J: Float64Array; K: Float64Array }> => {
-          const { J, K } = await gpuJK.jk(D);
-          const Jf = new Float64Array(J.length), Kf = new Float64Array(K.length);
-          for (let i = 0; i < J.length; i++) { Jf[i] = J[i]!; Kf[i] = K[i]!; }
-          return { J: Jf, K: Kf };
-        };
-        try {
-          const hf = await runRHFSCFAsync(integrals, nElectrons, {
-            ...hfOpts, parallel: 1, customJKBuilder,
-            energyTol: Math.max(hfOpts.energyTol ?? 0, 1e-5),
-            densityTol: Math.max(hfOpts.densityTol ?? 0, 1e-4),
-          });
-          return {
-            hf, integrals,
-            provenance: { method: "density-fitting", engine: "gpu", precision: "f32", nAux: df.nAux,
-              expectedError: "level-0 aux (d-only kernel, ~30 mHa vs exact) + f32 JK floor (~6e-4 Ha) — screening, NOT chemical accuracy" },
-          };
-        } finally { gpuJK.dispose(); }
-      }
+      const { V, auxOrdered } = await buildV3idxHybrid(shells, aux);
+      const df = await buildBFromV(shells, auxOrdered, V);
+      const hf = await runRHFSCFAsync(integrals, nElectrons, { ...hfOpts, useDF: df });
+      return {
+        hf, integrals,
+        provenance: { method: "density-fitting", engine: "gpu+wasm", precision: "mixed", nAux: df.nAux,
+          expectedError: "hybrid extraL=1: GPU f32 s/p/d-aux + f64 f-aux + f64 JK — chemistry-grade (~0.2 mHa vs exact)" },
+      };
     } catch {
-      /* GPU path unavailable / failed — fall through to f64 WASM DF */
+      /* GPU/hybrid path unavailable — fall through to pure f64 WASM DF */
     }
   }
 
-  // Default DF: f64 WASM aux-basis with extraL=1 (the cc-pVDZ sweet spot — adds
-  // f-aux for chemistry-grade accuracy; extraL=2 over-completes and breaks the
-  // metric orthogonalization). Standard RI-JK; B reused across the SCF.
-  const aux = generateAutoAux(shells, 1);
+  // Default DF: f64 WASM aux-basis (standard RI-JK); B reused across the SCF.
   const df = await buildAuxBasisDFStreaming(shells, aux);
   const hf = await runRHFSCFAsync(integrals, nElectrons, { ...hfOpts, useDF: df });
   return {

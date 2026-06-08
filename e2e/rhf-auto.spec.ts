@@ -10,7 +10,7 @@ import { test, expect } from "@playwright/test";
 // what the size gate exists to avoid.
 
 test.describe("runRHFAuto — size-gated exact/DF with provenance", () => {
-  test("H2O cc-pVDZ — exact vs f64-DF vs GPU-f32-DF agree, provenance honest", async ({ page }) => {
+  test("H2O cc-pVDZ — exact vs f64-DF vs hybrid-GPU-DF agree, provenance honest", async ({ page }) => {
     test.setTimeout(120 * 1000);
     page.on("pageerror", (e) => console.error(`[pageerror] ${e.message}`));
     page.on("console", (m) => { if (m.text().startsWith("[auto]")) console.log(m.text()); });
@@ -33,12 +33,13 @@ test.describe("runRHFAuto — size-gated exact/DF with provenance", () => {
 
       log(`H2O n=${n}: exact ${exact.hf.energy.toFixed(8)} [${exact.provenance.method}/${exact.provenance.engine}/${exact.provenance.precision}]`);
       log(`  f64-DF  ${dfW.hf.energy.toFixed(8)} [${dfW.provenance.engine}/${dfW.provenance.precision}, nAux=${dfW.provenance.nAux}] |Δexact|=${Math.abs(dfW.hf.energy - exact.hf.energy).toExponential(2)}`);
-      log(`  f32-GPU ${dfG.hf.energy.toFixed(8)} [${dfG.provenance.engine}/${dfG.provenance.precision}, nAux=${dfG.provenance.nAux}] |Δexact|=${Math.abs(dfG.hf.energy - exact.hf.energy).toExponential(2)}`);
+      log(`  hybrid  ${dfG.hf.energy.toFixed(8)} [${dfG.provenance.engine}/${dfG.provenance.precision}, nAux=${dfG.provenance.nAux}] |Δexact|=${Math.abs(dfG.hf.energy - exact.hf.energy).toExponential(2)}`);
 
       return {
         exactProv: exact.provenance, dfWProv: dfW.provenance, dfGProv: dfG.provenance,
         dWexact: Math.abs(dfW.hf.energy - exact.hf.energy),
         dGexact: Math.abs(dfG.hf.energy - exact.hf.energy),
+        dHW: Math.abs(dfG.hf.energy - dfW.hf.energy),
         eriLenExact: exact.integrals.eri_AO.length, eriLenDF: dfW.integrals.eri_AO.length,
       };
     });
@@ -49,21 +50,21 @@ test.describe("runRHFAuto — size-gated exact/DF with provenance", () => {
     expect(r.exactProv.method).toBe("exact-eri");
     expect(r.exactProv.precision).toBe("f64");
     expect(r.dfWProv).toMatchObject({ method: "density-fitting", engine: "wasm", precision: "f64" });
-    expect(r.dfGProv).toMatchObject({ method: "density-fitting", engine: "gpu", precision: "f32" });
+    expect(r.dfGProv).toMatchObject({ method: "density-fitting", engine: "gpu+wasm", precision: "mixed" });
     expect(r.dfWProv.nAux).toBeGreaterThan(0);
 
     // DF skips the O(n⁴) ERI; exact builds it. (The structural payoff of DF.)
     expect(r.eriLenExact).toBeGreaterThan(0);
     expect(r.eriLenDF).toBe(0);
 
-    // Accuracy ladder, honest about each path:
-    //  - f64 DF (extraL=1, with f-aux) is chemistry-grade vs exact (few mHa).
-    //  - GPU f32 DF is LIMITED to the d-only level-0 aux → ~30 mHa from exact:
-    //    screening-grade, NOT chemical accuracy. We assert it's in that regime
-    //    (sane, but explicitly coarser), so the limitation is encoded, not hidden.
-    expect(r.dWexact).toBeLessThan(1.594e-3); // extraL=1 f64 DF: chemistry-grade (measured 0.19 mHa)
-    expect(r.dGexact).toBeLessThan(6.0e-2);   // level-0 GPU DF: ~30 mHa, screening only
-    expect(r.dWexact).toBeLessThan(r.dGexact); // and the accurate path IS more accurate
+    // BOTH DF paths are now chemistry-grade vs exact:
+    //  - f64 DF (extraL=1, with f-aux): ~0.19 mHa.
+    //  - hybrid GPU/WASM DF (GPU f32 s/p/d-aux + f64 f-aux + f64 JK): ~0.19 mHa
+    //    too — the f32 low-aux block costs only ~8 µHa, so GPU acceleration no
+    //    longer means giving up chemical accuracy (it used to be ~30 mHa).
+    expect(r.dWexact).toBeLessThan(1.594e-3); // f64 DF chemistry-grade (measured 0.19 mHa)
+    expect(r.dGexact).toBeLessThan(1.594e-3); // hybrid GPU DF ALSO chemistry-grade
+    expect(r.dHW).toBeLessThan(1.0e-3);       // hybrid tracks the pure-f64 DF closely
   });
 
   test("benzene cc-pVDZ (n=114 > 80) — auto picks DF and skips the ERI", async ({ page }) => {
