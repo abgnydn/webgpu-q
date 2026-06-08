@@ -9,6 +9,12 @@
 //   X[P,μ,σ] = Σ_λ B[μλ,P] D[λσ]            (exchange half-transform)
 //   K[μν]    = Σ_P Σ_σ X[P,μ,σ] B[νσ,P]
 // Four contraction passes; B stays resident across them.
+//
+// f32 floor (honest negative, 2026-06): J/K land ~6e-4 rel vs f64. Kahan-
+// compensated summation in these four loops moved it by ZERO digits — the floor
+// is f32 ELEMENT precision under the problem's conditioning (B cast to f32 +
+// rounded products), not summation order. So we keep the naive loops; closing the
+// gap would need double-single (df64) emulation on the products, not the sum.
 
 import type { DFResult } from "./df.js";
 
