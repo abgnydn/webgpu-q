@@ -16,6 +16,7 @@ on:
     paths:
       - "src/parallel/swarm/webrtc-transport.ts"
       - "e2e/swarm-webrtc-crossmachine.spec.ts"
+      - "e2e/swarm-relay-crossmachine.spec.ts"
       - ".github/workflows/swarm-crossmachine.yml"
 
 permissions:
@@ -43,8 +44,14 @@ jobs:
       - run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
-      - name: WebRTC cross-machine round-trip
+      - name: WebRTC cross-machine round-trip (data point; needs TURN across cloud NAT)
+        continue-on-error: true
         env:
           ROLE: ${{ matrix.role }}
-          ROOM: ${{ github.run_id }}
+          ROOM: wgqrtc-${{ github.run_id }}
         run: npx playwright test e2e/swarm-webrtc-crossmachine.spec.ts --reporter=list
+      - name: Relay cross-machine round-trip (free public broker — the working path)
+        env:
+          ROLE: ${{ matrix.role }}
+          ROOM: wgqrelay-${{ github.run_id }}
+        run: npx playwright test e2e/swarm-relay-crossmachine.spec.ts --reporter=list
