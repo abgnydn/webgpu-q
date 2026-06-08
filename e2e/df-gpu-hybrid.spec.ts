@@ -62,4 +62,36 @@ test.describe("Hybrid GPU/WASM 3-index DF build — accuracy", () => {
     expect(r.dHexact).toBeLessThan(1.594e-3);
     expect(r.dHW).toBeLessThan(1.0e-3);              // hybrid tracks the pure-f64 DF closely
   });
+
+  test("benzene cc-pVDZ extraL=1 — hybrid V-build vs all-WASM V-build wall-clock", async ({ page }) => {
+    test.setTimeout(180 * 1000);
+    page.on("pageerror", (e) => console.error(`[pageerror] ${e.message}`));
+    page.on("console", (m) => { if (m.text().startsWith("[hybt]")) console.log(m.text()); });
+    await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+    const r = await page.evaluate(async () => {
+      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[hybt] ${s}`); };
+      const [{ moleculeToShellsNuclei }, { generateAutoAux, buildV3idxCPU }, { buildV3idxHybrid }] = await Promise.all([
+        import("/src/chemistry/atoms.ts" as string),
+        import("/src/chemistry/df-aux.ts" as string),
+        import("/src/chemistry/df-gpu.ts" as string),
+      ]);
+      const rCC = 1.395, rCH = 1.087; const atoms: { symbol: string; pos: number[] }[] = [];
+      for (let i = 0; i < 6; i++) { const t = i * Math.PI / 3; atoms.push({ symbol: "C", pos: [rCC * Math.cos(t), rCC * Math.sin(t), 0] }); }
+      for (let i = 0; i < 6; i++) { const t = i * Math.PI / 3; const r2 = rCC + rCH; atoms.push({ symbol: "H", pos: [r2 * Math.cos(t), r2 * Math.sin(t), 0] }); }
+      const { shells } = moleculeToShellsNuclei(atoms as never, "cc-pvdz");
+      const aux = generateAutoAux(shells, 1);
+      const nLow = aux.filter((s: { angular: number[] }) => (s.angular[0]! + s.angular[1]! + s.angular[2]!) <= 2).length;
+      // warm both, then time the V build (the only place the hybrid differs).
+      await buildV3idxHybrid(shells as never, aux as never); await buildV3idxCPU(shells as never, aux as never);
+      const t0 = performance.now(); await buildV3idxHybrid(shells as never, aux as never); const hMs = performance.now() - t0;
+      const t1 = performance.now(); await buildV3idxCPU(shells as never, aux as never); const wMs = performance.now() - t1;
+      log(`benzene n=${shells.length} aux=${aux.length} (${nLow} on GPU): hybrid V ${(hMs / 1000).toFixed(2)}s vs all-WASM ${(wMs / 1000).toFixed(2)}s → ${(wMs / hMs).toFixed(2)}x`);
+      return { ratio: wMs / hMs, nLow, nAux: aux.length };
+    });
+    console.log(`\n[df-gpu-hybrid-bench] ${JSON.stringify(r)}\n`);
+    expect(r.nLow).toBeGreaterThan(0);                 // GPU carries the s/p/d-aux bulk
+    expect(r.nLow / r.nAux).toBeGreaterThan(0.8);      // and it IS the bulk (>80% of aux)
+    // Ratio reported, not asserted (single-shot, machine-dependent): the GPU
+    // accelerates the chemistry-grade build by offloading the s/p/d-aux columns.
+  });
 });
