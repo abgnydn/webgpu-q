@@ -65,7 +65,9 @@ Ranked by ROI. One focused session ≈ a few hours.
 | **UHF + open-shell CCSD** | ✓ (UHF stage 21, UCCSD stage 25) | radicals, transition metals |
 | **Density fitting (RI)** | ✓ correctness + **speedup** (aux-basis 3-index DF now shipped: `buildAuxBasisDFStreaming` WASM, never builds the 4-index ERI; the old CD-DF 11-20× regression is retired) | half memory + faster |
 | **WebGPU aux-basis DF integrals** | ✓ (`df-gpu.ts`: s/p/d McMurchie–Davidson 3-index V + 2-index metric in WGSL f32, validated ~1e-4 rel; `buildDFAuto` auto-selects GPU in the d-regime) | GPU integral build, 1.1-1.35× d-regime |
-| **Fully-GPU DF-HF SCF** | ✓ (`makeGpuDFJK` + `buildDFAuto`: whole HF loop on GPU from a URL, no 4-index ERI; benzene cc-pVDZ **5-6× faster** whole-loop vs WASM, agrees to chemical accuracy; f32 JK floor ~6e-4 is element-precision, documented) | browser HF with speed |
+| **Fully-GPU DF-HF SCF** | ✓ (`makeGpuDFJK` + `buildDFAuto`: whole HF loop on GPU from a URL, no 4-index ERI; benzene cc-pVDZ **5-6× faster** whole-loop vs WASM; level-0 aux → ~30 mHa screening; f32 JK floor ~6e-4 is element-precision) | fast browser HF (screening) |
+| **Hybrid GPU/WASM DF — chemistry-grade** | ✓ (`buildV3idxHybrid`: GPU f32 does s/p/d-aux cols, WASM f64 the f-aux, f64 JK; breaks the d-only ceiling — H₂O **0.185 mHa** vs exact, 1.31× V-build over all-WASM at extraL=1) | GPU speed AND chemical accuracy |
+| **`runRHFAuto` entry point** | ✓ (`rhf-auto.ts`: size-gated exact(small)/f64-DF(large)/hybrid-GPU(fast) with honest provenance — method/engine/precision/expected-error) | one call, right method, attributed |
 | **IP-EOM-CCSD / EA-EOM-CCSD** | ✓ (stages 37–38, beyond original Tier 2 plan) | accurate IPs / EAs |
 
 #### Tier 3 — Substantial (~25 sessions)
@@ -118,10 +120,14 @@ highest-leverage demonstration.
   Full DFT ladder (LDA/GGA/B3-hybrid) on RHF/UHF/RKS/UKS.
   Full {α, α(ω), α(iω), C₆} response matrix.
   EE/IP/EA-EOM-CCSD with eigenvectors, oscillator strengths, spin classifier.
-  **Fully-GPU DF-HF**: GPU aux-basis 3-index integrals (`df-gpu.ts`) + GPU
-  DF-JK (`makeGpuDFJK`) run the whole HF loop on the GPU from a URL with no
-  4-index ERI — benzene cc-pVDZ **5-6× faster** whole-loop vs WASM, agreeing
-  to chemical accuracy (f32 JK floor ~6e-4, element-precision).
+  **GPU DF-HF**: GPU aux-basis 3-index integrals (`df-gpu.ts`) + GPU DF-JK
+  (`makeGpuDFJK`) run the whole HF loop on the GPU from a URL, no 4-index ERI —
+  benzene cc-pVDZ **5-6× faster** whole-loop vs WASM (level-0 aux, screening).
+  **Hybrid GPU/WASM DF** (`buildV3idxHybrid`) breaks the d-only accuracy
+  ceiling — GPU f32 builds the s/p/d-aux columns, WASM f64 the f-aux, f64 JK —
+  H₂O **0.185 mHa** vs exact AND 1.31× V-build over all-WASM at extraL=1, so
+  GPU speed no longer costs chemical accuracy. One-call entry: `runRHFAuto`
+  (size-gated exact/DF/hybrid with honest method/engine/precision provenance).
 
 **Live**: https://webgpu-q.vercel.app — landing, `/viz.html` (4D
 hyperscope), `/molecule.html` (SI report), `/experiments/` (E1–E33+).
@@ -159,6 +165,11 @@ benches (`e2e/`) cover all levels + the swarm/acene series.
 - DF-CCSD via B-tensor through spin-orbital ERI build.
 - df64 (double-single) emulation on GPU-JK products to push past the f32
   ~6e-4 element-precision floor (Kahan on the sum was a no-op — see jk-df-gpu.ts).
+  Lower priority now: the hybrid path (`buildV3idxHybrid`) already gives
+  chemistry-grade GPU-accelerated DF via f64 JK, sidestepping the f32-JK floor.
+- f-functions in the WGSL 3-index kernel: would raise the GPU-carried aux
+  fraction past the current ~91% (hybrid offloads f-aux to WASM) for a bigger
+  GPU win — but no longer needed for *accuracy* (the hybrid is chemistry-grade).
 - WGSL (T) kernel optimization to push 39× → 100× (no warmup+trials harness yet).
 - UKS-TDDFT response α(ω) — only remaining {ref}×{response} cell.
 - Z-vector for MP2 / CCSD analytical gradients.
