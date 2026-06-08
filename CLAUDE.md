@@ -67,7 +67,7 @@ Ranked by ROI. One focused session ≈ a few hours.
 | **WebGPU aux-basis DF integrals** | ✓ (`df-gpu.ts`: s/p/d McMurchie–Davidson 3-index V + 2-index metric in WGSL f32, validated ~1e-4 rel; `buildDFAuto` auto-selects GPU in the d-regime) | GPU integral build, 1.1-1.35× d-regime |
 | **Fully-GPU DF-HF SCF** | ✓ (`makeGpuDFJK` + `buildDFAuto`: whole HF loop on GPU from a URL, no 4-index ERI; benzene cc-pVDZ **5-6× faster** whole-loop vs WASM; level-0 aux → ~30 mHa screening; f32 JK floor ~6e-4 is element-precision) | fast browser HF (screening) |
 | **Hybrid GPU/WASM DF — chemistry-grade** | ✓ (`buildV3idxHybrid`: GPU f32 does s/p/d-aux cols, WASM f64 the f-aux, f64 JK; breaks the d-only ceiling — H₂O **0.185 mHa** vs exact, 1.31× V-build over all-WASM at extraL=1) | GPU speed AND chemical accuracy |
-| **`runRHFAuto` entry point** | ✓ (`rhf-auto.ts`: size-gated exact(small)/f64-DF(large)/hybrid-GPU(fast) with honest provenance — method/engine/precision/expected-error) | one call, right method, attributed |
+| **`runRHFAuto` / `runRKSAuto` entry points** | ✓ (`rhf-auto.ts`: size-gated exact(small)/f64-DF(large)/hybrid-GPU(fast) with honest provenance, for both HF and **DFT** — `runRKSDFT` gained a `useDF` option; pure functionals ride the cheap DF J, hybrids the DF K; validated H₂O LDA 0.07 mHa / B3LYP5 0.02 mHa vs exact) | one call, right method, attributed, HF+DFT |
 | **IP-EOM-CCSD / EA-EOM-CCSD** | ✓ (stages 37–38, beyond original Tier 2 plan) | accurate IPs / EAs |
 
 #### Tier 3 — Substantial (~25 sessions)
