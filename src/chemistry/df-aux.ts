@@ -327,6 +327,43 @@ export async function buildMetric2idxCPU(auxShells: readonly CGShell[]): Promise
   );
 }
 
+/** Build the mode-basis DF tensor from a PRECOMPUTED 3-index V[μν,Q] (e.g. one
+ *  the GPU produced). Returns the same mode-basis B as buildAuxBasisDFStreaming
+ *  (nKept columns), so it drops straight into buildJK_DF / runRHFSCF useDF. Used
+ *  to run HF end-to-end on GPU-computed integrals. */
+export async function buildBFromV(
+  orbShells: readonly CGShell[], auxShells: readonly CGShell[],
+  V: Float64Array, metricRegularization = 1e-10,
+): Promise<DFResult> {
+  const mod = await loadWasm();
+  const aux = packShells(auxShells);
+  const n = orbShells.length;
+  const nAux = auxShells.length;
+  const M = mod.eri_2idx_build(
+    nAux, aux.nPrims, aux.primOff, aux.alpha, aux.c, aux.center, aux.angular,
+  );
+  const eig = eigsymmetric(M, nAux);
+  const kept: number[] = [];
+  for (let i = 0; i < nAux; i++) if (eig.values[i]! > metricRegularization) kept.push(i);
+  const nKept = kept.length;
+  const B = new Float64Array(n * n * nKept);
+  for (let mu = 0; mu < n; mu++) {
+    for (let nu = 0; nu < n; nu++) {
+      const vBase = (mu * n + nu) * nAux;
+      const bBase = (mu * n + nu) * nKept;
+      for (let m = 0; m < nKept; m++) {
+        const i = kept[m]!;
+        const inv = 1.0 / Math.sqrt(eig.values[i]!);
+        const col = i * nAux;
+        let s = 0;
+        for (let Q = 0; Q < nAux; Q++) s += V[vBase + Q]! * eig.vectors[col + Q]! * inv;
+        B[bBase + m] = s;
+      }
+    }
+  }
+  return { B, nAux: nKept, threshold: metricRegularization, n };
+}
+
 /** CPU (f64 WASM) 3-index tensor V[μν,P] = (μν|P), layout (μ·n+ν)·n_aux + P.
  *  The reference the GPU f32 3-index kernel (df-gpu.ts) is validated against. */
 export async function buildV3idxCPU(
