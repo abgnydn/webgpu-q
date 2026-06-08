@@ -444,11 +444,16 @@ fn build(@builtin(global_invocation_id) gid: vec3<u32>) {
         for (var nn: u32 = 0u; nn <= Nmax; nn = nn + 1u) { g[nn] = n2p*f[nn]; n2p = n2p*(-2.0*ap); }
         var sa: array<f32, 343>; // hi slab = R[n+1]
         var sb: array<f32, 343>; // lo slab = R[n]
-        for (var z: u32 = 0u; z < 343u; z = z + 1u) { sa[z] = 0.0; }
+        // Only the used (t,u,v) box [0..Tt]×[0..Uu]×[0..Vv] is ever read; the
+        // recurrence rewrites every box entry each level, so no full-slab zero.
+        for (var t: u32 = 0u; t <= Tt; t = t + 1u) {
+          for (var u: u32 = 0u; u <= Uu; u = u + 1u) {
+            for (var v: u32 = 0u; v <= Vv; v = v + 1u) { sa[sidx(t,u,v)] = 0.0; }
+          }
+        }
         sa[0] = g[Nmax];
         if (Nmax > 0u) {
           for (var nn: i32 = i32(Nmax)-1; nn >= 0; nn = nn - 1) {
-            for (var z: u32 = 0u; z < 343u; z = z + 1u) { sb[z] = 0.0; }
             sb[0] = g[u32(nn)];
             for (var t: u32 = 0u; t <= Tt; t = t + 1u) {
               for (var u: u32 = 0u; u <= Uu; u = u + 1u) {
@@ -462,7 +467,11 @@ fn build(@builtin(global_invocation_id) gid: vec3<u32>) {
                 }
               }
             }
-            for (var z: u32 = 0u; z < 343u; z = z + 1u) { sa[z] = sb[z]; }
+            for (var t: u32 = 0u; t <= Tt; t = t + 1u) {
+              for (var u: u32 = 0u; u <= Uu; u = u + 1u) {
+                for (var v: u32 = 0u; v <= Vv; v = v + 1u) { sa[sidx(t,u,v)] = sb[sidx(t,u,v)]; }
+              }
+            }
           }
         }
         // sa now holds R[0][t][u][v].
