@@ -17,6 +17,8 @@ on:
       - "src/parallel/swarm/webrtc-transport.ts"
       - "e2e/swarm-webrtc-crossmachine.spec.ts"
       - "e2e/swarm-relay-crossmachine.spec.ts"
+      - "e2e/swarm-hf-relay-crossmachine.spec.ts"
+      - "src/parallel/swarm/relay-transport.ts"
       - ".github/workflows/swarm-crossmachine.yml"
 
 permissions:
@@ -50,8 +52,13 @@ jobs:
           ROLE: ${{ matrix.role }}
           ROOM: wgqrtc-${{ github.run_id }}
         run: npx playwright test e2e/swarm-webrtc-crossmachine.spec.ts --reporter=list
-      - name: Relay cross-machine round-trip (free public broker — the working path)
+      - name: Relay cross-machine round-trip (free public broker — connectivity)
         env:
           ROLE: ${{ matrix.role }}
           ROOM: wgqrelay-${{ github.run_id }}
         run: npx playwright test e2e/swarm-relay-crossmachine.spec.ts --reporter=list
+      - name: N=2 distributed HF across machines (the cluster computes a molecule)
+        env:
+          ROLE: ${{ matrix.role }}
+          ROOM: wgqhf-${{ github.run_id }}
+        run: npx playwright test e2e/swarm-hf-relay-crossmachine.spec.ts --reporter=list
