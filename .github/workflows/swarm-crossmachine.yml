@@ -1,24 +1,23 @@
-name: Swarm cross-machine WebRTC
+name: Swarm cross-machine HF
 
-# De-risk: can two SEPARATE machines (two Actions VMs, two NATs, public
-# internet) establish a WebRTC DataChannel for the swarm? The matrix gives two
-# concurrent jobs on two runners; they rendezvous via deterministic peer IDs
-# derived from the shared run id, signal through the PeerJS public broker, and
-# round-trip a Float64Array over WebRTC (Google STUN + free public TURN).
+# Cross-machine distributed Hartree–Fock over a free public relay, on N separate
+# Actions VMs. Each VM (matrix entry) is a real machine on the public internet;
+# they rendezvous via deterministic ids from the run id, coordinate through a
+# free MQTT broker, and run a distributed DF-HF SCF where each holds only its own
+# tensor slice. Run at N=2 and N=4 to show the per-machine footprint scaling as
+# full_B / N (the aggregate-resource property). Free for a public repo.
 #
-# This is the experiment that flips "browser-tab swarm" (one machine) into
-# "browser cluster" (many machines). Free for a public repo.
+# The pure-WebRTC and relay-roundtrip de-risk specs (swarm-webrtc-crossmachine,
+# swarm-relay-crossmachine) remain in the repo for manual runs; the HF jobs below
+# subsume their connectivity check.
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - "src/parallel/swarm/webrtc-transport.ts"
-      - "e2e/swarm-webrtc-crossmachine.spec.ts"
-      - "e2e/swarm-relay-crossmachine.spec.ts"
-      - "e2e/swarm-hf-relay-crossmachine.spec.ts"
       - "src/parallel/swarm/relay-transport.ts"
+      - "e2e/swarm-hf-relay-crossmachine.spec.ts"
       - ".github/workflows/swarm-crossmachine.yml"
 
 permissions:
@@ -29,36 +28,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  crossmachine:
-    name: WebRTC node (role ${{ matrix.role }})
+  hf-n2:
+    name: HF N=2 (node ${{ matrix.idx }})
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     strategy:
-      fail-fast: false   # keep both nodes alive so we get both results
+      fail-fast: false
       matrix:
-        role: [a, b]
+        idx: [0, 1]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
+        with: { node-version: 22, cache: npm }
       - run: npm ci
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-      - name: WebRTC cross-machine round-trip (data point; needs TURN across cloud NAT)
-        continue-on-error: true
+      - run: npx playwright install --with-deps chromium
+      - name: Distributed HF (N=2, node ${{ matrix.idx }})
         env:
-          ROLE: ${{ matrix.role }}
-          ROOM: wgqrtc-${{ github.run_id }}
-        run: npx playwright test e2e/swarm-webrtc-crossmachine.spec.ts --reporter=list
-      - name: Relay cross-machine round-trip (free public broker — connectivity)
+          IDX: ${{ matrix.idx }}
+          NTOTAL: "2"
+          ROOM: wgqhf2-${{ github.run_id }}
+        run: npx playwright test e2e/swarm-hf-relay-crossmachine.spec.ts --reporter=list
+
+  hf-n4:
+    name: HF N=4 (node ${{ matrix.idx }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        idx: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Distributed HF (N=4, node ${{ matrix.idx }})
         env:
-          ROLE: ${{ matrix.role }}
-          ROOM: wgqrelay-${{ github.run_id }}
-        run: npx playwright test e2e/swarm-relay-crossmachine.spec.ts --reporter=list
-      - name: N=2 distributed HF across machines (the cluster computes a molecule)
-        env:
-          ROLE: ${{ matrix.role }}
-          ROOM: wgqhf-${{ github.run_id }}
+          IDX: ${{ matrix.idx }}
+          NTOTAL: "4"
+          ROOM: wgqhf4-${{ github.run_id }}
         run: npx playwright test e2e/swarm-hf-relay-crossmachine.spec.ts --reporter=list
