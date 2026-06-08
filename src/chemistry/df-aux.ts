@@ -327,6 +327,21 @@ export async function buildMetric2idxCPU(auxShells: readonly CGShell[]): Promise
   );
 }
 
+/** CPU (f64 WASM) 3-index tensor V[μν,P] = (μν|P), layout (μ·n+ν)·n_aux + P.
+ *  The reference the GPU f32 3-index kernel (df-gpu.ts) is validated against. */
+export async function buildV3idxCPU(
+  orbShells: readonly CGShell[], auxShells: readonly CGShell[],
+): Promise<Float64Array> {
+  const mod = await loadWasm();
+  const orb = packShells(orbShells);
+  const aux = packShells(auxShells);
+  return mod.eri_3idx_build(
+    orbShells.length, auxShells.length,
+    orb.nPrims, orb.primOff, orb.alpha, orb.c, orb.center, orb.angular,
+    aux.nPrims, aux.primOff, aux.alpha, aux.c, aux.center, aux.angular,
+  );
+}
+
 /**
  * Build the density-fitting B-tensor from explicit 3-index and
  * 2-index integrals. Aux basis defaults to the orbital basis (Phase 1
