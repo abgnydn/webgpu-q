@@ -64,4 +64,45 @@ test.describe("WebGPU 3-index build — speedup vs system size", () => {
     expect(largest.ratio).toBeGreaterThan(0.5); // doesn't collapse with size
     expect(largest.ratio).toBeLessThan(1.1);    // s/p stays GPU-unfavorable (documents the regime)
   });
+
+  test("d-regime: GPU/WASM V-build ratio across a C-atom lattice (cc-pVDZ, s/p/d)", async ({ page }) => {
+    test.setTimeout(10 * 60 * 1000);
+    page.on("pageerror", (e) => console.error(`[pageerror] ${e.message}`));
+    page.on("console", (m) => { if (m.text().startsWith("[scaleD]")) console.log(m.text()); });
+    await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+
+    // Lattice of well-separated C atoms — cc-pVDZ has d on C, so this is the
+    // heavy (GPU-favorable) regime, scalable with trivial geometry. V-build
+    // timing only (no SCF), so open-shell C is irrelevant.
+    const cLattice = (M: number): { symbol: string; pos: number[] }[] => {
+      const S = 12.0, side = Math.ceil(Math.cbrt(M)); const a: { symbol: string; pos: number[] }[] = []; let p = 0;
+      for (let i = 0; i < side && p < M; i++) for (let j = 0; j < side && p < M; j++) for (let k = 0; k < side && p < M; k++) { a.push({ symbol: "C", pos: [i * S, j * S, k * S] }); p++; }
+      return a;
+    };
+
+    const rows = await page.evaluate(async (lattices: { symbol: string; pos: number[] }[][]) => {
+      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[scaleD] ${s}`); };
+      const [{ moleculeToShellsNuclei }, { generateAutoAux, buildV3idxCPU }, { buildV3idxGPU }] = await Promise.all([
+        import("/src/chemistry/atoms.ts" as string),
+        import("/src/chemistry/df-aux.ts" as string),
+        import("/src/chemistry/df-gpu.ts" as string),
+      ]);
+      const out: { n: number; nAux: number; wasmMs: number; gpuMs: number; ratio: number }[] = [];
+      for (const atoms of lattices) {
+        const { shells } = moleculeToShellsNuclei(atoms as never, "cc-pvdz");
+        const aux = generateAutoAux(shells, 0);
+        await buildV3idxCPU(shells as never, aux as never); await buildV3idxGPU(shells as never, aux as never);
+        const t0 = performance.now(); await buildV3idxCPU(shells as never, aux as never); const wasmMs = performance.now() - t0;
+        const t1 = performance.now(); await buildV3idxGPU(shells as never, aux as never); const gpuMs = performance.now() - t1;
+        const r = { n: shells.length, nAux: aux.length, wasmMs, gpuMs, ratio: wasmMs / gpuMs };
+        log(`n=${r.n} n_aux=${r.nAux}: WASM ${(wasmMs / 1000).toFixed(2)}s, GPU ${(gpuMs / 1000).toFixed(2)}s → ${r.ratio.toFixed(2)}x`);
+        out.push(r);
+      }
+      return out;
+    }, [cLattice(2), cLattice(6), cLattice(12)]);
+
+    console.log(`\n[scaling-d] ${JSON.stringify(rows)}\n`);
+    const largest = rows[rows.length - 1]!;
+    expect(largest.ratio).toBeGreaterThan(1.0); // d-regime: GPU wins
+  });
 });
