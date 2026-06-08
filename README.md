@@ -12,7 +12,7 @@
 
 <br/><br/>
 
-<img alt="version" src="https://img.shields.io/badge/v0.9.3-0ea5e9?style=flat-square&labelColor=0b1224"/>
+<img alt="version" src="https://img.shields.io/badge/v0.9.4-0ea5e9?style=flat-square&labelColor=0b1224"/>
 <img alt="license" src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="tests" src="https://img.shields.io/badge/tests-CI%20green-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="typescript" src="https://img.shields.io/badge/typescript-strict-3178c6?style=flat-square&labelColor=0b1224"/>
@@ -102,7 +102,7 @@
 
 <div align="center">
 
-<img src="./public/readme-numbers.svg" alt="Key numbers: 553 tests, 39.3× CCSD(T) on GPU, 10⁻⁵ Ha EOM-CCSD vs FCI, 7×10⁻¹⁴ Ha DF-HF, 1.35×10⁻¹¹ GPU↔CPU, 4.18× fusion, F ≥ 0.999999 statevector, N=128 MPS" width="100%"/>
+<img src="./public/readme-numbers.svg" alt="Key numbers: 2.56 GB swarm fit across 4 tabs, 39.3× CCSD(T) on GPU, 10⁻⁵ Ha EOM-CCSD vs FCI, 7×10⁻¹⁴ Ha DF-HF, 1.35×10⁻¹¹ GPU↔CPU, 4.18× fusion, F ≥ 0.999999 statevector, N=128 MPS" width="100%"/>
 
 </div>
 
@@ -391,7 +391,7 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 
 See [`CITATION.cff`](./CITATION.cff). For papers:
 
-> Günaydın, A.B. (2026). _webgpu-q v0.9.3_. Zenodo. https://doi.org/10.5281/zenodo.20494382
+> Günaydın, A.B. (2026). _webgpu-q v0.9.4_. Zenodo. https://doi.org/10.5281/zenodo.20494382
 
 Archived on Zenodo — concept DOI [10.5281/zenodo.20494382](https://doi.org/10.5281/zenodo.20494382) (resolves to the latest version). Each release also gets its own version DOI on the [Zenodo record](https://doi.org/10.5281/zenodo.20494382).
 

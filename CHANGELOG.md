@@ -5,6 +5,63 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.9.4] — 2026-06-08
+
+The **streaming swarm** release. A browser-tab swarm now scales Hartree–Fock
+*past the 2 GB single-allocation wall* — a calculation impossible on any single
+tab, run across several, and proven correct.
+
+### Streaming, self-built slices — no full tensor on any tab
+
+The earlier swarm had the master build the whole density-fitting tensor (~3 GB
+transient) then ship slices. Now **each tab independently builds only its own
+slice**, and never materializes the full V or full B:
+
+- `buildAuxBasisDFStreaming` uses the symmetric (eigendecomposition) fit
+  `B[μν,i] = Σ_Q V[μν,Q]·U[Q,i]·λ_i^(−1/2)`, whose mode index is the axis the
+  Fock build contracts over and is itself a valid fit. The 3-index integrals are
+  streamed μ-block by μ-block and projected immediately, so peak resident V is
+  one μ-block (~50 MB), not `n²·n_aux`.
+- The metric eigendecomposition is deterministic, so the N tabs tile the mode
+  axis with **zero coordination** (`partition:{tab,of:N}`).
+- A cooperative variant builds each V-block once and fans it out to all tabs
+  (no redundant integrals when tabs share a machine).
+- Validated end to end: independently built slices reproduce the single-tab DF
+  J/K to 1.5e-13 and the full DF-HF SCF to 1.4e-14.
+
+### Past the 2 GB wall — the headline
+
+A `Float64Array` cannot exceed 2^31−1 bytes in any JS engine. On a 16 GB CI
+runner, a 4-tab streaming swarm runs **40 H₂ in cc-pVDZ (n=400): full B = 2.56 GB
+— impossible single-tab — as four 640 MB slices** (peak V 51 MB/tab), converging
+to E = −45.14995980 Ha and matching the exact non-interacting oracle
+`40·E(H₂)` to 2.7e-5 Ha. Committed as an environment-stamped artifact; runs in CI
+(`.github/workflows/swarm-scaling.yml`).
+
+### Faster build — WASM SIMD projection
+
+The streaming projection (the `~n⁴` term, profiled as ~67% of the build at
+n=400) moved from a TypeScript loop to a Rust+f64x2 kernel
+(`df_project_block_modes`): **3.4× faster projection, ~2× faster build at the
+headline scale** — what turns a >70 min timeout on a slow runner into a pass.
+
+### Accuracy quantified
+
+Against exact HF in cc-pVDZ, the streaming DF is **0.12× chemical accuracy at
+auto-aux level 1** (H₂O 1.9e-4 Ha), dialing to µHa at L2/L3 — a clean
+accuracy/cost knob, not a liability.
+
+### Manuscripts
+
+- `paper/main.pdf` (now 12 pp): rewrote the swarm sections to lead with the
+  streaming architecture and the wall-crossing result, with a memory-scaling
+  figure; updated limitations (C₆₀ cc-pVDZ is now total-RAM-bound at ~26 GB;
+  the n=490 SCF-coordination stall over BroadcastChannel is the next bottleneck,
+  fixed by SAB messaging).
+- `paper/main-fusion.pdf`: corrected the bandwidth claim — the 866 GB/s figure
+  is *logical* throughput; physical DRAM use is ~13.5% of peak (floor-limited),
+  so the kernel is not bandwidth-saturated in the measured regime.
+
 ## [0.9.3] — 2026-06-04
 
 A **deposit-correctness** release. No source, method, or figure changed — it

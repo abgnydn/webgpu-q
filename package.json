@@ -1,6 +1,6 @@
 {
   "name": "webgpu-q",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "WebGPU quantum many-body + chemistry simulator — RHF/UHF/RKS/UKS DFT, MP2/CCSD/CCSD(T)/EOM-CCSD (PySCF-ported, 39× GPU), full polarizability + dispersion stack (TDHF/TDDFT/UKS-TDDFT/C₆), D2 dispersion, Foster-Boys + Pipek-Mezey localization, Molden/Cube/QCSchema/XYZ import/export. Browser-platform stack: Web Worker parallelism (SharedArrayBuffer), embedded Pyodide REPL with PySCF compare, drag-import (XYZ/PDB/MOL/SDF), PWA + offline + IndexedDB history, URL-as-citation. Runs in a browser tab.",
   "type": "module",
   "license": "MIT",
