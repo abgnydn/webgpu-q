@@ -63,14 +63,17 @@ Ranked by ROI. One focused session ≈ a few hours.
 | **WebGPU port of (T) kernel** | ✓ (39× on H₂O cc-pVDZ, single-run) | 10-100× speedup; cc-pVTZ CCSD(T) routine |
 | **EOM-CCSD (excited states)** | ✓ (+ eigenvectors, oscillator strengths, spin classifier) | UV-vis, photochemistry |
 | **UHF + open-shell CCSD** | ✓ (UHF stage 21, UCCSD stage 25) | radicals, transition metals |
-| **Density fitting (RI)** | ✓ correctness, ✗ speedup (CD-DF still builds full 4-index ERI then decomposes — measured 11-20× SLOWER than direct HF on cc-pVDZ benches; aux-basis 3-index DF would be the real win, deferred) | half memory; no speedup |
+| **Density fitting (RI)** | ✓ correctness + **speedup** (aux-basis 3-index DF now shipped: `buildAuxBasisDFStreaming` WASM, never builds the 4-index ERI; the old CD-DF 11-20× regression is retired) | half memory + faster |
+| **WebGPU aux-basis DF integrals** | ✓ (`df-gpu.ts`: s/p/d McMurchie–Davidson 3-index V + 2-index metric in WGSL f32, validated ~1e-4 rel; `buildDFAuto` auto-selects GPU in the d-regime) | GPU integral build, 1.1-1.35× d-regime |
+| **Fully-GPU DF-HF SCF** | ✓ (`makeGpuDFJK` + `buildDFAuto`: whole HF loop on GPU from a URL, no 4-index ERI; benzene cc-pVDZ **5-6× faster** whole-loop vs WASM, agrees to chemical accuracy; f32 JK floor ~6e-4 is element-precision, documented) | browser HF with speed |
 | **IP-EOM-CCSD / EA-EOM-CCSD** | ✓ (stages 37–38, beyond original Tier 2 plan) | accurate IPs / EAs |
 
 #### Tier 3 — Substantial (~25 sessions)
 
 CCSDT (full triples), CASSCF (multi-reference), TD-DFT, MP2/CCSD
 gradients (Z-vector), PCM solvent, coupled-perturbed HF (NMR /
-polarizabilities), WebGPU integral parallelization.
+polarizabilities). (WebGPU integral parallelization: DF 3-index/metric
++ DF-JK now shipped — see Tier 2; full 4-index ERI on GPU still open.)
 
 #### Tier 4 — Genuinely hard (a season each)
 
@@ -115,6 +118,10 @@ highest-leverage demonstration.
   Full DFT ladder (LDA/GGA/B3-hybrid) on RHF/UHF/RKS/UKS.
   Full {α, α(ω), α(iω), C₆} response matrix.
   EE/IP/EA-EOM-CCSD with eigenvectors, oscillator strengths, spin classifier.
+  **Fully-GPU DF-HF**: GPU aux-basis 3-index integrals (`df-gpu.ts`) + GPU
+  DF-JK (`makeGpuDFJK`) run the whole HF loop on the GPU from a URL with no
+  4-index ERI — benzene cc-pVDZ **5-6× faster** whole-loop vs WASM, agreeing
+  to chemical accuracy (f32 JK floor ~6e-4, element-precision).
 
 **Live**: https://webgpu-q.vercel.app — landing, `/viz.html` (4D
 hyperscope), `/molecule.html` (SI report), `/experiments/` (E1–E33+).
@@ -147,8 +154,11 @@ benches (`e2e/`) cover all levels + the swarm/acene series.
   (EOM-Fvv/Foo/Wovvo with full t2 dressing + Wovoo / Wvvvo). Empirical
   stage-32c/32e patches removed; brute-force LiH diff < 1e-10 Ha
   element-by-element. H₂ STO-3G now matches FCI to 8+ decimals.
-- Aux-basis DF (stage 31 proper) — needs new 3-index ERI routine.
+- ✓ Aux-basis DF (stage 31 proper) — **done**: `buildAuxBasisDFStreaming`
+  (WASM) + `df-gpu.ts` (WGSL s/p/d 3-index V + metric). No longer open.
 - DF-CCSD via B-tensor through spin-orbital ERI build.
+- df64 (double-single) emulation on GPU-JK products to push past the f32
+  ~6e-4 element-precision floor (Kahan on the sum was a no-op — see jk-df-gpu.ts).
 - WGSL (T) kernel optimization to push 39× → 100× (no warmup+trials harness yet).
 - UKS-TDDFT response α(ω) — only remaining {ref}×{response} cell.
 - Z-vector for MP2 / CCSD analytical gradients.
