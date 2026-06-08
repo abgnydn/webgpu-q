@@ -10,6 +10,8 @@
 // R-tensor scratch per thread is unoptimized (perf is a later increment).
 
 import type { CGShell } from "./integrals-cg.js";
+import type { DFResult } from "./df.js";
+import { buildBFromV, buildAuxBasisDFStreaming } from "./df-aux.js";
 
 const METRIC_WGSL = /* wgsl */ `
 const PI: f32 = 3.141592653589793;
@@ -653,4 +655,43 @@ export async function buildV3idxGPU_sOnly(
   const out = new Float32Array(readBuf.getMappedRange().slice(0));
   readBuf.unmap(); device.destroy();
   return out;
+}
+
+// ── Auto-selected DF build: GPU integrals where they win, WASM otherwise ──────
+// Measured regime map (df-gpu-scaling): the GPU 3-index build beats WASM on
+// d-containing bases and the margin grows with size (n=90 1.28× → n=180 1.35×);
+// on light s/p systems it loses (~0.76×). So pick the GPU path only when there
+// are d functions AND the system is big enough to amortize dispatch overhead.
+// Both paths return the same mode-basis DFResult (drop-in for buildJK_DF / SCF).
+export interface DFAutoOpts {
+  /** Force the path: true = GPU, false = WASM. Default: auto by regime. */
+  readonly gpu?: boolean;
+  /** Min orbital count before the GPU path is considered (d-regime). Default 60. */
+  readonly gpuMinN?: number;
+  readonly metricRegularization?: number;
+}
+
+/** Build the density-fitting tensor, auto-selecting the GPU integral path for the
+ *  d-regime where it wins and falling back to the WASM streaming build otherwise
+ *  (or if WebGPU is unavailable / the GPU path throws). Returns the chosen path
+ *  for transparency. */
+export async function buildDFAuto(
+  orbShells: readonly CGShell[], auxShells: readonly CGShell[], opts: DFAutoOpts = {},
+): Promise<{ df: DFResult; path: "gpu" | "wasm" }> {
+  const reg = opts.metricRegularization ?? 1e-10;
+  const all = [...orbShells, ...auxShells];
+  const maxL = Math.max(0, ...all.map((s) => s.angular[0] + s.angular[1] + s.angular[2]));
+  const hasD = maxL >= 2;
+  const n = orbShells.length;
+  const gpuAvailable = !!(navigator as unknown as { gpu?: unknown }).gpu;
+  const wantGPU = opts.gpu ?? (hasD && n >= (opts.gpuMinN ?? 60));
+  if (wantGPU && gpuAvailable && maxL <= 2) {
+    try {
+      const V = await buildV3idxGPU(orbShells, auxShells);
+      return { df: await buildBFromV(orbShells, auxShells, Float64Array.from(V), reg), path: "gpu" };
+    } catch {
+      /* GPU path failed (limits / unsupported) — fall back to WASM */
+    }
+  }
+  return { df: await buildAuxBasisDFStreaming(orbShells, auxShells, reg), path: "wasm" };
 }
