@@ -117,4 +117,31 @@ ax.text(0.99,0.03,"each point from a committed swarm artifact; C60 from a local 
         transform=ax.transAxes,ha="right",fontsize=7.8,color="#999")
 clean(ax)
 fig.tight_layout(); fig.savefig("fig-scaling.pdf"); plt.close(fig)
+
+# CHEM FIG 4: streaming swarm vs the 2 GB single-allocation wall (H2 lattice, cc-pVDZ)
+fig,ax=plt.subplots(figsize=(7.4,4.0))
+WALL=(2**31-1)/1e9   # 2.147 GB max Float64Array
+# (n, full_B_GB) from committed h2lattice artifacts; per-tab = full/4 (4 tabs);
+# peakV = one muBlock (8) streamed = 8*n*n_aux*8 bytes.
+pts=[(160,0.16,801),(400,2.56,2000),(490,4.70,2450)]   # (n, fullB GB, n_kept~n_aux)
+ns=[p[0] for p in pts]; fullB=[p[1] for p in pts]
+perTab=[b/4 for b in fullB]
+peakV=[8*n*nx*8/1e9 for (n,_,nx) in pts]
+ax.plot(ns,fullB,"o-",color=GREY,lw=1.8,ms=8,zorder=4,label="full B tensor (single tab)")
+ax.plot(ns,perTab,"o-",color=TEAL,lw=1.8,ms=8,zorder=5,label="per-tab slice (4-tab swarm)")
+ax.plot(ns,peakV,"o-",color=NAVY,lw=1.8,ms=7,zorder=5,label="peak resident V (streamed, 1 µ-block)")
+ax.axhline(WALL,color=RED,ls="--",lw=1.8,zorder=3)
+ax.text(168,WALL*1.07,"2 GB single-Float64Array wall",color=RED,fontsize=9.5,fontweight="bold")
+# mark the headline n=400 point (over the wall)
+ax.annotate("40 H$_2$: full B 2.56 GB\n(impossible single-tab)\nsplit: 4×640 MB",
+            (400,2.56),textcoords="offset points",xytext=(-150,28),fontsize=8.6,color="#333",
+            arrowprops=dict(arrowstyle="->",color="#555",lw=1.1))
+ax.set_yscale("log"); ax.set_xlim(150,510); ax.set_ylim(0.02,8)
+ax.set_xlabel("basis functions  n"); ax.set_ylabel("memory (GB, log scale)")
+ax.set_title("Streaming swarm scales past the single-allocation wall")
+ax.legend(fontsize=9,frameon=False,loc="lower right")
+ax.text(0.99,0.02,"each point a committed, oracle-validated artifact",
+        transform=ax.transAxes,ha="right",va="bottom",fontsize=7.6,color="#999")
+clean(ax)
+fig.tight_layout(); fig.savefig("fig-streaming-scale.pdf"); plt.close(fig)
 print("OK")

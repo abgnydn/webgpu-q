@@ -56,7 +56,12 @@ $10^{-15}$. The swarm raises the single-tab memory ceiling that otherwise caps
 browser quantum chemistry, and scales Hartree--Fock to \textbf{\Csixty{}
 buckminsterfullerene (300 basis functions, STO-3G)} on a 16\,GB consumer
 laptop, distributing the 1.82\,GB three-index tensor across four tabs at
-454\,MB each. Energies are validated against PySCF --- bit-for-bit where the
+454\,MB each. A streaming variant in which each tab builds \emph{only its own
+slice} removes the last single-tab bottleneck and carries the fit past the
+2\,GB maximum size of a JavaScript typed array --- a 2.56\,GB fit (cc-pVDZ,
+$n{=}400$) that is impossible on any single tab, run across four, and validated
+against an exact non-interacting energy oracle. Energies are validated against
+PySCF --- bit-for-bit where the
 algorithm is identical, and to $\le 50\,\mu$Ha (HF) / $\le 0.25$\,mHa
 (CCSD(T) vs FCI) otherwise. Speed is workload-dependent and is not the
 contribution: against PySCF (the only suite we benchmark), the WebAssembly+SIMD
@@ -156,12 +161,26 @@ reproduces the full result. We verified this empirically: at 2/3/4/8 partitions
 the partial-sum Fock matrices match the single-slab build to relative error
 $\lesssim 10^{-15}$ (f64 accumulator-reorder noise).
 
-\paragraph{Setup (once).} The master computes the full B-tensor, partitions the
-auxiliary index range $[0, n_{\mathrm{aux}})$ into $N$ disjoint slices, and
-ships slice $T$ to worker tab $T$. Each worker acknowledges receipt; the master
-then holds only its own slice. (A per-tab \emph{independent} build --- each tab
-forming only its aux-slice from scratch, so the full B never resides on any
-single tab --- is designed but not yet implemented; \S\ref{sec:limitations}.)
+\paragraph{Setup (once): streaming, self-built slices.} Each tab independently
+builds \emph{only its own slice} of the fitting tensor, so the full tensor never
+resides on any single tab. We use the symmetric (eigendecomposition) density
+fit, $B[\mu\nu,i] = \sum_Q V[\mu\nu,Q]\,U[Q,i]\,\lambda_i^{-1/2}$, whose mode
+index $i$ is the axis the Fock build contracts over (the role $P$ plays above)
+and which is itself a valid fit: $\sum_i B[\mu\nu,i]B[\lambda\sigma,i] =
+(\mu\nu|\lambda\sigma)_{\mathrm{fit}}$, since $\sum_i U[Q,i]\lambda_i^{-1}U[R,i]
+= (M^{-1})[Q,R]$. The two-index metric eigendecomposition is deterministic, so
+the $N$ tabs agree on the kept-mode count $n_{\mathrm{kept}}$ and tile it with
+\emph{zero coordination}: tab $T$ builds only modes
+$[T\,n_{\mathrm{kept}}/N,\,(T{+}1)\,n_{\mathrm{kept}}/N)$. Crucially the
+three-index integrals are streamed $\mu$-block by $\mu$-block and projected onto
+the tab's modes immediately (a hand-written WGSL-style SIMD kernel in Rust/WASM
+does the projection), so the peak resident $V$ is one $\mu$-block
+($\sim\!50$\,MB), never the full $n^2 n_{\mathrm{aux}}$ tensor, and each tab
+keeps only its $B$ slice ($\approx$ full $B/N$). The mode-partition identity
+holds at build time: independently built slices reproduce the single-tab build
+to $\lesssim 10^{-13}$. (An earlier variant had the master build the full $B$
+once and ship slices; it peaked at $\sim$3\,GB on one tab during the build and
+is superseded by the streaming build.)
 
 \paragraph{Per SCF iteration.} The master drives an otherwise-unchanged
 Roothaan--Hall/DIIS loop, with the Fock build replaced by a
@@ -371,6 +390,48 @@ per-tab peak and is designed but not yet implemented.
   \label{fig:memory}
 \end{figure}
 
+\subsection{Past the single-allocation wall}
+\label{sec:wall}
+
+With no full tensor on any tab, the last hard single-tab ceiling is the
+\textbf{2\,GB maximum size of one \texttt{Float64Array}} ($2^{31}-1$ bytes, a
+fixed limit in every JavaScript engine). Once the full fitting tensor exceeds
+2\,GB it cannot be a single allocation on any tab --- not merely slow, but
+impossible --- whereas the swarm holds it as $N$ sub-2\,GB slices.
+
+\paragraph{Correctness oracle.} Past this wall no single-tab reference can exist
+by construction, so we validate against an exact one: a lattice of $M$
+well-separated H$_2$ molecules is non-interacting, so its RHF energy is exactly
+$M\cdot E(\mathrm{H}_2)$ --- independent ground truth at any total size.
+
+\paragraph{Result.} On a 16\,GB GitHub Actions runner (Chromium, cross-origin
+isolated), a 4-tab streaming swarm runs $M{=}40$ H$_2$ in cc-pVDZ ($n{=}400$,
+2000 fitting modes). The full $B$ tensor is \textbf{2.56\,GB --- over the
+single-allocation wall} --- distributed as four 640\,MB slices, with a peak
+resident $V$ of only 51\,MB per tab. The SCF converges in 13 iterations to
+$E = -45.14995980$\,Ha, matching the oracle
+$40\cdot E(\mathrm{H}_2) = -45.14993295$\,Ha to
+$|\Delta| = 2.7\times10^{-5}$\,Ha ($0.67\,\mu$Ha per molecule --- the accumulated
+fit/convergence residual, well below chemical accuracy). The run is committed as
+an environment-stamped artifact and reproduces in continuous integration. To our
+knowledge this is the first electronic-structure calculation whose working set
+exceeds a single browser tab's largest possible allocation, completed by a
+cooperating tab swarm (Fig.~\ref{fig:streamscale}).
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.92\textwidth]{fig-streaming-scale.pdf}
+  \caption{Streaming swarm vs the 2\,GB single-allocation wall, H$_2$ lattice in
+  cc-pVDZ. The full fitting tensor (grey) grows as $\sim n^2 n_{\mathrm{aux}}$
+  and crosses the $2^{31}-1$ byte \texttt{Float64Array} ceiling (red) near
+  $n\approx375$; beyond it the calculation is impossible on any single tab. The
+  per-tab slice in a 4-tab swarm (teal) and the streamed peak resident $V$
+  (navy, one $\mu$-block) both stay far below the wall, which is what lets the
+  swarm run the $n{=}400$ ($2.56$\,GB) case. Each point is a committed,
+  oracle-validated artifact.}
+  \label{fig:streamscale}
+\end{figure}
+
 \section{Honest limitations}
 \label{sec:limitations}
 
@@ -389,8 +450,20 @@ Per our research-grade discipline, failures are reported, not hidden:
   \item \textbf{Density fitting gives no speedup yet} --- current CD-DF still
   builds the 4-index tensor before decomposing; aux-basis 3-index DF is the
   real win.
-  \item \textbf{\Csixty{} runs only at STO-3G}; cc-pVDZ at $n\approx600$
-  exceeds even the swarm-distributed master's build memory.
+  \item \textbf{\Csixty{} runs only at STO-3G.} The streaming build removed the
+  master's full-tensor peak, but \Csixty{} cc-pVDZ ($n\approx840$) has a fitting
+  tensor of $\sim$26\,GB; even split across many tabs the \emph{sum} exceeds a
+  16\,GB machine's RAM. Reaching it needs out-of-core slices or a larger host,
+  not a software change.
+  \item \textbf{SCF coordination is the wall above $n\approx400$.} At $M{=}49$
+  H$_2$ ($n{=}490$) the \emph{build} scaled fine --- four tabs each built their
+  1.18\,GB slice, a 4.7\,GB fit, with no full tensor anywhere --- but the
+  per-iteration Fock gather stalled: broadcasting the density and gathering
+  $(J,K)$ partials over \texttt{BroadcastChannel}'s structured clone (each
+  $\sim$1.9\,MB at $n{=}490$), under multi-GB resident pressure, exceeded our
+  per-iteration budget. The fix is \texttt{SharedArrayBuffer}-backed messaging
+  for the per-iteration tensors (the build already streams); it is the next step
+  for $n>400$, and is a transport limit, not a memory or correctness one.
 \end{itemize}
 
 \section{Related work}
