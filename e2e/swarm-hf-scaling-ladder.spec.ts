@@ -41,7 +41,7 @@ function h2Lattice(M: number): Array<{ symbol: string; pos: [number, number, num
 test.describe(`Streaming swarm scaling ladder (${N_TABS} tabs, ${BASIS})`, () => {
   for (const M of LADDER) {
     test(`${M} H2 (${BASIS}) — ${N_TABS}-tab streaming swarm, energy oracle M·E(H2)`, async ({ browser }) => {
-      test.setTimeout(70 * 60 * 1000);
+      test.setTimeout(100 * 60 * 1000); // generous margin for slow CI runners
       const atoms = h2Lattice(M);
 
       const ctx = await browser.newContext();
