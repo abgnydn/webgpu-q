@@ -370,7 +370,8 @@ fn ecoef_pair(im: u32, jm: u32, pa: f32, pb: f32, inv2p: f32, kfac: f32, outp: p
   }
   for (var t: u32 = 0u; t <= im + jm; t = t + 1u) { (*outp)[t] = tab[(im * 3u + jm) * 5u + t]; }
 }
-fn ridx7(nn: u32, t: u32, u: u32, v: u32) -> u32 { return ((nn * 7u + t) * 7u + u) * 7u + v; }
+// (t,u,v) slab index (7^3); the R recurrence ping-pongs two of these over n.
+fn sidx(t: u32, u: u32, v: u32) -> u32 { return (t * 7u + u) * 7u + v; }
 
 struct Params {
   n: u32, n_aux: u32,
@@ -436,27 +437,35 @@ fn build(@builtin(global_invocation_id) gid: vec3<u32>) {
           f[0] = boys0(xv); let em = exp(-xv);
           for (var nn: u32 = 1u; nn <= Nmax; nn = nn + 1u) { f[nn] = ((2.0*f32(nn)-1.0)*f[nn-1u]-em)/(2.0*xv); }
         }
-        // R-tensor (7^4)
-        var r: array<f32, 2401>;
+        // R-tensor via 2-slab downward recurrence (memory: 2*7^3 not 7^4).
+        // g[n] = (-2p)^n F_n are the R[n][0][0][0] diagonal values.
+        var g: array<f32, 7>;
         var n2p: f32 = 1.0;
-        for (var nn: u32 = 0u; nn <= Nmax; nn = nn + 1u) { r[ridx7(nn,0u,0u,0u)] = n2p*f[nn]; n2p = n2p*(-2.0*ap); }
+        for (var nn: u32 = 0u; nn <= Nmax; nn = nn + 1u) { g[nn] = n2p*f[nn]; n2p = n2p*(-2.0*ap); }
+        var sa: array<f32, 343>; // hi slab = R[n+1]
+        var sb: array<f32, 343>; // lo slab = R[n]
+        for (var z: u32 = 0u; z < 343u; z = z + 1u) { sa[z] = 0.0; }
+        sa[0] = g[Nmax];
         if (Nmax > 0u) {
           for (var nn: i32 = i32(Nmax)-1; nn >= 0; nn = nn - 1) {
-            let un = u32(nn);
+            for (var z: u32 = 0u; z < 343u; z = z + 1u) { sb[z] = 0.0; }
+            sb[0] = g[u32(nn)];
             for (var t: u32 = 0u; t <= Tt; t = t + 1u) {
               for (var u: u32 = 0u; u <= Uu; u = u + 1u) {
                 for (var v: u32 = 0u; v <= Vv; v = v + 1u) {
                   if (t == 0u && u == 0u && v == 0u) { continue; }
                   var a2: f32 = 0.0;
-                  if (v > 0u) { a2 = a2 + rz*r[ridx7(un+1u,t,u,v-1u)]; if (v >= 2u) { a2 = a2 + f32(v-1u)*r[ridx7(un+1u,t,u,v-2u)]; } }
-                  else if (u > 0u) { a2 = a2 + ry*r[ridx7(un+1u,t,u-1u,v)]; if (u >= 2u) { a2 = a2 + f32(u-1u)*r[ridx7(un+1u,t,u-2u,v)]; } }
-                  else { a2 = a2 + rx*r[ridx7(un+1u,t-1u,u,v)]; if (t >= 2u) { a2 = a2 + f32(t-1u)*r[ridx7(un+1u,t-2u,u,v)]; } }
-                  r[ridx7(un,t,u,v)] = a2;
+                  if (v > 0u) { a2 = a2 + rz*sa[sidx(t,u,v-1u)]; if (v >= 2u) { a2 = a2 + f32(v-1u)*sa[sidx(t,u,v-2u)]; } }
+                  else if (u > 0u) { a2 = a2 + ry*sa[sidx(t,u-1u,v)]; if (u >= 2u) { a2 = a2 + f32(u-1u)*sa[sidx(t,u-2u,v)]; } }
+                  else { a2 = a2 + rx*sa[sidx(t-1u,u,v)]; if (t >= 2u) { a2 = a2 + f32(t-1u)*sa[sidx(t-2u,u,v)]; } }
+                  sb[sidx(t,u,v)] = a2;
                 }
               }
             }
+            for (var z: u32 = 0u; z < 343u; z = z + 1u) { sa[z] = sb[z]; }
           }
         }
+        // sa now holds R[0][t][u][v].
         // contract bra E (t,u,v) × aux ecoef (tau,nv,ph)
         var s: f32 = 0.0;
         for (var t: u32 = 0u; t <= Tb; t = t + 1u) {
@@ -471,7 +480,7 @@ fn build(@builtin(global_invocation_id) gid: vec3<u32>) {
                   for (var ph: u32 = 0u; ph <= kz; ph = ph + 1u) {
                     let parity = (ta + nvv + ph) & 1u;
                     let sign = select(1.0, -1.0, parity == 1u);
-                    s = s + be3*ae2*ecoef(kz, ph, inv2q)*sign*r[ridx7(0u, t+ta, u+nvv, v+ph)];
+                    s = s + be3*ae2*ecoef(kz, ph, inv2q)*sign*sa[sidx(t+ta, u+nvv, v+ph)];
                   }
                 }
               }
