@@ -44,7 +44,7 @@
 
 - Browser-native quantum chemistry engine, all methods ported from PySCF and brute-force verified to ≤ 1e-10 Ha element-wise.
 - WebGPU systems demonstration — a 110-line WGSL kernel makes CCSD(T)/cc-pVDZ browser-feasible (13.8× median speedup over CPU TypeScript, 5w+20t harness; p10 28×, p90 10×, noisy).
-- Distributed-compute substrate — `swarmMap` primitive over BroadcastChannel (verified) and WebRTC (cross-machine path; chem-energy kernel works in same-machine multi-tab, cross-machine unverified e2e).
+- Distributed-compute substrate — `swarmMap` over BroadcastChannel (same-machine, verified) and a `RelayTransport` over a free public broker for **cross-machine** swarm. **N=2 distributed Hartree–Fock verified across two separate CI VMs** — each holds only its own tensor slice, exchanges D + partial (J,K) through the broker each SCF iteration, energy matches the single-machine result to 5.7e-14. (WebRTC P2P also implemented; needs a TURN key across symmetric cloud NAT.)
 - Teaching / reproducibility / methodology platform — URL-as-citation, drag-import (XYZ/PDB/MOL/SDF), in-browser Pyodide REPL with "Compare to PySCF" button.
 
 </td>
