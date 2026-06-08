@@ -26,6 +26,10 @@ import { computeMolecularIntegrals, type Nucleus, type MolecularIntegrals } from
 import { runRHFSCFAsync, type HFResult, type HFOpts } from "./hf-scf.js";
 import { generateAutoAux, buildAuxBasisDFStreaming, buildBFromV } from "./df-aux.js";
 import { buildV3idxHybrid } from "./df-gpu.js";
+import { type DFResult } from "./df.js";
+import { runRKSDFT, type RKSResult, type RKSOpts } from "./dft/rks-scf.js";
+import { type FunctionalKind } from "./dft/functional.js";
+import { type AtomSymbol } from "./atoms.js";
 
 export interface RHFAutoOpts {
   /** Largest n that still uses the exact 4-index ERI. Above it → DF. Default 80. */
@@ -90,12 +94,21 @@ export async function runRHFAuto(
 
   // DF regime: skip the O(n⁴) ERI entirely — DF never needs it.
   const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true });
+  const { df, provenance } = await buildDFForRegime(shells, !!opts.fast);
+  const hf = await runRHFSCFAsync(integrals, nElectrons, { ...hfOpts, useDF: df });
+  return { hf, integrals, provenance };
+}
 
+/** Build the DF tensor for the large-system regime, shared by HF and DFT. fast →
+ *  the hybrid GPU/WASM build (GPU-accelerated, chemistry-grade); else pure f64
+ *  WASM RI-JK. Returns the tensor and the provenance of how it was built. */
+async function buildDFForRegime(
+  shells: readonly CGShell[], fast: boolean,
+): Promise<{ df: DFResult; provenance: RHFAutoProvenance }> {
   // extraL=1 aux (the cc-pVDZ sweet spot — adds f-aux for chemistry-grade
   // accuracy; extraL=2 over-completes and breaks the metric orthogonalization).
   const aux = generateAutoAux(shells, 1);
-
-  const wantGPU = !!opts.fast && hasDFunctions(shells) &&
+  const wantGPU = fast && hasDFunctions(shells) &&
     !!(navigator as unknown as { gpu?: unknown }).gpu;
 
   if (wantGPU) {
@@ -103,16 +116,14 @@ export async function runRHFAuto(
     // s/p/d-aux columns on the GPU (f32) and the f-aux columns on WASM (f64),
     // then projects in f64. Measured: the f32 low-aux block costs only ~8 µHa, so
     // the result stays chemistry-grade (H2O 0.19 mHa vs exact) — unlike the
-    // d-only level-0 GPU path (~30 mHa) it replaces. JK stays f64 WASM for
-    // accuracy; the GPU carries the dominant integral-build cost.
+    // d-only level-0 GPU path (~30 mHa) it replaces.
     try {
       const { V, auxOrdered } = await buildV3idxHybrid(shells, aux);
       const df = await buildBFromV(shells, auxOrdered, V);
-      const hf = await runRHFSCFAsync(integrals, nElectrons, { ...hfOpts, useDF: df });
       return {
-        hf, integrals,
+        df,
         provenance: { method: "density-fitting", engine: "gpu+wasm", precision: "mixed", nAux: df.nAux,
-          expectedError: "hybrid extraL=1: GPU f32 s/p/d-aux + f64 f-aux + f64 JK — chemistry-grade (~0.2 mHa vs exact)" },
+          expectedError: "hybrid extraL=1: GPU f32 s/p/d-aux + f64 f-aux + f64 J/K — chemistry-grade (~0.2 mHa vs exact)" },
       };
     } catch {
       /* GPU/hybrid path unavailable — fall through to pure f64 WASM DF */
@@ -121,10 +132,62 @@ export async function runRHFAuto(
 
   // Default DF: f64 WASM aux-basis (standard RI-JK); B reused across the SCF.
   const df = await buildAuxBasisDFStreaming(shells, aux);
-  const hf = await runRHFSCFAsync(integrals, nElectrons, { ...hfOpts, useDF: df });
   return {
-    hf, integrals,
+    df,
     provenance: { method: "density-fitting", engine: "wasm", precision: "f64", nAux: df.nAux,
       expectedError: "DF extraL=1 aux-basis vs exact (few mHa); f64 throughout" },
   };
+}
+
+export interface RKSAutoOpts {
+  /** Largest n that still uses the exact 4-index ERI. Above it → DF. Default 80. */
+  readonly exactMaxN?: number;
+  /** Use the hybrid GPU/WASM DF build (GPU-accelerated, chemistry-grade) in the
+   *  DF regime. Pure functionals need only the cheap DF J. Default false. */
+  readonly fast?: boolean;
+  /** Force a path regardless of size: "exact" | "df". Default: auto by size. */
+  readonly force?: "exact" | "df";
+  /** XC functional. Default "lda-svwn". */
+  readonly functional?: FunctionalKind;
+  /** RKS SCF controls passed through. */
+  readonly rks?: RKSOpts;
+}
+
+export interface RKSAutoResult {
+  readonly rks: RKSResult;
+  readonly integrals: MolecularIntegrals;
+  readonly provenance: RHFAutoProvenance;
+}
+
+/** Closed-shell Kohn-Sham DFT with automatic exact/DF selection by system size.
+ *  The DF path makes large-molecule DFT feasible in a tab (the 4-index ERI is
+ *  O(n⁴)); pure functionals ride the cheap DF J, hybrids also use the DF K. The
+ *  XC term is the numerical grid either way. Returns the result, integrals, and
+ *  provenance of the number. */
+export async function runRKSAuto(
+  shells: readonly CGShell[],
+  nuclei: readonly Nucleus[],
+  nElectrons: number,
+  symbols: readonly AtomSymbol[],
+  opts: RKSAutoOpts = {},
+): Promise<RKSAutoResult> {
+  const n = shells.length;
+  const exactMaxN = opts.exactMaxN ?? 80;
+  const useDF = opts.force === "df" || (opts.force !== "exact" && n > exactMaxN);
+  const rksOpts: RKSOpts = { functional: opts.functional, ...opts.rks };
+
+  if (!useDF) {
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const rks = runRKSDFT(integrals, nElectrons, symbols, rksOpts);
+    return {
+      rks, integrals,
+      provenance: { method: "exact-eri", engine: "wasm", precision: "f64", nAux: 0,
+        expectedError: "exact ERI J/K (XC on grid); no integral approximation" },
+    };
+  }
+
+  const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true });
+  const { df, provenance } = await buildDFForRegime(shells, !!opts.fast);
+  const rks = runRKSDFT(integrals, nElectrons, symbols, { ...rksOpts, useDF: df });
+  return { rks, integrals, provenance };
 }
