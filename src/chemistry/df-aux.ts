@@ -346,19 +346,33 @@ export async function buildBFromV(
   const kept: number[] = [];
   for (let i = 0; i < nAux; i++) if (eig.values[i]! > metricRegularization) kept.push(i);
   const nKept = kept.length;
+  // W mode-major: Wcm[m·n_aux + Q] = U[Q, kept_m]·λ^(−1/2). Project in WASM SIMD
+  // (df_project_block_modes) over μ-blocks, not a TS triple loop — the projection
+  // is the build's dominant ~n⁴ term.
+  const Wcm = new Float64Array(nKept * nAux);
+  for (let m = 0; m < nKept; m++) {
+    const i = kept[m]!;
+    const inv = 1.0 / Math.sqrt(eig.values[i]!);
+    const col = i * nAux;
+    const wBase = m * nAux;
+    for (let Q = 0; Q < nAux; Q++) Wcm[wBase + Q] = eig.vectors[col + Q]! * inv;
+  }
   const B = new Float64Array(n * n * nKept);
+  const muBlock = 8;
+  for (let mu0 = 0; mu0 < n; mu0 += muBlock) {
+    const mu1 = Math.min(mu0 + muBlock, n);
+    const rows = mu1 - mu0;
+    // V rows [mu0,mu1) are a contiguous slice; the kernel reads ν ≥ μ.
+    const vblk = V.subarray(mu0 * n * nAux, mu1 * n * nAux);
+    const Bblk = mod.df_project_block_modes(vblk, Wcm, rows, n, nAux, nKept, mu0);
+    B.set(Bblk, mu0 * n * nKept);
+  }
+  // Symmetrize: B[νμ] = B[μν] for μ < ν.
   for (let mu = 0; mu < n; mu++) {
-    for (let nu = 0; nu < n; nu++) {
-      const vBase = (mu * n + nu) * nAux;
-      const bBase = (mu * n + nu) * nKept;
-      for (let m = 0; m < nKept; m++) {
-        const i = kept[m]!;
-        const inv = 1.0 / Math.sqrt(eig.values[i]!);
-        const col = i * nAux;
-        let s = 0;
-        for (let Q = 0; Q < nAux; Q++) s += V[vBase + Q]! * eig.vectors[col + Q]! * inv;
-        B[bBase + m] = s;
-      }
+    for (let nu = mu + 1; nu < n; nu++) {
+      const up = (mu * n + nu) * nKept;
+      const lo = (nu * n + mu) * nKept;
+      for (let m = 0; m < nKept; m++) B[lo + m] = B[up + m]!;
     }
   }
   return { B, nAux: nKept, threshold: metricRegularization, n };

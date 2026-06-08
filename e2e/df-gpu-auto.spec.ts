@@ -29,12 +29,15 @@ test.describe("buildDFAuto — GPU/WASM path selection", () => {
       const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true, skipOAO: true });
       const aux = generateAutoAux(shells, 0);
 
-      const auto = await buildDFAuto(shells as never, aux as never);
-      const wasm = await buildAuxBasisDFStreaming(shells as never, aux as never);
+      // End-to-end DF-build timing (V + projection), GPU-auto vs WASM streaming.
+      await buildDFAuto(shells as never, aux as never); await buildAuxBasisDFStreaming(shells as never, aux as never); // warm
+      const tg0 = performance.now(); const auto = await buildDFAuto(shells as never, aux as never); const gpuMs = performance.now() - tg0;
+      const tw0 = performance.now(); const wasm = await buildAuxBasisDFStreaming(shells as never, aux as never); const wasmMs = performance.now() - tw0;
       const eAuto = runRHFSCF(integrals, nElectrons, { useDIIS: true, energyTol: 1e-7, densityTol: 1e-6, maxIter: 60, useDF: auto.df }).energy;
       const eWASM = runRHFSCF(integrals, nElectrons, { useDIIS: true, energyTol: 1e-7, densityTol: 1e-6, maxIter: 60, useDF: wasm }).energy;
-      log(`benzene n=${shells.length}: path=${auto.path}, auto HF ${eAuto.toFixed(8)}, wasm HF ${eWASM.toFixed(8)}, |ΔE|=${Math.abs(eAuto - eWASM).toExponential(2)}`);
-      return { path: auto.path, dE: Math.abs(eAuto - eWASM) };
+      log(`benzene n=${shells.length}: path=${auto.path}, DF build GPU-auto ${(gpuMs / 1000).toFixed(2)}s vs WASM ${(wasmMs / 1000).toFixed(2)}s (${(wasmMs / gpuMs).toFixed(2)}x)`);
+      log(`benzene: auto HF ${eAuto.toFixed(8)}, wasm HF ${eWASM.toFixed(8)}, |ΔE|=${Math.abs(eAuto - eWASM).toExponential(2)}`);
+      return { path: auto.path, dE: Math.abs(eAuto - eWASM), gpuMs, wasmMs };
     });
 
     console.log(`\n[auto benzene] ${JSON.stringify(r)}\n`);
