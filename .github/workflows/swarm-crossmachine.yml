@@ -1,0 +1,50 @@
+name: Swarm cross-machine WebRTC
+
+# De-risk: can two SEPARATE machines (two Actions VMs, two NATs, public
+# internet) establish a WebRTC DataChannel for the swarm? The matrix gives two
+# concurrent jobs on two runners; they rendezvous via deterministic peer IDs
+# derived from the shared run id, signal through the PeerJS public broker, and
+# round-trip a Float64Array over WebRTC (Google STUN + free public TURN).
+#
+# This is the experiment that flips "browser-tab swarm" (one machine) into
+# "browser cluster" (many machines). Free for a public repo.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/parallel/swarm/webrtc-transport.ts"
+      - "e2e/swarm-webrtc-crossmachine.spec.ts"
+      - ".github/workflows/swarm-crossmachine.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  crossmachine:
+    name: WebRTC node (role ${{ matrix.role }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false   # keep both nodes alive so we get both results
+      matrix:
+        role: [a, b]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: WebRTC cross-machine round-trip
+        env:
+          ROLE: ${{ matrix.role }}
+          ROOM: ${{ github.run_id }}
+        run: npx playwright test e2e/swarm-webrtc-crossmachine.spec.ts --reporter=list

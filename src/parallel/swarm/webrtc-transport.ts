@@ -50,8 +50,10 @@ interface PeerJSPeer {
   on(event: "close" | "disconnected", cb: () => void): void;
   destroy(): void;
 }
+interface PeerJSIceServer { urls: string | string[]; username?: string; credential?: string }
+interface PeerJSPeerOpts { debug?: number; config?: { iceServers?: PeerJSIceServer[] } }
 interface PeerJSGlobal {
-  Peer: new (id?: string, opts?: { debug?: number }) => PeerJSPeer;
+  Peer: new (id?: string, opts?: PeerJSPeerOpts) => PeerJSPeer;
 }
 
 const PEERJS_CDN = "https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js";
@@ -91,6 +93,9 @@ export interface WebRTCTransportOpts {
   readonly onPeerDisconnected?: (id: PeerId) => void;
   /** Called when the broker / signaling errors. */
   readonly onError?: (err: Error) => void;
+  /** ICE servers (STUN/TURN). Defaults to PeerJS's Google STUN. Cross-NAT
+   *  links (e.g. cloud VM to cloud VM) often need a TURN relay here. */
+  readonly iceServers?: PeerJSIceServer[];
 }
 
 export class WebRTCTransport implements SwarmTransport {
@@ -109,7 +114,9 @@ export class WebRTCTransport implements SwarmTransport {
   async openAsync(): Promise<void> {
     if (this.peer) return;
     const PJS = await loadPeerJS();
-    const peer = new PJS.Peer(this.opts.id, { debug: 0 });
+    const peerOpts: PeerJSPeerOpts = { debug: 0 };
+    if (this.opts.iceServers) peerOpts.config = { iceServers: this.opts.iceServers };
+    const peer = new PJS.Peer(this.opts.id, peerOpts);
     this.peer = peer;
     return new Promise<void>((resolve, reject) => {
       peer.on("open", (id: string) => {
