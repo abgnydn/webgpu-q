@@ -62,9 +62,16 @@ fn k_pass(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 `;
 
-/** GPU DF-JK: J and K (f32) from the DF B-tensor and density D. Validates against
- *  buildJK_DF. Requires WebGPU (browser). */
-export async function buildJK_DF_GPU(df: DFResult, D: Float64Array): Promise<{ J: Float32Array; K: Float32Array }> {
+/** A persistent GPU DF-JK builder: uploads B and creates the device/pipelines
+ *  ONCE, then `jk(D)` does the Fock contraction each call (reusing them). This is
+ *  what makes a fully-GPU DF-HF SCF loop efficient — no per-iteration device
+ *  setup or B re-upload. Call `dispose()` when the SCF finishes. */
+export interface GpuDFJK {
+  jk(D: Float64Array): Promise<{ J: Float32Array; K: Float32Array }>;
+  dispose(): void;
+}
+
+export async function makeGpuDFJK(df: DFResult): Promise<GpuDFJK> {
   const { B, nAux, n } = df;
   const N = n * n;
   const gpu = (navigator as unknown as { gpu?: GPU }).gpu;
@@ -72,25 +79,22 @@ export async function buildJK_DF_GPU(df: DFResult, D: Float64Array): Promise<{ J
   const adapter = await gpu.requestAdapter();
   if (!adapter) throw new Error("no WebGPU adapter");
   const device = await adapter.requestDevice();
-  device.pushErrorScope("validation");
 
   const Bf = new Float32Array(B.length); for (let i = 0; i < B.length; i++) Bf[i] = B[i]!;
-  const Df = new Float32Array(N); for (let i = 0; i < N; i++) Df[i] = D[i]!;
-
   const buf = (bytes: number, usage: number): GPUBuffer => device.createBuffer({ size: Math.max(16, bytes), usage });
   const S = GPUBufferUsage.STORAGE; const SD = S | GPUBufferUsage.COPY_DST; const SC = S | GPUBufferUsage.COPY_SRC;
   const params = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   device.queue.writeBuffer(params, 0, new Uint32Array([n, nAux]));
-  const bB = buf(Bf.byteLength, SD); device.queue.writeBuffer(bB, 0, Bf);
-  const bD = buf(Df.byteLength, SD); device.queue.writeBuffer(bD, 0, Df);
+  const bB = buf(Bf.byteLength, SD); device.queue.writeBuffer(bB, 0, Bf); // uploaded once
+  const bD = buf(N * 4, SD);
   const bGamma = buf(nAux * 4, S);
   const bJ = buf(N * 4, SC);
   const bX = buf(nAux * N * 4, S);
   const bK = buf(N * 4, SC);
+  const rJ = buf(N * 4, GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
+  const rK = buf(N * 4, GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
 
   const mod = device.createShaderModule({ code: WGSL });
-  // Explicit shared layout (all 7 bindings) so one bind group serves every pass
-  // — layout:"auto" derives a per-entry subset layout and would reject the others.
   const C = GPUShaderStage.COMPUTE;
   const bgl = device.createBindGroupLayout({
     entries: [
@@ -113,25 +117,34 @@ export async function buildJK_DF_GPU(df: DFResult, D: Float64Array): Promise<{ J
       { binding: 6, resource: { buffer: bK } },
     ],
   });
-  const pass = (entryPoint: string, groups: number, enc: GPUCommandEncoder): void => {
-    const pipe = device.createComputePipeline({ layout: pl, compute: { module: mod, entryPoint } });
-    const p = enc.beginComputePass(); p.setPipeline(pipe); p.setBindGroup(0, bg); p.dispatchWorkgroups(groups); p.end();
+  const mk = (entryPoint: string): GPUComputePipeline => device.createComputePipeline({ layout: pl, compute: { module: mod, entryPoint } });
+  const pGamma = mk("gamma_pass"), pJ = mk("j_pass"), pX = mk("x_pass"), pK = mk("k_pass");
+
+  return {
+    async jk(D: Float64Array): Promise<{ J: Float32Array; K: Float32Array }> {
+      const Df = new Float32Array(N); for (let i = 0; i < N; i++) Df[i] = D[i]!;
+      device.queue.writeBuffer(bD, 0, Df);
+      const enc = device.createCommandEncoder();
+      const run = (pipe: GPUComputePipeline, groups: number): void => {
+        const p = enc.beginComputePass(); p.setPipeline(pipe); p.setBindGroup(0, bg); p.dispatchWorkgroups(groups); p.end();
+      };
+      run(pGamma, Math.ceil(nAux / 64)); run(pJ, Math.ceil(N / 64));
+      run(pX, Math.ceil((nAux * N) / 64)); run(pK, Math.ceil(N / 64));
+      enc.copyBufferToBuffer(bJ, 0, rJ, 0, N * 4);
+      enc.copyBufferToBuffer(bK, 0, rK, 0, N * 4);
+      device.queue.submit([enc.finish()]);
+      await Promise.all([rJ.mapAsync(GPUMapMode.READ), rK.mapAsync(GPUMapMode.READ)]);
+      const J = new Float32Array(rJ.getMappedRange().slice(0));
+      const K = new Float32Array(rK.getMappedRange().slice(0));
+      rJ.unmap(); rK.unmap();
+      return { J, K };
+    },
+    dispose(): void { device.destroy(); },
   };
-  const enc = device.createCommandEncoder();
-  pass("gamma_pass", Math.ceil(nAux / 64), enc);
-  pass("j_pass", Math.ceil(N / 64), enc);
-  pass("x_pass", Math.ceil((nAux * N) / 64), enc);
-  pass("k_pass", Math.ceil(N / 64), enc);
-  const rJ = buf(N * 4, GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
-  const rK = buf(N * 4, GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
-  enc.copyBufferToBuffer(bJ, 0, rJ, 0, N * 4);
-  enc.copyBufferToBuffer(bK, 0, rK, 0, N * 4);
-  device.queue.submit([enc.finish()]);
-  const err = await device.popErrorScope();
-  if (err) { device.destroy(); throw new Error(`WebGPU validation: ${err.message}`); }
-  await Promise.all([rJ.mapAsync(GPUMapMode.READ), rK.mapAsync(GPUMapMode.READ)]);
-  const J = new Float32Array(rJ.getMappedRange().slice(0));
-  const K = new Float32Array(rK.getMappedRange().slice(0));
-  rJ.unmap(); rK.unmap(); device.destroy();
-  return { J, K };
+}
+
+/** One-shot GPU DF-JK (validation convenience). Prefer makeGpuDFJK for SCF loops. */
+export async function buildJK_DF_GPU(df: DFResult, D: Float64Array): Promise<{ J: Float32Array; K: Float32Array }> {
+  const g = await makeGpuDFJK(df);
+  try { return await g.jk(D); } finally { g.dispose(); }
 }
