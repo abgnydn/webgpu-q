@@ -105,4 +105,39 @@ test.describe("WebGPU 3-index build — speedup vs system size", () => {
     const largest = rows[rows.length - 1]!;
     expect(largest.ratio).toBeGreaterThan(1.0); // d-regime: GPU wins
   });
+
+  test("end-to-end DF build: buildDFAuto vs WASM streaming scales (C lattice, d)", async ({ page }) => {
+    test.setTimeout(10 * 60 * 1000);
+    page.on("console", (m) => { if (m.text().startsWith("[e2e]")) console.log(m.text()); });
+    await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+    const cLattice = (M: number): { symbol: string; pos: number[] }[] => {
+      const S = 12.0, side = Math.ceil(Math.cbrt(M)); const a: { symbol: string; pos: number[] }[] = []; let p = 0;
+      for (let i = 0; i < side && p < M; i++) for (let j = 0; j < side && p < M; j++) for (let k = 0; k < side && p < M; k++) { a.push({ symbol: "C", pos: [i * S, j * S, k * S] }); p++; }
+      return a;
+    };
+    const rows = await page.evaluate(async (lattices: { symbol: string; pos: number[] }[][]) => {
+      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[e2e] ${s}`); };
+      const [{ moleculeToShellsNuclei }, { generateAutoAux, buildAuxBasisDFStreaming }, { buildDFAuto }] = await Promise.all([
+        import("/src/chemistry/atoms.ts" as string),
+        import("/src/chemistry/df-aux.ts" as string),
+        import("/src/chemistry/df-gpu.ts" as string),
+      ]);
+      const out: { n: number; gpuMs: number; wasmMs: number; ratio: number; path: string }[] = [];
+      for (const atoms of lattices) {
+        const { shells } = moleculeToShellsNuclei(atoms as never, "cc-pvdz");
+        const aux = generateAutoAux(shells, 0);
+        await buildDFAuto(shells as never, aux as never); await buildAuxBasisDFStreaming(shells as never, aux as never);
+        const t0 = performance.now(); const a = await buildDFAuto(shells as never, aux as never); const gpuMs = performance.now() - t0;
+        const t1 = performance.now(); await buildAuxBasisDFStreaming(shells as never, aux as never); const wasmMs = performance.now() - t1;
+        const r = { n: shells.length, gpuMs, wasmMs, ratio: wasmMs / gpuMs, path: a.path };
+        log(`n=${r.n} (${r.path}): DF build GPU-auto ${(gpuMs / 1000).toFixed(2)}s vs WASM ${(wasmMs / 1000).toFixed(2)}s → ${r.ratio.toFixed(2)}x`);
+        out.push(r);
+      }
+      return out;
+    }, [cLattice(6), cLattice(12)]);
+    console.log(`\n[scaling-d-e2e] ${JSON.stringify(rows)}\n`);
+    const largest = rows[rows.length - 1]!;
+    expect(largest.path).toBe("gpu");
+    expect(largest.ratio).toBeGreaterThan(1.0); // end-to-end DF build wins in the d-regime
+  });
 });
