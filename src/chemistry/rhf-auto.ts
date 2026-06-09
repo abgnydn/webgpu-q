@@ -30,6 +30,7 @@ import { buildHybridDFStreaming } from "./df-gpu.js";
 import { type DFResult } from "./df.js";
 import { runRKSDFT, type RKSResult, type RKSOpts } from "./dft/rks-scf.js";
 import { runUKSDFT, type UKSResult, type UKSOpts } from "./dft/uks-scf.js";
+import { runMP2, mp2EnergyDF } from "./mp2.js";
 import { type FunctionalKind } from "./dft/functional.js";
 import { type AtomSymbol } from "./atoms.js";
 
@@ -302,4 +303,69 @@ export async function runUKSAuto(
   const { df, provenance } = await buildDFForRegime(shells, !!opts.fast);
   const uks = runUKSDFT(integrals, nAlpha, nBeta, symbols, { ...uksOpts, useDF: df });
   return { uks, integrals, provenance };
+}
+
+export interface MP2AutoOpts {
+  /** Largest n that still uses the exact 4-index ERI. Above it → DF. Default 80. */
+  readonly exactMaxN?: number;
+  /** Use the hybrid GPU/WASM DF build in the DF regime. Default false. */
+  readonly fast?: boolean;
+  /** Force a path regardless of size: "exact" | "df". Default: auto by size. */
+  readonly force?: "exact" | "df";
+  /** Frozen-core spatial orbitals excluded from the correlation sum. Default 0. */
+  readonly nFrozenCore?: number;
+  /** RHF SCF controls passed through. */
+  readonly hf?: HFOpts;
+}
+
+export interface MP2AutoResult {
+  readonly hfEnergy: number;
+  readonly correlationEnergy: number;
+  readonly totalEnergy: number;
+  readonly nOccupied: number;
+  readonly integrals: MolecularIntegrals;
+  readonly provenance: RHFAutoProvenance;
+}
+
+/** Closed-shell RHF-MP2 with automatic exact/DF selection by system size. The DF
+ *  path is the standard way to get MP2 on large molecules: it builds the HF
+ *  reference AND the MP2 (ia|jb) integrals from the SAME DF B-tensor, so the
+ *  O(n⁴) ERI is never materialized — correlation energy in a tab for systems
+ *  where conventional MP2 can't allocate. Small systems use the exact 4-index
+ *  path. Returns the HF + correlation + total energy with provenance. */
+export async function runMP2Auto(
+  shells: readonly CGShell[],
+  nuclei: readonly Nucleus[],
+  nElectrons: number,
+  opts: MP2AutoOpts = {},
+): Promise<MP2AutoResult> {
+  const n = shells.length;
+  const exactMaxN = opts.exactMaxN ?? 80;
+  const useDF = opts.force === "df" || (opts.force !== "exact" && n > exactMaxN);
+  const nFrozen = opts.nFrozenCore ?? 0;
+  const hfOpts: HFOpts = { useDIIS: true, energyTol: 1e-10, densityTol: 1e-8, maxIter: 200, ...opts.hf };
+
+  if (!useDF) {
+    // Exact: full ERI HF reference, conventional 4-index MP2.
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = await runRHFSCFAsync(integrals, nElectrons, hfOpts);
+    const mp2 = runMP2(hf, integrals, { nFrozenCore: nFrozen });
+    return {
+      hfEnergy: hf.energy, correlationEnergy: mp2.correlationEnergy, totalEnergy: mp2.totalEnergy,
+      nOccupied: hf.nOccupied, integrals,
+      provenance: { method: "exact-eri", engine: "wasm", precision: "f64", nAux: 0,
+        expectedError: "exact MP2 (no integral approximation)" },
+    };
+  }
+
+  // DF: one B-tensor serves BOTH the HF reference and the MP2 (ia|jb) — no ERI.
+  const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true });
+  const { df, provenance } = await buildDFForRegime(shells, !!opts.fast);
+  const hf = await runRHFSCFAsync(integrals, nElectrons, { ...hfOpts, useDF: df });
+  const eCorr = mp2EnergyDF(hf.C_MO, hf.orbitalEnergies, hf.nOccupied, integrals.n, nFrozen, df);
+  return {
+    hfEnergy: hf.energy, correlationEnergy: eCorr, totalEnergy: hf.energy + eCorr,
+    nOccupied: hf.nOccupied, integrals,
+    provenance: { ...provenance, expectedError: `DF-MP2: ${provenance.expectedError}` },
+  };
 }
