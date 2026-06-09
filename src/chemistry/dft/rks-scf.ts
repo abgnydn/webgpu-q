@@ -20,6 +20,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { type MolecularIntegrals } from "../cg-molecular.js";
+import { buildJK_DF, type DFResult } from "../df.js";
 import { eigsymmetric } from "../../manybody/dense-eig.js";
 import { molecularGrid, type GridOpts, type MolecularGrid } from "./grid.js";
 import {
@@ -83,6 +84,15 @@ export interface RKSOpts {
    * Default 0 (no shift).
    */
   readonly levelShift?: number;
+  /**
+   * Density-fitting tensor for the Coulomb (J) and, for hybrids, exchange (K)
+   * builds. When set, the SCF never touches the 4-index ERI — `integrals` may be
+   * built with `skipERI: true`. This is the enabling path for large molecules
+   * where the O(n⁴) ERI won't fit a tab; pure functionals (hfMix = 0) need only
+   * the cheap DF J. The XC term is still the numerical grid, unchanged.
+   * Default undefined (exact ERI J/K).
+   */
+  readonly useDF?: DFResult;
 }
 
 /**
@@ -169,8 +179,17 @@ export function runRKSDFT(
 
   for (iter = 1; iter <= maxIter; iter++) {
     // ── J(D) (and optional K for hybrid) ────────────────────
-    const J  = buildJ(D, eri_AO, n);
-    const K  = hfMix > 0 ? buildK(D, eri_AO, n) : null;
+    // DF path skips the 4-index ERI entirely; pure functionals use only J.
+    let J: Float64Array;
+    let K: Float64Array | null;
+    if (opts.useDF) {
+      const jk = buildJK_DF(opts.useDF, D);
+      J = jk.J;
+      K = hfMix > 0 ? jk.K : null;
+    } else {
+      J = buildJ(D, eri_AO, n);
+      K = hfMix > 0 ? buildK(D, eri_AO, n) : null;
+    }
 
     // ── Density (and ∇ρ for GGA) ────────────────────────────
     let rho: Float64Array;

@@ -147,7 +147,7 @@ export function runMP2(
  * (n=24, nocc=5, nvirt=19, n_aux ~ 100) this is 5·19·100 ≈ 10k
  * elements vs n⁴ = 330k elements — 33× reduction.
  */
-function mp2EnergyDF(
+export function mp2EnergyDF(
   C_MO: Float64Array,
   orbitalEnergies: Float64Array,
   nOccupied: number,

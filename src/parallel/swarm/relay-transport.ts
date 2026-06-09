@@ -71,6 +71,11 @@ export class RelayTransport implements SwarmTransport {
   private readonly broker: string;
   private readonly listeners = new Set<SwarmListener>();
   private readonly opts: RelayTransportOpts;
+  // Sends issued before the async broker connect completes are queued and flushed
+  // on connect. Without this, attachSwarmRuntime (which open()s then immediately
+  // sends a hello) throws on RelayTransport, since open() here is async — unlike
+  // the synchronous BroadcastChannelTransport it was written against.
+  private sendQueue: string[] = [];
 
   constructor(opts: RelayTransportOpts) {
     this.opts = opts;
@@ -105,6 +110,9 @@ export class RelayTransport implements SwarmTransport {
         client.subscribe(this.topic, (e) => {
           clearTimeout(to);
           if (e) { reject(e); return; }
+          // Flush anything queued before the connection was live.
+          for (const m of this.sendQueue) client.publish(this.topic, m);
+          this.sendQueue = [];
           this.opts.onReady?.(this.self);
           resolve();
         });
@@ -122,9 +130,11 @@ export class RelayTransport implements SwarmTransport {
   }
 
   send(msg: Omit<SwarmMessage, "from">): void {
-    if (!this.client) throw new Error("RelayTransport.send before open()");
     const full: SwarmMessage = { ...msg, from: this.self };
-    this.client.publish(this.topic, JSON.stringify(full));
+    const payload = JSON.stringify(full);
+    // Queue until the broker connect + subscribe completes (open() is async).
+    if (!this.client) { this.sendQueue.push(payload); return; }
+    this.client.publish(this.topic, payload);
   }
 
   onMessage(listener: SwarmListener): () => void {
