@@ -56,4 +56,49 @@ test.describe("runUHFAuto — open-shell UHF with size-gated exact/DF", () => {
     expect(r.energy).toBeLessThan(-75);      // OH UHF/cc-pVDZ ≈ -75.4 Ha
     expect(r.energy).toBeGreaterThan(-76);
   });
+
+  for (const fn of ["lda-svwn", "b3lyp5"] as const) {
+    test(`OH radical cc-pVDZ ${fn} (UKS) — exact vs f64-DF vs hybrid-GPU agree`, async ({ page }) => {
+      test.setTimeout(120 * 1000);
+      page.on("pageerror", (e) => console.error(`[pageerror] ${e.message}`));
+      page.on("console", (m) => { if (m.text().startsWith("[uks]")) console.log(m.text()); });
+      await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
+
+      const r = await page.evaluate(async (functional: string) => {
+        const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[uks] ${s}`); };
+        const [{ moleculeToShellsNuclei }, { runUKSAuto }] = await Promise.all([
+          import("/src/chemistry/atoms.ts" as string),
+          import("/src/chemistry/rhf-auto.ts" as string),
+        ]);
+        const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(
+          [{ symbol: "O", pos: [0, 0, 0] }, { symbol: "H", pos: [0, 0, 0.97] }] as never, "cc-pvdz");
+        const nAlpha = (nElectrons + 1) / 2, nBeta = (nElectrons - 1) / 2;
+        const symbols = ["O", "H"];
+        const o = { functional: functional as never };
+        const exact = await runUKSAuto(shells as never, nuclei as never, nAlpha, nBeta, symbols as never, { ...o, force: "exact" });
+        const dfW = await runUKSAuto(shells as never, nuclei as never, nAlpha, nBeta, symbols as never, { ...o, force: "df" });
+        const dfG = await runUKSAuto(shells as never, nuclei as never, nAlpha, nBeta, symbols as never, { ...o, force: "df", fast: true });
+        log(`OH ${functional}: exact ${exact.uks.energy.toFixed(8)} [${exact.provenance.method}]`);
+        log(`  f64-DF ${dfW.uks.energy.toFixed(8)} [${dfW.provenance.engine}] |Δexact|=${Math.abs(dfW.uks.energy - exact.uks.energy).toExponential(2)}`);
+        log(`  hybrid ${dfG.uks.energy.toFixed(8)} [${dfG.provenance.engine}] |Δexact|=${Math.abs(dfG.uks.energy - exact.uks.energy).toExponential(2)}`);
+        return {
+          exactM: exact.provenance.method, dfWProv: dfW.provenance, dfGProv: dfG.provenance,
+          dW: Math.abs(dfW.uks.energy - exact.uks.energy), dG: Math.abs(dfG.uks.energy - exact.uks.energy),
+          eriExact: exact.integrals.eri_AO.length, eriDF: dfW.integrals.eri_AO.length,
+          conv: exact.uks.converged && dfW.uks.converged && dfG.uks.converged,
+        };
+      }, fn);
+
+      console.log(`\n[uks-auto ${fn}] ${JSON.stringify(r)}\n`);
+      const CHEM = 1.594e-3;
+      expect(r.exactM).toBe("exact-eri");
+      expect(r.dfWProv).toMatchObject({ method: "density-fitting", engine: "wasm" });
+      expect(r.dfGProv).toMatchObject({ method: "density-fitting", engine: "gpu+wasm" });
+      expect(r.eriExact).toBeGreaterThan(0);
+      expect(r.eriDF).toBe(0);            // DF UKS skips the ERI
+      expect(r.conv).toBe(true);
+      expect(r.dW).toBeLessThan(CHEM);    // f64 DF UKS chemistry-grade (J-only for LDA, J+K for B3LYP5)
+      expect(r.dG).toBeLessThan(CHEM);    // hybrid GPU DF UKS too
+    });
+  }
 });

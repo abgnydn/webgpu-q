@@ -29,6 +29,7 @@ import { generateAutoAux, buildAuxBasisDFStreaming } from "./df-aux.js";
 import { buildHybridDFStreaming } from "./df-gpu.js";
 import { type DFResult } from "./df.js";
 import { runRKSDFT, type RKSResult, type RKSOpts } from "./dft/rks-scf.js";
+import { runUKSDFT, type UKSResult, type UKSOpts } from "./dft/uks-scf.js";
 import { type FunctionalKind } from "./dft/functional.js";
 import { type AtomSymbol } from "./atoms.js";
 
@@ -250,4 +251,55 @@ export async function runUHFAuto(
   const { df, provenance } = await buildDFForRegime(shells, !!opts.fast);
   const uhf = runUHFSCF(integrals, nAlpha, nBeta, { ...uhfOpts, useDF: df });
   return { uhf, integrals, provenance };
+}
+
+export interface UKSAutoOpts {
+  /** Largest n that still uses the exact 4-index ERI. Above it → DF. Default 80. */
+  readonly exactMaxN?: number;
+  /** Use the hybrid GPU/WASM DF build in the DF regime. Default false. */
+  readonly fast?: boolean;
+  /** Force a path regardless of size: "exact" | "df". Default: auto by size. */
+  readonly force?: "exact" | "df";
+  /** XC functional. Default "lda-svwn". */
+  readonly functional?: FunctionalKind;
+  /** UKS SCF controls passed through. */
+  readonly uks?: UKSOpts;
+}
+
+export interface UKSAutoResult {
+  readonly uks: UKSResult;
+  readonly integrals: MolecularIntegrals;
+  readonly provenance: RHFAutoProvenance;
+}
+
+/** Open-shell Kohn-Sham DFT with size-gated exact/DF — radical DFT (UKS LDA/GGA/
+ *  hybrid). Pure functionals ride the cheap DF J; hybrids also use per-spin DF K.
+ *  XC stays on the grid. Closed-shell collapses to RKS. Returns result + provenance. */
+export async function runUKSAuto(
+  shells: readonly CGShell[],
+  nuclei: readonly Nucleus[],
+  nAlpha: number,
+  nBeta: number,
+  symbols: readonly AtomSymbol[],
+  opts: UKSAutoOpts = {},
+): Promise<UKSAutoResult> {
+  const n = shells.length;
+  const exactMaxN = opts.exactMaxN ?? 80;
+  const useDF = opts.force === "df" || (opts.force !== "exact" && n > exactMaxN);
+  const uksOpts: UKSOpts = { functional: opts.functional, ...opts.uks };
+
+  if (!useDF) {
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const uks = runUKSDFT(integrals, nAlpha, nBeta, symbols, uksOpts);
+    return {
+      uks, integrals,
+      provenance: { method: "exact-eri", engine: "wasm", precision: "f64", nAux: 0,
+        expectedError: "exact ERI J/K (XC on grid); no integral approximation" },
+    };
+  }
+
+  const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true });
+  const { df, provenance } = await buildDFForRegime(shells, !!opts.fast);
+  const uks = runUKSDFT(integrals, nAlpha, nBeta, symbols, { ...uksOpts, useDF: df });
+  return { uks, integrals, provenance };
 }

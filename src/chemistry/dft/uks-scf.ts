@@ -48,6 +48,7 @@ import {
 } from "./functional-spin.js";
 import { hfExchangeMixOf, type FunctionalKind } from "./functional.js";
 import { buildJ, buildK, buildVxcLDA } from "./rks-scf.js";
+import { buildJK_DF, type DFResult } from "../df.js";
 import type { AtomSymbol } from "../atoms.js";
 
 export interface UKSResult {
@@ -89,6 +90,10 @@ export interface UKSOpts {
    *  Default 0.01 Ha. Set to 0 for closed-shell-like inputs. */
   readonly symmetryBreaking?: number;
   readonly levelShift?: number;
+  /** Density-fitting for J(D_total) and, for hybrids, per-spin K(D_σ). When set,
+   *  the SCF never touches the 4-index ERI (integrals may be skipERI). XC stays
+   *  on the grid. Default off. */
+  readonly useDF?: DFResult;
 }
 
 export function runUKSDFT(
@@ -172,9 +177,18 @@ export function runUKSDFT(
     const D_total = new Float64Array(n * n);
     for (let i = 0; i < n * n; i++) D_total[i] = D_alpha[i]! + D_beta[i]!;
 
-    const J = buildJ(D_total, eri_AO, n);
-    const Ka = hfMix > 0 ? buildK(D_alpha, eri_AO, n) : null;
-    const Kb = hfMix > 0 ? buildK(D_beta,  eri_AO, n) : null;
+    // DF path skips the 4-index ERI: J from total density, per-spin K only for
+    // hybrids. (buildJK_DF gives {J,K} per density; take the needed piece.)
+    let J: Float64Array, Ka: Float64Array | null, Kb: Float64Array | null;
+    if (opts.useDF) {
+      J = buildJK_DF(opts.useDF, D_total).J;
+      Ka = hfMix > 0 ? buildJK_DF(opts.useDF, D_alpha).K : null;
+      Kb = hfMix > 0 ? buildJK_DF(opts.useDF, D_beta).K : null;
+    } else {
+      J = buildJ(D_total, eri_AO, n);
+      Ka = hfMix > 0 ? buildK(D_alpha, eri_AO, n) : null;
+      Kb = hfMix > 0 ? buildK(D_beta,  eri_AO, n) : null;
+    }
 
     // Spin-resolved density (+ gradients for GGA) on grid.
     let rhoUp: Float64Array;
