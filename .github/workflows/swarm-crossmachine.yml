@@ -1,11 +1,14 @@
-name: Swarm cross-machine HF
+name: Swarm cross-machine HF + GPU batch
 
-# Cross-machine distributed Hartree–Fock over a free public relay, on N separate
-# Actions VMs. Each VM (matrix entry) is a real machine on the public internet;
-# they rendezvous via deterministic ids from the run id, coordinate through a
-# free MQTT broker, and run a distributed DF-HF SCF where each holds only its own
-# tensor slice. Run at N=2 and N=4 to show the per-machine footprint scaling as
-# full_B / N (the aggregate-resource property). Free for a public repo.
+# Cross-machine chemistry over a free public relay, on N separate Actions VMs.
+# Each VM (matrix entry) is a real machine on the public internet; they rendezvous
+# via deterministic ids from the run id and coordinate through a free MQTT broker.
+# Two modes:
+#   • hf-n2 / hf-n4: a distributed DF-HF SCF where each VM holds only its own
+#     tensor slice (full_B / N) — the aggregate-resource (memory) property.
+#   • gpu-batch-n2: swarmMap distributes independent DF single-points (force DF +
+#     fast → GPU where present) — the embarrassingly-parallel batch property.
+# Free for a public repo.
 #
 # The pure-WebRTC and relay-roundtrip de-risk specs (swarm-webrtc-crossmachine,
 # swarm-relay-crossmachine) remain in the repo for manual runs; the HF jobs below
@@ -17,7 +20,9 @@ on:
     branches: [main]
     paths:
       - "src/parallel/swarm/relay-transport.ts"
+      - "src/swarm/chemistry-kernel.ts"
       - "e2e/swarm-hf-relay-crossmachine.spec.ts"
+      - "e2e/swarm-gpu-relay-crossmachine.spec.ts"
       - ".github/workflows/swarm-crossmachine.yml"
 
 permissions:
@@ -69,3 +74,28 @@ jobs:
           NTOTAL: "4"
           ROOM: wgqhf4-${{ github.run_id }}
         run: npx playwright test e2e/swarm-hf-relay-crossmachine.spec.ts --reporter=list
+
+  # Cross-machine GPU-DF BATCH: swarmMap distributes independent chem single-points
+  # (force DF + fast) across VMs through the broker — distinct from the distributed
+  # SCF above. Engine degrades to WASM-DF if the runner lacks a GPU (SwiftShader);
+  # the test asserts DF + correct energy + real cross-VM distribution, logs engine.
+  gpu-batch-n2:
+    name: GPU-DF batch N=2 (node ${{ matrix.idx }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        idx: [0, 1]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: GPU-DF batch (N=2, node ${{ matrix.idx }})
+        env:
+          IDX: ${{ matrix.idx }}
+          NTOTAL: "2"
+          ROOM: wgqgpu2-${{ github.run_id }}
+        run: npx playwright test e2e/swarm-gpu-relay-crossmachine.spec.ts --reporter=list
