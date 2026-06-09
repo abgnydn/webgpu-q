@@ -23,6 +23,7 @@
 import type { MolecularIntegrals } from "./cg-molecular.js";
 import type { UHFResult } from "./uhf-scf.js";
 import { transformERIBlock } from "./uccsd.js";
+import type { DFResult } from "./df.js";
 
 export interface UMP2Result {
   /** UMP2 correlation energy (Hartree). Negative for closed-shell
@@ -109,4 +110,84 @@ export function runUMP2(
     }
   }
   return { correlationEnergy: E_corr, totalEnergy: uhf.energy + E_corr };
+}
+
+/**
+ * DF-UMP2 correlation energy from a precomputed DF B-tensor — open-shell MP2
+ * without the 4-index ERI, so it works for large radicals where transformERIBlock
+ * can't allocate. Spin-resolved:
+ *   E = E_αα + E_ββ + E_αβ
+ *   E_σσ = ¼ Σ_{ij∈σ, ab∈σ} [(ia|jb)−(ib|ja)]² / (ε_i+ε_j−ε_a−ε_b)
+ *   E_αβ = Σ_{i∈α,j∈β, a∈α,b∈β} (ia|jb)² / (ε_i^α+ε_j^β−ε_a^α−ε_b^β)
+ * with (ia|jb)_σσ' = Σ_P B_ov^σ[i,a,P]·B_ov^σ'[j,b,P], B_ov^σ[i,a,P] = Σ_μν
+ * C^σ_μi C^σ_νa B[μν,P]. Reduces exactly to RHF-MP2 when α≡β (verified
+ * algebraically). nFrozen freezes the lowest occ in each spin.
+ */
+export function mp2EnergyUDF(
+  C_alpha: Float64Array, C_beta: Float64Array,
+  epsA: Float64Array, epsB: Float64Array,
+  nAlpha: number, nBeta: number, n: number, nFrozen: number, df: DFResult,
+): number {
+  const nAux = df.nAux;
+  // B_ov^σ[i,a,P] = Σ_μν C_μi C_νa B[μν,P]  (two 2-index passes)
+  const buildBov = (C: Float64Array, nOcc: number): Float64Array => {
+    const nVirt = n - nOcc;
+    const tmp = new Float64Array(nOcc * n * nAux); // tmp[i,ν,P] = Σ_μ C_μi B[μν,P]
+    for (let i = 0; i < nOcc; i++)
+      for (let nu = 0; nu < n; nu++)
+        for (let P = 0; P < nAux; P++) {
+          let s = 0;
+          for (let mu = 0; mu < n; mu++) s += C[mu * n + i]! * df.B[(mu * n + nu) * nAux + P]!;
+          tmp[(i * n + nu) * nAux + P] = s;
+        }
+    const Bov = new Float64Array(nOcc * nVirt * nAux);
+    for (let i = 0; i < nOcc; i++)
+      for (let a = 0; a < nVirt; a++) {
+        const aMO = nOcc + a;
+        for (let P = 0; P < nAux; P++) {
+          let s = 0;
+          for (let nu = 0; nu < n; nu++) s += C[nu * n + aMO]! * tmp[(i * n + nu) * nAux + P]!;
+          Bov[(i * nVirt + a) * nAux + P] = s;
+        }
+      }
+    return Bov;
+  };
+
+  const nVirtA = n - nAlpha, nVirtB = n - nBeta;
+  const BovA = buildBov(C_alpha, nAlpha);
+  const BovB = buildBov(C_beta, nBeta);
+  const ddot = (B1: Float64Array, o1: number, B2: Float64Array, o2: number): number => {
+    let s = 0; for (let P = 0; P < nAux; P++) s += B1[o1 + P]! * B2[o2 + P]!; return s;
+  };
+
+  // Same-spin: ¼ Σ_ijab [(ia|jb)−(ib|ja)]² / D
+  const sameSpin = (Bov: Float64Array, nOcc: number, nVirt: number, eps: Float64Array): number => {
+    let e = 0;
+    for (let i = nFrozen; i < nOcc; i++)
+      for (let j = nFrozen; j < nOcc; j++)
+        for (let a = 0; a < nVirt; a++)
+          for (let b = 0; b < nVirt; b++) {
+            const iajb = ddot(Bov, (i * nVirt + a) * nAux, Bov, (j * nVirt + b) * nAux);
+            const ibja = ddot(Bov, (i * nVirt + b) * nAux, Bov, (j * nVirt + a) * nAux);
+            const D = eps[i]! + eps[j]! - eps[nOcc + a]! - eps[nOcc + b]!;
+            if (Math.abs(D) < 1e-12) continue;
+            const num = iajb - ibja;
+            e += 0.25 * num * num / D;
+          }
+    return e;
+  };
+
+  let E = sameSpin(BovA, nAlpha, nVirtA, epsA) + sameSpin(BovB, nBeta, nVirtB, epsB);
+
+  // Opposite-spin: Σ (ia|jb)² / D, counted once (i∈α,j∈β,a∈α,b∈β).
+  for (let i = nFrozen; i < nAlpha; i++)
+    for (let j = nFrozen; j < nBeta; j++)
+      for (let a = 0; a < nVirtA; a++)
+        for (let b = 0; b < nVirtB; b++) {
+          const iajb = ddot(BovA, (i * nVirtA + a) * nAux, BovB, (j * nVirtB + b) * nAux);
+          const D = epsA[i]! + epsB[j]! - epsA[nAlpha + a]! - epsB[nBeta + b]!;
+          if (Math.abs(D) < 1e-12) continue;
+          E += iajb * iajb / D;
+        }
+  return E;
 }

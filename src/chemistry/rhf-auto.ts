@@ -31,6 +31,7 @@ import { type DFResult } from "./df.js";
 import { runRKSDFT, type RKSResult, type RKSOpts } from "./dft/rks-scf.js";
 import { runUKSDFT, type UKSResult, type UKSOpts } from "./dft/uks-scf.js";
 import { runMP2, mp2EnergyDF } from "./mp2.js";
+import { runUMP2, mp2EnergyUDF } from "./ump2.js";
 import { type FunctionalKind } from "./dft/functional.js";
 import { type AtomSymbol } from "./atoms.js";
 
@@ -367,5 +368,68 @@ export async function runMP2Auto(
     hfEnergy: hf.energy, correlationEnergy: eCorr, totalEnergy: hf.energy + eCorr,
     nOccupied: hf.nOccupied, integrals,
     provenance: { ...provenance, expectedError: `DF-MP2: ${provenance.expectedError}` },
+  };
+}
+
+export interface UMP2AutoOpts {
+  /** Largest n that still uses the exact 4-index ERI. Above it → DF. Default 80. */
+  readonly exactMaxN?: number;
+  /** Use the hybrid GPU/WASM DF build in the DF regime. Default false. */
+  readonly fast?: boolean;
+  /** Force a path regardless of size: "exact" | "df". Default: auto by size. */
+  readonly force?: "exact" | "df";
+  /** Frozen-core spatial orbitals excluded per spin. Default 0. */
+  readonly nFrozenCore?: number;
+  /** UHF SCF controls passed through. */
+  readonly uhf?: UHFOpts;
+}
+
+export interface UMP2AutoResult {
+  readonly uhfEnergy: number;
+  readonly correlationEnergy: number;
+  readonly totalEnergy: number;
+  readonly integrals: MolecularIntegrals;
+  readonly provenance: RHFAutoProvenance;
+}
+
+/** Open-shell UMP2 with automatic exact/DF selection — radical correlation at any
+ *  size. The DF path builds the UHF reference AND the spin-resolved (ia|jb)
+ *  integrals from the SAME B-tensor (mp2EnergyUDF), so the O(n⁴) ERI is never
+ *  materialized. Closed-shell (nAlpha = nBeta) reduces to RHF-MP2. Small systems
+ *  use the exact 4-index path. Returns UHF + correlation + total + provenance. */
+export async function runUMP2Auto(
+  shells: readonly CGShell[],
+  nuclei: readonly Nucleus[],
+  nAlpha: number,
+  nBeta: number,
+  opts: UMP2AutoOpts = {},
+): Promise<UMP2AutoResult> {
+  const n = shells.length;
+  const exactMaxN = opts.exactMaxN ?? 80;
+  const useDF = opts.force === "df" || (opts.force !== "exact" && n > exactMaxN);
+  const nFrozen = opts.nFrozenCore ?? 0;
+  const uhfOpts: UHFOpts = { useDIIS: true, energyTol: 1e-9, densityTol: 1e-7, maxIter: 200, ...opts.uhf };
+
+  if (!useDF) {
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const uhf = runUHFSCF(integrals, nAlpha, nBeta, uhfOpts);
+    const mp2 = runUMP2(uhf, integrals);
+    return {
+      uhfEnergy: uhf.energy, correlationEnergy: mp2.correlationEnergy, totalEnergy: mp2.totalEnergy,
+      integrals,
+      provenance: { method: "exact-eri", engine: "wasm", precision: "f64", nAux: 0,
+        expectedError: "exact UMP2 (no integral approximation)" },
+    };
+  }
+
+  const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true });
+  const { df, provenance } = await buildDFForRegime(shells, !!opts.fast);
+  const uhf = runUHFSCF(integrals, nAlpha, nBeta, { ...uhfOpts, useDF: df });
+  const eCorr = mp2EnergyUDF(uhf.C_alpha, uhf.C_beta, uhf.orbitalEnergiesAlpha, uhf.orbitalEnergiesBeta,
+    nAlpha, nBeta, integrals.n, nFrozen, df);
+  return {
+    uhfEnergy: uhf.energy, correlationEnergy: eCorr, totalEnergy: uhf.energy + eCorr,
+    integrals,
+    provenance: { ...provenance, expectedError: `DF-UMP2: ${provenance.expectedError}` },
   };
 }
