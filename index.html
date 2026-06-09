@@ -435,6 +435,7 @@
       <div class="links">
         <a href="/viz.html">hyperscope</a>
         <a href="/molecule.html">molecule</a>
+        <a href="/swarm.html">swarm</a>
         <a href="/experiments/">experiments</a>
         <a href="/demo.html">gate demo</a>
         <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub ↗</a>
@@ -442,7 +443,7 @@
     </nav>
 
     <section class="hero">
-      <span class="badge">browser-native · webGPU · PySCF cross-checked · CI green</span>
+      <span class="badge">browser-native · webGPU · PySCF cross-checked · distributed swarm · CI green</span>
       <h1>
         Quantum chemistry,<br/>
         <em>in a browser tab.</em>
@@ -451,8 +452,11 @@
         Hartree-Fock + UHF + UCCSD (radicals),
         <strong>RKS-DFT + UKS-DFT (5 functionals, open + closed shell)</strong>,
         MP2, CCSD, <strong>CCSD(T) on GPU (39× speedup on H₂O cc-pVDZ)</strong>,
-        <strong>EE/IP/EA-EOM-CCSD (PySCF cross-checked)</strong>, density
-        fitting (Cholesky-DF for HF + MP2), <strong>full polarizability
+        <strong>EE/IP/EA-EOM-CCSD (PySCF cross-checked)</strong>, a
+        <strong>size-gated WebGPU density-fitting engine</strong> — exact
+        integrals when they fit, GPU-accelerated DF when they don't, across
+        RHF/UHF/RKS/UKS/MP2 (chemistry-grade; naphthalene's 9.7 GB ERI is never
+        built), <strong>full polarizability
         stack — static α + dynamic α(ω) + Casimir-Polder C₆ — across
         every reference</strong> (RHF/UHF/RKS/UKS), <strong>Grimme D2
         dispersion with analytical gradient</strong>, geometry
@@ -465,6 +469,13 @@
         fusion, phase transitions). All WebGPU, all TypeScript, all
         cross-validated against PySCF, libxc, ITensor, an internal
         brute-force EOM-CCSD reference, and gas-phase experimental references.
+      </p>
+      <p class="lead" style="margin-top: 14px;">
+        <strong>And the crowd is the cluster.</strong> Open the page in many
+        tabs — or across machines — and they pool into a swarm over a free
+        broker, splitting a batch of single-points so every tile is a
+        GPU-accelerated, chemistry-grade energy. Cross-machine-validated on two
+        independent CI runners. <a href="/swarm.html">Open the swarm →</a>
       </p>
       <div class="ctas">
         <a class="btn primary" href="/viz.html">
@@ -496,9 +507,9 @@
     </div>
 
     <section class="section">
-      <h2>Four live demos.</h2>
+      <h2>Five live demos.</h2>
       <p class="sub">
-        Four URLs. Open any of them — no install, no Linux, no Python. Just a tab.
+        Five URLs. Open any of them — no install, no Linux, no Python. Just a tab.
       </p>
       <div class="demos">
         <a href="/viz.html" class="demo-card">
@@ -574,6 +585,41 @@
               <span>HF · 5 DFT functionals · UHF</span>
               <span>STO-3G</span>
               <span>~30 s end-to-end</span>
+            </div>
+          </div>
+        </a>
+
+        <a href="/swarm.html" class="demo-card">
+          <div class="preview" style="background: linear-gradient(135deg, #0c1a18 0%, #14322a 100%);">
+            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
+              <g stroke="#7affc4" stroke-width="1.4" opacity="0.6">
+                <line x1="160" y1="80" x2="70"  y2="44"/>
+                <line x1="160" y1="80" x2="250" y2="44"/>
+                <line x1="160" y1="80" x2="70"  y2="116"/>
+                <line x1="160" y1="80" x2="250" y2="116"/>
+              </g>
+              <g fill="#7affc4">
+                <circle cx="160" cy="80" r="11"/>
+                <circle cx="70"  cy="44"  r="8"/>
+                <circle cx="250" cy="44"  r="8"/>
+                <circle cx="70"  cy="116" r="8"/>
+                <circle cx="250" cy="116" r="8"/>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <h3>Swarm <span class="arrow">→</span></h3>
+            <p>
+              The crowd is the cluster: open the page in several tabs (or across
+              machines) and they form a swarm over a free broker, splitting a batch
+              of chemistry single-points — each tile a GPU-accelerated, chemistry-grade
+              HF/DFT/MP2 energy (RHF/UHF/RKS/UKS), auto-picking exact or density
+              fitting by size. Bond-length scans and radical curves across the crowd.
+            </p>
+            <div class="meta">
+              <span>BroadcastChannel · WebRTC · MQTT relay</span>
+              <span>GPU-DF, chemistry-grade</span>
+              <span>cross-machine on free VMs</span>
             </div>
           </div>
         </a>
@@ -995,6 +1041,7 @@ scene.<span class="k">updateGrid</span>(grid);  <span class="c">// → WebGPU sp
       <div style="display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap;">
         <a href="/viz.html">hyperscope</a>
         <a href="/molecule.html">molecule</a>
+        <a href="/swarm.html">swarm</a>
         <a href="/experiments/">experiments</a>
         <a href="/demo.html">gate demo</a>
         <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub ↗</a>
