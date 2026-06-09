@@ -9,14 +9,12 @@ import { test, expect } from "@playwright/test";
 // hundreds of MB), so the calculation runs. This is the payoff of the whole
 // GPU-DF arc: chemistry-grade HF on a real PAH, from a URL.
 //
-// NOTE: this is a CI-tier capstone (~8 min). Even with fast:true the path here
-// is the streaming WASM DF, by design: runRHFAuto's hybrid GPU build projects via
-// buildBFromV, which materializes the full f64 V (312 MB at n=190) — too much for
-// a tab, ~2× slower than streaming there — so buildDFForRegime size-gates the
-// hybrid off above a 200 MB full-V cap and uses the lean streaming path instead.
-// The hybrid's GPU win is a MEDIUM-molecule optimization (benzene 1.31×); at PAH
-// scale memory wins. Either way DF is what makes the molecule feasible — the test
-// asserts that (method = density-fitting, ERI never built), not which engine ran.
+// NOTE: this is a CI-tier capstone (~8 min). The engine here is the all-WASM
+// streaming DF, by design: at n=190 buildDFForRegime gates the GPU hybrid off
+// (its per-block JS merge, O(n²·nAux), runs >2× slower than WASM-SIMD streaming
+// at PAH scale — the GPU hybrid is a MEDIUM-molecule optimization, benzene
+// 1.31× V-build). DF is what makes the molecule feasible regardless of engine —
+// the test asserts that (method = density-fitting, ERI never built), not speed.
 
 // Planar D2h naphthalene (Å), reasonable geometry (feasibility demo, not a
 // precision benchmark — we assert a sane physical energy, not a literature digit).

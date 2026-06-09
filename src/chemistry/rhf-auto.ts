@@ -110,15 +110,17 @@ async function buildDFForRegime(
   const aux = generateAutoAux(shells, 1);
   const n = shells.length;
 
-  // The hybrid streams the merge+projection (buildHybridDFStreaming), so it never
-  // materializes the full f64 V — its extra memory over the WASM path is just the
-  // GPU low-V readback (f32, n²·nLow·4). Gate on THAT so a tab isn't overwhelmed
-  // (256 MB cap). The earlier non-streaming hybrid had to gate at 200 MB on the
-  // full f64 V because it thrashed; streaming lifts the ceiling to PAH scale.
-  const nLow = aux.filter((s) => s.angular[0]! + s.angular[1]! + s.angular[2]! <= 2).length;
-  const lowVbytes = n * n * nLow * 4;
-  const hybridFits = lowVbytes < 256 * 1024 * 1024;
-  const wantGPU = fast && hybridFits && hasDFunctions(shells) &&
+  // Gate the hybrid to the scale where it actually wins. Its limiter at large n
+  // is NOT memory (streaming fixed that) but the per-block merge: assembling each
+  // f64 V block from the GPU f32 low-aux + WASM f64 f-aux is a JS triple-loop,
+  // O(n²·nAux), which the all-WASM streaming path does in WASM SIMD. MEASURED:
+  // naphthalene (n²·nAux ≈ 39 M) ran the hybrid >2× SLOWER than WASM streaming;
+  // benzene (≈ 9.7 M) is fine. So gate on the merge cost; above it the all-WASM
+  // streaming DF wins even with fast=true. (A WASM merge kernel would lift this —
+  // the real lever for large-molecule GPU DF.)
+  const mergeOps = n * n * aux.length;
+  const hybridWins = mergeOps < 12_000_000;
+  const wantGPU = fast && hybridWins && hasDFunctions(shells) &&
     !!(navigator as unknown as { gpu?: unknown }).gpu;
 
   if (wantGPU) {
