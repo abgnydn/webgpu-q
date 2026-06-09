@@ -24,8 +24,8 @@
 import { type CGShell } from "./integrals-cg.js";
 import { computeMolecularIntegrals, type Nucleus, type MolecularIntegrals } from "./cg-molecular.js";
 import { runRHFSCFAsync, type HFResult, type HFOpts } from "./hf-scf.js";
-import { generateAutoAux, buildAuxBasisDFStreaming, buildBFromV } from "./df-aux.js";
-import { buildV3idxHybrid } from "./df-gpu.js";
+import { generateAutoAux, buildAuxBasisDFStreaming } from "./df-aux.js";
+import { buildHybridDFStreaming } from "./df-gpu.js";
 import { type DFResult } from "./df.js";
 import { runRKSDFT, type RKSResult, type RKSOpts } from "./dft/rks-scf.js";
 import { type FunctionalKind } from "./dft/functional.js";
@@ -110,30 +110,28 @@ async function buildDFForRegime(
   const aux = generateAutoAux(shells, 1);
   const n = shells.length;
 
-  // The hybrid path projects via buildBFromV, which MATERIALIZES the full f64 V
-  // tensor (n²·nAux·8 B) on top of the GPU f32 V and the B tensor. That's fine
-  // for medium molecules but blows memory at PAH scale (naphthalene n=190:
-  // V alone is 312 MB → on a tab with <1 GB free it thrashes and runs ~2×
-  // SLOWER than streaming). The streaming WASM path never materializes full V,
-  // so above this size we use it even when fast was requested. 200 MB full-V cap.
-  const fullVbytes = n * n * aux.length * 8;
-  const hybridFits = fullVbytes < 200 * 1024 * 1024;
+  // The hybrid streams the merge+projection (buildHybridDFStreaming), so it never
+  // materializes the full f64 V — its extra memory over the WASM path is just the
+  // GPU low-V readback (f32, n²·nLow·4). Gate on THAT so a tab isn't overwhelmed
+  // (256 MB cap). The earlier non-streaming hybrid had to gate at 200 MB on the
+  // full f64 V because it thrashed; streaming lifts the ceiling to PAH scale.
+  const nLow = aux.filter((s) => s.angular[0]! + s.angular[1]! + s.angular[2]! <= 2).length;
+  const lowVbytes = n * n * nLow * 4;
+  const hybridFits = lowVbytes < 256 * 1024 * 1024;
   const wantGPU = fast && hybridFits && hasDFunctions(shells) &&
     !!(navigator as unknown as { gpu?: unknown }).gpu;
 
   if (wantGPU) {
-    // GPU-accelerated AND chemically accurate: the HYBRID 3-index build does the
-    // s/p/d-aux columns on the GPU (f32) and the f-aux columns on WASM (f64),
-    // then projects in f64. Measured: the f32 low-aux block costs only ~8 µHa, so
-    // the result stays chemistry-grade (H2O 0.19 mHa vs exact) — unlike the
-    // d-only level-0 GPU path (~30 mHa) it replaces.
+    // GPU-accelerated AND chemically accurate: GPU f32 builds the s/p/d-aux
+    // columns, WASM f64 the f-aux, f64 projection + J/K. The f32 low-aux block
+    // costs only ~8 µHa, so the result stays chemistry-grade (H2O 0.19 mHa vs
+    // exact). Streaming keeps peak memory low enough to win at large n too.
     try {
-      const { V, auxOrdered } = await buildV3idxHybrid(shells, aux);
-      const df = await buildBFromV(shells, auxOrdered, V);
+      const { df } = await buildHybridDFStreaming(shells, aux);
       return {
         df,
         provenance: { method: "density-fitting", engine: "gpu+wasm", precision: "mixed", nAux: df.nAux,
-          expectedError: "hybrid extraL=1: GPU f32 s/p/d-aux + f64 f-aux + f64 J/K — chemistry-grade (~0.2 mHa vs exact)" },
+          expectedError: "hybrid extraL=1 (streaming): GPU f32 s/p/d-aux + f64 f-aux + f64 J/K — chemistry-grade (~0.2 mHa vs exact)" },
       };
     } catch {
       /* GPU/hybrid path unavailable — fall through to pure f64 WASM DF */

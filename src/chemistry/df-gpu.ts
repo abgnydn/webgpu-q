@@ -11,7 +11,7 @@
 
 import type { CGShell } from "./integrals-cg.js";
 import type { DFResult } from "./df.js";
-import { buildBFromV, buildAuxBasisDFStreaming, buildV3idxCPU } from "./df-aux.js";
+import { buildBFromV, buildBFromVBlocks, buildAuxBasisDFStreaming, buildV3idxCPU } from "./df-aux.js";
 
 const METRIC_WGSL = /* wgsl */ `
 const PI: f32 = 3.141592653589793;
@@ -713,6 +713,43 @@ export async function buildV3idxHybrid(
     for (let q = 0; q < nHigh; q++) V[dst + nLow + q] = Vh[sh + q]!;
   }
   return { V, auxOrdered: [...low, ...high] };
+}
+
+/** Streaming hybrid DF build for LARGE molecules: GPU f32 builds the s/p/d-aux
+ *  columns, WASM f64 the f-aux, but the merge+projection runs per μ-block so the
+ *  full f64 V (n²·nAux·8 — 312 MB at naphthalene) is NEVER materialized. That full
+ *  V is what made the non-streaming hybrid thrash and run ~2× slower than WASM at
+ *  PAH scale; streaming keeps peak to ~ Vlow(f32) + B, letting the GPU's V-build
+ *  win actually show up on big systems. Returns the DF tensor + the aux reordered
+ *  to [low, high] (its column order). */
+export async function buildHybridDFStreaming(
+  orbShells: readonly CGShell[], auxShells: readonly CGShell[], metricRegularization = 1e-10,
+): Promise<{ df: DFResult; auxOrdered: CGShell[] }> {
+  const n = orbShells.length;
+  const low = auxShells.filter((s) => totalAngular(s) <= 2);
+  const high = auxShells.filter((s) => totalAngular(s) > 2);
+  const auxOrdered = [...low, ...high];
+  const nLow = low.length, nHigh = high.length, nAux = auxOrdered.length;
+
+  const Vlow = await buildV3idxGPU(orbShells, low);                               // f32, (μn+ν)·nLow + p
+  const Vhigh = nHigh > 0 ? await buildV3idxCPU(orbShells, high) : new Float64Array(0); // f64, (μn+ν)·nHigh + q
+
+  // One f64 V block at a time, assembled from the low (f32) and high (f64) builds.
+  const getBlock = (mu0: number, mu1: number): Float64Array => {
+    const rows = mu1 - mu0;
+    const blk = new Float64Array(rows * n * nAux);
+    for (let l = 0; l < rows; l++) {
+      const mg = mu0 + l;
+      for (let nu = 0; nu < n; nu++) {
+        const sL = (mg * n + nu) * nLow, sH = (mg * n + nu) * nHigh, d = (l * n + nu) * nAux;
+        for (let p = 0; p < nLow; p++) blk[d + p] = Vlow[sL + p]!;
+        for (let q = 0; q < nHigh; q++) blk[d + nLow + q] = Vhigh[sH + q]!;
+      }
+    }
+    return blk;
+  };
+  const df = await buildBFromVBlocks(orbShells, auxOrdered, getBlock, metricRegularization);
+  return { df, auxOrdered };
 }
 
 // ── Auto-selected DF build: GPU integrals where they win, WASM otherwise ──────

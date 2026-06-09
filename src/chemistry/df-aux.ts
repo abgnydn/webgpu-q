@@ -335,6 +335,27 @@ export async function buildBFromV(
   orbShells: readonly CGShell[], auxShells: readonly CGShell[],
   V: Float64Array, metricRegularization = 1e-10,
 ): Promise<DFResult> {
+  const n = orbShells.length;
+  const nAux = auxShells.length;
+  // The full V is already in hand → each block is a zero-copy subarray.
+  return buildBFromVBlocks(
+    orbShells, auxShells,
+    (mu0, mu1) => V.subarray(mu0 * n * nAux, mu1 * n * nAux),
+    metricRegularization,
+  );
+}
+
+/** Like buildBFromV, but pulls each μ-block of the 3-index V on demand from a
+ *  callback instead of holding the full tensor. This is what lets a large-molecule
+ *  GPU/WASM hybrid build avoid materializing the full f64 V (312 MB at n=190,
+ *  which thrashes a tab): the caller assembles one block at a time. getBlock(mu0,
+ *  mu1) must return the f64 V rows [mu0,mu1) in layout ((μ−mu0)·n + ν)·nAux + P,
+ *  the same contiguous shape buildBFromV's subarray had. */
+export async function buildBFromVBlocks(
+  orbShells: readonly CGShell[], auxShells: readonly CGShell[],
+  getBlock: (mu0: number, mu1: number) => Float64Array,
+  metricRegularization = 1e-10,
+): Promise<DFResult> {
   const mod = await loadWasm();
   const aux = packShells(auxShells);
   const n = orbShells.length;
@@ -362,8 +383,8 @@ export async function buildBFromV(
   for (let mu0 = 0; mu0 < n; mu0 += muBlock) {
     const mu1 = Math.min(mu0 + muBlock, n);
     const rows = mu1 - mu0;
-    // V rows [mu0,mu1) are a contiguous slice; the kernel reads ν ≥ μ.
-    const vblk = V.subarray(mu0 * n * nAux, mu1 * n * nAux);
+    // V rows [mu0,mu1): provided by the caller. The kernel reads ν ≥ μ.
+    const vblk = getBlock(mu0, mu1);
     const Bblk = mod.df_project_block_modes(vblk, Wcm, rows, n, nAux, nKept, mu0);
     B.set(Bblk, mu0 * n * nKept);
   }
