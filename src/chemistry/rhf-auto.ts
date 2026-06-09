@@ -24,6 +24,7 @@
 import { type CGShell } from "./integrals-cg.js";
 import { computeMolecularIntegrals, type Nucleus, type MolecularIntegrals } from "./cg-molecular.js";
 import { runRHFSCFAsync, type HFResult, type HFOpts } from "./hf-scf.js";
+import { runUHFSCF, type UHFResult, type UHFOpts } from "./uhf-scf.js";
 import { generateAutoAux, buildAuxBasisDFStreaming } from "./df-aux.js";
 import { buildHybridDFStreaming } from "./df-gpu.js";
 import { type DFResult } from "./df.js";
@@ -200,4 +201,53 @@ export async function runRKSAuto(
   const { df, provenance } = await buildDFForRegime(shells, !!opts.fast);
   const rks = runRKSDFT(integrals, nElectrons, symbols, { ...rksOpts, useDF: df });
   return { rks, integrals, provenance };
+}
+
+export interface UHFAutoOpts {
+  /** Largest n that still uses the exact 4-index ERI. Above it → DF. Default 80. */
+  readonly exactMaxN?: number;
+  /** Use the hybrid GPU/WASM DF build in the DF regime. Default false. */
+  readonly fast?: boolean;
+  /** Force a path regardless of size: "exact" | "df". Default: auto by size. */
+  readonly force?: "exact" | "df";
+  /** UHF SCF controls passed through. */
+  readonly uhf?: UHFOpts;
+}
+
+export interface UHFAutoResult {
+  readonly uhf: UHFResult;
+  readonly integrals: MolecularIntegrals;
+  readonly provenance: RHFAutoProvenance;
+}
+
+/** Open-shell UHF with automatic exact/DF selection by system size — radicals,
+ *  doublets, O₂, etc. The DF path makes large open-shell systems feasible in a
+ *  tab (J from the total density, K from each spin density, off the DF B-tensor).
+ *  Closed-shell (nAlpha = nBeta) collapses to RHF. Returns result + provenance. */
+export async function runUHFAuto(
+  shells: readonly CGShell[],
+  nuclei: readonly Nucleus[],
+  nAlpha: number,
+  nBeta: number,
+  opts: UHFAutoOpts = {},
+): Promise<UHFAutoResult> {
+  const n = shells.length;
+  const exactMaxN = opts.exactMaxN ?? 80;
+  const useDF = opts.force === "df" || (opts.force !== "exact" && n > exactMaxN);
+  const uhfOpts: UHFOpts = { useDIIS: true, energyTol: 1e-9, densityTol: 1e-7, maxIter: 200, ...opts.uhf };
+
+  if (!useDF) {
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const uhf = runUHFSCF(integrals, nAlpha, nBeta, uhfOpts);
+    return {
+      uhf, integrals,
+      provenance: { method: "exact-eri", engine: "wasm", precision: "f64", nAux: 0,
+        expectedError: "exact (no integral approximation)" },
+    };
+  }
+
+  const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true });
+  const { df, provenance } = await buildDFForRegime(shells, !!opts.fast);
+  const uhf = runUHFSCF(integrals, nAlpha, nBeta, { ...uhfOpts, useDF: df });
+  return { uhf, integrals, provenance };
 }

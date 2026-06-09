@@ -36,6 +36,7 @@
 
 import type { MolecularIntegrals } from "./cg-molecular.js";
 import { eigsymmetric } from "../manybody/dense-eig.js";
+import { choleskyDecomposeERI, buildJK_DF, type DFResult } from "./df.js";
 
 export interface UHFOpts {
   readonly maxIter?: number;
@@ -48,6 +49,14 @@ export interface UHFOpts {
    *  α-Fock diagonal to encourage open-shell convergence. Default
    *  0.01 Ha. Set to 0 for closed-shell-like inputs. */
   readonly symmetryBreaking?: number;
+  /**
+   * Density-fitting for the J/K builds. When set, J(D_total) and the
+   * per-spin K(D_α), K(D_β) come from the DF B-tensor via buildJK_DF
+   * and the SCF never touches the 4-index ERI (integrals may be built
+   * skipERI). true / a number τ → Cholesky-DF from the ERI; a DFResult
+   * → reuse a caller-provided (e.g. GPU-built) B-tensor. Default off.
+   */
+  readonly useDF?: boolean | number | DFResult;
 }
 
 export interface UHFResult {
@@ -106,6 +115,14 @@ export function runUHFSCF(
 
   const { S_AO, h_AO, eri_AO, X, Vnn } = integrals;
 
+  // Density-fitting tensor (optional): J(D_total) and per-spin K come from it
+  // instead of the 4-index ERI, so large open-shell systems are feasible in a tab.
+  let dfTensor: DFResult | null = null;
+  if (opts.useDF !== undefined && opts.useDF !== false) {
+    if (typeof opts.useDF === "object") dfTensor = opts.useDF;
+    else dfTensor = choleskyDecomposeERI(eri_AO, n, typeof opts.useDF === "number" ? opts.useDF : 1e-10);
+  }
+
   // ── Initial guess: diagonalize core h. To break α/β symmetry
   // for radicals, optionally tilt the α-Fock diagonal by ±symBreak
   // on the would-be SOMO. Simplest: shift the highest occupied α
@@ -137,10 +154,19 @@ export function runUHFSCF(
     const D_total = new Float64Array(n * n);
     for (let k = 0; k < n * n; k++) D_total[k] = D_alpha[k]! + D_beta[k]!;
 
-    // Build the spin-Fock matrices.
-    const J_total = buildJ(D_total, eri_AO, n);
-    const K_alpha = buildK(D_alpha, eri_AO, n);
-    const K_beta  = buildK(D_beta,  eri_AO, n);
+    // Build the spin-Fock matrices. DF path: J from the total density, K from
+    // each spin density (buildJK_DF gives {J,K} per density; we take the piece we
+    // need from each call — same convention as the local buildJ/buildK).
+    let J_total: Float64Array, K_alpha: Float64Array, K_beta: Float64Array;
+    if (dfTensor) {
+      J_total = buildJK_DF(dfTensor, D_total).J;
+      K_alpha = buildJK_DF(dfTensor, D_alpha).K;
+      K_beta  = buildJK_DF(dfTensor, D_beta).K;
+    } else {
+      J_total = buildJ(D_total, eri_AO, n);
+      K_alpha = buildK(D_alpha, eri_AO, n);
+      K_beta  = buildK(D_beta,  eri_AO, n);
+    }
     const F_alpha = new Float64Array(n * n);
     const F_beta  = new Float64Array(n * n);
     for (let k = 0; k < n * n; k++) {
