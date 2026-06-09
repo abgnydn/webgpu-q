@@ -151,10 +151,16 @@ benches (`e2e/`) cover all levels + the swarm/acene series.
   - Step 2: `WebRTCTransport` via PeerJS broker (cross-machine, NAT-
     traversal via Google STUN; symmetric-NAT corporate networks may
     need TURN, documented).
-  - Step 3: real-chemistry kernel — `chem-energy` runs HF SCF on a
-    molecule tile, swarm distributes H₂ bond-length scans (and any
-    1D parameter scan) across tabs. /swarm.html ships both prime-
-    counting (Demo 1) and bond-scan (Demo 2) demos.
+  - Step 3: real-chemistry kernel — `chem-energy` runs a molecule tile,
+    swarm distributes H₂ bond-length scans (and any 1D parameter scan)
+    across tabs. /swarm.html ships both prime-counting (Demo 1) and
+    bond-scan (Demo 2) demos.
+  - Step 4 (**swarm × GPU**, 2026-06-09): the kernel now runs `runRHFAuto`
+    per tile, so each worker tab auto-picks exact / hybrid-GPU DF and
+    reports its own provenance. `e2e/swarm-gpu` distributes an N₂ cc-pVDZ
+    batch across 2 tabs, every tile `gpu+wasm`, tracing N₂'s bond curve
+    (min r=1.098 Å). GPU-accelerated chemistry-grade single-points split
+    across the crowd — the project's two theses in one demo.
 - EE-EOM-CCSD: **PySCF-ported (2026-05-21)**. σ_1 + σ_2 follow
   Wang-Tu-Wang 2014 Eqs (9)-(10) with PySCF eom_gccsd intermediates
   (EOM-Fvv/Foo/Wovvo with full t2 dressing + Wovoo / Wvvvo). Empirical
