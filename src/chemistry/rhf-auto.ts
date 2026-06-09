@@ -108,7 +108,17 @@ async function buildDFForRegime(
   // extraL=1 aux (the cc-pVDZ sweet spot — adds f-aux for chemistry-grade
   // accuracy; extraL=2 over-completes and breaks the metric orthogonalization).
   const aux = generateAutoAux(shells, 1);
-  const wantGPU = fast && hasDFunctions(shells) &&
+  const n = shells.length;
+
+  // The hybrid path projects via buildBFromV, which MATERIALIZES the full f64 V
+  // tensor (n²·nAux·8 B) on top of the GPU f32 V and the B tensor. That's fine
+  // for medium molecules but blows memory at PAH scale (naphthalene n=190:
+  // V alone is 312 MB → on a tab with <1 GB free it thrashes and runs ~2×
+  // SLOWER than streaming). The streaming WASM path never materializes full V,
+  // so above this size we use it even when fast was requested. 200 MB full-V cap.
+  const fullVbytes = n * n * aux.length * 8;
+  const hybridFits = fullVbytes < 200 * 1024 * 1024;
+  const wantGPU = fast && hybridFits && hasDFunctions(shells) &&
     !!(navigator as unknown as { gpu?: unknown }).gpu;
 
   if (wantGPU) {

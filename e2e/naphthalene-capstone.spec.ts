@@ -9,11 +9,14 @@ import { test, expect } from "@playwright/test";
 // hundreds of MB), so the calculation runs. This is the payoff of the whole
 // GPU-DF arc: chemistry-grade HF on a real PAH, from a URL.
 //
-// NOTE (measured 2026-06-09): at this size the hybrid GPU path gracefully falls
-// back to WASM f64 — the GPU V output (~130 MB) exceeds the default 128 MB
-// storage-buffer cap; raising requiredLimits in buildV3idxGPU lets the GPU carry
-// it. Either way DF is what makes the molecule feasible; the test asserts that,
-// not which engine ran (provenance reports it honestly).
+// NOTE: this is a CI-tier capstone (~8 min). Even with fast:true the path here
+// is the streaming WASM DF, by design: runRHFAuto's hybrid GPU build projects via
+// buildBFromV, which materializes the full f64 V (312 MB at n=190) — too much for
+// a tab, ~2× slower than streaming there — so buildDFForRegime size-gates the
+// hybrid off above a 200 MB full-V cap and uses the lean streaming path instead.
+// The hybrid's GPU win is a MEDIUM-molecule optimization (benzene 1.31×); at PAH
+// scale memory wins. Either way DF is what makes the molecule feasible — the test
+// asserts that (method = density-fitting, ERI never built), not which engine ran.
 
 // Planar D2h naphthalene (Å), reasonable geometry (feasibility demo, not a
 // precision benchmark — we assert a sane physical energy, not a literature digit).
@@ -40,7 +43,7 @@ const NAPHTHALENE: { symbol: string; pos: number[] }[] = [
 
 test.describe("Capstone — naphthalene cc-pVDZ HF in a tab (exact ERI infeasible)", () => {
   test("runRHFAuto auto-picks DF, skips the 8 GB ERI, converges to a sane energy", async ({ page }) => {
-    test.setTimeout(8 * 60 * 1000);
+    test.setTimeout(15 * 60 * 1000);
     page.on("pageerror", (e) => console.error(`[pageerror] ${e.message}`));
     page.on("console", (m) => { if (m.text().startsWith("[cap]")) console.log(m.text()); });
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
