@@ -84,7 +84,12 @@ export async function makeGpuDFJK(df: DFResult): Promise<GpuDFJK> {
   if (!gpu) throw new Error("WebGPU unavailable");
   const adapter = await gpu.requestAdapter();
   if (!adapter) throw new Error("no WebGPU adapter");
-  const device = await adapter.requestDevice();
+  const device = await adapter.requestDevice({
+    requiredLimits: {
+      maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
+      maxBufferSize: adapter.limits.maxBufferSize,
+    },
+  });
 
   const Bf = new Float32Array(B.length); for (let i = 0; i < B.length; i++) Bf[i] = B[i]!;
   const buf = (bytes: number, usage: number): GPUBuffer => device.createBuffer({ size: Math.max(16, bytes), usage });

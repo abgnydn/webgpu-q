@@ -203,7 +203,12 @@ export async function buildMetric2idxGPU(auxShells: readonly CGShell[]): Promise
   if (!gpu) throw new Error("WebGPU unavailable");
   const adapter = await gpu.requestAdapter();
   if (!adapter) throw new Error("no WebGPU adapter");
-  const device = await adapter.requestDevice();
+  const device = await adapter.requestDevice({
+    requiredLimits: {
+      maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
+      maxBufferSize: adapter.limits.maxBufferSize,
+    },
+  });
 
   const R = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST;
   const mk = (data: Float32Array | Uint32Array, usage: number): GPUBuffer => {
@@ -541,7 +546,12 @@ export async function buildV3idxGPU(
   if (!gpu) throw new Error("WebGPU unavailable");
   const adapter = await gpu.requestAdapter();
   if (!adapter) throw new Error("no WebGPU adapter");
-  const device = await adapter.requestDevice();
+  const device = await adapter.requestDevice({
+    requiredLimits: {
+      maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
+      maxBufferSize: adapter.limits.maxBufferSize,
+    },
+  });
   device.pushErrorScope("validation");
   const R = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST;
   const mk = (data: Float32Array | Uint32Array): GPUBuffer => {
@@ -617,7 +627,12 @@ export async function buildV3idxGPU_sOnly(
   if (!gpu) throw new Error("WebGPU unavailable");
   const adapter = await gpu.requestAdapter();
   if (!adapter) throw new Error("no WebGPU adapter");
-  const device = await adapter.requestDevice();
+  const device = await adapter.requestDevice({
+    requiredLimits: {
+      maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
+      maxBufferSize: adapter.limits.maxBufferSize,
+    },
+  });
   device.pushErrorScope("validation");
   const R = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST;
   const mk = (data: Float32Array | Uint32Array): GPUBuffer => {
