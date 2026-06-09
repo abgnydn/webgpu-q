@@ -170,6 +170,13 @@ benches (`e2e/`) cover all levels + the swarm/acene series.
 - f-functions in the WGSL 3-index kernel: would raise the GPU-carried aux
   fraction past the current ~91% (hybrid offloads f-aux to WASM) for a bigger
   GPU win — but no longer needed for *accuracy* (the hybrid is chemistry-grade).
+- WASM (or GPU-side) merge kernel to replace the JS block-assembly in
+  `buildHybridDFStreaming` — THE lever to extend the GPU hybrid past medium
+  molecules. The hybrid currently gates off at n²·nAux ≥ 12 M because the
+  per-block f32-low + f64-f-aux merge is a JS triple-loop that loses to WASM-SIMD
+  streaming at PAH scale (naphthalene >2× slower; honest negative, 2026-06-09).
+  Large molecules use all-WASM streaming DF, which is excellent; the GPU hybrid
+  is a medium-molecule optimization (chemistry-grade + 1.31× V-build).
 - WGSL (T) kernel optimization to push 39× → 100× (no warmup+trials harness yet).
 - UKS-TDDFT response α(ω) — only remaining {ref}×{response} cell.
 - Z-vector for MP2 / CCSD analytical gradients.
