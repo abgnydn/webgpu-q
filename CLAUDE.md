@@ -66,7 +66,7 @@ Ranked by ROI. One focused session ≈ a few hours.
 | **Density fitting (RI)** | ✓ correctness + **speedup** (aux-basis 3-index DF now shipped: `buildAuxBasisDFStreaming` WASM, never builds the 4-index ERI; the old CD-DF 11-20× regression is retired) | half memory + faster |
 | **WebGPU aux-basis DF integrals** | ✓ (`df-gpu.ts`: s/p/d McMurchie–Davidson 3-index V + 2-index metric in WGSL f32, validated ~1e-4 rel; `buildDFAuto` auto-selects GPU in the d-regime) | GPU integral build, 1.1-1.35× d-regime |
 | **Fully-GPU DF-HF SCF** | ✓ (`makeGpuDFJK` + `buildDFAuto`: whole HF loop on GPU from a URL, no 4-index ERI; benzene cc-pVDZ **5-6× faster** whole-loop vs WASM; level-0 aux → ~30 mHa screening; f32 JK floor ~6e-4 is element-precision) | fast browser HF (screening) |
-| **Hybrid GPU/WASM DF — chemistry-grade** | ✓ (`buildV3idxHybrid`: GPU f32 does s/p/d-aux cols, WASM f64 the f-aux, f64 JK; breaks the d-only ceiling — H₂O **0.185 mHa** vs exact, 1.31× V-build over all-WASM at extraL=1) | GPU speed AND chemical accuracy |
+| **Hybrid GPU/WASM DF — chemistry-grade** | ✓ (`buildV3idxHybrid`: GPU f32 does s/p/d-aux cols, WASM f64 the f-aux, f64 JK; breaks the d-only ceiling. DF-vs-exact validated across a size ladder — H₂O 0.19 / CH₂O 0.53 / C₂H₄ 0.36 mHa, all < chem-acc (`e2e/df-accuracy-ladder`); 1.31× V-build over all-WASM at extraL=1) | GPU speed AND chemical accuracy |
 | **`runRHFAuto` / `runRKSAuto` entry points** | ✓ (`rhf-auto.ts`: size-gated exact(small)/f64-DF(large)/hybrid-GPU(fast) with honest provenance, for both HF and **DFT** — `runRKSDFT` gained a `useDF` option; pure functionals ride the cheap DF J, hybrids the DF K; validated H₂O LDA 0.07 mHa / B3LYP5 0.02 mHa vs exact) | one call, right method, attributed, HF+DFT |
 | **IP-EOM-CCSD / EA-EOM-CCSD** | ✓ (stages 37–38, beyond original Tier 2 plan) | accurate IPs / EAs |
 
@@ -183,6 +183,14 @@ benches (`e2e/`) cover all levels + the swarm/acene series.
   streaming at PAH scale (naphthalene >2× slower; honest negative, 2026-06-09).
   Large molecules use all-WASM streaming DF, which is excellent; the GPU hybrid
   is a medium-molecule optimization (chemistry-grade + 1.31× V-build).
+- **Naphthalene/PAH-scale DF-HF is feasibility-demonstrated, NOT precision-
+  validated.** The capstone (`e2e/naphthalene-capstone`) asserts only a sane
+  energy window (ERI never built); DF-vs-exact chemical-accuracy is validated
+  only up to the size ladder where the exact 4-index ERI still fits a tab
+  (H₂O→CH₂O→C₂H₄, n≤50, `e2e/df-accuracy-ladder`). To claim "chemistry-grade up
+  to naphthalene" needs an external PySCF DF-HF reference for that geometry + a
+  sub-mHa assertion (exact ERI is uncomputable in a tab there). Surfaced by the
+  scientific-critic pass 2026-06-09. Don't conflate *feasible* with *validated*.
 - WGSL (T) kernel optimization to push 39× → 100× (no warmup+trials harness yet).
 - UKS-TDDFT response α(ω) — only remaining {ref}×{response} cell.
 - Z-vector for MP2 / CCSD analytical gradients.

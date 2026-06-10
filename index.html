@@ -453,10 +453,12 @@
         <strong>RKS-DFT + UKS-DFT (5 functionals, open + closed shell)</strong>,
         MP2, CCSD, <strong>CCSD(T) on GPU (39× speedup on H₂O cc-pVDZ)</strong>,
         <strong>EE/IP/EA-EOM-CCSD (PySCF cross-checked)</strong>, a
-        <strong>size-gated WebGPU density-fitting engine</strong> — exact
-        integrals when they fit, GPU-accelerated DF when they don't, across
-        RHF/UHF/RKS/UKS/MP2 (chemistry-grade; naphthalene's 9.7 GB ERI is never
-        built), <strong>full polarizability
+        <strong>size-gated WebGPU density-fitting engine</strong> across
+        RHF/UHF/RKS/UKS/MP2 — exact integrals for small systems, density fitting
+        when the 4-index ERI won't fit a tab (naphthalene's would be 9.7 GB —
+        never built, run to a converged energy anyway); <strong>DF validated to
+        chemical accuracy vs exact on small molecules</strong>, GPU-hybrid
+        integral build in the medium regime, <strong>full polarizability
         stack — static α + dynamic α(ω) + Casimir-Polder C₆ — across
         every reference</strong> (RHF/UHF/RKS/UKS), <strong>Grimme D2
         dispersion with analytical gradient</strong>, geometry
@@ -473,9 +475,10 @@
       <p class="lead" style="margin-top: 14px;">
         <strong>And the crowd is the cluster.</strong> Open the page in many
         tabs — or across machines — and they pool into a swarm over a free
-        broker, splitting a batch of single-points so every tile is a
-        GPU-accelerated, chemistry-grade energy. Cross-machine-validated on two
-        independent CI runners. <a href="/swarm.html">Open the swarm →</a>
+        broker, splitting a batch of single-points — each tile a chemistry-grade
+        DF energy, GPU-accelerated where there's a GPU. The distributed run is
+        cross-machine-validated on two independent CI runners (the throughput is
+        the scaling axis, not wall-time). <a href="/swarm.html">Open the swarm →</a>
       </p>
       <div class="ctas">
         <a class="btn primary" href="/viz.html">
