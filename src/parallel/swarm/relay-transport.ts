@@ -17,13 +17,14 @@
 import {
   type SwarmTransport, type SwarmMessage, type SwarmListener, type PeerId,
 } from "./transport.js";
+import { encodeMessage, decodeMessage } from "./wire-codec.js";
 
 interface MqttClient {
   on(ev: "connect", cb: () => void): void;
   on(ev: "error" | "close", cb: (e?: unknown) => void): void;
   on(ev: "message", cb: (topic: string, payload: Uint8Array) => void): void;
   subscribe(topic: string, cb?: (e?: Error) => void): void;
-  publish(topic: string, msg: string): void;
+  publish(topic: string, msg: string | Uint8Array): void;
   end(force?: boolean): void;
 }
 interface MqttGlobal { connect(url: string, opts?: Record<string, unknown>): MqttClient }
@@ -75,7 +76,9 @@ export class RelayTransport implements SwarmTransport {
   // on connect. Without this, attachSwarmRuntime (which open()s then immediately
   // sends a hello) throws on RelayTransport, since open() here is async — unlike
   // the synchronous BroadcastChannelTransport it was written against.
-  private sendQueue: string[] = [];
+  private sendQueue: (string | Uint8Array)[] = [];
+  // Encodes are async (gzip) — chain them so messages still go out in call order.
+  private sendChain: Promise<void> = Promise.resolve();
 
   constructor(opts: RelayTransportOpts) {
     this.opts = opts;
@@ -96,13 +99,14 @@ export class RelayTransport implements SwarmTransport {
     client.on("error", (e) => this.opts.onError?.(e instanceof Error ? e : new Error(String(e))));
     client.on("message", (topic, payload) => {
       if (topic !== this.topic) return;
-      let msg: SwarmMessage;
-      try { msg = JSON.parse(new TextDecoder().decode(payload)) as SwarmMessage; }
-      catch { return; }
-      if (!msg || typeof msg !== "object" || !msg.from || !msg.type) return;
-      if (msg.from === this.self) return;               // ignore our own echo
-      if (msg.to && msg.to !== this.self) return;        // not addressed to us
-      for (const fn of this.listeners) fn(msg);
+      // Decode is async (may gunzip) — dispatch when done.
+      void decodeMessage(payload).then((decoded) => {
+        const msg = decoded as SwarmMessage;
+        if (!msg || typeof msg !== "object" || !msg.from || !msg.type) return;
+        if (msg.from === this.self) return;               // ignore our own echo
+        if (msg.to && msg.to !== this.self) return;        // not addressed to us
+        for (const fn of this.listeners) fn(msg);
+      }).catch(() => { /* malformed payload — drop */ });
     });
     await new Promise<void>((resolve, reject) => {
       const to = setTimeout(() => reject(new Error("broker connect timeout")), this.opts.connectTimeoutMs ?? 20000);
@@ -131,10 +135,13 @@ export class RelayTransport implements SwarmTransport {
 
   send(msg: Omit<SwarmMessage, "from">): void {
     const full: SwarmMessage = { ...msg, from: this.self };
-    const payload = JSON.stringify(full);
-    // Queue until the broker connect + subscribe completes (open() is async).
-    if (!this.client) { this.sendQueue.push(payload); return; }
-    this.client.publish(this.topic, payload);
+    // Encode (gzip large messages) off the call path, chained for in-order send.
+    this.sendChain = this.sendChain.then(async () => {
+      const payload = await encodeMessage(full);
+      // Queue until the broker connect + subscribe completes (open() is async).
+      if (!this.client) { this.sendQueue.push(payload); return; }
+      this.client.publish(this.topic, payload);
+    }).catch((e) => this.opts.onError?.(e instanceof Error ? e : new Error(String(e))));
   }
 
   onMessage(listener: SwarmListener): () => void {
