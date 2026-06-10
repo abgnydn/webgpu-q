@@ -66,7 +66,7 @@ Ranked by ROI. One focused session ≈ a few hours.
 | **Density fitting (RI)** | ✓ correctness + **speedup** (aux-basis 3-index DF now shipped: `buildAuxBasisDFStreaming` WASM, never builds the 4-index ERI; the old CD-DF 11-20× regression is retired) | half memory + faster |
 | **WebGPU aux-basis DF integrals** | ✓ (`df-gpu.ts`: s/p/d McMurchie–Davidson 3-index V + 2-index metric in WGSL f32, validated ~1e-4 rel; `buildDFAuto` auto-selects GPU in the d-regime) | GPU integral build, 1.1-1.35× d-regime |
 | **Fully-GPU DF-HF SCF** | ✓ (`makeGpuDFJK` + `buildDFAuto`: whole HF loop on GPU from a URL, no 4-index ERI; benzene cc-pVDZ **5-6× faster** whole-loop vs WASM; level-0 aux → ~30 mHa screening; f32 JK floor ~6e-4 is element-precision) | fast browser HF (screening) |
-| **Hybrid GPU/WASM DF — chemistry-grade** | ✓ (`buildV3idxHybrid`: GPU f32 does s/p/d-aux cols, WASM f64 the f-aux, f64 JK; breaks the d-only ceiling. DF-vs-exact validated across a size ladder — H₂O 0.19 / CH₂O 0.53 / C₂H₄ 0.36 mHa, all < chem-acc (`e2e/df-accuracy-ladder`); 1.31× V-build over all-WASM at extraL=1) | GPU speed AND chemical accuracy |
+| **Hybrid GPU/WASM DF — EXPERIMENTAL** | ✓ but **demoted (decision 2026-06-10)**: `buildV3idxHybrid` is chemistry-grade (DF-vs-exact ladder H₂O 0.19 / CH₂O 0.53 / C₂H₄ 0.36 mHa, `e2e/df-accuracy-ladder`) but the win is only **~1.3× on the integral BUILD in a medium band** — WebGPU has no f64 so it can't touch the f64-bound J/K. **f64 WASM is the recommended chemistry default**; the GPU hybrid is `fast=true` opt-in, proof-of-mechanism only. | marginal; not the default |
 | **`runRHFAuto` / `runRKSAuto` entry points** | ✓ (`rhf-auto.ts`: size-gated exact(small)/f64-DF(large)/hybrid-GPU(fast) with honest provenance, for both HF and **DFT** — `runRKSDFT` gained a `useDF` option; pure functionals ride the cheap DF J, hybrids the DF K; validated H₂O LDA 0.07 mHa / B3LYP5 0.02 mHa vs exact) | one call, right method, attributed, HF+DFT |
 | **IP-EOM-CCSD / EA-EOM-CCSD** | ✓ (stages 37–38, beyond original Tier 2 plan) | accurate IPs / EAs |
 
@@ -120,14 +120,19 @@ highest-leverage demonstration.
   Full DFT ladder (LDA/GGA/B3-hybrid) on RHF/UHF/RKS/UKS.
   Full {α, α(ω), α(iω), C₆} response matrix.
   EE/IP/EA-EOM-CCSD with eigenvectors, oscillator strengths, spin classifier.
-  **GPU DF-HF**: GPU aux-basis 3-index integrals (`df-gpu.ts`) + GPU DF-JK
-  (`makeGpuDFJK`) run the whole HF loop on the GPU from a URL, no 4-index ERI —
-  benzene cc-pVDZ **5-6× faster** whole-loop vs WASM (level-0 aux, screening).
-  **Hybrid GPU/WASM DF** (`buildV3idxHybrid`) breaks the d-only accuracy
-  ceiling — GPU f32 builds the s/p/d-aux columns, WASM f64 the f-aux, f64 JK —
-  H₂O **0.185 mHa** vs exact AND 1.31× V-build over all-WASM at extraL=1, so
-  GPU speed no longer costs chemical accuracy. One-call entry: `runRHFAuto`
-  (size-gated exact/DF/hybrid with honest method/engine/precision provenance).
+  **DF engine = f64 WASM (recommended default).** `runRHFAuto` + siblings are
+  size-gated: small → exact ERI (f64), large → streaming aux-basis DF (f64 WASM,
+  `buildAuxBasisDFStreaming`), with honest method/engine/precision provenance.
+  **The GPU paths are EXPERIMENTAL (decision 2026-06-10), not the chemistry
+  default.** WebGPU has no f64, so the chemistry-grade hybrid (`buildV3idxHybrid`,
+  `fast=true`) can only put f32 on the insensitive s/p/d-aux columns (~8 µHa) and
+  buys just **~1.3× on the integral BUILD in a medium band** — it can't touch the
+  f64-bound J/K, and loses at PAH scale. The fully-GPU f32-JK path (`makeGpuDFJK`,
+  benzene 5-6× whole-loop) is ~30 mHa **screening only**. Both kept as
+  proof-of-mechanism ("GPU in the browser") and as the seam where a real win lands
+  IF df64 emulation ever makes the GPU JK chemistry-grade. GPU genuinely wins on
+  the f32-tolerant tracks (statevector, kernel-fusion 4.18×, (T) 39×) — DF
+  chemistry just isn't one (needs f64).
 
 **Live**: https://webgpu-q.vercel.app — landing, `/viz.html` (4D
 hyperscope), `/molecule.html` (SI report), `/experiments/` (E1–E33+).

@@ -38,8 +38,9 @@ import { type AtomSymbol } from "./atoms.js";
 export interface RHFAutoOpts {
   /** Largest n that still uses the exact 4-index ERI. Above it → DF. Default 80. */
   readonly exactMaxN?: number;
-  /** In the DF regime, use the hybrid GPU/WASM integral build (GPU-accelerated,
-   *  still chemistry-grade) instead of pure WASM. Default false (pure f64 WASM). */
+  /** EXPERIMENTAL: opt into the hybrid GPU/WASM integral build (proof-of-mechanism,
+   *  ~1.3× build in a medium band; WebGPU has no f64 so it can't accelerate the
+   *  f64-bound J/K). Default false → the recommended pure-f64-WASM path. */
   readonly fast?: boolean;
   /** Force a path regardless of size: "exact" | "df". Default: auto by size. */
   readonly force?: "exact" | "df";
@@ -103,9 +104,19 @@ export async function runRHFAuto(
   return { hf, integrals, provenance };
 }
 
-/** Build the DF tensor for the large-system regime, shared by HF and DFT. fast →
- *  the hybrid GPU/WASM build (GPU-accelerated, chemistry-grade); else pure f64
- *  WASM RI-JK. Returns the tensor and the provenance of how it was built. */
+/** Build the DF tensor for the large-system regime, shared by HF and DFT.
+ *
+ *  RECOMMENDED DEFAULT = pure f64 WASM (fast=false). That is the chemistry-grade
+ *  workhorse: f64 throughout, no precision games, the only path for small (exact)
+ *  and large (streaming) systems alike. WebGPU has NO f64, so the GPU can only
+ *  ever touch the f32-insensitive s/p/d-aux columns while everything sensitive
+ *  (f-aux, projection, J/K) stays f64 WASM anyway — which is why the GPU buys only
+ *  ~1.3× on the integral BUILD, in a medium band, and loses at PAH scale.
+ *
+ *  fast=true → the EXPERIMENTAL hybrid GPU/WASM build. Kept as a proof-of-mechanism
+ *  for "GPU in the browser" and as the seam where a real win would land if f64
+ *  emulation (df64) ever makes the GPU JK chemistry-grade. NOT the recommended
+ *  chemistry path — measured win is marginal (~1.3× build, n²·nAux < 12 M only). */
 async function buildDFForRegime(
   shells: readonly CGShell[], fast: boolean,
 ): Promise<{ df: DFResult; provenance: RHFAutoProvenance }> {
@@ -114,37 +125,31 @@ async function buildDFForRegime(
   const aux = generateAutoAux(shells, 1);
   const n = shells.length;
 
-  // Gate the hybrid to the scale where it actually wins. Its limiter at large n
-  // is NOT memory (streaming fixed that) but the per-block merge: assembling each
-  // f64 V block from the GPU f32 low-aux + WASM f64 f-aux is a JS triple-loop,
-  // O(n²·nAux), which the all-WASM streaming path does in WASM SIMD. MEASURED:
-  // naphthalene (n²·nAux ≈ 39 M) ran the hybrid >2× SLOWER than WASM streaming;
-  // benzene (≈ 9.7 M) is fine. So gate on the merge cost; above it the all-WASM
-  // streaming DF wins even with fast=true. (A WASM merge kernel would lift this —
-  // the real lever for large-molecule GPU DF.)
+  // EXPERIMENTAL GPU hybrid, opt-in via fast=true and gated to the medium band
+  // where it isn't a loss. Its large-n limiter is the per-block JS merge
+  // (O(n²·nAux)) that loses to WASM-SIMD streaming — naphthalene (≈39 M) ran >2×
+  // SLOWER, benzene (≈9.7 M) is fine. Above the cutoff we use WASM-f64 anyway.
   const mergeOps = n * n * aux.length;
   const hybridWins = mergeOps < 12_000_000;
   const wantGPU = fast && hybridWins && hasDFunctions(shells) &&
     !!(navigator as unknown as { gpu?: unknown }).gpu;
 
   if (wantGPU) {
-    // GPU-accelerated AND chemically accurate: GPU f32 builds the s/p/d-aux
-    // columns, WASM f64 the f-aux, f64 projection + J/K. The f32 low-aux block
-    // costs only ~8 µHa, so the result stays chemistry-grade (H2O 0.19 mHa vs
-    // exact). Streaming keeps peak memory low enough to win at large n too.
+    // Chemistry-grade despite the f32 GPU columns: only the s/p/d-aux V is f32
+    // (costs ~8 µHa); f-aux + projection + J/K stay f64. ~1.3× build vs WASM.
     try {
       const { df } = await buildHybridDFStreaming(shells, aux);
       return {
         df,
         provenance: { method: "density-fitting", engine: "gpu+wasm", precision: "mixed", nAux: df.nAux,
-          expectedError: "hybrid extraL=1 (streaming): GPU f32 s/p/d-aux + f64 f-aux + f64 J/K — chemistry-grade (~0.2 mHa vs exact)" },
+          expectedError: "EXPERIMENTAL hybrid extraL=1: GPU f32 s/p/d-aux + f64 f-aux/proj/JK — chemistry-grade (~0.2 mHa), ~1.3× build; WASM-f64 is the recommended path" },
       };
     } catch {
-      /* GPU/hybrid path unavailable — fall through to pure f64 WASM DF */
+      /* GPU/hybrid path unavailable — fall through to the recommended WASM f64 DF */
     }
   }
 
-  // Default DF: f64 WASM aux-basis (standard RI-JK); B reused across the SCF.
+  // RECOMMENDED DEFAULT: f64 WASM aux-basis (standard RI-JK), B reused in the SCF.
   const df = await buildAuxBasisDFStreaming(shells, aux);
   return {
     df,
@@ -156,8 +161,8 @@ async function buildDFForRegime(
 export interface RKSAutoOpts {
   /** Largest n that still uses the exact 4-index ERI. Above it → DF. Default 80. */
   readonly exactMaxN?: number;
-  /** Use the hybrid GPU/WASM DF build (GPU-accelerated, chemistry-grade) in the
-   *  DF regime. Pure functionals need only the cheap DF J. Default false. */
+  /** EXPERIMENTAL: opt into the hybrid GPU/WASM DF build (proof-of-mechanism,
+   *  ~1.3× build in a medium band). Default false → recommended f64 WASM. */
   readonly fast?: boolean;
   /** Force a path regardless of size: "exact" | "df". Default: auto by size. */
   readonly force?: "exact" | "df";
@@ -209,7 +214,8 @@ export async function runRKSAuto(
 export interface UHFAutoOpts {
   /** Largest n that still uses the exact 4-index ERI. Above it → DF. Default 80. */
   readonly exactMaxN?: number;
-  /** Use the hybrid GPU/WASM DF build in the DF regime. Default false. */
+  /** EXPERIMENTAL: opt into the hybrid GPU/WASM DF build (proof-of-mechanism,
+   *  ~1.3× build in a medium band). Default false → recommended f64 WASM. */
   readonly fast?: boolean;
   /** Force a path regardless of size: "exact" | "df". Default: auto by size. */
   readonly force?: "exact" | "df";
@@ -258,7 +264,8 @@ export async function runUHFAuto(
 export interface UKSAutoOpts {
   /** Largest n that still uses the exact 4-index ERI. Above it → DF. Default 80. */
   readonly exactMaxN?: number;
-  /** Use the hybrid GPU/WASM DF build in the DF regime. Default false. */
+  /** EXPERIMENTAL: opt into the hybrid GPU/WASM DF build (proof-of-mechanism,
+   *  ~1.3× build in a medium band). Default false → recommended f64 WASM. */
   readonly fast?: boolean;
   /** Force a path regardless of size: "exact" | "df". Default: auto by size. */
   readonly force?: "exact" | "df";
@@ -309,7 +316,8 @@ export async function runUKSAuto(
 export interface MP2AutoOpts {
   /** Largest n that still uses the exact 4-index ERI. Above it → DF. Default 80. */
   readonly exactMaxN?: number;
-  /** Use the hybrid GPU/WASM DF build in the DF regime. Default false. */
+  /** EXPERIMENTAL: opt into the hybrid GPU/WASM DF build (proof-of-mechanism,
+   *  ~1.3× build in a medium band). Default false → recommended f64 WASM. */
   readonly fast?: boolean;
   /** Force a path regardless of size: "exact" | "df". Default: auto by size. */
   readonly force?: "exact" | "df";
@@ -374,7 +382,8 @@ export async function runMP2Auto(
 export interface UMP2AutoOpts {
   /** Largest n that still uses the exact 4-index ERI. Above it → DF. Default 80. */
   readonly exactMaxN?: number;
-  /** Use the hybrid GPU/WASM DF build in the DF regime. Default false. */
+  /** EXPERIMENTAL: opt into the hybrid GPU/WASM DF build (proof-of-mechanism,
+   *  ~1.3× build in a medium band). Default false → recommended f64 WASM. */
   readonly fast?: boolean;
   /** Force a path regardless of size: "exact" | "df". Default: auto by size. */
   readonly force?: "exact" | "df";

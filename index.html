@@ -453,12 +453,12 @@
         <strong>RKS-DFT + UKS-DFT (5 functionals, open + closed shell)</strong>,
         MP2, CCSD, <strong>CCSD(T) on GPU (39× speedup on H₂O cc-pVDZ)</strong>,
         <strong>EE/IP/EA-EOM-CCSD (PySCF cross-checked)</strong>, a
-        <strong>size-gated WebGPU density-fitting engine</strong> across
+        <strong>size-gated f64 density-fitting engine</strong> across
         RHF/UHF/RKS/UKS/MP2 — exact integrals for small systems, density fitting
         when the 4-index ERI won't fit a tab (naphthalene's would be 9.7 GB —
         never built, run to a converged energy anyway); <strong>DF validated to
-        chemical accuracy vs exact on small molecules</strong>, GPU-hybrid
-        integral build in the medium regime, <strong>full polarizability
+        chemical accuracy vs exact on small molecules</strong> (plus an optional
+        WebGPU-accelerated build for the medium regime), <strong>full polarizability
         stack — static α + dynamic α(ω) + Casimir-Polder C₆ — across
         every reference</strong> (RHF/UHF/RKS/UKS), <strong>Grimme D2
         dispersion with analytical gradient</strong>, geometry
