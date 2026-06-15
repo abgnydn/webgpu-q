@@ -26,7 +26,7 @@
         <text x="20" y="118">↳ RHF · UHF · DIIS · level-shift</text>
         <text x="20" y="142">↳ RKS-DFT + UKS-DFT (full ladder)</text>
         <text x="20" y="166">↳ LDA · BVWN5 · BLYP · B3VWN5 · B3LYP5</text>
-        <text x="20" y="190">↳ MP2 · UMP2 · DF-MP2 · Cholesky</text>
+        <text x="20" y="190">↳ MP2 · UMP2 · DF-MP2 · runMP2Auto</text>
       </g>
     </g>
 
@@ -87,13 +87,13 @@
       <rect width="375" height="220" rx="10" fill="#0f172a" stroke="#06b6d4" stroke-opacity="0.4" filter="url(#cardShCap)"/>
       <rect x="0" y="0" width="375" height="6" rx="3" fill="#06b6d4"/>
       <text x="20" y="42" font-size="11" letter-spacing="0.2em" fill="#06b6d4" font-weight="700">DENSITY FITTING</text>
-      <text x="20" y="78" font-size="20" font-weight="700" fill="#e2e8f0">Cholesky CD-DF</text>
+      <text x="20" y="78" font-size="20" font-weight="700" fill="#e2e8f0">Aux-basis f64 DF</text>
       <g font-size="13" fill="#94a3b8">
-        <text x="20" y="118">↳ Pivoted incomplete Cholesky of ERI tensor</text>
-        <text x="20" y="142">↳ Rank-3 B-tensor, threshold-controlled</text>
-        <text x="20" y="166">↳ DF-HF · DF-MP2 wired</text>
+        <text x="20" y="118">↳ Streaming 3-index (μν|P), no 4-index ERI</text>
+        <text x="20" y="142">↳ Rank-3 B-tensor, naphthalene HF in a tab</text>
+        <text x="20" y="166">↳ runRHFAuto family · size-gated exact/DF</text>
         <text x="20" y="190">↳ <tspan fill="#06b6d4" font-weight="700">7×10⁻¹⁴ Ha</tspan> vs direct HF (machine precision)</text>
-        <text x="20" y="210" fill="#64748b" font-style="italic">aux-basis (μν|P) variant deferred</text>
+        <text x="20" y="210" fill="#64748b" font-style="italic">GPU DF experimental — WebGPU has no f64</text>
       </g>
     </g>
 
