@@ -166,6 +166,23 @@ benches (`e2e/`) cover all levels + the swarm/acene series.
     batch across 2 tabs, every tile `gpu+wasm`, tracing N₂'s bond curve
     (min r=1.098 Å). GPU-accelerated chemistry-grade single-points split
     across the crowd — the project's two theses in one demo.
+  - Step 5 (**distributed DF-MP2 + honest-negative measurement**, 2026-06-15):
+    the swarm's first *collaborative single-molecule* reduction — ONE molecule's
+    MP2 correlation energy `E_corr = Σ_i Σ_j Σ_ab …` partitioned over the outer
+    occupied index `i`, each tab owns an i-slice, master sums the scalar partials
+    (`mp2-slice` kernel + `mp2EnergyDF(...,iRange)` + `reduceMP2Slices`). Comm-
+    optimal (spec in, one f64 out, one round); `reduceMP2Slices` guards the
+    deterministic-reference assumption (throws if per-tab E_HF disagree). Validated:
+    partition-sum == single-machine to <1e-12 (`tests/chemistry/mp2-slice`), 2-tab
+    e2e to <1e-9 (`e2e/swarm-mp2-distributed`). **HONEST NEGATIVE — distributing
+    the contraction barely speeds up one molecule** (`e2e/swarm-mp2-speedup`,
+    single-shot M2 Pro): H₂O 0.51×, benzene cc-pVDZ **1.10×** (single 96s / 2-tab
+    87s). Breakdown: redundant SCF+DF setup S≈79s (82%, paid in full on every tab,
+    on the critical path) vs splittable grind C≈17.5s (18%). speedup=(S+C)/(S+C/k)
+    is pinned near 1 while S≫C; C≫S needs n≈600 whose DF tensor (~5 GB) won't fit
+    a tab. **The swarm's scaling axis is throughput (N independent molecules via
+    chem-energy), NOT single-molecule wall-time.** To speed up one molecule you'd
+    have to parallelize the SCF+DF *setup*, not the correlation.
 - EE-EOM-CCSD: **PySCF-ported (2026-05-21)**. σ_1 + σ_2 follow
   Wang-Tu-Wang 2014 Eqs (9)-(10) with PySCF eom_gccsd intermediates
   (EOM-Fvv/Foo/Wovvo with full t2 dressing + Wovoo / Wvvvo). Empirical
