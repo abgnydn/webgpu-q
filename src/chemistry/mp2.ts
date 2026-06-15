@@ -154,6 +154,7 @@ export function mp2EnergyDF(
   n: number,
   nFrozen: number,
   df: DFResult,
+  iRange?: readonly [number, number],
 ): number {
   const nVirt = n - nOccupied;
   const nAux = df.nAux;
@@ -187,8 +188,15 @@ export function mp2EnergyDF(
   }
   // MP2 energy: E_corr = Σ_ij Σ_ab (ia|jb) · (2(ia|jb) − (ib|ja)) / D
   // with (ia|jb) = Σ_P B_ov[i,a,P]·B_ov[j,b,P].
+  //
+  // `iRange = [iLo, iHi)` restricts the OUTER occupied index to a slice. The
+  // full sum partitions exactly over i (each i is independent; the inner j/a/b
+  // sum is complete), so disjoint slices summed by a reducer == the whole — the
+  // invariant the distributed-MP2 swarm reduction depends on. Default = all.
+  const iLo = Math.max(nFrozen, iRange ? iRange[0] : nFrozen);
+  const iHi = Math.min(nOccupied, iRange ? iRange[1] : nOccupied);
   let E_corr = 0;
-  for (let i = nFrozen; i < nOccupied; i++) {
+  for (let i = iLo; i < iHi; i++) {
     for (let j = nFrozen; j < nOccupied; j++) {
       for (let a = 0; a < nVirt; a++) {
         const aMO = nOccupied + a;

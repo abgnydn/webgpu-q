@@ -15,8 +15,10 @@
 // The kernel is registered as "chem-energy" so any /swarm.html tab
 // (or future molecule.html with the swarm wired in) can act as worker.
 
-import { moleculeToShellsNuclei, type Atom, type AtomSymbol, type BasisName } from "../chemistry/atoms.js";
+import { moleculeToShellsNuclei, defaultFrozenCore, type Atom, type AtomSymbol, type BasisName } from "../chemistry/atoms.js";
 import { runRHFAuto, runRKSAuto, runUHFAuto, runUKSAuto } from "../chemistry/rhf-auto.js";
+import { mp2EnergyDF } from "../chemistry/mp2.js";
+import { generateAutoAux, buildAuxBasisDFStreaming } from "../chemistry/df-aux.js";
 import type { FunctionalKind } from "../chemistry/dft/functional.js";
 
 export interface ChemEnergyTile {
@@ -86,6 +88,152 @@ export async function runChemEnergyTile(tile: ChemEnergyTile): Promise<ChemEnerg
     label: tile.label, energy, nElectrons, nBasisFunctions: shells.length, iter, converged,
     durationMs: performance.now() - t0, engine: prov.engine, dfMethod: prov.method, scf,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Distributed DF-MP2 — the swarm's first collaborative *correlation* reduction.
+//
+// chem-energy distributes N independent molecules (no-talk, embarrassingly
+// parallel). Distributed J/K already builds one molecule's Fock collaboratively.
+// This adds the post-HF axis: ONE molecule's MP2 correlation energy. The DF-MP2
+// sum E_corr = Σ_i Σ_j Σ_ab … partitions exactly over the OUTER occupied index i
+// (each i carries its full inner j/a/b sum — a disjoint, complete cover, no i≤j
+// symmetry factor), so each worker owns a contiguous i-slice and returns one
+// scalar partial. The master sums the scalars → E_corr, total = E_HF + E_corr.
+//
+// What actually distributes, stated honestly (a scientific-critic pass forced
+// this precision, 2026-06-15):
+//   • DISTRIBUTED: the MP2 contraction, O(nocc²·nvirt²·nAux). This is the
+//     asymptotically dominant term (an extra nocc·nvirt over the half-transform),
+//     so for LARGE molecules a wall-time crossover is expected — the slice runs
+//     1/k of it. NOT YET MEASURED at scale; predicted, not claimed.
+//   • REDUNDANT on every worker: the full SCF, the DF B-tensor build, and the
+//     entire occ×virt×nAux B_ov half-transform. At small sizes these match or
+//     exceed the contraction, so small-molecule runs are a CORRECTNESS + comm-
+//     pattern demo (partition-sum == single-machine to ~1e-12), not a speedup.
+//   • MEMORY does NOT partition by outer-i alone: the inner j-loop reads B_ov[j]
+//     for ALL occupied j, so every worker still holds the full B_ov. A genuine
+//     per-worker memory partition needs 2D (i-block × j-block) tiling so a worker
+//     holds only B_ov rows for i-block ∪ j-block — the next step if the goal is
+//     "an MP2 too large for one tab's heap." (Aux-P partitioning can't help: the
+//     energy is nonlinear in B — (ia|jb)=Σ_P B·B — so partial-P sums don't reduce.)
+//
+// Comm is free here — molecule spec in (~hundreds of bytes), one f64 out, one
+// round — precisely BECAUSE each worker redundantly rebuilds the deterministic
+// reference instead of shipping it. Comm-optimality is bought with compute
+// redundancy; the distributed axis is the contraction, not the bytes.
+
+export interface MP2SliceTile {
+  readonly label: string;
+  readonly atoms: readonly Atom[];
+  readonly basis: BasisName;
+  /** Outer occupied-index slice this worker owns: [iLo, iHi). */
+  readonly iLo: number;
+  readonly iHi: number;
+  /** Frozen-core count (lowest occupied MOs excluded). Default: per-atom 1s. */
+  readonly nFrozenCore?: number;
+  readonly force?: "exact" | "df";
+  readonly fast?: boolean;
+}
+
+export interface MP2SliceResult {
+  readonly label: string;
+  /** This slice's contribution to E_corr (Hartree). */
+  readonly partial: number;
+  readonly iLo: number;
+  readonly iHi: number;
+  /** HF total energy — identical on every worker (deterministic SCF); the
+   *  reducer reads it from any one slice to form E_total = E_HF + Σ partials. */
+  readonly eHF: number;
+  readonly nOccupied: number;
+  readonly nBasisFunctions: number;
+  readonly durationMs: number;
+  readonly engine: "wasm" | "gpu" | "gpu+wasm";
+}
+
+export const MP2_SLICE_KIND = "mp2-slice" as const;
+
+export async function runMP2SliceTile(tile: MP2SliceTile): Promise<MP2SliceResult> {
+  const t0 = performance.now();
+  const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(tile.atoms, tile.basis);
+  const n = shells.length;
+
+  // Same deterministic reference on every worker → no need to ship C/ε.
+  const r = await runRHFAuto(shells, nuclei, nElectrons, { force: tile.force, fast: tile.fast });
+  const { C_MO, orbitalEnergies, nOccupied } = r.hf;
+
+  // DF B-tensor for the (ia|jb) reconstruction (RI-MP2; never builds the 4-index ERI).
+  const aux = generateAutoAux(shells, 1);
+  const df = await buildAuxBasisDFStreaming(shells, aux);
+
+  const nFrozen = tile.nFrozenCore ?? defaultFrozenCore(tile.atoms);
+  const partial = mp2EnergyDF(C_MO, orbitalEnergies, nOccupied, n, nFrozen, df, [tile.iLo, tile.iHi]);
+
+  return {
+    label: tile.label, partial, iLo: tile.iLo, iHi: tile.iHi,
+    eHF: r.hf.energy, nOccupied, nBasisFunctions: n,
+    durationMs: performance.now() - t0, engine: r.provenance.engine,
+  };
+}
+
+/** Partition one molecule's active-occupied range into `nSlices` tiles for a
+ *  distributed DF-MP2. Contiguous, near-equal i-ranges over [nFrozen, nOcc). */
+export function mp2SliceTiles(opts: {
+  readonly label: string;
+  readonly atoms: readonly Atom[];
+  readonly basis: BasisName;
+  readonly nSlices: number;
+  readonly nFrozenCore?: number;
+  readonly force?: "exact" | "df";
+  readonly fast?: boolean;
+}): MP2SliceTile[] {
+  const { nElectrons } = moleculeToShellsNuclei(opts.atoms, opts.basis);
+  const nOcc = nElectrons / 2;                       // closed-shell
+  const nFrozen = opts.nFrozenCore ?? defaultFrozenCore(opts.atoms);
+  const active = Math.max(0, nOcc - nFrozen);
+  const k = Math.max(1, Math.min(opts.nSlices, active || 1));
+  const tiles: MP2SliceTile[] = [];
+  for (let s = 0; s < k; s++) {
+    const iLo = nFrozen + Math.floor((s * active) / k);
+    const iHi = nFrozen + Math.floor(((s + 1) * active) / k);
+    if (iHi <= iLo) continue;                        // empty slice (more slices than rows)
+    tiles.push({
+      label: `${opts.label} i∈[${iLo},${iHi})`,
+      atoms: opts.atoms, basis: opts.basis, iLo, iHi,
+      nFrozenCore: nFrozen, force: opts.force, fast: opts.fast,
+    });
+  }
+  return tiles;
+}
+
+/** Reduce distributed MP2 slices into the molecule's total energy. Sums the
+ *  scalar partials (== E_corr) and adds the (shared) HF energy.
+ *
+ *  The whole no-ship-tensor design assumes every worker built the IDENTICAL
+ *  C/ε reference (deterministic SCF), so each partial is over the same MOs. If
+ *  two workers diverged (e.g. one ran exact-ERI HF, another DF HF, or different
+ *  engines rounded differently), their partials reference different orbitals and
+ *  the sum is silently wrong. Guard against it: the per-worker E_HF must agree.
+ *  This is cheap insurance for the assumption the correctness rests on. */
+export function reduceMP2Slices(slices: readonly MP2SliceResult[]): {
+  readonly correlationEnergy: number;
+  readonly hfEnergy: number;
+  readonly totalEnergy: number;
+} {
+  if (slices.length === 0) throw new Error("reduceMP2Slices: no slices");
+  const hfEnergy = slices[0]!.eHF;
+  let E_corr = 0;
+  for (const s of slices) {
+    if (Math.abs(s.eHF - hfEnergy) > 1e-7) {
+      throw new Error(
+        `reduceMP2Slices: HF references disagree across workers ` +
+        `(${s.eHF.toFixed(8)} vs ${hfEnergy.toFixed(8)}) — slices were computed ` +
+        `against different references (heterogeneous engine/path?); the sum is invalid.`,
+      );
+    }
+    E_corr += s.partial;
+  }
+  return { correlationEnergy: E_corr, hfEnergy, totalEnergy: hfEnergy + E_corr };
 }
 
 /** Generate a 1D bond-length scan for a diatomic; returns N tiles each
