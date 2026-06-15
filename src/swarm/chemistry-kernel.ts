@@ -54,6 +54,16 @@ export interface ChemEnergyResult {
   readonly dfMethod: "exact-eri" | "density-fitting";
   /** Which SCF flavor ran this tile. */
   readonly scf: "rhf" | "uhf" | "rks" | "uks";
+  /** HOMO–LUMO gap in eV — the screening property (relates to color, reactivity,
+   *  stability). Closed-shell: LUMO−HOMO; open-shell: from the α channel. */
+  readonly homoLumoGapEv: number;
+}
+
+const HARTREE_TO_EV = 27.211386245988;
+/** LUMO−HOMO in eV from an ascending orbital-energy list + occupied count. */
+function gapEv(orbE: Float64Array, nOcc: number): number {
+  if (nOcc <= 0 || nOcc >= orbE.length) return NaN; // no virtual (or no occ) → undefined
+  return (orbE[nOcc]! - orbE[nOcc - 1]!) * HARTREE_TO_EV;
 }
 
 export const CHEM_ENERGY_KIND = "chem-energy" as const;
@@ -68,25 +78,30 @@ export async function runChemEnergyTile(tile: ChemEnergyTile): Promise<ChemEnerg
 
   // Each worker auto-picks exact / DF / hybrid-GPU by size, and the right SCF
   // flavor by closed/open shell — so a swarm batch is heterogeneous tile-by-tile.
-  let energy: number, iter: number, converged: boolean, scf: ChemEnergyResult["scf"];
+  let energy: number, iter: number, converged: boolean, scf: ChemEnergyResult["scf"], gap: number;
   let prov: { engine: ChemEnergyResult["engine"]; method: ChemEnergyResult["dfMethod"] };
   if (isDFT && open) {
     const r = await runUKSAuto(shells, nuclei, open.nAlpha, open.nBeta, symbols, { ...o, functional: tile.functional });
     ({ energy, iter, converged } = r.uks); prov = r.provenance; scf = "uks";
+    gap = gapEv(r.uks.orbitalEnergiesAlpha, r.uks.nAlpha);
   } else if (isDFT) {
     const r = await runRKSAuto(shells, nuclei, nElectrons, symbols, { ...o, functional: tile.functional });
     ({ energy, iter, converged } = r.rks); prov = r.provenance; scf = "rks";
+    gap = gapEv(r.rks.orbitalEnergies, r.rks.nOccupied);
   } else if (open) {
     const r = await runUHFAuto(shells, nuclei, open.nAlpha, open.nBeta, o);
     ({ energy, iter, converged } = r.uhf); prov = r.provenance; scf = "uhf";
+    gap = gapEv(r.uhf.orbitalEnergiesAlpha, r.uhf.nAlpha);
   } else {
     const r = await runRHFAuto(shells, nuclei, nElectrons, { ...o, hf: { useDIIS: true, energyTol: 1e-9, densityTol: 1e-7, maxIter: 200 } });
     ({ energy, iter, converged } = r.hf); prov = r.provenance; scf = "rhf";
+    gap = gapEv(r.hf.orbitalEnergies, r.hf.nOccupied);
   }
 
   return {
     label: tile.label, energy, nElectrons, nBasisFunctions: shells.length, iter, converged,
     durationMs: performance.now() - t0, engine: prov.engine, dfMethod: prov.method, scf,
+    homoLumoGapEv: gap,
   };
 }
 
