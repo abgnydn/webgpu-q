@@ -52,7 +52,7 @@
           "applicationCategory": "ScienceApplication",
           "applicationSubCategory": "Quantum Many-Body Simulation",
           "operatingSystem": "Any OS with a WebGPU-capable browser",
-          "description": "A WebGPU quantum + computational-chemistry tool: HF + UHF + UCCSD, RKS-DFT + UKS-DFT (full LDA/GGA/hybrid functional ladder), MP2 + Cholesky density fitting, CCSD, CCSD(T) on GPU (39× speedup), EE/IP/EA-EOM-CCSD (PySCF cross-checked), CIS / TDA / TDDFT (singlet + triplet) including frequency-dependent α(ω), Casimir-Polder C₆ van-der-Waals dispersion across all reference types, Grimme D2 dispersion correction with analytical gradient, Foster-Boys + Pipek-Mezey orbital localization, NOON + multireference verdict diagnostics, geometry optimization, IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, ionization potentials + electron affinities, thermochemistry, statevector + MPS, kernel fusion. Molden / Gaussian Cube / QCSchema JSON / multi-frame XYZ exports. PySCF + libxc + ITensor + experiment validated.",
+          "description": "A WebGPU quantum + computational-chemistry tool: HF + UHF + UCCSD, RKS-DFT + UKS-DFT (full LDA/GGA/hybrid functional ladder), MP2 + size-gated aux-basis density fitting (f64 streaming, runRHFAuto family), CCSD, CCSD(T) on GPU (39× speedup), EE/IP/EA-EOM-CCSD (PySCF cross-checked), CIS / TDA / TDDFT (singlet + triplet) including frequency-dependent α(ω), Casimir-Polder C₆ van-der-Waals dispersion across all reference types, Grimme D2 dispersion correction with analytical gradient, Foster-Boys + Pipek-Mezey orbital localization, NOON + multireference verdict diagnostics, geometry optimization, IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, ionization potentials + electron affinities, thermochemistry, statevector + MPS, kernel fusion. Molden / Gaussian Cube / QCSchema JSON / multi-frame XYZ exports. PySCF + libxc + ITensor + experiment validated.",
           "url": "https://webgpu-q.vercel.app/",
           "author": {
             "@type": "Person",
@@ -615,9 +615,12 @@
             <p>
               The crowd is the cluster: open the page in several tabs (or across
               machines) and they form a swarm over a free broker, splitting a batch
-              of chemistry single-points — each tile a GPU-accelerated, chemistry-grade
-              HF/DFT/MP2 energy (RHF/UHF/RKS/UKS), auto-picking exact or density
-              fitting by size. Bond-length scans and radical curves across the crowd.
+              of chemistry single-points — each tile a chemistry-grade HF/DFT/MP2
+              energy (RHF/UHF/RKS/UKS), auto-picking exact or density fitting by size.
+              Bond-length scans, radical curves, and <strong>screen a molecule
+              library by HOMO–LUMO gap</strong> across the crowd (greedy-pull
+              balancing; ~1.7×/2.4× on 2/4 tabs — throughput is the win, not
+              single-molecule speed).
             </p>
             <div class="meta">
               <span>BroadcastChannel · WebRTC · MQTT relay</span>

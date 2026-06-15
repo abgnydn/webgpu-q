@@ -5,6 +5,82 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.10.0] — 2026-06-15
+
+The **distributed-chemistry** release. Since the streaming swarm (0.9.4), the
+crowd learned to do *post-HF* work together and to *screen* molecule libraries —
+and a whole GPU-accelerated density-fitting stack landed behind one honest,
+size-gated entry point. The headline lesson is a measured one: the swarm makes
+*many* molecules fast (throughput), not *one* molecule fast.
+
+### Added
+
+- **Size-gated auto entry points** — `runRHFAuto` / `runRKSAuto` / `runUHFAuto` /
+  `runUKSAuto` / `runMP2Auto` / `runUMP2Auto`: the full {R,U}×{HF,KS,MP2} matrix in
+  one call each, auto-selecting **exact 4-index ERI (small) or streaming f64
+  density fitting (large)** and reporting honest `{method, engine, precision,
+  nAux, expectedError}` provenance. One call, the right method, attributed.
+- **Aux-basis density fitting (proper RI)** — `buildAuxBasisDFStreaming` streams
+  the 3-index integrals μ-block by μ-block and never materializes the 4-index
+  ERI; **naphthalene cc-pVDZ HF now runs in a tab** (its 9.7 GB ERI is skipped
+  entirely). `e2e/naphthalene-capstone`.
+- **Distributed DF-MP2 — the swarm's first collaborative single-molecule
+  reduction.** One molecule's MP2 correlation energy `E_corr = Σ_i Σ_j Σ_ab …`
+  partitions exactly over the outer occupied index `i`; each tab owns an
+  `i`-slice and returns a scalar partial, the master sums them (`mp2-slice`
+  kernel, `mp2EnergyDF(..., iRange)`, `reduceMP2Slices`). Partition-sum ==
+  single-machine to `<1e-12`; 2-tab e2e to `<1e-9`.
+- **Distributed molecule screening** — `chem-energy` now also returns the
+  **HOMO–LUMO gap (eV)** as a screening descriptor; `e2e/swarm-screening` ranks
+  a candidate library across tabs with the *identical* ranking to a single tab.
+- **Cross-machine swarm** — `RelayTransport` over a free public MQTT broker;
+  **N-machine distributed Hartree–Fock verified on real CI VMs** (N=2 to
+  `5.7e-14`, N=4), and a **swarm × GPU** batch where every tile runs `runRHFAuto`
+  on the GPU and reports its own provenance.
+- **gzip-binary-f64 wire codec** — lossless f64-array compression for swarm
+  messages (~4× on a real density), so the distributed paths keep bit-exact
+  agreement over the wire.
+- **GPU-accelerated density fitting (experimental)** — WGSL s/p/d 3-index +
+  2-index McMurchie–Davidson integral build (`df-gpu.ts`), a hybrid GPU/WASM DF
+  build (`buildV3idxHybrid`), and a fully-GPU DF-JK (`makeGpuDFJK`).
+
+### Changed
+
+- **f64 WASM is the recommended density-fitting default; the GPU DF paths are
+  experimental** (decision 2026-06-10). WebGPU has no f64, so the GPU can only
+  touch the f32-insensitive auxiliary columns (~1.3× on the integral *build* in a
+  medium band) and cannot accelerate the f64-bound J/K — kept as a
+  proof-of-mechanism, not the chemistry default.
+- **Swarm scheduler rewritten to a greedy pull queue** — every peer (master
+  included) pulls one tile at a time and asks for the next only after finishing,
+  so a slow tile parks only its own puller while everyone else drains; this also
+  auto-balances uneven tile costs. Replaces the old single-claim-per-worker
+  protocol that left the master running almost everything (auto-distributed
+  screening went 9/1 → 4/6, 1.05× → 1.48×).
+
+### Fixed
+
+- `swarmMap` over `RelayTransport` (queue sends issued before the async broker
+  connect, flush on connect).
+- Greedy-pull livelock: a persistently-failing worker re-pulling and re-failing
+  the same tile forever — failed tiles now run on the master instead of requeueing.
+- `requiredLimits` on GPU DF devices (handles a V output past the default 128 MB cap).
+
+### Honest negatives (the evidence we keep)
+
+- **Distributing one molecule's MP2 barely speeds it up** (`e2e/swarm-mp2-speedup`):
+  benzene cc-pVDZ 1.10× across 2 tabs, because the redundant SCF + DF *setup*
+  (S≈79 s, 82%) dwarfs the splittable contraction (C≈17.5 s, 18%) and sits on the
+  critical path. The swarm's scaling axis is **throughput (N independent
+  molecules), not single-molecule wall-time**. Multi-tab screening scales as
+  1→1.00× / 2→1.73× / 3→2.02× / 4→2.36× (warmed, even split; sub-linear because
+  molecule costs are uneven).
+- **The hybrid GPU DF is gated off at PAH scale** — its per-block JS merge loses
+  to WASM-SIMD streaming for large molecules.
+- **Naphthalene-scale DF-HF is feasibility-demonstrated, not precision-validated**
+  — the capstone asserts only a sane energy window; sub-mHa DF-vs-exact accuracy
+  is validated up to where the exact ERI still fits a tab (H₂O→CH₂O→C₂H₄).
+
 ## [0.9.4] — 2026-06-08
 
 The **streaming swarm** release. A browser-tab swarm now scales Hartree–Fock

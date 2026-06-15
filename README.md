@@ -12,7 +12,7 @@
 
 <br/><br/>
 
-<img alt="version" src="https://img.shields.io/badge/v0.9.4-0ea5e9?style=flat-square&labelColor=0b1224"/>
+<img alt="version" src="https://img.shields.io/badge/v0.10.0-0ea5e9?style=flat-square&labelColor=0b1224"/>
 <img alt="license" src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="tests" src="https://img.shields.io/badge/tests-CI%20green-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="typescript" src="https://img.shields.io/badge/typescript-strict-3178c6?style=flat-square&labelColor=0b1224"/>
@@ -44,7 +44,8 @@
 
 - Browser-native quantum chemistry engine, all methods ported from PySCF and brute-force verified to ≤ 1e-10 Ha element-wise.
 - WebGPU systems demonstration — a 110-line WGSL kernel makes CCSD(T)/cc-pVDZ browser-feasible (13.8× median speedup over CPU TypeScript, 5w+20t harness; p10 28×, p90 10×, noisy).
-- Distributed-compute substrate — `swarmMap` over BroadcastChannel (same-machine, verified) and a `RelayTransport` over a free public broker for **cross-machine** swarm. **N=2 distributed Hartree–Fock verified across two separate CI VMs** — each holds only its own tensor slice, exchanges D + partial (J,K) through the broker each SCF iteration, energy matches the single-machine result to 5.7e-14. (WebRTC P2P also implemented; needs a TURN key across symmetric cloud NAT.)
+- Distributed-compute substrate — `swarmMap` (greedy-pull, auto-balanced) over BroadcastChannel (same-machine, verified) and a `RelayTransport` over a free public broker for **cross-machine** swarm. **N=2 distributed Hartree–Fock verified across two separate CI VMs** — each holds only its own tensor slice, exchanges D + partial (J,K) through the broker each SCF iteration, energy matches the single-machine result to 5.7e-14. The crowd also does *post-HF* work: a distributed DF-MP2 reduction (partition-sum == single-machine to <1e-12) and **molecule screening** — rank a candidate library by HOMO–LUMO gap across tabs (measured 1.73× / 2.36× on 2 / 4 tabs). Honest finding: the swarm speeds up *many* molecules (throughput), not *one* molecule (benzene MP2 only 1.10×). (WebRTC P2P also implemented; needs a TURN key across symmetric cloud NAT.)
+- Size-gated chemistry in one call — `runRHFAuto` / `runRKSAuto` / `runUHFAuto` / `runUKSAuto` / `runMP2Auto` / `runUMP2Auto` pick exact 4-index ERI (small) or streaming **f64 density fitting** (large) automatically, with honest `{method, engine, precision}` provenance. Naphthalene cc-pVDZ HF runs in a tab — its 9.7 GB ERI is never built. (GPU DF paths exist but are experimental: WebGPU has no f64, so they can't accelerate the f64-bound J/K.)
 - Teaching / reproducibility / methodology platform — URL-as-citation, drag-import (XYZ/PDB/MOL/SDF), in-browser Pyodide REPL with "Compare to PySCF" button.
 
 </td>
@@ -391,7 +392,7 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 
 See [`CITATION.cff`](./CITATION.cff). For papers:
 
-> Günaydın, A.B. (2026). _webgpu-q v0.9.4_. Zenodo. https://doi.org/10.5281/zenodo.20494382
+> Günaydın, A.B. (2026). _webgpu-q v0.10.0_. Zenodo. https://doi.org/10.5281/zenodo.20494382
 
 Archived on Zenodo — concept DOI [10.5281/zenodo.20494382](https://doi.org/10.5281/zenodo.20494382) (resolves to the latest version). Each release also gets its own version DOI on the [Zenodo record](https://doi.org/10.5281/zenodo.20494382).
 
