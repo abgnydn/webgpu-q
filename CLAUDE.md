@@ -192,13 +192,25 @@ benches (`e2e/`) cover all levels + the swarm/acene series.
     round-robin split, true parallelism, wall = slowest tab): **1→1.00×, 2→1.73×
     (87% eff), 3→2.02× (67%), 4→2.36× (59%)** on the library, HF/cc-pVDZ, M2 Pro.
     Sub-linear because molecule costs are uneven (H₂ ≪ C₂H₄) so the tab holding
-    the heavy molecules caps the win. Fixes that would recover efficiency:
-    cost-aware scheduling (big molecules first/alone) + a larger library. KNOWN
-    LIMITATION surfaced here: `swarmMap`'s auto-claimer is single-claim-per-worker
-    → it balances master-heavy; the even split in swarm-scaling is manual. A
-    greedy work-pull rewrite of the claimer is the next distribution improvement.
-    (Earlier screening "1.59×" was retracted — it was warmup-inflated + the
-    auto-claimer's bad balance; the warmed/balanced 2-tab number is 1.73×.)
+    the heavy molecules caps the win. Further efficiency would need cost-aware
+    scheduling (big molecules first/alone) + a larger library.
+    (Earlier screening "1.59×" was retracted — it was warmup-inflated + a
+    master-heavy auto-distribution; the warmed/balanced 2-tab number is 1.73×.)
+  - Step 7 (**greedy-pull scheduler fix**, 2026-06-15): rewrote `swarmMap`'s
+    distribution from single-claim-per-worker (master-heavy: a worker grabbed ONE
+    tile then idled while the master ran the rest via a timeout fallback) to a
+    **greedy pull queue** — every peer, master included, pulls one tile at a time
+    and requests another only after finishing, so a slow tile parks only its own
+    puller while everyone else keeps draining (also auto-balances uneven tile
+    costs). Two subtleties fixed during the rewrite: (a) a failing worker's tile
+    is run by the MASTER, not requeued to the shared pool — requeueing let a
+    persistently-failing worker re-pull and re-fail the same tile in a tight loop
+    (livelock, hung `swarm.test.ts`); (b) the master does a one-time head-start
+    yield + keeps yielding while remote workers pull, because local kernel compute
+    blocks the single-threaded event loop and would otherwise drain the queue via
+    microtasks before any remote macrotask is processed. Result: auto-distributed
+    screening went 9/1 → 4/6 (master/other), 1.05× → 1.48×; `tests/parallel/swarm`
+    (13 tests) green; distributed-MP2 reduction still bit-exact.
 - EE-EOM-CCSD: **PySCF-ported (2026-05-21)**. σ_1 + σ_2 follow
   Wang-Tu-Wang 2014 Eqs (9)-(10) with PySCF eom_gccsd intermediates
   (EOM-Fvv/Foo/Wovvo with full t2 dressing + Wovoo / Wvvvo). Empirical

@@ -5,11 +5,11 @@ import { test, expect, type Page } from "@playwright/test";
 // Lessons baked in from the flawed first screening pass:
 //   • WARMUP every tab first (JIT is cold on the first run; each page is its own
 //     JS context with its own JIT, so each must be warmed independently).
-//   • EVEN split (round-robin), not the auto-grabber — swarmMap's current claim
-//     protocol is single-claim-per-worker and balances poorly, which would
-//     confound a scaling measurement. Here we measure the parallel-execution
-//     CEILING with balanced shares run truly concurrently (Promise.all across
-//     pages); wall-clock = the slowest tab.
+//   • EVEN split (round-robin), measured directly rather than through swarmMap's
+//     scheduler — to isolate the parallel-execution CEILING from any scheduler
+//     variance (swarmMap now balances via greedy pull, but a fixed even split is
+//     the cleanest scaling baseline). Shares run truly concurrently (Promise.all
+//     across pages); wall-clock = the slowest tab.
 //   • Same library each time; speedup(N) = wall(1 tab) / wall(N tabs).
 //
 // This isolates the throughput axis: N tabs each doing a whole molecule, no

@@ -98,9 +98,10 @@ test.describe("Swarm screening — rank a molecule library by HOMO–LUMO gap", 
       log(`ranked by HOMO–LUMO gap (smallest first = most reactive/colored):`);
       rankSingle.forEach((lbl, i) => log(`  ${String(i + 1).padStart(2)}. ${lbl.padEnd(5)} ${gapOf.get(lbl)!.toFixed(2)} eV`));
       // NOTE: w.__ran counts tiles THIS (master) tab ran locally; the other tab
-      // ran the rest. Timing here is INDICATIVE only — no warmup, and swarmMap's
-      // auto-claimer is single-claim-per-worker so it balances master-heavy. The
-      // honest, warmed, evenly-balanced scaling curve lives in swarm-scaling.spec.ts.
+      // ran the rest. The greedy-pull scheduler now balances the auto-distribution
+      // (~4/6, was 9/1), but the timing here is still INDICATIVE only because
+      // there's no warmup (cold solo baseline vs warm distributed run). The honest,
+      // warmed, evenly-balanced scaling curve lives in swarm-scaling.spec.ts.
       const masterRan = w.__ran, otherRan = tiles.length - w.__ran;
       log(`single-tab: ${Math.round(singleMs)}ms | two-tab: ${Math.round(distMs)}ms → ${(singleMs / distMs).toFixed(2)}x (indicative; see swarm-scaling for honest numbers)`);
       log(`split: master ran ${masterRan}, other tab ran ${otherRan}`);

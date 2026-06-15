@@ -24,20 +24,23 @@ export interface JobAnnounceMsg {
   };
 }
 
-/** Worker claims a specific tile. */
-export interface TileClaimMsg {
-  readonly type: "tile-claim";
-  readonly payload: { jobId: string; tileIndex: number };
+/** Worker asks the master for the next available tile (greedy pull). A worker
+ *  sends one on job-announce and another after each tile it finishes, so it keeps
+ *  pulling until the queue is drained — dynamic load balancing across all peers. */
+export interface TileRequestMsg {
+  readonly type: "tile-request";
+  readonly payload: { jobId: string };
 }
 
-/** Master accepts a claim (or rejects if already taken). */
+/** Master hands a worker the next tile, or signals the queue is drained (done). */
 export interface TileAssignMsg {
   readonly type: "tile-assign";
   readonly payload: {
     readonly jobId: string;
-    readonly tileIndex: number;
+    readonly tileIndex?: number;    // omitted when done=true
     readonly worker: PeerId;
     readonly accepted: boolean;
+    readonly done?: boolean;        // true → no more tiles; stop pulling
     readonly tile?: unknown;        // tile-specific input
   };
 }
@@ -55,5 +58,5 @@ export interface TileFailMsg {
 }
 
 export type SwarmProtoMsg =
-  | HelloMsg | JobAnnounceMsg | TileClaimMsg
+  | HelloMsg | JobAnnounceMsg | TileRequestMsg
   | TileAssignMsg | TileResultMsg | TileFailMsg;
