@@ -183,6 +183,22 @@ benches (`e2e/`) cover all levels + the swarm/acene series.
     a tab. **The swarm's scaling axis is throughput (N independent molecules via
     chem-energy), NOT single-molecule wall-time.** To speed up one molecule you'd
     have to parallelize the SCF+DF *setup*, not the correlation.
+  - Step 6 (**screening + honest multi-tab scaling**, 2026-06-15): the throughput
+    axis demonstrated. `chem-energy` now returns the HOMO–LUMO gap (eV) as a
+    screening descriptor; `e2e/swarm-screening` ranks a 10-molecule library by
+    gap, validated to give the IDENTICAL ranking distributed vs single-tab (that
+    spec validates ranking correctness only — its timing is indicative).
+    `e2e/swarm-scaling` is the honest measurement (warmed JIT per tab, even
+    round-robin split, true parallelism, wall = slowest tab): **1→1.00×, 2→1.73×
+    (87% eff), 3→2.02× (67%), 4→2.36× (59%)** on the library, HF/cc-pVDZ, M2 Pro.
+    Sub-linear because molecule costs are uneven (H₂ ≪ C₂H₄) so the tab holding
+    the heavy molecules caps the win. Fixes that would recover efficiency:
+    cost-aware scheduling (big molecules first/alone) + a larger library. KNOWN
+    LIMITATION surfaced here: `swarmMap`'s auto-claimer is single-claim-per-worker
+    → it balances master-heavy; the even split in swarm-scaling is manual. A
+    greedy work-pull rewrite of the claimer is the next distribution improvement.
+    (Earlier screening "1.59×" was retracted — it was warmup-inflated + the
+    auto-claimer's bad balance; the warmed/balanced 2-tab number is 1.73×.)
 - EE-EOM-CCSD: **PySCF-ported (2026-05-21)**. σ_1 + σ_2 follow
   Wang-Tu-Wang 2014 Eqs (9)-(10) with PySCF eom_gccsd intermediates
   (EOM-Fvv/Foo/Wovvo with full t2 dressing + Wovoo / Wvvvo). Empirical
