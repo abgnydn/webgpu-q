@@ -436,6 +436,7 @@
         <a href="/viz.html">hyperscope</a>
         <a href="/molecule.html">molecule</a>
         <a href="/swarm.html">swarm</a>
+        <a href="/screening.html">screen</a>
         <a href="/experiments/">experiments</a>
         <a href="/demo.html">gate demo</a>
         <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub ↗</a>
@@ -510,11 +511,55 @@
     </div>
 
     <section class="section">
-      <h2>Five live demos.</h2>
+      <h2>Six live demos.</h2>
       <p class="sub">
-        Five URLs. Open any of them — no install, no Linux, no Python. Just a tab.
+        Six URLs. Open any of them — no install, no Linux, no Python. Just a tab.
       </p>
       <div class="demos">
+        <a href="/screening.html" class="demo-card">
+          <div class="preview" style="background: linear-gradient(135deg, #120a1a 0%, #1f1330 100%);">
+            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
+              <line x1="24" y1="120" x2="296" y2="120" stroke-width="2" opacity="0.5"
+                    stroke="url(#spec)"/>
+              <defs>
+                <linearGradient id="spec" x1="0" x2="1">
+                  <stop offset="0" stop-color="#ef5350"/><stop offset="0.35" stop-color="#fff176"/>
+                  <stop offset="0.65" stop-color="#81c784"/><stop offset="1" stop-color="#7e57c2"/>
+                </linearGradient>
+              </defs>
+              <g stroke="#fff" stroke-width="1.5" stroke-opacity="0.6">
+                <circle cx="58"  cy="112" r="7" fill="#ef5350"/>
+                <circle cx="96"  cy="112" r="7" fill="#f48b3c" stroke="#f472b6" stroke-width="2.4"/>
+                <circle cx="150" cy="112" r="7" fill="#e3d24a"/>
+                <circle cx="198" cy="112" r="7" fill="#76c06a" stroke="#f472b6" stroke-width="2.4"/>
+                <circle cx="244" cy="112" r="7" fill="#54a8c9"/>
+                <circle cx="280" cy="112" r="7" fill="#7e57c2"/>
+              </g>
+              <g stroke="#7e8aa6" stroke-width="2" fill="none">
+                <path d="M 70 48 L 95 38 L 120 48 L 145 38 L 170 48 L 195 38"/>
+              </g>
+              <g fill="#0f1422" stroke="#6ea8ff" stroke-width="1.6">
+                <circle cx="120" cy="48" r="6"/><circle cx="145" cy="38" r="6"/>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <h3>Live molecular screen <span class="arrow">→</span></h3>
+            <p>
+              Press one button and watch a real quantum-chemistry screen run in your
+              tab: a full Hartree–Fock SCF per molecule, an isoelectronic aza-chain
+              library ranked by <strong>HOMO–LUMO gap</strong>, a self-sorting
+              leaderboard and absorption-shift spectrum — and honest flagging of the
+              <strong>RHF-instability artifacts</strong> a real screen has to catch.
+            </p>
+            <div class="meta">
+              <span>real HF, PySCF-checked</span>
+              <span>azo-motif enrichment</span>
+              <span>artifacts flagged</span>
+            </div>
+          </div>
+        </a>
+
         <a href="/viz.html" class="demo-card">
           <div class="preview">
             <div class="blob"></div>
@@ -1048,6 +1093,7 @@ scene.<span class="k">updateGrid</span>(grid);  <span class="c">// → WebGPU sp
         <a href="/viz.html">hyperscope</a>
         <a href="/molecule.html">molecule</a>
         <a href="/swarm.html">swarm</a>
+        <a href="/screening.html">screen</a>
         <a href="/experiments/">experiments</a>
         <a href="/demo.html">gate demo</a>
         <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub ↗</a>

@@ -5,6 +5,32 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.11.0] — 2026-06-16
+
+The **live-screening** release. Everything the swarm/screening work proved was,
+until now, buried in test files and commit messages — invisible to anyone who
+visited the site. This release surfaces it as a page you can *click*:
+`/screening.html` runs a real Hartree–Fock screen in the browser tab and narrates
+it as it streams in.
+
+### Added
+
+- **`/screening.html` — a live molecular screen.** Press one button; an
+  isoelectronic aza-chain library (12 curated, or the full 42-isomer ≤3-N sweep)
+  is screened by HOMO–LUMO gap, each candidate run through a **real HF SCF** via
+  the PySCF-cross-checked `runChemEnergyTile` kernel (no server). The page draws
+  every molecule as a skeletal structure (N highlighted, azo N=N glowing),
+  self-sorts a ranked leaderboard as results land, plots an absorption-shift
+  spectrum, tracks azo-motif enrichment, and shows a live per-SCF compute log.
+- **Honest by construction.** Color is the *relative* red-shift within the
+  library (HF/STO-3G overestimates absolute λ — the trend is the validated part,
+  not the absolute number, and the page says so). Anomalously small gaps
+  (< 55% of the median) are flagged as **likely RHF instabilities, not leads** —
+  the same 2,3,5-/2,4,5-aza artifacts the e2e discovery sweep documents. Verified
+  live: curated winner 3,4-diaza azo at 7.61 eV and full-sweep azo enrichment
+  2.2× both match the committed e2e results exactly.
+- Linked from the landing page (now six live demos) and both nav strips.
+
 ## [0.10.0] — 2026-06-15
 
 The **distributed-chemistry** release. Since the streaming swarm (0.9.4), the

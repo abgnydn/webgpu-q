@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#6ea8ff" />
+    <title>Live molecular screen · webgpu-q</title>
+    <meta
+      name="description"
+      content="Watch a real quantum-chemistry screen run in your browser tab: every molecule's HOMO–LUMO gap computed live by Hartree–Fock, ranked, color-mapped, with honest RHF-artifact flagging. No install, no server."
+    />
+    <link rel="icon" type="image/png" href="/favicon-32.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <style>
+      :root {
+        --bg: #070a12; --bg2: #0f1422; --panel: #131a2b; --panel2: #0c1120;
+        --line: #1f273a; --line2: #2a3450;
+        --text: #e6edf7; --dim: #93a1bd; --faint: #5b6680;
+        --accent: #6ea8ff; --accent2: #34d399; --azo: #f472b6;
+        --warn: #fbbf24; --err: #ef4444;
+      }
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0; background: var(--bg); color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+        font-size: 14px; line-height: 1.55; overflow-x: hidden;
+      }
+      .wrap { max-width: 1140px; margin: 0 auto; padding: 28px 22px 96px; }
+      a.back { color: var(--dim); text-decoration: none; font-size: 12px; }
+      a.back:hover { color: var(--accent); }
+
+      /* ---- hero ---- */
+      .hero {
+        position: relative; margin: 18px 0 26px; padding: 34px 30px;
+        border: 1px solid var(--line); border-radius: 18px; overflow: hidden;
+        background:
+          radial-gradient(900px 320px at 12% -10%, rgba(110,168,255,.18), transparent 60%),
+          radial-gradient(720px 320px at 95% 0%, rgba(244,114,182,.14), transparent 55%),
+          linear-gradient(180deg, var(--panel), var(--panel2));
+      }
+      .hero::after {
+        content: ""; position: absolute; inset: 0; pointer-events: none;
+        background: repeating-linear-gradient(115deg, transparent 0 28px, rgba(255,255,255,.012) 28px 29px);
+      }
+      .eyebrow {
+        font-family: ui-monospace, monospace; font-size: 11.5px; letter-spacing: .14em;
+        text-transform: uppercase; color: var(--accent2); margin: 0 0 10px;
+      }
+      h1 {
+        font-size: clamp(28px, 4.2vw, 44px); font-weight: 850; margin: 0 0 12px;
+        letter-spacing: -.02em; line-height: 1.05;
+        background: linear-gradient(120deg, #fff 20%, #b9d2ff 55%, #f6b8db 95%);
+        -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      }
+      .hero p { color: var(--dim); margin: 0 0 6px; max-width: 760px; font-size: 15px; }
+      .hero .fine { font-size: 12.5px; color: var(--faint); }
+      .hero code { background: rgba(255,255,255,.05); padding: 1px 6px; border-radius: 5px; color: var(--accent); font-family: ui-monospace, monospace; font-size: 12.5px; }
+
+      .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 20px; }
+      .btn {
+        position: relative; background: linear-gradient(180deg, #7db0ff, #5b8ff0);
+        color: #06101f; border: none; border-radius: 10px; font-weight: 750;
+        padding: 13px 26px; cursor: pointer; font-size: 14px; letter-spacing: .01em;
+        box-shadow: 0 6px 24px -8px rgba(110,168,255,.7);
+        transition: transform .12s, box-shadow .12s, filter .12s;
+      }
+      .btn:hover { transform: translateY(-1px); filter: brightness(1.06); }
+      .btn:active { transform: translateY(0); }
+      .btn:disabled { background: #232c42; color: var(--dim); cursor: progress; box-shadow: none; }
+      .seg { display: inline-flex; border: 1px solid var(--line2); border-radius: 10px; overflow: hidden; }
+      .seg button {
+        background: transparent; color: var(--dim); border: none; padding: 11px 16px;
+        font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+      }
+      .seg button.on { background: var(--bg2); color: var(--text); }
+      .seg button:not(:last-child) { border-right: 1px solid var(--line2); }
+      .hint { color: var(--faint); font-size: 12.5px; }
+
+      /* ---- KPI strip ---- */
+      .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0 0 22px; }
+      .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+      .kpi .v { font-size: 26px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+      .kpi .v.accent { color: var(--accent); } .kpi .v.azo { color: var(--azo); } .kpi .v.ok { color: var(--accent2); }
+      .kpi .k { font-size: 11.5px; color: var(--dim); margin-top: 3px; letter-spacing: .03em; }
+      @media (max-width: 760px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+
+      /* ---- spectrum strip ---- */
+      .section-h { font-size: 13px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+                   color: var(--dim); margin: 30px 0 12px; display: flex; align-items: center; gap: 10px; }
+      .section-h::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line2), transparent); }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+      .spectrum { position: relative; height: 92px; margin: 6px 0 8px; }
+      .spectrum .axis { position: absolute; left: 0; right: 0; bottom: 26px; height: 2px;
+                        background: linear-gradient(90deg, #ef5350, #ffb74d, #fff176, #81c784, #4fc3f7, #7e57c2); opacity: .5; border-radius: 2px; }
+      .chip {
+        position: absolute; bottom: 18px; width: 18px; height: 18px; border-radius: 50%;
+        transform: translateX(-50%); transition: left .5s cubic-bezier(.2,.7,.2,1), opacity .4s, box-shadow .3s;
+        border: 2px solid rgba(255,255,255,.65); cursor: default;
+      }
+      .chip.azo { box-shadow: 0 0 0 2px var(--azo), 0 0 14px 2px rgba(244,114,182,.6); }
+      .chip.suspect { border-style: dashed; border-color: var(--warn); }
+      .spectrum .lbl { position: absolute; bottom: 2px; font-size: 11px; color: var(--faint); font-family: ui-monospace, monospace; }
+      .spectrum .lbl.r { right: 0; } .spectrum .lbl.l { left: 0; }
+      .spectrum-cap { color: var(--faint); font-size: 12px; margin: 0; }
+      .spectrum-cap b { color: var(--dim); font-weight: 700; }
+
+      /* ---- molecule grid ---- */
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(186px, 1fr)); gap: 12px; margin-top: 4px; }
+      .mol {
+        position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+        padding: 12px 12px 11px; transition: border-color .3s, box-shadow .3s, transform .35s;
+        order: 999;
+      }
+      .mol.done { border-color: var(--line2); }
+      .mol.azo.done { border-color: rgba(244,114,182,.5); box-shadow: 0 0 22px -8px rgba(244,114,182,.5); }
+      .mol .rank { position: absolute; top: 9px; right: 11px; font-size: 11px; font-weight: 800;
+                   color: var(--faint); font-variant-numeric: tabular-nums; }
+      .mol .name { font-size: 13px; font-weight: 700; margin: 0 0 2px; padding-right: 22px; }
+      .mol .struct { width: 100%; height: 78px; display: block; }
+      .mol .gap { font-family: ui-monospace, monospace; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+      .mol .meta { font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--faint); margin-top: 2px; min-height: 14px; }
+      .mol .swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; border: 1px solid rgba(255,255,255,.3); }
+      .badge { display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: .04em; padding: 1px 6px; border-radius: 999px; vertical-align: 1px; }
+      .badge.azo { background: rgba(244,114,182,.15); color: var(--azo); }
+      .badge.suspect { background: rgba(251,191,36,.14); color: var(--warn); }
+      .mol.computing { border-color: var(--accent); }
+      .mol.computing::before {
+        content: ""; position: absolute; inset: -1px; border-radius: 14px; padding: 1px; pointer-events: none;
+        background: linear-gradient(120deg, transparent, var(--accent), transparent) border-box;
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor; mask-composite: exclude;
+        animation: sweep 1.1s linear infinite; background-size: 300% 100%;
+      }
+      @keyframes sweep { from { background-position: 200% 0; } to { background-position: -100% 0; } }
+
+      /* ---- two-up panels ---- */
+      .twoup { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      @media (max-width: 860px) { .twoup { grid-template-columns: 1fr; } }
+      .enrich-bar { height: 14px; border-radius: 8px; background: var(--bg2); overflow: hidden; margin: 6px 0 4px; }
+      .enrich-bar > div { height: 100%; transition: width .8s cubic-bezier(.2,.7,.2,1); }
+      .enrich-bar .azo { background: linear-gradient(90deg, #f472b6, #ec4899); }
+      .enrich-bar .all { background: linear-gradient(90deg, #475569, #64748b); }
+      .enrich-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--dim); }
+      pre.ticker {
+        background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+        padding: 12px; font-family: ui-monospace, monospace; font-size: 11.5px;
+        color: var(--dim); height: 188px; overflow: auto; white-space: pre-wrap; margin: 0;
+      }
+      .ticker b { color: var(--accent2); } .ticker .w { color: var(--warn); } .ticker .a { color: var(--azo); }
+
+      .callout {
+        margin-top: 18px; border: 1px solid rgba(251,191,36,.3); border-left: 3px solid var(--warn);
+        background: rgba(251,191,36,.05); border-radius: 12px; padding: 16px 18px;
+      }
+      .callout h4 { margin: 0 0 6px; font-size: 13px; color: var(--warn); letter-spacing: .03em; }
+      .callout p { margin: 0; color: var(--dim); font-size: 13px; }
+      .footnote { color: var(--faint); font-size: 12px; margin-top: 26px; line-height: 1.6; }
+      .footnote a { color: var(--dim); }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <a class="back" href="/">← webgpu-q</a>
+
+      <section class="hero">
+        <p class="eyebrow">live · real Hartree–Fock · runs in this tab</p>
+        <h1>Screen a molecule library,<br />live, in your browser.</h1>
+        <p>
+          Every candidate below gets a <b>real quantum-chemistry calculation</b> —
+          a full Hartree–Fock SCF in <code>WebAssembly</code>, no server, no install —
+          and we rank them by <b>HOMO–LUMO gap</b>, the property that sets a dye's color,
+          a molecule's reactivity, its stability. Watch the board sort itself as the
+          numbers land.
+        </p>
+        <p class="fine">
+          The library: isoelectronic aza-chains (carbons swapped for nitrogens on a
+          conjugated backbone). Same electron count, so the gap differences are
+          <i>purely</i> where the nitrogen sits. The question the screen answers blind:
+          <i>do the top chromophores share the azo (–N=N–) motif behind most commercial dyes?</i>
+        </p>
+        <div class="controls">
+          <button id="run" class="btn">▶ Run the screen</button>
+          <div class="seg" id="libSel">
+            <button data-lib="curated" class="on">12 curated</button>
+            <button data-lib="full">full 42-isomer sweep</button>
+          </div>
+          <span class="hint" id="hint">~30–60 s · 12 real SCF runs · STO-3G · everything computed on your machine</span>
+        </div>
+      </section>
+
+      <div class="kpis">
+        <div class="kpi"><div class="v accent" id="kDone">0<span style="font-size:15px;color:var(--dim)">/0</span></div><div class="k">molecules computed</div></div>
+        <div class="kpi"><div class="v" id="kGap">—</div><div class="k">gap range (eV)</div></div>
+        <div class="kpi"><div class="v azo" id="kEnrich">—</div><div class="k">azo enrichment in top hits</div></div>
+        <div class="kpi"><div class="v ok" id="kTime">—</div><div class="k">wall time</div></div>
+      </div>
+
+      <div class="section-h">absorption-shift spectrum</div>
+      <div class="card">
+        <div class="spectrum" id="spectrum">
+          <div class="axis"></div>
+          <span class="lbl l">◀ smaller gap · red-shifted</span>
+          <span class="lbl r">larger gap · blue-shifted ▶</span>
+        </div>
+        <p class="spectrum-cap">
+          Each dot is a molecule, placed by its HOMO–LUMO gap.
+          <b>Glowing pink = azo (N=N) present.</b>
+          Color is the <i>relative</i> shift across this library — HF/STO-3G overestimates the
+          <i>absolute</i> wavelength (real dyes absorb in the visible; minimal-basis HF puts these in the UV),
+          but the <b>trend</b> it ranks on is the robust, validated part.
+        </p>
+      </div>
+
+      <div class="section-h">candidates — ranked smallest gap first</div>
+      <div class="grid" id="grid"></div>
+
+      <div class="section-h">what the screen found</div>
+      <div class="twoup">
+        <div class="card">
+          <div style="font-size:12px;color:var(--dim);font-weight:700;letter-spacing:.04em;margin-bottom:10px">AZO-MOTIF ENRICHMENT</div>
+          <div class="enrich-row"><span>azo in top 15</span><span id="enrichTopTxt">—</span></div>
+          <div class="enrich-bar"><div class="azo" id="enrichTop" style="width:0%"></div></div>
+          <div class="enrich-row"><span>azo across whole library</span><span id="enrichAllTxt">—</span></div>
+          <div class="enrich-bar"><div class="all" id="enrichAll" style="width:0%"></div></div>
+          <p style="color:var(--faint);font-size:12px;margin:12px 0 0" id="enrichVerdict">
+            Run the screen — if azo is more common at the top than overall, the descriptor
+            is tracking real dye chemistry, not noise.
+          </p>
+        </div>
+        <div class="card">
+          <div style="font-size:12px;color:var(--dim);font-weight:700;letter-spacing:.04em;margin-bottom:10px">LIVE COMPUTE LOG <span style="color:var(--faint);font-weight:500">· proof it's real</span></div>
+          <pre class="ticker" id="ticker">idle — press “Run the screen”.
+each line is one real SCF: iterations, convergence,
+engine (wasm/gpu), and wall time.</pre>
+        </div>
+      </div>
+
+      <div class="callout" id="callout" style="display:none">
+        <h4>⚠ Two “winners” are probably lying — and that's the point.</h4>
+        <p id="calloutText"></p>
+      </div>
+
+      <p class="footnote">
+        Every number here is produced by the same engine that's cross-checked against
+        <b>PySCF / FCI</b> in CI (HF within ~50 µHa). This is <b>triage-grade</b> screening,
+        not a proven hit list — minimal-basis HF overestimates gaps and can break down into
+        artifacts (flagged above). The point isn't to beat PySCF; it's that a real
+        wavefunction calculation now ships as a <i>URL</i>.
+        See also the <a href="/viz.html">4D hyperscope</a> · <a href="/swarm.html">distributed swarm</a> · <a href="/molecule.html">SI report</a>.
+      </p>
+    </main>
+    <script type="module" src="/src/screening/main.ts"></script>
+  </body>
+</html>

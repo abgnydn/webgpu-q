@@ -8,11 +8,13 @@
 &nbsp;
 <a href="https://webgpu-q.vercel.app/molecule.html"><img alt="SI Report" src="https://img.shields.io/badge/H%E2%82%82O%20%C2%B7%20SI%20REPORT-%2Fmolecule.html-c084fc?style=for-the-badge&labelColor=0b1224"/></a>
 &nbsp;
+<a href="https://webgpu-q.vercel.app/screening.html"><img alt="Live screen" src="https://img.shields.io/badge/LIVE%20SCREEN-%2Fscreening.html-f472b6?style=for-the-badge&labelColor=0b1224"/></a>
+&nbsp;
 <a href="https://webgpu-q.vercel.app/experiments/"><img alt="Research dashboard" src="https://img.shields.io/badge/RESEARCH%20DASH-%2Fexperiments-34d399?style=for-the-badge&labelColor=0b1224"/></a>
 
 <br/><br/>
 
-<img alt="version" src="https://img.shields.io/badge/v0.10.0-0ea5e9?style=flat-square&labelColor=0b1224"/>
+<img alt="version" src="https://img.shields.io/badge/v0.11.0-0ea5e9?style=flat-square&labelColor=0b1224"/>
 <img alt="license" src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="tests" src="https://img.shields.io/badge/tests-CI%20green-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="typescript" src="https://img.shields.io/badge/typescript-strict-3178c6?style=flat-square&labelColor=0b1224"/>
@@ -392,7 +394,7 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 
 See [`CITATION.cff`](./CITATION.cff). For papers:
 
-> Günaydın, A.B. (2026). _webgpu-q v0.10.0_. Zenodo. https://doi.org/10.5281/zenodo.20494382
+> Günaydın, A.B. (2026). _webgpu-q v0.11.0_. Zenodo. https://doi.org/10.5281/zenodo.20494382
 
 Archived on Zenodo — concept DOI [10.5281/zenodo.20494382](https://doi.org/10.5281/zenodo.20494382) (resolves to the latest version). Each release also gets its own version DOI on the [Zenodo record](https://doi.org/10.5281/zenodo.20494382).
 
