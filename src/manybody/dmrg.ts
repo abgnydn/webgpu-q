@@ -207,7 +207,7 @@ function statevectorToMPS(psi: Float64Array, N: number, chiMax: number): MPS {
  * Same trick the existing trajectory module uses.
  */
 function setSiteTensor(mps: MPS, q: number, T: ComplexMatrix): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const internal = mps as unknown as { tensors: ComplexMatrix[] };
   internal.tensors[q] = T;
 }

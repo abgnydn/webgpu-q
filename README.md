@@ -482,9 +482,6 @@ Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@ba
 
 | symbol | value | context |
 |---|---|---|
-| `TESTS` | **553** | vitest unit + integration, all green |
-| `CHEMISTRY_TESTS` | **437** | chemistry subset (1 skipped: opt-in cc-pVDZ CCSD(T)) |
-| `E2E_SPECS` | **14** | Playwright headless WebGPU (CCSD(T), EOM, UV-vis, wallclock-vs-PySCF, levels 1/2/3/6, smoke tests) |
 | `CCSD_T_SPEEDUP_MEDIAN` | **13.8×** | H₂O · cc-pVDZ · M2 Pro · 5 warmup + 20 trials · vs our CPU TypeScript · NOISY (std/median = 42%) |
 | `CCSD_T_SPEEDUP_P10` | **28.4×** | best-case across the 20 trials (was historically reported as "39×" — that was a single lucky run) |
 | `CCSD_T_SPEEDUP_P90` | **10.1×** | worst-case across the 20 trials |

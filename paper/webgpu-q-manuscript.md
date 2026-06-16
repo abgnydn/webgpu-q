@@ -49,9 +49,13 @@ SharedArrayBuffer plus cross-origin isolation enables true multithreading;
 WebGPU exposes compute shaders; and WebRTC/BroadcastChannel enable
 peer-to-peer coordination. Browser volunteer-computing frameworks (Pando
 [4], Genet [5], QMachine [6]) have run generic map/stream
-workloads across browser tabs and devices. Yet no published system runs
-*electronic structure* in the browser, and none distributes such a
-calculation across browser tabs.
+workloads across browser tabs and devices, and Open Computational
+Chemistry (OCC) [12] has recently demonstrated Hartree–Fock and DFT
+running client-side in the browser via WebAssembly. Yet no published
+system brings the *correlated post-Hartree–Fock* hierarchy — MP2 through
+CCSD(T) and EOM-CCSD — into the browser, accelerates the perturbative-triples
+bottleneck with WebGPU, or distributes an electronic-structure calculation
+across browser tabs.
 
 This paper closes that gap. Our contributions are:
 
@@ -284,9 +288,12 @@ GPU-accelerated native quantum chemistry is mature: GPU4PySCF [1],
 QUICK [2], and VeloxChem [3] implement HF/DFT/Fock on CUDA. None
 runs in a browser. Browser volunteer computing — Pando [4], Genet
 [5], QMachine [6] — distributes generic workloads across tabs
-and devices but has not run electronic structure. WebGPU is an actively
-characterized compute target [7]. The intersection —
-in-browser electronic structure, and browser-tab distribution of it — is,
+and devices but not electronic structure. Open Computational Chemistry
+(OCC) [12] recently brought Hartree–Fock and DFT into the browser via
+WebAssembly, as a single worker. WebGPU is an actively
+characterized compute target [7]. The intersection this work occupies —
+the *correlated post-Hartree–Fock* hierarchy (CCSD(T), EOM-CCSD) in the
+browser, WebGPU-accelerated, and *distributed* across browser tabs — is,
 to our knowledge, unpublished.
 
 ## 6. Software availability and reproducibility
@@ -390,6 +397,11 @@ the advanced GMTKN55 database." *Physical Chemistry Chemical Physics*
 
 [11] NIST Computational Chemistry Comparison and Benchmark Database
 (CCCBDB), Release 22, NIST Standard Reference Database 101.
+
+[12] P. R. Spackman. "Open Computational Chemistry (OCC) — A portable
+software library and program for quantum chemistry and crystallography."
+*Journal of Open Source Software* (2026). doi:10.21105/joss.09609. (Runs
+Hartree–Fock and DFT client-side in the browser via WebAssembly.)
 
 ---
 

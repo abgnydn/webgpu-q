@@ -113,8 +113,9 @@ highest-leverage demonstration.
   Pfeuty/Bethe limits at 1/N. ITensor cross-checked at N=8 to f64.
 - L3 kernel fusion: **4.18× headline** (Tier C, 8×8 cascade); Tier D plateau
   is the documented honest negative.
-- L6 chemistry: HF (≤ 50 µHa vs PySCF w/ spherical d) → MP2 → FCI (CH₄ to
-  0.76 mHa) → CCSD (≥ 99% capture) → **CCSD(T)** (≤ 0.25 mHa vs FCI).
+- L6 chemistry: HF (enforced ≤ 0.5 mHa vs PySCF general; ≤ 0.1 mHa H₂O cc-pVDZ
+  spherical-d) → MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (enforced ≥ 95% correlation
+  capture, ~99% typical on H₂O/CH₄) → **CCSD(T)** (≤ 0.25 mHa vs FCI).
   cc-pVDZ CCSD(T) on H₂O — CPU 116 s, GPU **13.8× median** (5 warmup +
   20 trials, M2 Pro; p10=28×, p90=10×, std/median 42% noisy).
   Full DFT ladder (LDA/GGA/B3-hybrid) on RHF/UHF/RKS/UKS.

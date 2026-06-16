@@ -46,11 +46,11 @@ describe("f32 DF feasibility for the WebGPU integral build", () => {
 
       const f32_vs_f64 = Math.abs(eF32 - eF64);
       const f32_vs_exact = Math.abs(eF32 - exact);
-      /* eslint-disable no-console */
+       
       console.log(`\n[f32-feas ${name}] exact=${exact.toFixed(8)}  f64-DF=${eF64.toFixed(8)}  f32-DF=${eF32.toFixed(8)}`);
       console.log(`[f32-feas ${name}] f32 rounding cost = ${f32_vs_f64.toExponential(2)} Ha (${(f32_vs_f64 / CHEM_ACC).toExponential(2)}× chem-acc)`);
       console.log(`[f32-feas ${name}] f32-DF vs exact   = ${f32_vs_exact.toExponential(2)} Ha (${(f32_vs_exact / CHEM_ACC).toFixed(2)}× chem-acc)`);
-      /* eslint-enable no-console */
+       
 
       // Optimistic lower bound: f32-rounded B should still be inside chemical
       // accuracy vs exact. If not, the GPU f32 integral path is a dead end.

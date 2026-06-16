@@ -43,7 +43,7 @@ describe("swarm wire codec (gzip binary-f64)", () => {
     expect(back.payload.D.length).toBe(D.length);
     // BIT-EXACT f64 — every element identical (this is what keeps 1e-12).
     for (let k = 0; k < D.length; k++) expect(back.payload.D[k]).toBe(D[k]);
-    // eslint-disable-next-line no-console
+     
     console.log(`[codec] D n=${n}: JSON ${(json.length / 1024).toFixed(0)}KB → wire ${(wireBytes / 1024).toFixed(0)}KB (${(json.length / wireBytes).toFixed(0)}x), lossless`);
   });
 

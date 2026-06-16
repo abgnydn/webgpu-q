@@ -50,11 +50,11 @@ describe("streaming-DF accuracy vs exact HF, by aux richness", () => {
         rows.push({ level, nAux: aux.length, nKept: df.nAux, err: Math.abs(eDF - exact) });
       }
 
-      /* eslint-disable no-console */
+       
       console.log(`\n[df-acc ${name}] exact HF = ${exact.toFixed(8)} Ha (n=${n})`);
       for (const r of rows)
         console.log(`  auto-aux L${r.level}: nAux=${String(r.nAux).padStart(4)} nKept=${String(r.nKept).padStart(4)}  |E_DF−E_exact| = ${r.err.toExponential(3)} Ha  (${(r.err / CHEM_ACC).toFixed(2)}× chem-acc)`);
-      /* eslint-enable no-console */
+       
 
       // Sanity: richer aux must not make the fit worse, and L3 should be well
       // inside chemical accuracy.

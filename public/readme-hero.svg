@@ -68,8 +68,8 @@
 
   <g transform="translate(0 400)">
     <g>
-      <text x="175" y="0" font-family="ui-monospace, monospace" font-size="40" font-weight="800" fill="#22d3ee" text-anchor="middle">553</text>
-      <text x="175" y="24" font-family="-apple-system, system-ui, sans-serif" font-size="11" font-weight="600" fill="#94a3b8" text-anchor="middle" letter-spacing="0.15em">TESTS GREEN</text>
+      <text x="175" y="0" font-family="ui-monospace, monospace" font-size="40" font-weight="800" fill="#22d3ee" text-anchor="middle">≤10⁻¹⁰</text>
+      <text x="175" y="24" font-family="-apple-system, system-ui, sans-serif" font-size="11" font-weight="600" fill="#94a3b8" text-anchor="middle" letter-spacing="0.15em">Ha vs PySCF</text>
     </g>
     <g>
       <text x="430" y="0" font-family="ui-monospace, monospace" font-size="40" font-weight="800" fill="#34d399" text-anchor="middle">~14×</text>

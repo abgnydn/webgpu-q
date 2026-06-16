@@ -114,7 +114,7 @@
         <text x="500" y="0" fill="#fbbf24" font-weight="700" text-anchor="end">Pyodide + PWA</text>
       </g>
       <g transform="translate(0 110)">
-        <text x="0" y="0" fill="#e2e8f0">553 chemistry tests</text>
+        <text x="0" y="0" fill="#e2e8f0">reference-grounded CI</text>
         <text x="500" y="0" fill="#22c55e" font-weight="700" text-anchor="end">GREEN</text>
       </g>
     </g>
