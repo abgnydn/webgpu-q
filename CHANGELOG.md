@@ -5,6 +5,32 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.11.2] — 2026-06-16
+
+The **EA-EOM-CCSD correctness** patch — the one real method gap the v0.11.1
+audit surfaced, now closed properly (no curve-fit).
+
+### Fixed
+
+- **EA-EOM-CCSD σ_2 is now a proper PySCF port, validated multi-electron.**
+  The prior implementation carried an empirical `+½·E_corr·R₂` σ_2 diagonal
+  patch (stage-32e) curve-fit to the H₂ brute-force, and used bare integrals
+  where PySCF `eom_gccsd.eaccsd_matvec` uses dressed `Wvvvo`/`Wvovv`. Because H₂
+  is 2-electron (T̂²≈0, EOM≡FCI trivially), it could never test σ_2 — the patch
+  looked exact there while being **~1 mHa wrong on multi-electron systems**.
+  - Added a **multi-electron oracle**, `ea-eom-ccsd-bruteforce-lih.test.ts`
+    (LiH STO-3G, NSO=6, 5-electron attachment sector, T̂²≠0): explicit
+    `H̄ = e^{−T̂}He^{T̂}` projection vs the production EA spectrum. It measured the
+    patched code at 9.9e-4 Ha error.
+  - Rewrote the EA σ as a faithful port of `eaccsd_matvec` onto the shared
+    `buildEOMIntermediates` (the same dressed intermediates EE/IP use) + the
+    proper `−½ Σ⟨kl‖cd⟩ r_l^{cd} t_{ki}^{ab}` term. The oracle now matches the
+    brute-force to **~5e-13 Ha** (machine precision). Davidson preconditioner
+    updated to the dressed diagonal.
+  - All three EOM variants (EE/IP/EA) are now patch-free PySCF ports with
+    asserting brute-force verifiers. (The EA/EE H₂ brute-force tests, which had
+    *no* `expect()` in v0.11.1, also assert now.)
+
 ## [0.11.1] — 2026-06-16
 
 The **audit-honesty** patch. A full skeptical multi-agent audit of the repo

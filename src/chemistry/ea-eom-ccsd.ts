@@ -21,45 +21,36 @@
 // positive LUMO energies (~+0.5 Ha), EA is negative — quantifies
 // the basis-set limitation documented in stage 22.
 //
-// Sigma equations on the N+1 manifold, mirror of IP-EOM-CCSD:
+// Sigma equations on the N+1 manifold — a direct port of PySCF
+// eom_gccsd.eaccsd_matvec onto the shared dressed EOM intermediates
+// (buildEOMIntermediates: Fvv, Foo, Fov, Wvvvv, Wovvo, Wvovv, Wvvvo). Fvv/Foo
+// carry the ε diagonal, so no bare orbital-energy term appears.
 //
-//   σ_1[a]      = + ε_a r^a + Σ_e F_ae[a,e] r^e            (1-p diagonal + F_ae)
-//               + Σ_me F_me[m,e] r_m^{ae}                  (1-p ← 1h2p coupling)
-//               + ½ Σ_meb ⟨am||eb⟩ r_m^{eb}               (V coupling)
+//   σ_1[a]      = Σ_c Fvv[a,c] r^c + Σ_ld Fov[l,d] r_l^{ad}
+//               + ½ Σ_lcd Wvovv[a,l,c,d] r_l^{cd}
 //
-//   σ_2[i,a,b]  = (ε_a + ε_b − ε_i) r_i^{ab}                            (Fock diag)
-//               + P(ab) Σ_e F_ae[a,e] r_i^{eb}                          (+ P(ab) F_ae)
-//               − Σ_m F_mi[m,i] r_m^{ab}
-//               + ½ Σ_ef W_abef r_i^{ef}                                (vv-ladder)
-//               + P(ab) Σ_me W_mbej[m,a,e,i] r_m^{eb}-style              (with sign)
-//               + P(ab) Σ_e ⟨ab||ei⟩ r^e                                (R_1-coupling, bare V)
+//   σ_2[i,a,b]  = Σ_c Wvvvo[a,b,c,i] r^c            (R_1 → R_2, DRESSED)
+//               + P(ab) Σ_c Fvv[a,c] r_i^{cb}
+//               − Σ_l Foo[l,i] r_l^{ab}
+//               + P(ab) Σ_ld Wovvo[l,b,d,i] r_l^{ad}
+//               + ½ Σ_cd Wvvvv[a,b,c,d] r_i^{cd}
+//               − ½ Σ_klcd ⟨kl||cd⟩ r_l^{cd} t_{ki}^{ab}   (t2 coupling)
 //
-// PRECISION VALIDATION (stage 32e close-out, 2026-05-12):
-// Brute-force cross-check against explicit H̄ projection on the
-// 4-spin-orbital Fock space (tests/chemistry/ea-eom-ccsd-bruteforce.test.ts)
-// established:
-//   - R_1 sector (1-particle, the physically important EAs) matches
-//     brute-force reference EXACTLY for H₂ STO-3G. So H₂O's best
-//     EA = −16.37 eV value from stage 38 is validated as
-//     CCSD-correct (FCI-correct for 2-electron systems).
-//   - R_2 sector (1h2p "shake-up" satellites) had a clean
-//     +|E_corr|/2 per-state over-count — mirrors EE-EOM's σ_1
-//     issue but on σ_2. PATCHED below (see EMPIRICAL DIAGONAL
-//     PATCH comment) — brute-force diff now zero everywhere.
+// PRECISION VALIDATION (PySCF port, 2026-06-16):
+// The prior implementation used BARE integrals where PySCF uses dressed Wvvvo /
+// Wvovv, and carried an EMPIRICAL "+½·E_corr·R₂" diagonal patch curve-fit to the
+// 2-electron H₂ brute-force (H₂ can't probe σ_2: T̂²≈0 ⇒ EOM≡FCI trivially). The
+// 2026-06-16 audit + a NEW multi-electron oracle
+// (tests/chemistry/ea-eom-ccsd-bruteforce-lih.test.ts) showed that patch was
+// ~1 mHa wrong on LiH. This proper port matches the explicit H̄ projection to
+// ~5e-13 Ha on LiH (NSO=6, T̂²≠0) — machine precision, no patch.
 // ─────────────────────────────────────────────────────────────
 
 import type { MolecularIntegrals } from "./cg-molecular.js";
 import type { HFResult } from "./hf-scf.js";
 import type { CCSDResult } from "./ccsd.js";
-import {
-  buildSpinOrbitalERI,
-  makeF_ae,
-  makeF_mi,
-  makeF_me,
-  makeW_abef,
-  makeW_mbej,
-  makeTau,
-} from "./ccsd.js";
+import { buildSpinOrbitalERI, makeTau } from "./ccsd.js";
+import { buildEOMIntermediates } from "./eom-imds.js";
 import { transformERIToMO } from "./mp2.js";
 import { eigGeneral } from "../manybody/dense-eig-general.js";
 import { davidson } from "../manybody/davidson.js";
@@ -110,17 +101,19 @@ export function runEAEOMCCSD(
   const T2 = ccsd.T2;
   const tau_t = makeTau(T1, T2, NOCC, NVIRT, 0.5);
   const tau   = makeTau(T1, T2, NOCC, NVIRT, 1.0);
-  const F_ae = makeF_ae(T1, eps, eri, tau_t, NOCC, NVIRT, NSO);
-  const F_mi = makeF_mi(T1, eps, eri, tau_t, NOCC, NVIRT, NSO);
-  const F_me = makeF_me(T1, eri, NOCC, NVIRT, NSO);
-  const W_abef = makeW_abef(T1, tau, eri, NOCC, NVIRT, NSO);
-  const W_mbej = makeW_mbej(T1, T2, eri, NOCC, NVIRT, NSO);
+  // Dressed EOM intermediates (PySCF eom_gccsd), shared with EE/IP-EOM. Fvv/Foo
+  // INCLUDE the ε diagonal, so σ adds no separate orbital-energy term. The σ
+  // below is a direct port of eom_gccsd.eaccsd_matvec onto these.
+  const { Fov, Fvv, Foo, Wvvvv, Wovvo, Wvovv, Wvvvo } =
+    buildEOMIntermediates(T1, T2, eri, tau_t, tau, eps, NOCC, NVIRT, NSO);
 
   const V = (P: number, Q: number, R: number, S: number): number =>
     eri[((P * NSO + Q) * NSO + R) * NSO + S]!;
   const VO = NOCC;
 
-  // ── sigma function on (R_1[a], R_2[i, a, b]) with R_2 antisym in (a,b). ──
+  // ── σ on (R_1[a], R_2[i,a,b]), R_2 antisym in (a,b). Direct port of PySCF
+  //    eom_gccsd.eaccsd_matvec onto the dressed intermediates (Fvv/Foo carry
+  //    the ε diagonal, so no separate orbital-energy term appears). ──
   function sigma(R_1: Float64Array, R_2: Float64Array): {
     s1: Float64Array;
     s2: Float64Array;
@@ -128,74 +121,79 @@ export function runEAEOMCCSD(
     const s1 = new Float64Array(NVIRT);
     const s2 = new Float64Array(NOCC * NVIRT * NVIRT);
 
-    // σ_1[a] -----------------------------------------------------
-    for (let a = 0; a < NVIRT; a++) {
-      let s = 0;
-      // Bare Fock diag: +ε_a r^a
-      s += eps[a + VO]! * R_1[a]!;
-      // F_ae correction
-      for (let e = 0; e < NVIRT; e++) s += F_ae[a * NVIRT + e]! * R_1[e]!;
-      // F_me · R_2 coupling (1p ← 1h2p)
-      for (let m = 0; m < NOCC; m++) {
-        for (let e = 0; e < NVIRT; e++) {
-          s += F_me[m * NVIRT + e]! * R_2[(m * NVIRT + a) * NVIRT + e]!;
+    // χ[k] = ½ Σ_{l,c,d} ⟨kl||cd⟩ r_l^{cd}  (for the t2-coupling term in σ_2;
+    // Woovv here is the BARE antisymmetrized integral, matching PySCF).
+    const chi = new Float64Array(NOCC);
+    for (let k = 0; k < NOCC; k++) {
+      let acc = 0;
+      for (let l = 0; l < NOCC; l++) {
+        for (let c = 0; c < NVIRT; c++) {
+          for (let d = 0; d < NVIRT; d++) {
+            acc += V(k, l, c + VO, d + VO) * R_2[(l * NVIRT + c) * NVIRT + d]!;
+          }
         }
       }
-      // + ½ Σ_meb ⟨am||eb⟩ r_m^{eb} (V coupling)
-      for (let m = 0; m < NOCC; m++) {
-        for (let e = 0; e < NVIRT; e++) {
-          for (let b = 0; b < NVIRT; b++) {
-            s += 0.5 * V(a + VO, m, e + VO, b + VO) *
-                 R_2[(m * NVIRT + e) * NVIRT + b]!;
+      chi[k] = 0.5 * acc;
+    }
+
+    // σ_1[a] = Σ_c Fvv[a,c] r^c + Σ_ld Fov[l,d] r_l^{ad} + ½ Σ_lcd Wvovv[a,l,c,d] r_l^{cd}
+    for (let a = 0; a < NVIRT; a++) {
+      let s = 0;
+      for (let c = 0; c < NVIRT; c++) s += Fvv[a * NVIRT + c]! * R_1[c]!;
+      for (let l = 0; l < NOCC; l++) {
+        for (let d = 0; d < NVIRT; d++) {
+          s += Fov[l * NVIRT + d]! * R_2[(l * NVIRT + a) * NVIRT + d]!;
+        }
+      }
+      for (let l = 0; l < NOCC; l++) {
+        for (let c = 0; c < NVIRT; c++) {
+          for (let d = 0; d < NVIRT; d++) {
+            s += 0.5 * Wvovv[((a * NOCC + l) * NVIRT + c) * NVIRT + d]! *
+                 R_2[(l * NVIRT + c) * NVIRT + d]!;
           }
         }
       }
       s1[a] = s;
     }
 
-    // σ_2[i, a, b] (antisym in (a, b)) ---------------------------
+    // σ_2[i,a,b] (antisym in a,b):
+    //   + Σ_c Wvvvo[a,b,c,i] r^c
+    //   + P(ab) Σ_c Fvv[a,c] r_i^{cb}
+    //   − Σ_l Foo[l,i] r_l^{ab}
+    //   + P(ab) Σ_ld Wovvo[l,b,d,i] r_l^{ad}
+    //   + ½ Σ_cd Wvvvv[a,b,c,d] r_i^{cd}
+    //   − Σ_k χ[k] t_{ki}^{ab}
     for (let i = 0; i < NOCC; i++) {
       for (let a = 0; a < NVIRT; a++) {
         for (let b = 0; b < NVIRT; b++) {
           let z = 0;
-          // Fock diag (ε_a + ε_b − ε_i) r_i^{ab}
-          z += (eps[a + VO]! + eps[b + VO]! - eps[i]!) *
-               R_2[(i * NVIRT + a) * NVIRT + b]!;
-          // − Σ_m F_mi r_m^{ab}
-          for (let m = 0; m < NOCC; m++) {
-            z -= F_mi[m * NOCC + i]! * R_2[(m * NVIRT + a) * NVIRT + b]!;
+          for (let c = 0; c < NVIRT; c++) {
+            z += Wvvvo[((a * NVIRT + b) * NVIRT + c) * NOCC + i]! * R_1[c]!;
           }
-          // P(ab) Σ_e F_ae r_i^{eb}
-          for (let e = 0; e < NVIRT; e++) {
-            z += F_ae[a * NVIRT + e]! * R_2[(i * NVIRT + e) * NVIRT + b]!;
-            z -= F_ae[b * NVIRT + e]! * R_2[(i * NVIRT + e) * NVIRT + a]!;
+          for (let c = 0; c < NVIRT; c++) {
+            z += Fvv[a * NVIRT + c]! * R_2[(i * NVIRT + c) * NVIRT + b]!;
+            z -= Fvv[b * NVIRT + c]! * R_2[(i * NVIRT + c) * NVIRT + a]!;
           }
-          // ½ Σ_ef W_abef r_i^{ef}
-          for (let e = 0; e < NVIRT; e++) {
-            for (let f = 0; f < NVIRT; f++) {
-              z += 0.5 * W_abef[((a * NVIRT + b) * NVIRT + e) * NVIRT + f]! *
-                   R_2[(i * NVIRT + e) * NVIRT + f]!;
+          for (let l = 0; l < NOCC; l++) {
+            z -= Foo[l * NOCC + i]! * R_2[(l * NVIRT + a) * NVIRT + b]!;
+          }
+          for (let l = 0; l < NOCC; l++) {
+            for (let d = 0; d < NVIRT; d++) {
+              z += Wovvo[((l * NVIRT + b) * NVIRT + d) * NOCC + i]! *
+                   R_2[(l * NVIRT + a) * NVIRT + d]!;
+              z -= Wovvo[((l * NVIRT + a) * NVIRT + d) * NOCC + i]! *
+                   R_2[(l * NVIRT + b) * NVIRT + d]!;
             }
           }
-          // P(ab) Σ_me W_mbej[m,a,e,i] r_m^{eb}-style
-          //  = +Σ_me W_mbej[m,a,e,i] r_m^{eb} −Σ_me W_mbej[m,b,e,i] r_m^{ea}
-          for (let m = 0; m < NOCC; m++) {
-            for (let e = 0; e < NVIRT; e++) {
-              z += W_mbej[((m * NVIRT + a) * NVIRT + e) * NOCC + i]! *
-                   R_2[(m * NVIRT + e) * NVIRT + b]!;
-              z -= W_mbej[((m * NVIRT + b) * NVIRT + e) * NOCC + i]! *
-                   R_2[(m * NVIRT + e) * NVIRT + a]!;
+          for (let c = 0; c < NVIRT; c++) {
+            for (let d = 0; d < NVIRT; d++) {
+              z += 0.5 * Wvvvv[((a * NVIRT + b) * NVIRT + c) * NVIRT + d]! *
+                   R_2[(i * NVIRT + c) * NVIRT + d]!;
             }
           }
-          // P(ab) Σ_e ⟨ab||ei⟩ r^e  (R_1 coupling, antisym in (a,b) by integral)
-          for (let e = 0; e < NVIRT; e++) {
-            z += V(a + VO, b + VO, e + VO, i) * R_1[e]!;
+          for (let k = 0; k < NOCC; k++) {
+            z -= chi[k]! * T2[((k * NOCC + i) * NVIRT + a) * NVIRT + b]!;
           }
-          // EMPIRICAL DIAGONAL PATCH (stage 32e, mirrors EE-EOM stage 32c):
-          // brute-force diagnostic showed σ_2 R_2 diagonals over-count by
-          // exactly +|E_corr|/2 per state. The σ_1 R_1 sector is exact
-          // and untouched. See tests/chemistry/ea-eom-ccsd-bruteforce.test.ts.
-          z += 0.5 * ccsd.correlationEnergy * R_2[(i * NVIRT + a) * NVIRT + b]!;
           s2[(i * NVIRT + a) * NVIRT + b] = z;
         }
       }
@@ -257,13 +255,17 @@ export function runEAEOMCCSD(
     // ── Davidson path. ──────────────────────────────────────────
     // Diagonal preconditioner: ε_a for R_1 (Koopmans attached-state energy);
     // -ε_i + ε_a + ε_b for R_2 (1h2p satellite gap).
+    // Preconditioner = the actual σ diagonal (dressed Fvv/Foo, which carry the
+    // ε diagonal). Must match the σ build above or Davidson explores a bad
+    // subspace and its inner eigGeneral fails to converge.
     const diagonal = new Float64Array(dim);
-    for (let row = 0; row < nS; row++) diagonal[row] = eps[row + VO]!;
+    for (let row = 0; row < nS; row++) diagonal[row] = Fvv[row * NVIRT + row]!;
     for (let d = 0; d < nActiveOcc * nAB; d++) {
       const iActive = Math.floor(d / nAB);
       const i = nFrozenSO + iActive;
       const pair = abPairs[d - iActive * nAB]!;
-      diagonal[nS + d] = -eps[i]! + eps[pair.a + VO]! + eps[pair.b + VO]!;
+      diagonal[nS + d] =
+        Fvv[pair.a * NVIRT + pair.a]! + Fvv[pair.b * NVIRT + pair.b]! - Foo[i * NOCC + i]!;
     }
     const matvec = (v: Float64Array): Float64Array => {
       unpackInto(v);
