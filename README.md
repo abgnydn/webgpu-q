@@ -14,7 +14,7 @@
 
 <br/><br/>
 
-<img alt="version" src="https://img.shields.io/badge/v0.11.0-0ea5e9?style=flat-square&labelColor=0b1224"/>
+<img alt="version" src="https://img.shields.io/badge/v0.11.1-0ea5e9?style=flat-square&labelColor=0b1224"/>
 <img alt="license" src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="tests" src="https://img.shields.io/badge/tests-CI%20green-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="typescript" src="https://img.shields.io/badge/typescript-strict-3178c6?style=flat-square&labelColor=0b1224"/>
@@ -105,7 +105,7 @@
 
 <div align="center">
 
-<img src="./public/readme-numbers.svg" alt="Key numbers: 2.56 GB swarm fit across 4 tabs, 39.3× CCSD(T) on GPU, 10⁻⁵ Ha EOM-CCSD vs FCI, 7×10⁻¹⁴ Ha DF-HF, 1.35×10⁻¹¹ GPU↔CPU, 4.18× fusion, F ≥ 0.999999 statevector, N=128 MPS" width="100%"/>
+<img src="./public/readme-numbers.svg" alt="Key numbers: 2.56 GB swarm fit across 4 tabs, ~14× median CCSD(T) on GPU (noisy), 10⁻⁵ Ha EOM-CCSD vs FCI, 7×10⁻¹⁴ Ha DF-HF, 1.35×10⁻¹¹ GPU↔CPU, 4.18× fusion, F ≥ 0.999999 statevector, N=128 MPS" width="100%"/>
 
 </div>
 
@@ -127,11 +127,11 @@
 
 <h3 align="center">⚡ &nbsp; How fast — honestly, both directions</h3>
 
-<p align="center"><sub>The headline 39.3× on CCSD(T) is real. So is the fact that PySCF/NumPy is 480× faster than us on CCSD at cc-pVDZ. Both numbers come from <a href="./experiments/results/2026-05-12/level-6/E34-comparison.md">the same comparison run</a>, against PySCF 2.13.0 on identical inputs.</sub></p>
+<p align="center"><sub>The sustained GPU CCSD(T) speedup is <b>~14× median</b> (39.3× was a single best run; std/median ≈ 42%, officially "noisy" — see <a href="./LIMITATIONS.md">LIMITATIONS</a>). So is the fact that PySCF/NumPy is 480× faster than us on CCSD at cc-pVDZ. Both come from <a href="./experiments/results/2026-05-12/level-6/E34-comparison.md">the same comparison run</a>, against PySCF 2.13.0 on identical inputs.</sub></p>
 
 <div align="center">
 
-<img src="./public/readme-perf.svg" alt="Performance comparison vs PySCF — 198.6s CPU to 5.05s GPU on H₂O cc-pVDZ CCSD(T) (39.3× speedup), plus an honest two-column where-we-win / where-we-lose summary from E34" width="100%"/>
+<img src="./public/readme-perf.svg" alt="Performance comparison vs PySCF — H₂O cc-pVDZ CCSD(T): ~14× median GPU-vs-CPU speedup (39.3× best single run, noisy), plus an honest two-column where-we-win / where-we-lose summary from E34" width="100%"/>
 
 </div>
 
@@ -214,7 +214,7 @@ import { runRHFSCF, runMP2, runCCSD, runCCSDT_GPU, runEOMCCSD } from "./src/chem
 const hf      = runRHFSCF(integrals, nElectrons);
 const mp2     = runMP2(hf, integrals);
 const ccsd    = runCCSD(hf, integrals);
-const t       = await runCCSDT_GPU(ccsd, hf, integrals, device);  // 39× on cc-pVDZ
+const t       = await runCCSDT_GPU(ccsd, hf, integrals, device);  // ~14× median on cc-pVDZ (39× best run, noisy)
 const excited = runEOMCCSD(ccsd, integrals, hf);
 ```
 
@@ -290,7 +290,7 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 | CCSD (RHF) | Stanton-Bartlett, antisym spin-orbital + frozen-core |
 | UCCSD (UHF) | shared `ccsdIterate` core, 3-block ERI |
 | CCSD(T) CPU | per-triple, FCI-validated ≤ 0.25 mHa, frozen-core via Set |
-| **CCSD(T) GPU** | **39.3× on H₂O cc-pVDZ**, f32→f64 reduce |
+| **CCSD(T) GPU** | **~14× median on H₂O cc-pVDZ** (39.3× best run, std/median 42% noisy), f32→f64 reduce |
 | UCCSD(T) | open-shell perturbative triples, frozen-core via Set |
 | EE-EOM-CCSD | Stanton-Bartlett σ + stage-32c diagonal patch, Davidson |
 | IP-EOM-CCSD | R₁ exact (brute-force); R₂ open |
@@ -394,7 +394,7 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 
 See [`CITATION.cff`](./CITATION.cff). For papers:
 
-> Günaydın, A.B. (2026). _webgpu-q v0.11.0_. Zenodo. https://doi.org/10.5281/zenodo.20494382
+> Günaydın, A.B. (2026). _webgpu-q v0.11.1_. Zenodo. https://doi.org/10.5281/zenodo.20494382
 
 Archived on Zenodo — concept DOI [10.5281/zenodo.20494382](https://doi.org/10.5281/zenodo.20494382) (resolves to the latest version). Each release also gets its own version DOI on the [Zenodo record](https://doi.org/10.5281/zenodo.20494382).
 
@@ -478,7 +478,7 @@ Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@ba
 >
 > **How to read the precision numbers.** Anything tighter than 1.6 mHa (= 1 kcal/mol = chemical accuracy) is a *software regression assertion*, not a chemistry result. We diff GPU/CPU paths at 10⁻¹⁰ Ha to catch porting bugs, not because chemistry cares at that scale (basis-set incompleteness and functional choice dwarf any algorithmic difference by 6+ orders of magnitude). When comparing webgpu-q's chemistry numbers to PySCF or experiment, the only line that matters is the |ΔE| vs reference at ≥ 1 mHa.
 >
-> **How to read the speedup numbers.** `CCSD_T_SPEEDUP = 39.3×` is single-run on M2 Pro vs our own single-threaded CPU TypeScript. Not vs PySCF wall-clock. Not vs GPU4PySCF on CUDA. Not yet through the warmup+20-trials harness (gap #4 — open). The number gives an order of magnitude; the apples-to-apples vs production chemistry stacks is open work.
+> **How to read the speedup numbers.** The headline GPU CCSD(T) number is `CCSD_T_SPEEDUP_MEDIAN = 13.8×` (5 warmup + 20 trials on M2 Pro vs our own single-threaded CPU TypeScript), and it is officially **noisy** (std/median ≈ 42%). The `39.3×` once headlined was a single lucky run — above even the p10 best-case (28.4×) — and is retired as a headline. All of this is vs our CPU TS baseline, *not* vs PySCF wall-clock and *not* vs GPU4PySCF on CUDA; the apples-to-apples comparison against production chemistry stacks remains open work.
 
 | symbol | value | context |
 |---|---|---|

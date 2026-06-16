@@ -17,7 +17,7 @@
 //   SO 3 = MO 1, β
 // Fock-space basis: |n_0 n_1 n_2 n_3⟩, stored as integer with bit P = n_P.
 //   |Φ_0⟩ = |1100⟩ = 0b0011 = 3   (using bit 0 = SO 0, bit 1 = SO 1, ...)
-import { describe, test } from "vitest";
+import { describe, test, expect } from "vitest";
 import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
 import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
@@ -648,5 +648,16 @@ describe("Stage 32 close-out: brute-force EOM-CCSD reference for H₂ STO-3G", (
       }).join(" ");
       console.log(`  ${basisLabels[i]!.padEnd(10)} ${row}`);
     }
+
+    // ── ASSERTION (this is a "permanent verifier" — it must be able to FAIL). ──
+    // EE-EOM-CCSD is PySCF-ported (no empirical patch); on H₂ STO-3G the
+    // σ-equation spectrum matches the brute-force H̄ projection bit-for-bit.
+    // A regression in the EE σ_1/σ_2 build will move these eigenvalues and fail.
+    let maxEigDiff = 0;
+    for (let k = 0; k < sortedExact.length; k++) {
+      maxEigDiff = Math.max(maxEigDiff, Math.abs(sortedMine[k]! - sortedExact[k]!));
+    }
+    console.log(`[bf-eom-h2] max |σ-eig − exact-eig| = ${maxEigDiff.toExponential(3)} Ha`);
+    expect(maxEigDiff).toBeLessThan(1e-7);
   });
 });

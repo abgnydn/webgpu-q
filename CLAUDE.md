@@ -213,9 +213,25 @@ benches (`e2e/`) cover all levels + the swarm/acene series.
     (13 tests) green; distributed-MP2 reduction still bit-exact.
 - EE-EOM-CCSD: **PySCF-ported (2026-05-21)**. σ_1 + σ_2 follow
   Wang-Tu-Wang 2014 Eqs (9)-(10) with PySCF eom_gccsd intermediates
-  (EOM-Fvv/Foo/Wovvo with full t2 dressing + Wovoo / Wvvvo). Empirical
-  stage-32c/32e patches removed; brute-force LiH diff < 1e-10 Ha
+  (EOM-Fvv/Foo/Wovvo with full t2 dressing + Wovoo / Wvvvo). EE's empirical
+  stage-32c patch removed; brute-force LiH diff < 1e-10 Ha
   element-by-element. H₂ STO-3G now matches FCI to 8+ decimals.
+- **EA-EOM-CCSD: NOT yet PySCF-ported — STILL carries an empirical patch
+  (surfaced by the 2026-06-16 full audit).** `ea-eom-ccsd.ts:198` adds a
+  hand-fit `+ ½·E_corr·R₂` term to the σ_2 diagonal (the "stage-32e EMPIRICAL
+  DIAGONAL PATCH"), curve-fit to the H₂ brute-force diagnostic — the
+  diagnostic-loop-trap anti-pattern. The R₁/σ_1 sector IS derived and exact
+  (brute-force R₁ block matches to 2e-16). But σ_2 is **validated ONLY on H₂**,
+  where the patch was fit and where T̂²≈0 makes EOM≡FCI trivially; it almost
+  certainly does not generalize. The brute-force test
+  (`tests/chemistry/ea-eom-ccsd-bruteforce.test.ts`) previously had **no
+  assertion** and passed green while the un-patched M_mine R₂ diagonal was off
+  by ½·|E_corr| ≈ 10 mHa; it now asserts the R₁ sector tightly + an
+  H₂ eigenvalue regression guard, with the patch dependency flagged in-test.
+  **Real fix = port EA-EOM σ_2 from PySCF eom_gccsd (EA) like EE/IP, validated
+  against a MULTI-electron reference (LiH-scale brute-force or PySCF EA-EOM),
+  not H₂.** Until then EA-EOM eigenvalues should be trusted for 2-electron
+  systems only.
 - ✓ Aux-basis DF (stage 31 proper) — **done**: `buildAuxBasisDFStreaming`
   (WASM) + `df-gpu.ts` (WGSL s/p/d 3-index V + metric). No longer open.
 - DF-CCSD via B-tensor through spin-orbital ERI build.

@@ -4,7 +4,7 @@
 //
 // 1-particle basis: |Φ^a⟩ = a^†_a |Φ_0⟩ for a ∈ virtual SOs.
 // 1h2p basis (antisym in a, b with a>b): |Φ_i^{ab}⟩ = a^†_a a^†_b a_i |Φ_0⟩.
-import { describe, test } from "vitest";
+import { describe, test, expect } from "vitest";
 import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
 import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
@@ -404,5 +404,33 @@ describe("EA-EOM-CCSD brute-force diagnostic (H₂ STO-3G)", () => {
       }).join(" ");
       console.log(`  ${basisLabels[i]!.padEnd(12)} ${row}`);
     }
+
+    // ── ASSERTIONS (this is a "permanent verifier" — it must be able to FAIL). ──
+    // (1) The R₁ (1-particle) sector of EA-EOM σ_1 is fully DERIVED and exact:
+    //     assert the R₁ rows match the brute-force H̄ projection element-wise.
+    let r1Diff = 0;
+    for (let i = 0; i < NVIRT; i++) {            // first NVIRT rows are the R₁ sector
+      for (let j = 0; j < dim; j++) {
+        r1Diff = Math.max(r1Diff, Math.abs(M_mine[i * dim + j]! - M_exact[i * dim + j]!));
+      }
+    }
+    console.log(`[bf-ea-h2] max |M_mine − M_exact| over R₁ sector = ${r1Diff.toExponential(3)} Ha`);
+    expect(r1Diff).toBeLessThan(1e-9);
+
+    // (2) Eigenvalue regression guard. HONEST CAVEAT: the R₂-sector agreement
+    //     here is NOT an independent validation — EA-EOM σ_2 still carries an
+    //     EMPIRICAL +½·E_corr·R₂ diagonal patch (src/chemistry/ea-eom-ccsd.ts:198)
+    //     that was curve-fit to THIS H₂ diagnostic (the un-patched M_mine R₂
+    //     diagonal above is off by exactly ½·|E_corr| ≈ 10 mHa). So this passes
+    //     by construction on H₂; it is a regression guard only. EA-EOM σ_2 is
+    //     UNVALIDATED beyond H₂ and is not yet PySCF-ported like EE/IP — see
+    //     CLAUDE.md honest-negatives. The patch-free EOM σ_2 verifier is the LiH
+    //     EE test (eom-ccsd-bruteforce-lih.test.ts).
+    let maxEigDiff = 0;
+    for (let k = 0; k < exactSorted.length; k++) {
+      maxEigDiff = Math.max(maxEigDiff, Math.abs(myOmegas[k]! - exactSorted[k]!));
+    }
+    console.log(`[bf-ea-h2] max |σ-eig − exact-eig| (H₂, patch-dependent) = ${maxEigDiff.toExponential(3)} Ha`);
+    expect(maxEigDiff).toBeLessThan(1e-8);
   });
 });

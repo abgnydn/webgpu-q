@@ -5,6 +5,45 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.11.1] — 2026-06-16
+
+The **audit-honesty** patch. A full skeptical multi-agent audit of the repo
+(48 findings, 41 surviving adversarial re-check) surfaced a cluster of
+outward-facing overclaims and one real method gap; this release closes them.
+Nothing about the *internal* validation changed — the fixes are about making
+the public face match what the code actually does.
+
+### Fixed — overclaims
+
+- **Retired the bare "39×" GPU CCSD(T) headline.** The honest sustained number
+  is **~14× median** (5 warmup + 20 trials; 39× was a single best run, p10 28×,
+  std/median 42% — officially "noisy"). Corrected everywhere it led: the live
+  landing H1 + stat tile + all four metadata/OG/JSON-LD blocks, the README
+  prose/table/code-comment, and the `readme-hero/perf/matrix/numbers` +
+  `og-image` SVGs (PNG regenerated).
+- **Version strings were stale at the v0.11.0 tag** (`package.json` 0.10.0,
+  `.zenodo.json` 0.9.4, `CITATION.cff` title "v0.9.4") — the prior Zenodo
+  deposit was consequently minted as "0.9.4". All bumped to **0.11.1** so the
+  next deposit is labelled correctly.
+- Screening page (`/screening.html`): the azo-enrichment verdict no longer
+  asserts "not noise" — it now runs a **hypergeometric tail test** and reports
+  the p-value (curated mode correctly says "not significant, n too small"). The
+  RHF-instability call is hedged to "outlier to re-check with UHF" (no stability
+  analysis is actually run). The "winner" line now **excludes flagged-suspect**
+  molecules.
+
+### Fixed — validation integrity
+
+- **EA & EE EOM-CCSD brute-force "permanent verifiers" had no `expect()`** and
+  passed green regardless. They now assert: EE matches the brute-force spectrum
+  to <1e-7 (it is PySCF-ported and clean); EA asserts its derived R₁ sector to
+  machine precision + an H₂ eigenvalue regression guard.
+- **Documented an honest-negative the audit surfaced:** EA-EOM-CCSD σ_2 still
+  carries an empirical `+½·E_corr·R₂` patch (`ea-eom-ccsd.ts:198`) curve-fit to
+  the H₂ diagnostic — it was never PySCF-ported like EE/IP. EA-EOM eigenvalues
+  are validated for **2-electron systems only**; the proper fix (port σ_2 from
+  PySCF + a multi-electron reference) is now flagged in CLAUDE.md.
+
 ## [0.11.0] — 2026-06-16
 
 The **live-screening** release. Everything the swarm/screening work proved was,

@@ -152,6 +152,16 @@ function tick(html: string): void {
 const yieldFrame = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => r()));
 const median = (xs: number[]): number => { if (!xs.length) return NaN; const s = [...xs].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2; };
 
+// Hypergeometric upper tail: P(X ≥ k) for drawing `n` from `N` with `K` successes.
+// Used to ask honestly whether the azo enrichment in the top-N is more than chance.
+const logFact = (n: number): number => { let s = 0; for (let i = 2; i <= n; i++) s += Math.log(i); return s; };
+const logChoose = (n: number, k: number): number => (k < 0 || k > n ? -Infinity : logFact(n) - logFact(k) - logFact(n - k));
+function hyperTail(N: number, K: number, n: number, k: number): number {
+  let p = 0;
+  for (let i = k; i <= Math.min(n, K); i++) p += Math.exp(logChoose(K, i) + logChoose(N - K, n - i) - logChoose(N, n));
+  return Math.min(1, Math.max(0, p));
+}
+
 function renderCard(r: Row): void {
   let el = document.getElementById(r.id);
   if (!el) {
@@ -211,19 +221,29 @@ function recolorAndRank(rows: Row[]): void {
 function updateEnrichment(rows: Row[]): void {
   const fin = rows.filter((r) => r.done && Number.isFinite(r.gap)).sort((a, b) => a.gap - b.gap);
   if (fin.length < 3) return;
-  const TOP = Math.min(15, Math.max(3, Math.round(fin.length * 0.35)));
+  const N = fin.length;
+  const TOP = Math.min(15, Math.max(3, Math.round(N * 0.35)));
   const top = fin.slice(0, TOP);
-  const azoTop = top.filter((r) => r.azo).length / top.length;
-  const azoAll = fin.filter((r) => r.azo).length / fin.length;
+  const kTopAzo = top.filter((r) => r.azo).length;       // azo count in the top group
+  const Kazo = fin.filter((r) => r.azo).length;           // azo count overall
+  const azoTop = kTopAzo / top.length;
+  const azoAll = Kazo / N;
   enrichTop.style.width = `${(azoTop * 100).toFixed(0)}%`;
   enrichAll.style.width = `${(azoAll * 100).toFixed(0)}%`;
-  enrichTopTxt.textContent = `${(azoTop * 100).toFixed(0)}% (top ${TOP})`;
-  enrichAllTxt.textContent = `${(azoAll * 100).toFixed(0)}%`;
+  enrichTopTxt.textContent = `${(azoTop * 100).toFixed(0)}% (${kTopAzo}/${TOP})`;
+  enrichAllTxt.textContent = `${(azoAll * 100).toFixed(0)}% (${Kazo}/${N})`;
   const enr = azoAll > 0 ? azoTop / azoAll : 0;
   kEnrich.textContent = enr > 0 ? `${enr.toFixed(1)}×` : "—";
-  enrichVerdict.innerHTML = enr > 1.05
-    ? `Azo is <b style="color:var(--azo)">${enr.toFixed(1)}× enriched</b> at the top — the descriptor tracks the real dye motif, not noise.`
-    : `Azo is not enriched here — with this few molecules the signal is thin; run the full sweep.`;
+  // Honest test: is seeing ≥kTopAzo azo isomers in the top TOP more than chance,
+  // given Kazo azo among N? (hypergeometric upper tail). No p-value theatre — if
+  // the library is too small the p-value will say so.
+  const p = hyperTail(N, Kazo, TOP, kTopAzo);
+  const pTxt = p < 0.001 ? "p < 0.001" : `p = ${p.toFixed(2)}`;
+  enrichVerdict.innerHTML = enr > 1.0 && p < 0.05
+    ? `Azo is <b style="color:var(--azo)">${enr.toFixed(1)}× over-represented</b> in the top (${pTxt}, hypergeometric) — unlikely by chance; the descriptor is tracking the azo motif.`
+    : enr > 1.0
+      ? `Azo looks <b>${enr.toFixed(1)}× over-represented</b> in the top, but it's <b>not significant</b> (${pTxt}) — the library is too small to call. Run the full sweep.`
+      : `No azo enrichment in the top here (${pTxt}). With this few molecules the signal is thin — run the full sweep.`;
 }
 
 function flagArtifacts(rows: Row[]): void {
@@ -239,10 +259,11 @@ function flagArtifacts(rows: Row[]): void {
     const names = suspects.slice(0, 3).map((r) => `<b>${r.label}</b> (${r.gap.toFixed(1)} eV)`).join(", ");
     calloutText.innerHTML =
       `The smallest-gap hits — ${names} — sit far below the pack (under 55% of the median). ` +
-      `For minimal-basis Hartree–Fock that's the classic fingerprint of an <b>RHF instability</b> ` +
-      `(near-diradical character — the restricted wavefunction breaking down), <i>not</i> a real lead. ` +
-      `A trustworthy screen surfaces both the leads <i>and</i> the traps — you'd re-check these with ` +
-      `UHF / a multireference method before believing them. That skepticism is the feature, not a caveat.`;
+      `An anomalously small minimal-basis RHF gap is a classic warning sign of an <b>RHF instability</b> ` +
+      `(restricted-wavefunction breakdown), but this screen does <i>not</i> run a stability analysis — ` +
+      `these are flagged as <b>outliers to re-check with UHF / a stability test</b> before trusting, ` +
+      `<i>not</i> confirmed leads. A trustworthy screen surfaces both the leads <i>and</i> the traps; ` +
+      `scrutinizing the smallest gaps instead of trusting them is the feature, not a caveat.`;
   }
 }
 
@@ -293,7 +314,12 @@ async function run(): Promise<void> {
   const elapsed = (performance.now() - t0) / 1000;
   kTime.textContent = `${elapsed.toFixed(1)} s`;
   const fin = rows.filter((r) => r.done && Number.isFinite(r.gap)).sort((a, b) => a.gap - b.gap);
-  tick(`\n<b>done</b> — ${fin.length}/${rows.length} converged in ${elapsed.toFixed(1)} s. winner (smallest gap): ${fin[0]?.label ?? "—"} ${fin[0] ? fin[0].gap.toFixed(2) + " eV" : ""}`);
+  // "Winner" = smallest gap among NON-flagged candidates — never crown a molecule
+  // the same screen just flagged as a likely artifact.
+  const winner = fin.find((r) => !r.suspect) ?? null;
+  const nFlagged = fin.filter((r) => r.suspect).length;
+  const flagNote = nFlagged ? ` (${nFlagged} smaller-gap candidate${nFlagged > 1 ? "s" : ""} flagged as suspect, excluded)` : "";
+  tick(`\n<b>done</b> — ${fin.length}/${rows.length} converged in ${elapsed.toFixed(1)} s. top non-flagged candidate: ${winner ? `${winner.label} ${winner.gap.toFixed(2)} eV` : "—"}${flagNote}`);
   runBtn.disabled = false;
   runBtn.textContent = "▶ Run again";
 }

@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#6ea8ff" />
 
     <title>webgpu-q — quantum simulation in a browser tab</title>
-    <meta name="description" content="WebGPU quantum + chemistry tool in a browser tab: HF / UHF / RKS-DFT / UKS-DFT, MP2, CCSD, CCSD(T) on GPU (39× speedup), EE/IP/EA-EOM-CCSD PySCF-ported (brute-force diff <1e-10 Ha), TDDFT α(ω), C₆ dispersion, D2 correction, orbital localization, geometry opt, IR + Raman + UV-vis, polarizability, IPs/EAs, thermochemistry. Browser-platform stack: Web Worker JK parallelism (SharedArrayBuffer), embedded Pyodide REPL with PySCF-compare, drag-import (XYZ/PDB/MOL/SDF), PWA + offline + IndexedDB. URL-as-citation contract. Inline-SVG visualization. Molden / Cube / QCSchema / XYZ I/O. Browser-native, no install." />
+    <meta name="description" content="WebGPU quantum + chemistry tool in a browser tab: HF / UHF / RKS-DFT / UKS-DFT, MP2, CCSD, CCSD(T) on GPU (~14× median, 39× best run, noisy), EE/IP-EOM-CCSD PySCF-ported (brute-force diff <1e-10 Ha; EA-EOM H₂-only), TDDFT α(ω), C₆ dispersion, D2 correction, orbital localization, geometry opt, IR + Raman + UV-vis, polarizability, IPs/EAs, thermochemistry. Browser-platform stack: Web Worker JK parallelism (SharedArrayBuffer), embedded Pyodide REPL with PySCF-compare, drag-import (XYZ/PDB/MOL/SDF), PWA + offline + IndexedDB. URL-as-citation contract. Inline-SVG visualization. Molden / Cube / QCSchema / XYZ I/O. Browser-native, no install." />
     <meta name="author" content="Ahmet Baris Gunaydin" />
     <meta name="keywords" content="WebGPU, quantum simulator, MPS, DMRG, kernel fusion, VQE, quantum chemistry, TFIM, phase transition, ITensor, condensed matter, browser, WGSL, TypeScript" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -17,7 +17,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="webgpu-q" />
     <meta property="og:title" content="webgpu-q · quantum simulation in a browser tab" />
-    <meta property="og:description" content="WebGPU quantum + chemistry tool: HF / UHF / RKS-DFT / UKS-DFT, MP2, CCSD, CCSD(T) on GPU (39×), EE/IP/EA-EOM-CCSD (PySCF cross-checked), TDDFT α(ω), Casimir-Polder C₆, D2 dispersion, Foster-Boys + Pipek-Mezey localization, full IR + Raman + UV-vis spectra, IPs + EAs, thermochemistry, Molden / Cube / QCSchema / XYZ exports. PySCF + experiment validated. Browser-native, no install." />
+    <meta property="og:description" content="WebGPU quantum + chemistry tool: HF / UHF / RKS-DFT / UKS-DFT, MP2, CCSD, CCSD(T) on GPU (~14× median, noisy), EE/IP/EA-EOM-CCSD (PySCF cross-checked), TDDFT α(ω), Casimir-Polder C₆, D2 dispersion, Foster-Boys + Pipek-Mezey localization, full IR + Raman + UV-vis spectra, IPs + EAs, thermochemistry, Molden / Cube / QCSchema / XYZ exports. PySCF + experiment validated. Browser-native, no install." />
     <meta property="og:url" content="https://webgpu-q.vercel.app/" />
     <meta property="og:image" content="https://webgpu-q.vercel.app/og-image.png" />
     <meta property="og:image:type" content="image/png" />
@@ -29,7 +29,7 @@
     <!-- Twitter / X -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="webgpu-q · quantum simulation in a browser tab" />
-    <meta name="twitter:description" content="HF / UHF / RKS / UKS-DFT + CCSD(T) on GPU (39×) + EE/IP/EA-EOM-CCSD + TDDFT α(ω) + C₆ dispersion + D2 + Foster-Boys / Pipek-Mezey localization + Molden / Cube / QCSchema / XYZ exports — all WebGPU, all in a browser tab. PySCF + experiment validated. No install." />
+    <meta name="twitter:description" content="HF / UHF / RKS / UKS-DFT + CCSD(T) on GPU (~14× median, noisy) + EE/IP/EA-EOM-CCSD + TDDFT α(ω) + C₆ dispersion + D2 + Foster-Boys / Pipek-Mezey localization + Molden / Cube / QCSchema / XYZ exports — all WebGPU, all in a browser tab. PySCF + experiment validated. No install." />
     <meta name="twitter:image" content="https://webgpu-q.vercel.app/og-image.png" />
     <meta name="twitter:image:alt" content="webgpu-q — Quantum simulation, in a browser tab." />
 
@@ -52,7 +52,7 @@
           "applicationCategory": "ScienceApplication",
           "applicationSubCategory": "Quantum Many-Body Simulation",
           "operatingSystem": "Any OS with a WebGPU-capable browser",
-          "description": "A WebGPU quantum + computational-chemistry tool: HF + UHF + UCCSD, RKS-DFT + UKS-DFT (full LDA/GGA/hybrid functional ladder), MP2 + size-gated aux-basis density fitting (f64 streaming, runRHFAuto family), CCSD, CCSD(T) on GPU (39× speedup), EE/IP/EA-EOM-CCSD (PySCF cross-checked), CIS / TDA / TDDFT (singlet + triplet) including frequency-dependent α(ω), Casimir-Polder C₆ van-der-Waals dispersion across all reference types, Grimme D2 dispersion correction with analytical gradient, Foster-Boys + Pipek-Mezey orbital localization, NOON + multireference verdict diagnostics, geometry optimization, IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, ionization potentials + electron affinities, thermochemistry, statevector + MPS, kernel fusion. Molden / Gaussian Cube / QCSchema JSON / multi-frame XYZ exports. PySCF + libxc + ITensor + experiment validated.",
+          "description": "A WebGPU quantum + computational-chemistry tool: HF + UHF + UCCSD, RKS-DFT + UKS-DFT (full LDA/GGA/hybrid functional ladder), MP2 + size-gated aux-basis density fitting (f64 streaming, runRHFAuto family), CCSD, CCSD(T) on GPU (~14× median, 39× best run, noisy), EE/IP/EA-EOM-CCSD (PySCF cross-checked), CIS / TDA / TDDFT (singlet + triplet) including frequency-dependent α(ω), Casimir-Polder C₆ van-der-Waals dispersion across all reference types, Grimme D2 dispersion correction with analytical gradient, Foster-Boys + Pipek-Mezey orbital localization, NOON + multireference verdict diagnostics, geometry optimization, IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, ionization potentials + electron affinities, thermochemistry, statevector + MPS, kernel fusion. Molden / Gaussian Cube / QCSchema JSON / multi-frame XYZ exports. PySCF + libxc + ITensor + experiment validated.",
           "url": "https://webgpu-q.vercel.app/",
           "author": {
             "@type": "Person",
@@ -452,7 +452,7 @@
       <p class="lead">
         Hartree-Fock + UHF + UCCSD (radicals),
         <strong>RKS-DFT + UKS-DFT (5 functionals, open + closed shell)</strong>,
-        MP2, CCSD, <strong>CCSD(T) on GPU (39× speedup on H₂O cc-pVDZ)</strong>,
+        MP2, CCSD, <strong>CCSD(T) on GPU (~14× median speedup on H₂O cc-pVDZ)</strong>,
         <strong>EE/IP/EA-EOM-CCSD (PySCF cross-checked)</strong>, a
         <strong>size-gated f64 density-fitting engine</strong> across
         RHF/UHF/RKS/UKS/MP2 — exact integrals for small systems, density fitting
@@ -493,8 +493,8 @@
 
     <div class="stats">
       <div class="stat">
-        <div class="num">39×</div>
-        <div class="lab">cc-pVDZ CCSD(T) on H₂O — GPU vs CPU speedup</div>
+        <div class="num">~14×</div>
+        <div class="lab">cc-pVDZ CCSD(T) on H₂O — GPU vs CPU <em>median</em> (39× best run; std/median 42%, noisy)</div>
       </div>
       <div class="stat">
         <div class="num">35 µHa</div>
