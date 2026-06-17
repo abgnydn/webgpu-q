@@ -4,27 +4,20 @@
 Harun Bayraktar, Ali Charara, David Clark, Saul Cohen, Timothy~B. Costa, et~al.
 \newblock {cuQuantum} {SDK}: A high-performance library for accelerating quantum science.
 \newblock In {\em 2023 IEEE International Conference on Quantum Computing and Engineering (QCE)}, pages 1050--1061, 2023.
-\newblock DOI: 10.1109/QCE57702.2023.00119. Preprint arXiv:2308.01999.
+\newblock Preprint arXiv:2308.01999.
 
 \bibitem{qiskit}
 Ali Javadi-Abhari, Matthew Treinish, Kevin Krsulich, Christopher~J. Wood, Jake Lishman, Julien Gacon, Simon Martiel, Paul~D. Nation, Lev~S. Bishop, Andrew~W. Cross, Blake~R. Johnson, and Jay~M. Gambetta.
 \newblock Quantum computing with {Q}iskit, 2024.
-\newblock DOI: 10.48550/arXiv.2405.08810. arXiv:2405.08810. Aer GPU statevector backend.
-
-\bibitem{webgpudispatch}
-{Anonymous}.
-\newblock Characterizing {WebGPU} dispatch overhead for {LLM} inference across four {GPU} vendors, three backends, and three browsers.
-\newblock {\em arXiv preprint}, arXiv:2604.02344, 2026.
+\newblock Aer GPU statevector backend.
 
 \bibitem{fusionfitness}
 Ahmet~Bar{\i}{\c{s}} G{\"u}nayd{\i}n.
 \newblock Single-kernel fusion for sequential fitness evaluation via {WebGPU} compute shaders, 2026.
-\newblock Concept DOI: 10.5281/zenodo.19331833.
 
 \bibitem{fusiontransformer}
 Ahmet~Bar{\i}{\c{s}} G{\"u}nayd{\i}n.
 \newblock Single-kernel fusion for autoregressive transformer decoding via {WebGPU} compute shaders, 2026.
-\newblock Concept DOI: 10.5281/zenodo.19344276.
 
 \bibitem{webgpuspec}
 {W3C GPU for the Web Working Group}.

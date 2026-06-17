@@ -63,7 +63,7 @@ We measure this overhead directly, establish the per-gate cost as a function of
 circuit width and fusion factor, and show that fusing gate chains into single
 dispatches collapses it. The contribution is not a new simulation algorithm ---
 statevector simulation is textbook --- but a quantification of the WebGPU
-dispatch ceiling for sequential workloads~\cite{webgpudispatch} and a
+dispatch ceiling for sequential workloads and a
 fidelity-validated demonstration of how far kernel fusion moves it, including
 the regime where fusion stops paying off. Single-kernel fusion has previously
 removed this overhead for two other sequential WebGPU workloads --- evolutionary
@@ -248,8 +248,8 @@ work (\S\ref{sec:fusionlimits}). All figures here are derived from the committed
 
 \section{Related work}
 
-The per-dispatch overhead of WebGPU is an actively characterized
-quantity~\cite{webgpudispatch}. Native GPU statevector simulators --- NVIDIA
+Per-dispatch overhead is the dominant cost for fine-grained sequential GPU
+work, which is exactly what fusion targets. Native GPU statevector simulators --- NVIDIA
 cuQuantum custatevec~\cite{cuquantum} and Qiskit Aer GPU~\cite{qiskit} --- are
 the performance references for the algorithm, and both are known to approach
 memory-bandwidth-bound throughput for long contiguous gate chains; we target
