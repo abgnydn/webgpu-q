@@ -1,46 +1,24 @@
 <div align="center">
 
-<img src="./public/readme-hero.svg" alt="webgpu-q — quantum chemistry and many-body physics in a browser tab" width="100%"/>
+<a href="https://webgpu-q.vercel.app"><img src="./public/demo.gif" alt="webgpu-q computing live — a wavefunction field and a real Hartree–Fock SCF converging to the ground state, in a browser tab" width="820"/></a>
 
-<br/>
+<h1>webgpu-q</h1>
+
+**Real quantum chemistry, in a browser tab.** Open a URL and run the actual thing — Hartree–Fock, DFT, MP2, CCSD, CCSD(T), EOM-CCSD — computed on your own machine, in the tab. No install. No backend. No CUDA. Every number cross-checked against PySCF.
 
 <a href="https://webgpu-q.vercel.app"><img alt="Launch" src="https://img.shields.io/badge/%E2%96%B6%20LAUNCH-webgpu--q.vercel.app-22d3ee?style=for-the-badge&labelColor=0b1224"/></a>
-&nbsp;
-<a href="https://webgpu-q.vercel.app/molecule.html"><img alt="SI Report" src="https://img.shields.io/badge/H%E2%82%82O%20%C2%B7%20SI%20REPORT-%2Fmolecule.html-c084fc?style=for-the-badge&labelColor=0b1224"/></a>
 &nbsp;
 <a href="https://webgpu-q.vercel.app/screening.html"><img alt="Live screen" src="https://img.shields.io/badge/LIVE%20SCREEN-%2Fscreening.html-f472b6?style=for-the-badge&labelColor=0b1224"/></a>
 &nbsp;
 <a href="https://webgpu-q.vercel.app/experiments/"><img alt="Research dashboard" src="https://img.shields.io/badge/RESEARCH%20DASH-%2Fexperiments-34d399?style=for-the-badge&labelColor=0b1224"/></a>
 
-<br/><br/>
-
-<a href="https://webgpu-q.vercel.app"><img src="./public/demo.gif" alt="webgpu-q computing live — the wavefunction field and a real Hartree–Fock SCF converging to the ground state, in a browser tab" width="780"/></a>
-
-<sub><i>A real Hartree–Fock SCF converging in your browser — no install, no server. <a href="https://webgpu-q.vercel.app">open it →</a></i></sub>
-
-<br/><br/>
-
 <img alt="version" src="https://img.shields.io/badge/v0.11.2-0ea5e9?style=flat-square&labelColor=0b1224"/>
 <img alt="license" src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="tests" src="https://img.shields.io/badge/tests-CI%20green-22c55e?style=flat-square&labelColor=0b1224"/>
-<img alt="typescript" src="https://img.shields.io/badge/typescript-strict-3178c6?style=flat-square&labelColor=0b1224"/>
 <img alt="webgpu" src="https://img.shields.io/badge/WebGPU-required-ff7849?style=flat-square&labelColor=0b1224"/>
-<img alt="install-free" src="https://img.shields.io/badge/install-0%20bytes-eab308?style=flat-square&labelColor=0b1224"/>
 <a href="https://doi.org/10.5281/zenodo.20494382"><img alt="DOI" src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20494382-3b82f6?style=flat-square&labelColor=0b1224"/></a>
 
 </div>
-
-<br/>
-
-<table align="center" border="0">
-<tr>
-<td align="center" width="800">
-
-**A browser-native quantum chemistry sandbox.** Open a URL and get HF · UHF · DFT (RKS+UKS) · MP2 · CCSD · CCSD(T) · EOM-CCSD · TDDFT α(ω) · C₆ dispersion on real molecules — with WebGPU acceleration for the (T) bottleneck. No install. No backend. No CUDA.
-
-</td>
-</tr>
-</table>
 
 <br/>
 
@@ -50,31 +28,29 @@
 
 **What this is**
 
-- Browser-native quantum chemistry engine, all methods ported from PySCF and brute-force verified to ≤ 1e-10 Ha element-wise.
-- WebGPU systems demonstration — a 110-line WGSL kernel makes CCSD(T)/cc-pVDZ browser-feasible (13.8× median speedup over CPU TypeScript, 5w+20t harness; p10 28×, p90 10×, noisy).
-- Distributed-compute substrate — `swarmMap` (greedy-pull, auto-balanced) over BroadcastChannel (same-machine, verified) and a `RelayTransport` over a free public broker for **cross-machine** swarm. **N=2 distributed Hartree–Fock verified across two separate CI VMs** — each holds only its own tensor slice, exchanges D + partial (J,K) through the broker each SCF iteration, energy matches the single-machine result to 5.7e-14. The crowd also does *post-HF* work: a distributed DF-MP2 reduction (partition-sum == single-machine to <1e-12) and **molecule screening** — rank a candidate library by HOMO–LUMO gap across tabs (measured 1.73× / 2.36× on 2 / 4 tabs). Honest finding: the swarm speeds up *many* molecules (throughput), not *one* molecule (benzene MP2 only 1.10×). (WebRTC P2P also implemented; needs a TURN key across symmetric cloud NAT.)
-- Size-gated chemistry in one call — `runRHFAuto` / `runRKSAuto` / `runUHFAuto` / `runUKSAuto` / `runMP2Auto` / `runUMP2Auto` pick exact 4-index ERI (small) or streaming **f64 density fitting** (large) automatically, with honest `{method, engine, precision}` provenance. Naphthalene cc-pVDZ HF runs in a tab — its 9.7 GB ERI is never built. (GPU DF paths exist but are experimental: WebGPU has no f64, so they can't accelerate the f64-bound J/K.)
-- Teaching / reproducibility / methodology platform — URL-as-citation, drag-import (XYZ/PDB/MOL/SDF), in-browser Pyodide REPL with "Compare to PySCF" button.
+- A browser-native electronic-structure engine. Methods ported from PySCF and brute-force verified to ≤ 1e-10 Ha element-wise.
+- A WebGPU systems demo — a ~110-line WGSL kernel makes CCSD(T)/cc-pVDZ browser-feasible (~14× median over CPU TypeScript; noisy).
+- A distributed-compute substrate — a browser-tab "swarm" that splits a Hartree–Fock build across tabs/machines (N=2 cross-machine HF verified, energy matches single-machine to 5.7e-14).
+- A teaching / reproducibility platform — every calculation is a shareable URL; drag-import XYZ/PDB/MOL/SDF; in-browser "Compare to PySCF" REPL.
 
 </td>
 <td valign="top" width="33%">
 
 **What this isn't**
 
-- **Not a PySCF replacement.** PySCF runs 10-100× faster, scales to 100× larger molecules, supports 10× more methods, and has 25 years of validation. If you're a working computational chemist, install PySCF.
-- **Not a production research tool for ≥ 30-atom molecules.** Largest benchmarked system is BeH₂/cc-pVDZ; nothing at the porphyrin / metal-complex / enzyme-active-site scale that real research chemistry needs.
-- **Not a CUDA competitor.** WebGPU is the lowest-common-denominator GPU API; raw throughput is 2-5× behind well-tuned CUDA today (gap closing as the WebGPU spec evolves — f16 shader extension, subgroups, tensor-core intrinsics).
-- **Not novel chemistry.** Every method here was already in PySCF before we ported it. The contribution is the substrate, not the algorithms.
+- **Not a PySCF replacement.** PySCF is 10–100× faster, scales 100× larger, has 25 years of validation. If you do production chemistry, use it.
+- **Not for big systems.** Benchmarked up to benzene/naphthalene HF and H₂O cc-pVDZ CCSD(T) — nothing at porphyrin / metal-complex / enzyme scale.
+- **Not a CUDA competitor.** WebGPU has no f64 and is ~2–5× behind tuned CUDA today.
+- **Not novel chemistry.** Every method was in PySCF first. The contribution is the *substrate*, not the algorithms.
 
 </td>
 <td valign="top" width="33%">
 
 **Who it's for**
 
-- **Chemistry educators.** Quantum methods are an opaque pipeline ("HF then MP2 then CCSD…"). webgpu-q makes every intermediate inspectable, computed in real time, with no install barrier. Drop a PDB file, run HF, see the orbitals.
-- **WebGPU / systems researchers.** A real O(n⁷) kernel benchmarked end-to-end in the browser. Hardware-vs-API throughput gap can be tracked over time as the spec evolves.
-- **AI-paired-development practitioners.** The repo is a worked case study in *porting* (vs re-deriving) textbook methods — see `RESEARCH_STANDARDS.md` §7a and the `MEMORY.md` triad on porting acceptance gates, symbol collisions, and the diagnostic loop trap.
-- **Anyone who wants reproducible chemistry.** Calculations are URLs; results are shareable via auto-run links + IndexedDB history.
+- **Educators** — every intermediate of the HF→MP2→CCSD pipeline is inspectable, in real time, with zero install.
+- **WebGPU / systems researchers** — a real O(n⁷) kernel benchmarked end-to-end in the browser.
+- **Reproducibility** — calculations are URLs; results shareable via auto-run links + IndexedDB history.
 
 </td>
 </tr>
@@ -84,21 +60,21 @@
 
 ---
 
-<h3 align="center">📸 &nbsp; See it</h3>
+<h3 align="center">See it</h3>
 
 <table align="center">
 <tr>
 <td align="center" width="33%">
-<a href="https://webgpu-q.vercel.app"><img src="./public/screenshots/landing.png" width="100%" alt="Landing page"/></a>
-<br/><sub><b>landing</b> · what the engine is + run-anywhere CTAs</sub>
+<a href="https://webgpu-q.vercel.app/screening.html"><img src="./public/screenshots/screening.png" width="100%" alt="Live molecular screen"/></a>
+<br/><sub><b>/screening.html</b> · rank a library by HOMO–LUMO gap, live HF per molecule</sub>
 </td>
 <td align="center" width="33%">
-<a href="https://webgpu-q.vercel.app/molecule.html"><img src="./public/screenshots/hyperscope.png" width="100%" alt="Molecule SI report"/></a>
-<br/><sub><b>/molecule.html</b> · H₂O SI report — properties, spectra, gradients</sub>
+<a href="https://webgpu-q.vercel.app/molecule.html"><img src="./public/screenshots/molecule.png" width="100%" alt="Molecule SI report"/></a>
+<br/><sub><b>/molecule.html</b> · full chemistry-paper SI for a small molecule</sub>
 </td>
 <td align="center" width="33%">
-<a href="https://webgpu-q.vercel.app/experiments/"><img src="./public/screenshots/experiments.png" width="100%" alt="Experiment dashboard"/></a>
-<br/><sub><b>/experiments/</b> · research dashboard (E1–E33, JSON artifacts)</sub>
+<a href="https://webgpu-q.vercel.app/experiments/"><img src="./public/screenshots/experiments.png" width="100%" alt="Research dashboard"/></a>
+<br/><sub><b>/experiments/</b> · the research ladder, live runner + JSON artifacts</sub>
 </td>
 </tr>
 </table>
@@ -107,158 +83,136 @@
 
 ---
 
-<h3 align="center">📊 &nbsp; The numbers <sub><sup>(single source of truth — see bottom of file)</sup></sub></h3>
+<h3 align="center">How fast — honestly, both directions</h3>
 
-<div align="center">
+All vs **PySCF 2.13.0 on identical inputs** ([E34 run](./experiments/results/2026-05-12/level-6/E34-comparison.md)); energy agreement ≤ 10⁻⁴ Ha on all 19 comparable cells (well below the 1.594 mHa chemical-accuracy bar).
 
-<img src="./public/readme-numbers.svg" alt="Key numbers: 2.56 GB swarm fit across 4 tabs, ~14× median CCSD(T) on GPU (noisy), 10⁻⁵ Ha EOM-CCSD vs FCI, 7×10⁻¹⁴ Ha DF-HF, 1.35×10⁻¹¹ GPU↔CPU, 4.18× fusion, F ≥ 0.999999 statevector, N=128 MPS" width="100%"/>
+| | system | result |
+|---|---|---|
+| 🟢 **win** | HF · H₂ · STO-3G | **105×** faster (no Python startup) |
+| 🟢 **win** | CCSD · LiH · STO-3G | **40×** faster (small-system advantage) |
+| 🟢 **win** | CCSD(T) · H₂O · cc-pVDZ · GPU | **~14× median** vs our CPU TypeScript (39× best run; std/median ≈ 42%, *noisy* — [LIMITATIONS](./LIMITATIONS.md)) |
+| 🔴 **loss** | CCSD · H₂O · cc-pVDZ | **480× slower** (NumPy/BLAS dominates) |
+| 🔴 **loss** | MP2 · H₂O · cc-pVDZ | **136× slower** (BLAS gap) |
 
-</div>
-
-<br/>
-
----
-
-<h3 align="center">🧪 &nbsp; What's inside</h3>
-
-<div align="center">
-
-<img src="./public/readme-capabilities.svg" alt="Capability map: 7 modules — ground state, correlation, excited states, properties, geometry, density fitting, many-body simulation" width="100%"/>
-
-</div>
+The honest takeaway: we win on no-startup + small systems + the GPU (T) kernel; we lose badly at production basis where BLAS rules. The speedups are vs **our own** CPU baseline, *not* vs PySCF wall-clock or GPU4PySCF — that apples-to-apples comparison is open work.
 
 <br/>
 
 ---
 
-<h3 align="center">⚡ &nbsp; How fast — honestly, both directions</h3>
+<h3 align="center">Validated against ground truth</h3>
 
-<p align="center"><sub>The sustained GPU CCSD(T) speedup is <b>~14× median</b> (39.3× was a single best run; std/median ≈ 42%, officially "noisy" — see <a href="./LIMITATIONS.md">LIMITATIONS</a>). So is the fact that PySCF/NumPy is 480× faster than us on CCSD at cc-pVDZ. Both come from <a href="./experiments/results/2026-05-12/level-6/E34-comparison.md">the same comparison run</a>, against PySCF 2.13.0 on identical inputs.</sub></p>
+| layer | cross-checked against | residual |
+|---|---|---|
+| HF (RHF/UHF, DIIS, spherical-d) | PySCF | ≤ 0.5 mHa (≤ 0.1 mHa cc-pVDZ sphd) |
+| MP2 · FCI | PySCF · analytic | ≤ 0.76 mHa (CH₄ FCI) |
+| CCSD(T) | FCI | ≤ 0.25 mHa |
+| EE / IP / EA-EOM-CCSD | explicit H̄ = e⁻ᵀHeᵀ projection | < 1e-10 Ha element-wise (EA: < 5e-13 on multi-electron LiH) |
+| DF-HF · DF-MP2 | direct 4-index ERI | ~7×10⁻¹⁴ Ha (engineering assertion) |
+| statevector (GPU f32) | f64 CPU reference | F ≥ 0.999999 |
+| MPS / DMRG | ITensor · Pfeuty/Bethe | f64 at N=8 · 1/N limits |
+| swarm HF (cross-machine) | single-machine | 5.7e-14 Ha |
 
-<div align="center">
-
-<img src="./public/readme-perf.svg" alt="Performance comparison vs PySCF — H₂O cc-pVDZ CCSD(T): ~14× median GPU-vs-CPU speedup (39.3× best single run, noisy), plus an honest two-column where-we-win / where-we-lose summary from E34" width="100%"/>
-
-</div>
-
-<sub align="center"><sub>↑ Single-run measurements (not warmup+trials harness). Energy agreement ≤ 10⁻⁴ Ha on all 19 comparable cells (well below chemical accuracy of 1.594 mHa). Where we win: no Python startup, HF up to medium systems, GPU CCSD(T) at cc-pVDZ. Where we lose: CPU MP2 / CCSD at production basis where NumPy / BLAS dominates. Full data: <a href="./experiments/results/2026-05-12/level-6/E34-comparison.md">E34-comparison.md</a>.</sub></sub>
-
-<br/>
-
----
-
-<h3 align="center">🆚 &nbsp; Completeness scorecard</h3>
-
-<p align="center"><sub>Every method PySCF 2.13 / ORCA 6.1 / Psi4 1.10 ship, our status against it, and the roadmap tier for every gap.<br/>No "we don't do that" — every missing capability has a planned slot.</sub></p>
-
-<div align="center">
-
-<img src="./public/readme-matrix.svg" alt="Completeness scorecard: 50+ methods across 12 sections (mean field, correlation, multireference, excited states, properties, geometry, basis, solvent, acceleration, relativistic, periodic, platform) with shipped/Tier 3/Tier 4/out-of-scope status per row" width="100%"/>
-
-</div>
+> **Reading the precision numbers:** anything tighter than 1.6 mHa (= 1 kcal/mol) is a *software regression assertion* (does the GPU/DF port match the CPU/direct path?), **not** a chemistry result — basis-set incompleteness dwarfs it by 6+ orders. The EOM ports are faithful to PySCF's `eom_gccsd` / `eaccsd_matvec`, not re-derived; the brute-force diffs prove the implementation, not method accuracy on real systems.
 
 <br/>
 
 ---
 
-<h3 align="center">🔬 &nbsp; Validation matrix</h3>
-
-<div align="center">
-
-<img src="./public/readme-validation.svg" alt="Validation matrix: every layer cross-checked against PySCF, libxc, ITensor, brute-force projection, or experiment, with residuals disclosed" width="100%"/>
-
-</div>
-
-<br/>
-
----
-
-<h3 align="center">🪜 &nbsp; The research ladder</h3>
-
-<div align="center">
-
-<img src="./public/readme-ladder.svg" alt="6-level research ladder: statevector, MPS/DMRG, kernel fusion (shipped foundation), WebRTC swarm, hardware verify (deferred), quantum chemistry (flagship)" width="100%"/>
-
-</div>
-
-<br/>
-
----
-
-<h3 align="center">⏱️ &nbsp; 60-second demo</h3>
+<h3 align="center">60-second demo</h3>
 
 ```bash
 git clone https://github.com/abgnydn/webgpu-q && cd webgpu-q
 npm install
-npm run dev          # http://localhost:5175
-                     # /molecule.html → H₂O SI report
-                     # /experiments/  → research dashboard
-```
-
-```bash
-npm run test         # vitest unit/integration · CI green
-npm run typecheck    # tsc --noEmit, strict + noUncheckedIndexedAccess
-npm run test:e2e     # Playwright · headless WebGPU Chromium
+npm run dev          # http://localhost:5175  ·  /screening.html  ·  /molecule.html  ·  /experiments/
+npm run test         # vitest · CI green        npm run typecheck   # tsc strict
 ```
 
 ```ts
-// Or one-call from molecule to a full property report
-import { molecules, quickReport, uvVisSpectrum, toMoldenString } from "./src/chemistry";
+// one call: molecule → full property report (energy, dipole, charges, bond orders,
+// NOON, ⟨S²⟩, multireference verdict, α, D2, UV-vis, Molden) — all in a tab
+import { molecules, quickReport, uvVisSpectrum } from "./src/chemistry";
+const report = quickReport(molecules.h2o, { addD2: true, addStaticAlpha: true });
+const uvvis  = uvVisSpectrum(molecules.h2o, { method: "b3lyp5" });
 
-const report  = quickReport(molecules.h2o, { addD2: true, addStaticAlpha: true });
-const uvvis   = uvVisSpectrum(molecules.h2o, { method: "b3lyp5" });
-const molden  = toMoldenString({ atoms: molecules.h2o, /* ... */ });
-// → energy, dipole, charges, bond orders, NOON, ⟨S²⟩, multireference
-//   verdict, static α, D2 dispersion, UV-vis spectrum + peaks, Molden file.
-//   All in a Chrome tab.
-```
-
-```ts
-// Or piece by piece if you want control
+// or piece by piece
 import { runRHFSCF, runMP2, runCCSD, runCCSDT_GPU, runEOMCCSD } from "./src/chemistry";
-
-const hf      = runRHFSCF(integrals, nElectrons);
-const mp2     = runMP2(hf, integrals);
-const ccsd    = runCCSD(hf, integrals);
-const t       = await runCCSDT_GPU(ccsd, hf, integrals, device);  // ~14× median on cc-pVDZ (39× best run, noisy)
-const excited = runEOMCCSD(ccsd, integrals, hf);
+const hf  = runRHFSCF(integrals, nElectrons);
+const t   = await runCCSDT_GPU(runCCSD(hf, integrals), hf, integrals, device); // ~14× median (noisy)
+const eom = runEOMCCSD(runCCSD(hf, integrals), integrals, hf);
 ```
 
 <br/>
 
 ---
 
-<h3 align="center">🧱 &nbsp; Architecture · URL → silicon</h3>
+<h3 align="center">What's inside</h3>
 
-<div align="center">
+**Ground state** HF · UHF · RKS/UKS-DFT (LDA/GGA/hybrid ladder) · MP2 · DF-MP2 · aux-basis f64 density fitting · analytical HF/DFT gradients · BFGS geom-opt
+**Correlation & excited states** CCSD · UCCSD · CCSD(T) (CPU + WebGPU) · EE/IP/EA-EOM-CCSD · CIS · TDA · TDDFT (singlet + triplet) · oscillator strengths
+**Properties** dipole · α(0)/α(ω)/α(iω) · C₆ · β · Mulliken · Wiberg/Mayer · NOON + multireference verdict · D2 dispersion · IR · Raman · UV-vis · thermochemistry · IPs/EAs
+**I/O** Molden · Gaussian Cube · QCSchema · XYZ · drag-import PDB/MOL/SDF
+**Many-body** GPU statevector · MPS/DMRG (ITensor-checked) · kernel fusion (4.18×)
 
-<img src="./public/readme-architecture.svg" alt="8-layer architecture stack from URL through dashboard, research harness, chemistry modules, numerical core, WGSL shaders, WebGPU API, down to GPU silicon" width="100%"/>
+<details>
+<summary><b>Full method catalog</b> (click)</summary>
+<br/>
 
-</div>
+| ground state | notes |
+|---|---|
+| RHF / UHF SCF | DIIS, frozen-core, spherical-d, f/g/h, level-shift, ⟨S²⟩ |
+| RKS / UKS-DFT | LDA · BVWN5 · BLYP · B3VWN5 · B3LYP5; Becke + Lebedev grids |
+| MP2 · DF-MP2 | spin-orbital + B-tensor; aux-basis f64 DF, no 4-index ERI |
+| HF/DFT gradients | analytical Pulay 1969, Schwarz screening, BFGS / L-BFGS |
+
+| correlation / excited | notes |
+|---|---|
+| CCSD · UCCSD | Stanton-Bartlett, antisymmetrized spin-orbital, frozen-core |
+| CCSD(T) CPU + **GPU** | FCI-validated ≤ 0.25 mHa; GPU ~14× median (noisy), f32→f64 reduce |
+| EE / IP / EA-EOM-CCSD | PySCF `eom_gccsd` / `eaccsd_matvec` ports; brute-force < 1e-10 Ha |
+| CIS · TDA · TDDFT | Casida, full functional ladder, triplet via spin-pol, Davidson |
+
+| properties | notes |
+|---|---|
+| α(0)/α(ω)/α(iω) · C₆ · β | CPHF + TDHF + TDDFT; Casimir-Polder; finite-field β |
+| Mulliken · Wiberg/Mayer · NOON | charges/spin, bond orders, multireference verdict (T1/D1/⟨S²⟩) |
+| IR · Raman · thermo | mass-weighted Hessian; Placzek; Sackur-Tetrode (H₂O S = 45.06 vs expt 45.1) |
+| IPs / EAs | Koopmans / ΔSCF / EOM (H₂O EOM IP 12.03 eV vs expt 12.62) |
+
+| basis / many-body | notes |
+|---|---|
+| STO-3G · 6-31G* · cc-pVDZ · aug-cc-pVDZ | first + second period; spherical-d; f/g/h |
+| statevector · MPS · DMRG | GPU f32 (F ≥ 0.999999); Jacobi SVD + canonical TEBD; Lanczos + MPO |
+| kernel fusion | 4.18× (Tier C, 8×8 cascade); Tier D plateau = documented honest negative |
+
+</details>
 
 <br/>
+
+---
+
+<h3 align="center">Research discipline</h3>
 
 <table align="center">
 <tr>
 <td valign="top" width="50%">
 
-**Research harness** · `experiments/lib/`
+**Harness** · `experiments/lib/`
 
-- `runner.ts` — `timedRun` with forced GPU sync (read-after-submit on a tiny buffer)
-- `seeds.ts` — named deterministic seeds (no `Math.random()`)
-- `env.ts` — captures adapter info, limits, SHA, UTC
+- `runner.ts` — `timedRun` with forced GPU sync (read-after-submit)
+- `seeds.ts` — named deterministic seeds, no `Math.random()`
 - `fidelity.ts` — `F = |⟨ψ_ref|ψ_test⟩|²`, not max\|Δp\|
-- `stats.ts` — median, p10/p90/p99, IQR
+- `env.ts` / `stats.ts` — adapter/SHA capture · median, p10/p90/p99
 
 </td>
 <td valign="top" width="50%">
 
-**Discipline (non-negotiable)**
+**Non-negotiables**
 
 - 5 warmup + 20 trials per measurement
-- Pass bar: `F ≥ 1 − 10⁻⁵` (f32 GPU paths)
-- `std/median > 0.1` → `status: "noisy"`
-- Honest negatives **committed** as JSON with diagnosis
+- pass bar `F ≥ 1 − 10⁻⁵`; `std/median > 0.1` → `status: "noisy"`
+- honest negatives **committed** as JSON with a diagnosis
 - vitest + Playwright e2e · CI green · TS strict + `noUncheckedIndexedAccess`
 
 </td>
@@ -269,252 +223,36 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 
 ---
 
-<h3 align="center">📚 &nbsp; Method catalog</h3>
+<h3 align="center">For researchers</h3>
+
+- **📖 Cite** — [`CITATION.cff`](./CITATION.cff). Concept DOI [10.5281/zenodo.20494382](https://doi.org/10.5281/zenodo.20494382) (resolves to latest; each release also gets a version DOI).
+- **⚠️ [Limitations](./LIMITATIONS.md)** — what we *cannot* do, what's *untested*, what's *known broken*: size ceilings, vendor matrix, SCF failure modes, precision disclosures.
+- **📊 [Benchmarks queue](./BENCHMARKS.md)** — run vs queued: GMTKN55, QUEST, W4-11, S66, wall-clock vs PySCF/gpu4pyscf.
+- **🛠️ [Contributing](./CONTRIBUTING.md) · 🔁 [Migration](./MIGRATION.md) · 📐 [Research standards](./RESEARCH_STANDARDS.md)** — port chemistry from PySCF/libxc with attribution ([`LICENSE-PYSCF`](./LICENSE-PYSCF)); hand-write only the WebGPU/WGSL/browser layer.
+- **🤝 [Code of conduct](./CODE_OF_CONDUCT.md)** — Contributor Covenant 2.1.
 
 <details>
-<summary><b>Ground-state electronic structure</b> · HF · UHF · DFT · MP2</summary>
+<summary><b>Key numbers — single source of truth</b> (click)</summary>
 <br/>
-
-| method | notes |
-|---|---|
-| RHF SCF | DIIS, frozen-core, spherical-d, f/g/h, level-shift |
-| UHF SCF | open-shell, stacked α+β DIIS, ⟨S²⟩ check, level-shift |
-| RKS-DFT (LDA, GGA, hybrid) | LDA · BVWN5 · BLYP · B3VWN5 · B3LYP5; Becke grid, Lebedev |
-| UKS-DFT (LDA, GGA, hybrid) | full functional ladder, spin-polarized XC kernel, ⟨S²⟩ |
-| MP2 · DF-MP2 | spin-orbital + B-tensor reformulation |
-| Aux-basis DF (RI) | streaming 3-index, f64, no 4-index ERI (`runRHFAuto`); ~7×10⁻¹⁴ Ha vs direct HF |
-| HF / DFT analytical ∇ | Pulay 1969, 8-fold ERI loop, Schwarz screening |
-
-</details>
-
-<details>
-<summary><b>Correlation & excited states</b> · CCSD · CCSD(T) · EOM-CCSD · CIS · TDDFT</summary>
-<br/>
-
-| method | notes |
-|---|---|
-| CCSD (RHF) | Stanton-Bartlett, antisym spin-orbital + frozen-core |
-| UCCSD (UHF) | shared `ccsdIterate` core, 3-block ERI |
-| CCSD(T) CPU | per-triple, FCI-validated ≤ 0.25 mHa, frozen-core via Set |
-| **CCSD(T) GPU** | **~14× median on H₂O cc-pVDZ** (39.3× best run, std/median 42% noisy), f32→f64 reduce |
-| UCCSD(T) | open-shell perturbative triples, frozen-core via Set |
-| EE-EOM-CCSD | PySCF `eom_gccsd` port, Davidson; brute-force σ < 1e-10 Ha (no patches) |
-| IP-EOM-CCSD | PySCF-ported; R₁ + R₂ exact (brute-force < 1e-10 Ha) |
-| EA-EOM-CCSD | PySCF `eaccsd_matvec` port; R₁ + R₂ exact (LiH multi-electron < 5e-13 Ha) |
-| CIS · TDA · TDDFT (Casida) | full functional ladder, triplet via spin-pol, Davidson |
-| Counterpoise / BSSE | HF / MP2 / CCSD / UHF / UCCSD / RKS / UKS + optional D2 add-on |
-| Oscillator strengths | f = (2/3)·ω·|μ|², R₁·μ AO→MO transform |
-| Spin classifier | singlet/triplet/spin-flip weight per root |
-
-</details>
-
-<details>
-<summary><b>Properties & spectroscopy</b></summary>
-<br/>
-
-| property | notes |
-|---|---|
-| Dipole μ | AO→MO transform, RHF + post-HF densities |
-| Polarizability α(0) | finite field + analytical CPHF (RHF + UHF) |
-| Polarizability α(ω) | TDHF + TDDFT + open-shell UHF-TDHF response |
-| Polarizability α(iω) | imaginary-axis response for Casimir-Polder |
-| C₆ van-der-Waals coefficients | Casimir-Polder integral; HF/UHF/DFT references |
-| Hyperpolarizability β | 3D finite-field stencil |
-| Mulliken populations | charges + spin-density resolved (closed + open shell) |
-| Wiberg / Mayer bond orders | + atomic valences, Lewis-multiplicity inference |
-| Natural orbital occupations | NOON, multi-reference diagnostic |
-| D2 dispersion correction | Grimme JCC 2006, energy + analytical gradient |
-| Multireference verdict | T1/D1/⟨S²⟩/NOON aggregator with cutoff flags |
-| TRK sum rule | oscillator-strength conservation check |
-| Foster-Boys / Pipek-Mezey | orbital localization (Boys 1960 + PM 1989) |
-| Energy decomposition | one-electron + Coulomb + exchange + V_nn breakdown |
-| Coordination numbers | smooth Grimme D3 CN for chemistry-aware features |
-| Coulomb matrix descriptor | permutation-invariant ML feature |
-| Molecular formula / graph | Hill convention, adjacency, connected components |
-| RMSD + Kabsch alignment | optimal rotation between geometries |
-| Standard orientation | COM + principal-axes alignment |
-| Rotational constants | A/B/C in cm⁻¹ and GHz |
-| Multi-frame XYZ trajectory | for geom-opt / NEB visualization |
-| Pre-built molecule library | h2o, ch4, nh3, beh2, hf, etc. |
-| `quickReport(atoms)` | one-call full property report |
-| `uvVisSpectrum(atoms)` | atoms → excitations + broadened spectrum + peaks |
-| Harmonic ω | mass-weighted Hessian by finite diff |
-| IR intensities | dμ/dQ along normal modes |
-| Raman activities | Placzek invariants from α(Q) |
-| Thermo (Sackur-Tetrode + RR + HO) | H₂O entropy 45.06 vs expt 45.1 |
-| Koopmans / ΔSCF / EOM IPs | H₂O: 10.65 / 8.36 / **12.03** eV (expt 12.62) |
-| Koopmans / EOM EAs | H₂O: −16.48 / **−16.37** eV |
-| Molden orbital export | Cartesian Gaussian basis, Jmol/Avogadro/Multiwfn |
-| Gaussian Cube export | density + MO isosurfaces, VMD/Jmol/Multiwfn |
-| QCSchema JSON export | MolSSI standard, QCEngine/QCFractal/cclib consumable |
-| XYZ format I/O | parse / emit standard geometry files |
-
-</details>
-
-<details>
-<summary><b>Geometry & basis sets</b></summary>
-<br/>
-
-| feature | notes |
-|---|---|
-| BFGS geom-opt | analytical HF + DFT gradients |
-| Lebedev angular grids | 2.6× point reduction at better accuracy |
-| STO-3G | H, He, Li, Be, C, N, O, F (full first + second period) |
-| 6-31G* | available |
-| cc-pVDZ | H, He, Li, Be, C, N, O, F; CCSD(T) on H₂O in 5 s (GPU) |
-| aug-cc-pVDZ | H, He, Li, Be, C, N, O, F (diffuse functions wired) |
-| Spherical-d | sphd shell (Tier 1 bundle) |
-| f / g / h orbitals | Cartesian integrals + transform |
-| Schwarz integral screening | 8-fold canonical loop |
-
-</details>
-
-<details>
-<summary><b>Many-body simulation</b> · statevector · MPS · DMRG · kernel fusion</summary>
-<br/>
-
-| level | notes |
-|---|---|
-| L1 statevector | f32 vec2 amplitudes, N/2 threads/gate |
-| L1 controlled-U | N/4 threads, only control=1 touched |
-| L2 MPS | canonical form, Jacobi complex SVD |
-| L2 TEBD | `_canonicalizeBond(q)` invariant before two-site |
-| DMRG | Lanczos + MPO, ITensor cross-checked N=8 |
-| L3 fusion Tier B/C | 4.18× headline (Tier C, 8×8) |
-| L3 fusion Tier D | documented honest negative (plateau) |
-| Phase 6 GPU MPS | χ ≤ 64 |
-
-</details>
-
-<br/>
-
----
-
-<h3 align="center">🔬 &nbsp; For researchers</h3>
-
-<table align="center">
-<tr>
-<td valign="top" width="33%">
-
-**📖 How to cite**
-
-See [`CITATION.cff`](./CITATION.cff). For papers:
-
-> Günaydın, A.B. (2026). _webgpu-q v0.11.2_. Zenodo. https://doi.org/10.5281/zenodo.20494382
-
-Archived on Zenodo — concept DOI [10.5281/zenodo.20494382](https://doi.org/10.5281/zenodo.20494382) (resolves to the latest version). Each release also gets its own version DOI on the [Zenodo record](https://doi.org/10.5281/zenodo.20494382).
-
-</td>
-<td valign="top" width="33%">
-
-**⚠️ [Limitations](./LIMITATIONS.md)**
-
-Honest, single-page list of what we **cannot** do, what is **untested**, and what is **known broken** — system size ceilings, browser/vendor matrix, SCF failure modes, missing output formats, precision disclosures.
-
-</td>
-<td valign="top" width="33%">
-
-**📊 [Benchmarks queue](./BENCHMARKS.md)**
-
-Standardized sets we've run vs. queued: GMTKN55, Thiel/QUEST, W4-11, S66, HEAT-345, SIE4x4, wall-clock vs PySCF / gpu4pyscf, cross-vendor parity.
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-**🛠️ [Contributing](./CONTRIBUTING.md) · 🔁 [Migration](./MIGRATION.md) · 📐 [Research standards](./RESEARCH_STANDARDS.md)**
-
-15 canonical principles ([`RESEARCH_STANDARDS.md`](./RESEARCH_STANDARDS.md), mirrored in sibling [webgpu-dna](https://github.com/abgnydn/webgpu-dna)). Validation discipline (5w + 20t, fidelity pass bar, honest negatives committed). **Migration policy**: hand-write only the WebGPU/WGSL/browser layer; port chemistry methods (HF, CCSD, EOM-CCSD, DFT functionals…) from PySCF / libxc with attribution. See [`LICENSE-PYSCF`](./LICENSE-PYSCF) for the upstream license.
-
-</td>
-<td valign="top">
-
-**📐 [Modern standards audit](./CLAUDE.md#modern-reference-standards-audited-2026-05)**
-
-Every claim mapped to current literature — GMTKN55 functional rankings, EOM-CCSD literature accuracy bars, chemical accuracy bar (1 kcal/mol = 1.594 mHa), AFQMC beyond-CCSD(T), WebGPU subgroups status.
-
-</td>
-<td valign="top">
-
-**🤝 [Code of conduct](./CODE_OF_CONDUCT.md)**
-
-Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@barisgunaydin.com).
-
-</td>
-</tr>
-</table>
-
-<br/>
-
----
-
-<h3 align="center">🌐 &nbsp; Companion projects</h3>
-
-<table align="center">
-<tr>
-<td align="left" width="50%">
-
-- **[kernelfusion.dev](https://kernelfusion.dev)** — umbrella theory site, two preprints
-- **[gpubench.dev](https://gpubench.dev)** — WebGPU bench harness, 592+ devices
-- **[webgpudna.com](https://webgpudna.com)** — Geant4-DNA radiobiology port (sibling repo)
-
-</td>
-<td align="left" width="50%">
-
-- **[zerotvm.com](https://zerotvm.com)** — Phi-3-mini in the browser, no compiler
-- **[neuropulse.live](https://neuropulse.live)** — live 3.8B-param transformer visualization
-- **[barisgunaydin.com](https://barisgunaydin.com)** — author site, project hub
-
-</td>
-</tr>
-</table>
-
-<br/>
-
----
-
-<h3 align="center">📜 &nbsp; Key numbers — single source of truth</h3>
-
-<details>
-<summary>Click to expand · edit here when stages move forward</summary>
-<br/>
-
-> Anywhere a number appears above, it traces back to this table. Update the entry below, then rebuild the SVG hero (`public/readme-hero.svg`) if a top-line number changed.
->
-> **How to read the precision numbers.** Anything tighter than 1.6 mHa (= 1 kcal/mol = chemical accuracy) is a *software regression assertion*, not a chemistry result. We diff GPU/CPU paths at 10⁻¹⁰ Ha to catch porting bugs, not because chemistry cares at that scale (basis-set incompleteness and functional choice dwarf any algorithmic difference by 6+ orders of magnitude). When comparing webgpu-q's chemistry numbers to PySCF or experiment, the only line that matters is the |ΔE| vs reference at ≥ 1 mHa.
->
-> **How to read the speedup numbers.** The headline GPU CCSD(T) number is `CCSD_T_SPEEDUP_MEDIAN = 13.8×` (5 warmup + 20 trials on M2 Pro vs our own single-threaded CPU TypeScript), and it is officially **noisy** (std/median ≈ 42%). The `39.3×` once headlined was a single lucky run — above even the p10 best-case (28.4×) — and is retired as a headline. All of this is vs our CPU TS baseline, *not* vs PySCF wall-clock and *not* vs GPU4PySCF on CUDA; the apples-to-apples comparison against production chemistry stacks remains open work.
 
 | symbol | value | context |
 |---|---|---|
-| `CCSD_T_SPEEDUP_MEDIAN` | **13.8×** | H₂O · cc-pVDZ · M2 Pro · 5 warmup + 20 trials · vs our CPU TypeScript · NOISY (std/median = 42%) |
-| `CCSD_T_SPEEDUP_P10` | **28.4×** | best-case across the 20 trials (was historically reported as "39×" — that was a single lucky run) |
-| `CCSD_T_SPEEDUP_P90` | **10.1×** | worst-case across the 20 trials |
-| `CCSD_T_GPU_TIME_MEDIAN` | **8.4 s** | median per-call GPU time over 20 trials |
-| `CCSD_T_CPU_TIME` | **116.4 s** | single CPU run on the same machine (CPU isn't run in trials — too slow) |
-| `CCSD_T_GPU_DELTA` | **1.06×10⁻⁹ Ha** | regression assertion only — 6 orders below chemical accuracy (1.6 mHa); validates the GPU port matches CPU, not the method |
-| `WIN_HF_H2_STO3G` | **105×** | E34 vs PySCF 2.13.0 · no-startup advantage |
-| `WIN_CCSD_LIH_STO3G` | **40×** | E34 vs PySCF 2.13.0 · small-system advantage |
-| `LOSS_CCSD_H2O_CCPVDZ` | **480× slower** | E34 vs PySCF 2.13.0 · BLAS gap (NumPy wins) |
-| `LOSS_MP2_H2O_CCPVDZ` | **136× slower** | E34 vs PySCF 2.13.0 · BLAS gap |
-| `E34_ENERGY_MAX_DELTA` | **1.0×10⁻⁴ Ha** | max &#124;ΔE&#124; vs PySCF over 19 cells · below chemical accuracy |
-| `E34_ENERGY_MEAN_DELTA` | **8.1×10⁻⁶ Ha** | mean &#124;ΔE&#124; vs PySCF over 19 cells |
-| `EOM_CCSD_PRECISION_H2` | **10⁻⁵ Ha** | H₂ STO-3G · 2-electron (EOM ≡ FCI) · PySCF-ported |
-| `EOM_CCSD_LIH_TRIPLET_GAP` | **7 meV** | E35 vs PySCF · 4-electron triplet · effectively exact |
-| `EOM_BRUTEFORCE_DIFF_LIH` | **< 1e-10 Ha** | EE/IP σ vs explicit H̄ projection, element-wise (LiH); PySCF-ported, no empirical patches |
-| `EA_EOM_BRUTEFORCE_DIFF_LIH` | **< 5e-13 Ha** | EA-EOM σ vs exact H̄ projection (LiH, multi-electron); `eaccsd_matvec` port replaced the +½·E_corr patch (2026-06) |
-| `IP_EOM_H2O` | **12.03 eV** | expt 12.62 |
-| `EA_EOM_H2O` | **−16.37 eV** | STO-3G (unbound) |
-| `DF_HF_PRECISION` | **7×10⁻¹⁴ Ha** | DF-HF vs direct HF regression assertion (engineering, not chemistry-relevant) |
-| `DF_MP2_PRECISION` | **0 Ha** | DF-MP2 vs direct MP2 regression assertion at τ=10⁻¹⁰ |
+| `CCSD_T_SPEEDUP_MEDIAN` | **13.8×** | H₂O cc-pVDZ · 5w+20t · vs our CPU TS · NOISY (std/median 42%) |
+| `CCSD_T_SPEEDUP_P10 / P90` | **28.4× / 10.1×** | best / worst across 20 trials (39× once-headlined was a single lucky run, retired) |
+| `CCSD_T_GPU / CPU_TIME` | **8.4 s / 116.4 s** | median GPU per-call vs single CPU run, M2 Pro |
+| `WIN_HF_H2_STO3G` | **105×** | E34 vs PySCF 2.13.0 (no-startup) |
+| `WIN_CCSD_LIH_STO3G` | **40×** | E34 vs PySCF 2.13.0 (small system) |
+| `LOSS_CCSD_H2O_CCPVDZ` | **480× slower** | E34 vs PySCF 2.13.0 (BLAS gap) |
+| `LOSS_MP2_H2O_CCPVDZ` | **136× slower** | E34 vs PySCF 2.13.0 (BLAS gap) |
+| `E34_ENERGY_MAX_DELTA` | **1.0×10⁻⁴ Ha** | max \|ΔE\| vs PySCF over 19 cells (sub-chemical) |
+| `EOM_BRUTEFORCE_DIFF_LIH` | **< 1e-10 Ha** | EE/IP σ vs explicit H̄, element-wise; PySCF-ported, no patches |
+| `EA_EOM_BRUTEFORCE_DIFF_LIH` | **< 5e-13 Ha** | EA-EOM σ vs exact H̄ (multi-electron LiH); `eaccsd_matvec` port |
+| `DF_HF_PRECISION` | **7×10⁻¹⁴ Ha** | DF-HF vs direct (engineering assertion) |
 | `FUSION_HEADLINE` | **4.18×** | Tier C · 8×8 cascade |
 | `STATEVECTOR_FIDELITY` | **F ≥ 0.999999** | f32 GPU vs f64 CPU |
-| `MPS_N_MAX` | **128** | TFIM/Heisenberg, χ ≤ 32, browser |
-| `MPS_CHI_MAX` | **64** | Phase 6 GPU MPS |
-| `H2O_ENTROPY` | **45.06 cal/(mol·K)** | expt 45.1 |
-| `STAGES_SHIPPED` | **through v0.8.0** | **WASM + aux-DF release**: 50× HF speedup on benzene cc-pVDZ (841 s → 16.8 s) via WASM hot-path stack — branch-free `prim_eri`, pair-table cache, r_aux buffer pooling, SIMD JK kernel, parallel WASM ERI build via Web Workers. **Auxiliary-basis density fitting** with pivoted Cholesky now works for arbitrary organic molecules at sub-mHa accuracy without external jkfit basis tables (49 μHa on benzene). `skipERI`/`skipOAO` integral flags eliminate ~100 s of dead work per HF on benzene. WGSL JK kernel shipped as research artifact (faster as isolated kernel, 3.3× slower in SCF due to f32 precision). Prior through v0.7.0: EE/IP-EOM-CCSD PySCF-ported, browser-platform stack (Web Workers, Pyodide REPL, drag-import, PWA + IndexedDB) |
-| `LIVE_URL` | **webgpu-q.vercel.app** | production |
+| `MPS_N_MAX / CHI_MAX` | **128 / 64** | TFIM/Heisenberg in browser · Phase 6 GPU MPS |
+| `H2O_ENTROPY` | **45.06 cal/(mol·K)** | vs expt 45.1 |
+| `STAGES_SHIPPED` | **v0.11.2** | EA-EOM PySCF-ported + multi-electron-validated; full landing/site redesign |
 
 </details>
 
@@ -522,17 +260,19 @@ Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@ba
 
 ---
 
+<h3 align="center">Companion projects</h3>
+
+[kernelfusion.dev](https://kernelfusion.dev) (umbrella · kernel fusion) ·
+[gpubench.dev](https://gpubench.dev) (WebGPU bench, 592+ devices) ·
+[webgpudna.com](https://webgpudna.com) (Geant4-DNA in the browser) ·
+[zerotvm.com](https://zerotvm.com) (Phi-3 in the browser) ·
+[neuropulse.live](https://neuropulse.live) (live transformer activations) ·
+[barisgunaydin.com](https://barisgunaydin.com) (author)
+
+<br/>
+
 <div align="center">
-
-<sub>
-MIT · Built with WebGPU, TypeScript strict, vitest, Playwright<br/>
-Author <a href="https://github.com/abgnydn">@abgnydn</a> · <a href="mailto:hi@barisgunaydin.com">hi@barisgunaydin.com</a>
-</sub>
-
+<sub>MIT · WebGPU · TypeScript strict · vitest · Playwright · by <a href="https://github.com/abgnydn">@abgnydn</a> · <a href="mailto:hi@barisgunaydin.com">hi@barisgunaydin.com</a></sub>
 <br/><br/>
-
-<a href="https://webgpu-q.vercel.app">
-<img src="https://img.shields.io/badge/%E2%96%B6%20OPEN%20IN%20BROWSER-webgpu--q.vercel.app-22d3ee?style=for-the-badge&labelColor=0b1224"/>
-</a>
-
+<a href="https://webgpu-q.vercel.app"><img src="https://img.shields.io/badge/%E2%96%B6%20OPEN%20IN%20BROWSER-webgpu--q.vercel.app-22d3ee?style=for-the-badge&labelColor=0b1224"/></a>
 </div>
