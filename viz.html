@@ -207,7 +207,19 @@
         cursor: pointer;
       }
       button:hover { border-color: var(--accent); }
+
+      /* cohesion with the rest of the site (full-screen viewer keeps its own
+         layout; just the display type + the spectral accent) */
+      h1 { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; letter-spacing: -0.02em; }
+      h1 .tag {
+        background: linear-gradient(95deg,#8a7bff,#6ea8ff 30%,#3fd6e0 54%,#34d399 76%,#ffd56e);
+        -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+        border: none; padding: 0; font-weight: 700;
+      }
     </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div class="stage">

@@ -159,14 +159,30 @@
       .footnote { color: var(--faint); font-size: 12px; margin-top: 26px; line-height: 1.6; }
       .footnote a { color: var(--dim); }
     </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/q.css" />
   </head>
   <body>
+    <div class="scroll-rail" id="scrollRail"></div>
+    <canvas class="field" id="field" aria-hidden="true"></canvas>
+    <nav class="top">
+      <div class="brand"><span class="dot"></span> webgpu-q</div>
+      <div class="links">
+        <a href="/">home</a>
+        <a href="/viz.html">hyperscope</a>
+        <a href="/molecule.html">molecule</a>
+        <a href="/swarm.html">swarm</a>
+        <a class="on" href="/screening.html">screen</a>
+        <a href="/experiments/">experiments</a>
+        <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub ↗</a>
+      </div>
+    </nav>
     <main class="wrap">
-      <a class="back" href="/">← webgpu-q</a>
-
       <section class="hero">
         <p class="eyebrow">live · real Hartree–Fock · runs in this tab</p>
-        <h1>Screen a molecule library,<br />live, in your browser.</h1>
+        <h1 class="display">Screen a molecule library,<br /><em>live, in your browser.</em></h1>
         <p>
           Every candidate below gets a <b>real quantum-chemistry calculation</b> —
           a full Hartree–Fock SCF in <code>WebAssembly</code>, no server, no install —
@@ -252,5 +268,6 @@ engine (wasm/gpu), and wall time.</pre>
       </p>
     </main>
     <script type="module" src="/src/screening/main.ts"></script>
+    <script type="module" src="/src/landing/page-fx-auto.ts"></script>
   </body>
 </html>

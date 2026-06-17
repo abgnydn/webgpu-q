@@ -1,0 +1,158 @@
+/* ════════════════════════════════════════════════════════════════════════
+   webgpu-q shared design system — the same language as the landing:
+   deep space, Space Grotesk display, the emission-spectrum gradient, glass,
+   a fixed wavefunction field behind everything. Link from any sub-page:
+     <link rel="stylesheet" href="/q.css" />
+   and add <canvas class="field" id="field"></canvas> + a module that calls
+   initPageFx() (src/landing/page-fx.ts).
+   ════════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg: #07090e;
+  --bg-soft: #11141d;
+  --panel: rgba(20, 26, 40, 0.55);
+  --border: #1b2030;
+  --border-strong: #2a3148;
+  --text: #e6e9f0;
+  --text-soft: #b3bbcc;
+  --muted: #7a8294;
+  --accent: #6ea8ff;
+  --accent-warm: #ffb56e;
+  --accent-green: #34d399;
+  --spectral: linear-gradient(95deg, #8a7bff 0%, #6ea8ff 26%, #3fd6e0 50%, #34d399 70%, #ffd56e 100%);
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; color: var(--text);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 14px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
+}
+html { background: var(--bg); }
+body { background: transparent; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--text); }
+code { background: rgba(110,168,255,0.1); padding: 1px 5px; border-radius: 4px; font-size: 0.92em; }
+
+/* fixed wavefunction field + ambient veil BEHIND in-flow content (negative
+   z-index) so any page's content sits above it without per-element fixes */
+.field {
+  position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -2; display: block;
+}
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: rgba(7, 9, 14, 0.84);
+}
+.wrap { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; padding: 0 32px; }
+
+/* glass nav */
+nav.top {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 32px; gap: 12px 18px; flex-wrap: wrap;
+  background: rgba(7, 9, 14, 0.62);
+  backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+nav.top .brand {
+  font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700;
+  letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; color: var(--text);
+}
+nav.top .brand .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent-warm); box-shadow: 0 0 8px var(--accent-warm); }
+nav.top .links { display: flex; gap: 16px; font-size: 12px; flex-wrap: wrap; }
+nav.top .links a { color: var(--text-soft); }
+nav.top .links a:hover { color: var(--text); }
+nav.top .links a.on { color: var(--text); border-bottom: 2px solid transparent; border-image: var(--spectral) 1; }
+
+/* page header */
+.page-head { position: relative; z-index: 1; padding: 64px 32px 28px; max-width: 1080px; margin: 0 auto; }
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 11px;
+  font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 16px; font-weight: 600;
+}
+.eyebrow::before { content: ""; width: 30px; height: 2px; border-radius: 2px; background: var(--spectral); }
+h1.display {
+  font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700;
+  font-size: clamp(36px, 6vw, 72px); line-height: 0.98; letter-spacing: -0.03em;
+  margin: 0 0 16px; color: var(--text); text-shadow: 0 2px 40px rgba(0,0,0,0.5);
+}
+h1.display em {
+  font-style: normal; background: var(--spectral); background-size: 220% 100%;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+  animation: spectral-flow 11s linear infinite;
+}
+@keyframes spectral-flow { to { background-position: 220% 0; } }
+.page-head .lead { font-size: 15.5px; line-height: 1.62; color: var(--text-soft); max-width: 660px; margin: 0; }
+
+/* sections + display headings */
+.section { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; padding: 40px 32px; }
+.section h2 { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; font-size: clamp(22px, 3vw, 32px); letter-spacing: -0.02em; margin: 0 0 8px; }
+.section .sub { color: var(--muted); font-size: 13px; margin: 0 0 22px; max-width: 640px; }
+
+/* buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 9px;
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; transition: 140ms ease;
+}
+.btn.primary { background: var(--accent); color: #07090e; border: 1px solid var(--accent); }
+.btn.primary:hover { background: #8fbeff; }
+.btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--border-strong); }
+.btn.ghost:hover { border-color: var(--text-soft); }
+
+/* glass cards + panels */
+.glass {
+  background: linear-gradient(180deg, rgba(20,26,40,0.5), rgba(11,13,18,0.62));
+  border: 1px solid var(--border); border-radius: 14px;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+
+/* tables → glass, spectral header */
+table {
+  width: 100%; border-collapse: collapse; margin: 12px 0; overflow: hidden;
+  background: linear-gradient(180deg, rgba(20,26,40,0.45), rgba(11,13,18,0.55));
+  border: 1px solid var(--border); border-radius: 12px;
+}
+.table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; }
+th, td { padding: 9px 13px; border-bottom: 1px solid var(--border); white-space: nowrap; text-align: left; }
+th {
+  font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; font-size: 11px;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-soft);
+}
+tr:last-child td { border-bottom: none; }
+tbody tr { transition: background 120ms ease; }
+tbody tr:hover { background: rgba(110,168,255,0.05); }
+
+/* spectral display numbers */
+.num-spectral {
+  font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; letter-spacing: -0.02em;
+  background: var(--spectral); -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+
+/* scroll-reveal (gated behind html.fx so content still shows if JS fails)
+   + spectral progress rail */
+html.fx .reveal { opacity: 0; transform: translateY(20px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+html.fx .reveal.in { opacity: 1; transform: none; }
+.scroll-rail {
+  position: fixed; top: 0; left: 0; height: 3px; width: 0; z-index: 50;
+  background: var(--spectral); box-shadow: 0 0 12px rgba(110,168,255,0.5); transition: width 90ms linear; pointer-events: none;
+}
+
+/* footer */
+footer {
+  position: relative; z-index: 1; border-top: 1px solid var(--border);
+  padding: 28px 32px; max-width: 1080px; margin: 40px auto 0;
+  font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+}
+footer a { color: var(--text-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .scroll-rail { transition: none; }
+  h1.display em { animation: none; }
+}
+@media (max-width: 720px) {
+  .wrap, .page-head, .section { padding-left: 18px; padding-right: 18px; }
+  nav.top { padding: 12px 18px; }
+}

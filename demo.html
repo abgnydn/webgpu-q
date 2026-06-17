@@ -24,84 +24,67 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/site.webmanifest" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/q.css" />
   <style>
-    :root {
-      --bg: #0b0d10;
-      --fg: #e6e7ea;
-      --muted: #7a8088;
-      --accent: #6aa9ff;
-      --border: #20242a;
-      --card: #11141a;
-    }
-    html, body {
-      background: var(--bg);
-      color: var(--fg);
-      margin: 0;
-      padding: 0;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 14px;
-      line-height: 1.5;
-      -webkit-text-size-adjust: 100%;
-    }
-    #app {
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 40px 24px 80px;
-    }
-    h1 { font-size: 22px; margin: 0 0 8px; }
-    h2 { font-size: 16px; margin: 32px 0 8px; color: var(--accent); }
-    p { color: var(--muted); margin: 6px 0; }
-    a { color: var(--accent); }
-    code { background: #1a1f27; padding: 1px 5px; border-radius: 3px; }
-    /* Wrap wide tables (e.g. the bench results) so they scroll horizontally on phones. */
-    .table-wrap, #bench {
-      display: block;
-      width: 100%;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 12px 0;
-      background: var(--card);
-      border: 1px solid var(--border);
-    }
-    th, td {
-      padding: 6px 10px;
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap;
-    }
-    th { color: var(--accent); font-weight: 600; }
-    tr:last-child td { border-bottom: none; }
-    nav { display: flex; flex-wrap: wrap; gap: 4px 16px; }
-    nav a { margin-right: 0; }
-    @media (max-width: 720px) {
-      #app { padding: 24px 14px 60px; }
-      h1 { font-size: 19px; }
-      h2 { font-size: 15px; margin-top: 24px; }
-      /* Let any wide table scroll inside its own box rather than overflowing the viewport. */
-      table {
-        display: block;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-      }
-    }
+    /* page-specific: the demo script injects its own h1 + intro; we have a header */
+    #demo-slot h1 { display: none; }
+    #demo-slot > div > p:first-of-type { display: none; }
+    #demo-slot p { color: var(--muted); font-size: 12.5px; }
+    #demo-slot td .ok { color: var(--accent-green); }
   </style>
 </head>
 <body>
-  <div id="app">
-    <nav>
-      <a href="#demo-slot">demo</a>
-      <a href="#bench-heading">bench</a>
-      <a href="https://github.com/abgnydn" target="_blank" rel="noopener">github</a>
-    </nav>
-    <div id="demo-slot"></div>
-    <h2 id="bench-heading">benchmark (GPU vs CPU reference)</h2>
-    <p>Random brick-wall circuit, sweep over N. CPU column only populated for N ≤ 18.</p>
-    <table id="bench"></table>
-  </div>
+  <div class="scroll-rail" id="scrollRail"></div>
+  <canvas class="field" id="field" aria-hidden="true"></canvas>
+
+  <nav class="top">
+    <div class="brand"><span class="dot"></span> webgpu-q</div>
+    <div class="links">
+      <a href="/">home</a>
+      <a href="/viz.html">hyperscope</a>
+      <a href="/molecule.html">molecule</a>
+      <a href="/swarm.html">swarm</a>
+      <a href="/screening.html">screen</a>
+      <a href="/experiments/">experiments</a>
+      <a class="on" href="/demo.html">gate demo</a>
+      <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+  </nav>
+
+  <header class="page-head">
+    <div class="eyebrow">Level 1 · statevector · WebGPU</div>
+    <h1 class="display">Quantum gates,<br/><em>at GPU throughput.</em></h1>
+    <p class="lead">
+      Textbook circuits — Bell, GHZ, QFT, Deutsch–Jozsa — built as 2ᴺ-amplitude
+      statevectors and run on WebGPU compute shaders, each cross-checked against
+      an f64 CPU reference. Live, in this tab.
+    </p>
+  </header>
+
+  <section class="section">
+    <div class="eyebrow">Circuits · GPU vs CPU fidelity</div>
+    <h2>Run the textbook set.</h2>
+    <p class="sub">Each circuit runs on the GPU and is verified against a Float64 CPU statevector — Δ is the max |p<sub>gpu</sub> − p<sub>cpu</sub>| over all basis states.</p>
+    <div id="demo-slot" class="table-wrap"></div>
+  </section>
+
+  <section class="section">
+    <div class="eyebrow">Benchmark · throughput</div>
+    <h2>GPU vs CPU, swept over N.</h2>
+    <p class="sub">Random brick-wall circuit, swept over qubit count N. The CPU column is only populated for N ≤ 18 — beyond that the f64 reference is too slow to be worth it.</p>
+    <div class="table-wrap"><table id="bench"></table></div>
+  </section>
+
+  <footer>
+    <div><strong style="color: var(--text);">webgpu-q</strong> — gate-throughput demo · MIT</div>
+    <div><a href="/">← back to webgpu-q</a> · <a href="/experiments/">research dashboard →</a></div>
+  </footer>
+
   <script type="module" src="/src/main.ts"></script>
   <script type="module" src="/src/bench.ts"></script>
+  <script type="module" src="/src/landing/page-fx-auto.ts"></script>
 </body>
 </html>

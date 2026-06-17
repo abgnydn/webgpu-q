@@ -130,10 +130,31 @@
     }
   </style>
   <script type="module" src="./runner.ts"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/q.css" />
 </head>
 <body>
+  <div class="scroll-rail" id="scrollRail"></div>
+  <canvas class="field" id="field" aria-hidden="true"></canvas>
+  <nav class="top">
+    <div class="brand"><span class="dot"></span> webgpu-q</div>
+    <div class="links">
+      <a href="/">home</a>
+      <a href="/viz.html">hyperscope</a>
+      <a href="/molecule.html">molecule</a>
+      <a href="/swarm.html">swarm</a>
+      <a href="/screening.html">screen</a>
+      <a class="on" href="/experiments/">experiments</a>
+      <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+  </nav>
   <div id="app">
-    <h1>webgpu-q — experiments</h1>
+    <div class="page-head" style="padding-left:0;padding-right:0">
+      <div class="eyebrow">Research ladder · live runner</div>
+      <h1 class="display">The <em>experiments.</em></h1>
+    </div>
     <p>
       Research protocol for the six-level breakthrough ladder.
       Protocols live in <code>experiments/level-N-&lt;slug&gt;/protocol.md</code>.
@@ -276,5 +297,6 @@
       </tbody>
     </table></div>
   </div>
+  <script type="module" src="/src/landing/page-fx-auto.ts"></script>
 </body>
 </html>

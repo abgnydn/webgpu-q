@@ -141,20 +141,32 @@
       .footnote { color: var(--dim); font-size: 12px; margin-top: 14px; }
       .err { background: #2a1318; color: var(--bad); border: 1px solid #4a1f25; border-radius: 8px; padding: 12px 16px; margin: 0 0 18px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px; white-space: pre-wrap; }
     </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/q.css" />
   </head>
   <body>
-    <header class="bar">
-      <div class="title"><em>webgpu-q</em> · molecular SI report</div>
-      <nav class="nav">
-        <a href="/">Home</a>
-        <a href="/viz.html">Hyperscope</a>
-        <a href="/experiments/">Experiments</a>
-        <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub</a>
-      </nav>
-    </header>
+    <div class="scroll-rail" id="scrollRail"></div>
+    <canvas class="field" id="field" aria-hidden="true"></canvas>
+    <nav class="top">
+      <div class="brand"><span class="dot"></span> webgpu-q</div>
+      <div class="links">
+        <a href="/">home</a>
+        <a href="/viz.html">hyperscope</a>
+        <a class="on" href="/molecule.html">molecule</a>
+        <a href="/swarm.html">swarm</a>
+        <a href="/screening.html">screen</a>
+        <a href="/experiments/">experiments</a>
+        <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub ↗</a>
+      </div>
+    </nav>
 
     <main>
-      <h1>The complete <em>chemistry-paper SI</em> for a small molecule.</h1>
+      <div class="page-head" style="padding-left:0;padding-right:0">
+        <div class="eyebrow">Molecular SI · computed in-tab</div>
+        <h1 class="display">The complete <em>chemistry-paper SI</em><br/>for a small molecule.</h1>
+      </div>
       <p class="lead">
         Pick a molecule, pick a method, click run. The page optimizes the
         geometry and computes everything an experimental SI table would
@@ -213,5 +225,6 @@
     </main>
 
     <script type="module" src="/src/molecule/main.ts"></script>
+    <script type="module" src="/src/landing/page-fx-auto.ts"></script>
   </body>
 </html>
