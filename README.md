@@ -14,6 +14,12 @@
 
 <br/><br/>
 
+<a href="https://webgpu-q.vercel.app"><img src="./public/demo.gif" alt="webgpu-q computing live — the wavefunction field and a real Hartree–Fock SCF converging to the ground state, in a browser tab" width="780"/></a>
+
+<sub><i>A real Hartree–Fock SCF converging in your browser — no install, no server. <a href="https://webgpu-q.vercel.app">open it →</a></i></sub>
+
+<br/><br/>
+
 <img alt="version" src="https://img.shields.io/badge/v0.11.2-0ea5e9?style=flat-square&labelColor=0b1224"/>
 <img alt="license" src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="tests" src="https://img.shields.io/badge/tests-CI%20green-22c55e?style=flat-square&labelColor=0b1224"/>
