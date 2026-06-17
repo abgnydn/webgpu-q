@@ -39,7 +39,7 @@
         <text x="20" y="118">↳ CCSD + UCCSD · frozen-core via Set</text>
         <text x="20" y="142">↳ CCSD(T) + UCCSD(T) · non-contig FC</text>
         <text x="20" y="166">↳ (T) on CPU + <tspan fill="#34d399" font-weight="700">GPU ~14× median</tspan> on H₂O cc-pVDZ</text>
-        <text x="20" y="190">↳ FCI · CASCI · capture &gt; 99%</text>
+        <text x="20" y="190">↳ FCI · CASCI · CCSD ≥ 95% capture</text>
       </g>
     </g>
 

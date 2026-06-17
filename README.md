@@ -276,7 +276,7 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 | RKS-DFT (LDA, GGA, hybrid) | LDA · BVWN5 · BLYP · B3VWN5 · B3LYP5; Becke grid, Lebedev |
 | UKS-DFT (LDA, GGA, hybrid) | full functional ladder, spin-polarized XC kernel, ⟨S²⟩ |
 | MP2 · DF-MP2 | spin-orbital + B-tensor reformulation |
-| Cholesky DF (CD-DF) | rank-3 B-tensor, threshold-controlled |
+| Aux-basis DF (RI) | streaming 3-index, f64, no 4-index ERI (`runRHFAuto`); ~7×10⁻¹⁴ Ha vs direct HF |
 | HF / DFT analytical ∇ | Pulay 1969, 8-fold ERI loop, Schwarz screening |
 
 </details>
@@ -292,9 +292,9 @@ const excited = runEOMCCSD(ccsd, integrals, hf);
 | CCSD(T) CPU | per-triple, FCI-validated ≤ 0.25 mHa, frozen-core via Set |
 | **CCSD(T) GPU** | **~14× median on H₂O cc-pVDZ** (39.3× best run, std/median 42% noisy), f32→f64 reduce |
 | UCCSD(T) | open-shell perturbative triples, frozen-core via Set |
-| EE-EOM-CCSD | Stanton-Bartlett σ + stage-32c diagonal patch, Davidson |
-| IP-EOM-CCSD | R₁ exact (brute-force); R₂ open |
-| EA-EOM-CCSD | R₁ + R₂ patched to exact (stage 32e) |
+| EE-EOM-CCSD | PySCF `eom_gccsd` port, Davidson; brute-force σ < 1e-10 Ha (no patches) |
+| IP-EOM-CCSD | PySCF-ported; R₁ + R₂ exact (brute-force < 1e-10 Ha) |
+| EA-EOM-CCSD | PySCF `eaccsd_matvec` port; R₁ + R₂ exact (LiH multi-electron < 5e-13 Ha) |
 | CIS · TDA · TDDFT (Casida) | full functional ladder, triplet via spin-pol, Davidson |
 | Counterpoise / BSSE | HF / MP2 / CCSD / UHF / UCCSD / RKS / UKS + optional D2 add-on |
 | Oscillator strengths | f = (2/3)·ω·|μ|², R₁·μ AO→MO transform |
@@ -494,10 +494,10 @@ Contributor Covenant 2.1. Report concerns to [hi@barisgunaydin.com](mailto:hi@ba
 | `LOSS_MP2_H2O_CCPVDZ` | **136× slower** | E34 vs PySCF 2.13.0 · BLAS gap |
 | `E34_ENERGY_MAX_DELTA` | **1.0×10⁻⁴ Ha** | max &#124;ΔE&#124; vs PySCF over 19 cells · below chemical accuracy |
 | `E34_ENERGY_MEAN_DELTA` | **8.1×10⁻⁶ Ha** | mean &#124;ΔE&#124; vs PySCF over 19 cells |
-| `EOM_CCSD_PRECISION` | **10⁻⁵ Ha** | H₂ STO-3G · post-32c patch · 2-electron only |
+| `EOM_CCSD_PRECISION_H2` | **10⁻⁵ Ha** | H₂ STO-3G · 2-electron (EOM ≡ FCI) · PySCF-ported |
 | `EOM_CCSD_LIH_TRIPLET_GAP` | **7 meV** | E35 vs PySCF · 4-electron triplet · effectively exact |
-| `EOM_CCSD_LIH_SINGLET_GAP` | **~0.27 eV** | E35 vs PySCF · post-32k sign-fix · within literature EOM-CCSD ↔ FCI bar (~0.1–0.2 eV) |
-| `EOM_CCSD_H2O_SINGLET_GAP` | **~1.9 eV** | E35 vs PySCF · 10-e⁻ system · remaining missing T-dressings · PySCF port closes |
+| `EOM_BRUTEFORCE_DIFF_LIH` | **< 1e-10 Ha** | EE/IP σ vs explicit H̄ projection, element-wise (LiH); PySCF-ported, no empirical patches |
+| `EA_EOM_BRUTEFORCE_DIFF_LIH` | **< 5e-13 Ha** | EA-EOM σ vs exact H̄ projection (LiH, multi-electron); `eaccsd_matvec` port replaced the +½·E_corr patch (2026-06) |
 | `IP_EOM_H2O` | **12.03 eV** | expt 12.62 |
 | `EA_EOM_H2O` | **−16.37 eV** | STO-3G (unbound) |
 | `DF_HF_PRECISION` | **7×10⁻¹⁴ Ha** | DF-HF vs direct HF regression assertion (engineering, not chemistry-relevant) |

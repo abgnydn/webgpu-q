@@ -29,7 +29,7 @@
       <rect width="1200" height="38" fill="#0f172a" fill-opacity="0.5"/>
       <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">HF · sphd · frozen-core · DIIS</text>
       <text x="370" y="24" font-size="13" fill="#94a3b8">PySCF</text>
-      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">≤ 50 µHa</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">≤ 0.5 mHa · sphd 0.1 mHa</text>
       <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
     </g>
 
@@ -44,7 +44,7 @@
       <rect width="1200" height="38" fill="#0f172a" fill-opacity="0.5"/>
       <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">CCSD</text>
       <text x="370" y="24" font-size="13" fill="#94a3b8">analytic H₂ · ECCSD = FCI</text>
-      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">≥ 99% capture</text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">≥ 95% capture</text>
       <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
     </g>
 
@@ -59,22 +59,22 @@
       <rect width="1200" height="38" fill="#0f172a" fill-opacity="0.5"/>
       <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">EE-EOM-CCSD</text>
       <text x="370" y="24" font-size="13" fill="#94a3b8">brute-force H̄ + PySCF E35 (LiH/BeH₂/H₂O/NH₃/CH₄)</text>
-      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#fbbf24">10⁻⁵ Ha (H₂) · 0.27 eV (LiH) · ~1.9 eV (H₂O open)</text>
-      <circle cx="1100" cy="19" r="8" fill="#fbbf24"/>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">brute-force LiH &lt;1e-10 Ha · H₂ = FCI · PySCF-ported</text>
+      <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
     </g>
 
     <g transform="translate(0 320)">
       <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">IP-EOM-CCSD</text>
       <text x="370" y="24" font-size="13" fill="#94a3b8">brute-force projection</text>
-      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#fbbf24">R₁ exact · R₂ open <tspan fill="#64748b" font-size="11">(~2 Ha)</tspan></text>
-      <circle cx="1100" cy="19" r="8" fill="#fbbf24"/>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">R₁ + R₂ exact <tspan fill="#64748b" font-size="11">· PySCF-ported</tspan></text>
+      <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
     </g>
 
     <g transform="translate(0 358)">
       <rect width="1200" height="38" fill="#0f172a" fill-opacity="0.5"/>
       <text x="40" y="24" font-size="14" font-weight="600" fill="#e2e8f0">EA-EOM-CCSD</text>
       <text x="370" y="24" font-size="13" fill="#94a3b8">brute-force projection</text>
-      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">R₁ + R₂ exact <tspan fill="#64748b" font-size="11">(32e patch)</tspan></text>
+      <text x="720" y="24" font-size="14" font-family="ui-monospace, monospace" font-weight="700" fill="#22d3ee">R₁ + R₂ exact <tspan fill="#64748b" font-size="11">· PySCF-ported · LiH &lt;5e-13</tspan></text>
       <circle cx="1100" cy="19" r="8" fill="#22d3ee"/>
     </g>
 

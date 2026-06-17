@@ -20,10 +20,10 @@
     <g transform="translate(20 20)">
       <rect width="285" height="180" rx="10" fill="#0f172a" stroke="#22d3ee" stroke-opacity="0.35" filter="url(#cardShadow)"/>
       <rect x="0" y="0" width="4" height="180" rx="2" fill="#22d3ee"/>
-      <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#22d3ee" font-weight="600">TEST SURFACE</text>
+      <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#22d3ee" font-weight="600">SWARM SCALE</text>
       <text x="22" y="105" font-size="64" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">2.56</text>
       <text x="22" y="135" font-size="14" font-weight="600" fill="#94a3b8">GB swarm fit · 4 tabs</text>
-      <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">vitest + 3 e2e Playwright · 0 flakes</text>
+      <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">C₆₀ HF in a tab · partition bit-exact ~1e-15</text>
     </g>
 
     <g transform="translate(315 20)">
@@ -38,10 +38,10 @@
     <g transform="translate(610 20)">
       <rect width="285" height="180" rx="10" fill="#0f172a" stroke="#c084fc" stroke-opacity="0.35" filter="url(#cardShadow)"/>
       <rect x="0" y="0" width="4" height="180" rx="2" fill="#c084fc"/>
-      <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#c084fc" font-weight="600">EOM-CCSD ↔ PySCF</text>
-      <text x="22" y="105" font-size="56" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">0.27 eV</text>
-      <text x="22" y="135" font-size="14" font-weight="600" fill="#94a3b8">LiH STO-3G singlet · stage 32k sign-fix</text>
-      <text x="22" y="158" font-size="11" fill="#94a3b8" font-style="italic">within literature 0.1–0.2 eV method bar; H₂O ~1.9 eV (open)</text>
+      <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#c084fc" font-weight="600">EOM-CCSD ↔ EXACT</text>
+      <text x="22" y="105" font-size="56" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">&lt;10⁻¹⁰</text>
+      <text x="22" y="135" font-size="14" font-weight="600" fill="#94a3b8">Ha · LiH σ vs explicit H̄</text>
+      <text x="22" y="158" font-size="11" fill="#94a3b8" font-style="italic">EE / IP / EA all PySCF-ported, brute-force validated</text>
     </g>
 
     <g transform="translate(905 20)">
@@ -50,7 +50,7 @@
       <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#fbbf24" font-weight="600">DF-HF ↔ DIRECT HF</text>
       <text x="22" y="105" font-size="50" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">7×10⁻¹⁴<tspan font-size="26" fill="#94a3b8" dx="6">Ha</tspan></text>
       <text x="22" y="135" font-size="14" font-weight="600" fill="#94a3b8">machine precision</text>
-      <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">H₂O STO-3G · Cholesky DF · τ=10⁻⁶</text>
+      <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">H₂O STO-3G · aux-basis f64 DF</text>
     </g>
 
     <g transform="translate(20 220)">

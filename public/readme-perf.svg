@@ -102,7 +102,7 @@
         <text x="500" y="0" fill="#fbbf24" font-weight="700" text-anchor="end">&lt; 10⁻¹⁰ Ha</text>
       </g>
       <g transform="translate(0 44)">
-        <text x="0" y="0" fill="#e2e8f0">aux-DF · Cholesky (n ≥ 200)</text>
+        <text x="0" y="0" fill="#e2e8f0">aux-basis f64 DF (n ≥ 200)</text>
         <text x="500" y="0" fill="#fbbf24" font-weight="700" text-anchor="end">49 μHa</text>
       </g>
       <g transform="translate(0 66)">
@@ -120,5 +120,5 @@
     </g>
   </g>
 
-  <text x="40" y="608" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="#64748b" font-style="italic">Test wall time on benzene cc-pVDZ HF dropped from 11 min to 29 s in v0.8.0 (skipERI + skipOAO option). aux-DF Cholesky unlocks n ≥ 200 where direct n⁴ ERI doesn't fit in browser tab memory. Full breakdown: LIMITATIONS.md.</text>
+  <text x="40" y="608" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="#64748b" font-style="italic">Test wall time on benzene cc-pVDZ HF dropped from 11 min to 29 s in v0.8.0 (skipERI + skipOAO option). aux-basis f64 DF unlocks n ≥ 200 where direct n⁴ ERI doesn't fit in browser tab memory. Full breakdown: LIMITATIONS.md.</text>
 </svg>
