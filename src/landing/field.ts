@@ -89,32 +89,54 @@ export function initField(canvas: HTMLCanvasElement): void {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 0;
   const DPR = Math.min(window.devicePixelRatio || 1, 1.75);
 
-  let W = 0, H = 0;
-  const resize = (): void => {
-    W = Math.floor(canvas.clientWidth * DPR); H = Math.floor(canvas.clientHeight * DPR);
-    canvas.width = Math.max(1, W); canvas.height = Math.max(1, H);
-    gl.viewport(0, 0, canvas.width, canvas.height);
-  };
-  resize();
-  window.addEventListener("resize", resize);
-
-  // cursor → field perturbation (eased), default off-screen
-  let mx = 5, my = 5, tx = 5, ty = 5;
-  window.addEventListener("pointermove", (e) => {
-    const min = Math.min(canvas.clientWidth, canvas.clientHeight);
-    tx = (e.clientX - canvas.clientWidth * 0.5) / min;
-    ty = -(e.clientY - canvas.clientHeight * 0.5) / min;
-  }, { passive: true });
-
   const start = performance.now();
-  const frame = (): void => {
+  let W = 0, H = 0, mx = 5, my = 5, tx = 5, ty = 5;
+
+  const draw = (): void => {
     mx += (tx - mx) * 0.06; my += (ty - my) * 0.06;
     gl.uniform2f(uRes, canvas.width, canvas.height);
     gl.uniform1f(uTime, (performance.now() - start) / 1000);
     gl.uniform2f(uMouse, mx, my);
     gl.uniform1f(uReduce, reduce);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    if (!reduce) requestAnimationFrame(frame);
   };
-  requestAnimationFrame(frame);
+
+  // Desktop animates; mobile/reduced-motion get a crisp STATIC frame — a
+  // full-screen fragment shader is a real battery/heat cost on phones.
+  const mobile = matchMedia("(pointer: coarse)").matches || Math.min(window.innerWidth, window.innerHeight) < 640;
+  const animate = !reduce && !mobile;
+
+  const resize = (): void => {
+    W = Math.floor(canvas.clientWidth * DPR); H = Math.floor(canvas.clientHeight * DPR);
+    canvas.width = Math.max(1, W); canvas.height = Math.max(1, H);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    if (!animate) draw();   // keep the static frame correct across resizes
+  };
+  resize();
+  window.addEventListener("resize", resize);
+
+  window.addEventListener("pointermove", (e) => {
+    const min = Math.min(canvas.clientWidth, canvas.clientHeight);
+    tx = (e.clientX - canvas.clientWidth * 0.5) / min;
+    ty = -(e.clientY - canvas.clientHeight * 0.5) / min;
+  }, { passive: true });
+
+  // Throttle (rAF fires at the display refresh rate — 120Hz on many panels) and
+  // pause entirely when the tab is hidden, so the always-on background isn't a
+  // CPU/battery drain. A slowly-evolving field looks identical at 36fps.
+  const minDt = 1000 / 36;
+  let last = -1e9, raf = 0, running = false;
+  const loop = (now: number): void => {
+    if (!running) return;
+    if (now - last >= minDt) { last = now; draw(); }
+    raf = requestAnimationFrame(loop);
+  };
+  const startLoop = (): void => { if (!running) { running = true; last = -1e9; raf = requestAnimationFrame(loop); } };
+  const stopLoop = (): void => { running = false; cancelAnimationFrame(raf); };
+
+  if (!animate) { draw(); }
+  else {
+    startLoop();
+    document.addEventListener("visibilitychange", () => { if (document.hidden) stopLoop(); else startLoop(); });
+  }
 }
