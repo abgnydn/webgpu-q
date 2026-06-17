@@ -62,8 +62,8 @@ slice} removes the last single-tab bottleneck and carries the fit past the
 $n{=}400$) that is impossible on any single tab, run across four, and validated
 against an exact non-interacting energy oracle. Energies are validated against
 PySCF --- bit-for-bit where the
-algorithm is identical, and to $\le 50\,\mu$Ha (HF) / $\le 0.25$\,mHa
-(CCSD(T) vs FCI) otherwise. Speed is workload-dependent and is not the
+algorithm is identical, and to $\le 0.5$\,mHa (HF; $\le 0.1$\,mHa with
+spherical-d) / $\le 0.25$\,mHa (CCSD(T) vs FCI) otherwise. Speed is workload-dependent and is not the
 contribution: against PySCF (the only suite we benchmark), the WebAssembly+SIMD
 path is comparable-to-faster on minimal-basis HF/MP2/CCSD for small molecules
 but up to $\sim$two orders of magnitude slower on large correlated calculations,
@@ -88,9 +88,13 @@ volunteer-computing frameworks (Pando~\cite{pando}, Genet~\cite{genet},
 QMachine~\cite{qmachine}) have run generic map/stream workloads across browser
 tabs and devices. Web-based chemistry tools such as WebMO~\cite{webmo} and the
 Molecule Calculator~\cite{molcalc} put a browser front-end on quantum chemistry,
-but the calculation runs server-side on a native backend. No published system
-runs \emph{electronic structure} client-side in the browser itself, and none
-distributes such a calculation across browser tabs (\S\ref{sec:related}).
+but the calculation runs server-side on a native backend. Open Computational
+Chemistry (OCC)~\cite{occ} has recently shown Hartree--Fock and DFT running
+client-side in the browser via WebAssembly. No published system, however, brings
+the \emph{correlated post-Hartree--Fock} hierarchy --- MP2 through CCSD(T) and
+EOM-CCSD --- into the browser, accelerates the perturbative-triples bottleneck
+with WebGPU, or distributes such a calculation across browser tabs
+(\S\ref{sec:related}).
 
 This paper closes that gap. Our contributions are:
 \begin{enumerate}
@@ -447,9 +451,12 @@ Per our research-grade discipline, failures are reported, not hidden:
   (damping 0.2, DIIS start at iter 8) avoids divergence but converges to a
   spurious lower-energy state; MOM / SAD-initial-guess is required for the
   physical ground state.
-  \item \textbf{Density fitting gives no speedup yet} --- current CD-DF still
-  builds the 4-index tensor before decomposing; aux-basis 3-index DF is the
-  real win.
+  \item \textbf{No GPU speedup for the density-fitted Fock build.} The
+  aux-basis 3-index DF the swarm relies on runs on the f64
+  WebAssembly path. WebGPU exposes no f64, so the f32 GPU DF kernels cannot
+  accelerate the f64-bound $J$/$K$ contraction; they are retained only as a
+  $\sim$30\,mHa screening path. A real GPU win awaits double-single (df64)
+  emulation of the JK products.
   \item \textbf{\Csixty{} runs only at STO-3G.} The streaming build removed the
   master's full-tensor peak, but \Csixty{} cc-pVDZ ($n\approx840$) has a fitting
   tensor of $\sim$26\,GB; even split across many tabs the \emph{sum} exceeds a
@@ -474,15 +481,16 @@ QUICK~\cite{quick}, and VeloxChem~\cite{veloxchem} implement HF/DFT/Fock on
 CUDA. None runs in a browser. Browser volunteer computing ---
 Pando~\cite{pando}, Genet~\cite{genet}, QMachine~\cite{qmachine} ---
 distributes generic workloads across tabs and devices but has not run
-electronic structure. WebGPU is an actively characterized compute
-target~\cite{webgpudispatch}. Web-based quantum-chemistry tools do exist ---
+electronic structure. Web-based quantum-chemistry tools do exist ---
 WebMO~\cite{webmo} and the Molecule Calculator~\cite{molcalc} --- but they are
 server-client front-ends: the browser is a molecular editor and job monitor,
-while the SCF runs on a native backend (GAMESS, Gaussian, etc.), and the
-client-side methods are limited to RHF/STO-3G property estimation. webgpu-q
-instead runs the entire HF/MP2/CCSD(T)/DFT/EOM stack \emph{in} the browser,
-client-side, with no backend. On a literature search current to June~2026 we
-find no published in-browser (client-side) electronic-structure implementation
+while the SCF runs on a native backend (GAMESS, Gaussian, etc.). The closest
+prior client-side work is Open Computational Chemistry (OCC)~\cite{occ}, which
+runs Hartree--Fock and DFT in-browser via WebAssembly as a single worker.
+webgpu-q instead runs the entire HF/MP2/CCSD(T)/DFT/EOM stack \emph{in} the
+browser, client-side, with no backend. On a literature search current to
+June~2026 we find no published in-browser (client-side) electronic-structure
+implementation
 at this method coverage, and none that distributes such a calculation across
 browser tabs. Best-functional and benchmark context follows the GMTKN55
 database~\cite{gmtkn55}; experimental reference data are from the NIST

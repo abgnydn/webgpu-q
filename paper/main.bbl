@@ -4,25 +4,22 @@
 Qiming Sun et~al.
 \newblock {PySCF}: the {Python}-based simulations of chemistry framework.
 \newblock {\em WIREs Computational Molecular Science}, 8:e1340, 2018.
-\newblock DOI: 10.1002/wcms.1340.
 
 \bibitem{gpu4pyscf}
 Rui Wu, Qiming Sun, et~al.
 \newblock Enhancing {GPU} acceleration in the {Python}-based simulations of chemistry framework.
 \newblock {\em Journal of Physical Chemistry A}, 2024.
-\newblock DOI: 10.1021/acs.jpca.4c05876. Preprint arXiv:2407.09700.
+\newblock Preprint arXiv:2407.09700.
 
 \bibitem{quick}
 Madushanka Manathunga, Yipu Miao, Dawei Mu, Andreas~W. G{\"o}tz, and Kenneth~M. Merz.
 \newblock Parallel implementation of density functional theory methods in the quantum interaction computational kernel ({QUICK}) program.
 \newblock {\em Journal of Chemical Theory and Computation}, 16:4315--4326, 2020.
-\newblock DOI: 10.1021/acs.jctc.0c00290.
 
 \bibitem{veloxchem}
 Xin Li, Mathieu Linares, and Patrick Norman.
 \newblock {VeloxChem}: {GPU}-accelerated {Fock} matrix construction enabling complex polarization propagator simulations of circular dichroism spectra of {G}-quadruplexes.
 \newblock {\em Journal of Physical Chemistry A}, 129(2):633--642, 2025.
-\newblock DOI: 10.1021/acs.jpca.4c07510.
 
 \bibitem{pando}
 Erick Lavoie and Laurie Hendren.
@@ -38,36 +35,32 @@ Erick Lavoie, Laurie Hendren, et~al.
 Sean~R. Wilkinson and Jonas~S. Almeida.
 \newblock {QMachine}: Commodity supercomputing in web browsers.
 \newblock {\em BMC Bioinformatics}, 15:176, 2014.
-\newblock DOI: 10.1186/1471-2105-15-176.
 
 \bibitem{webmo}
 William~F. Polik and J.~R. Schmidt.
 \newblock {WebMO}: Web-based computational chemistry calculations in education and research.
 \newblock {\em WIREs Computational Molecular Science}, 12(1):e1554, 2022.
-\newblock DOI: 10.1002/wcms.1554.
 
 \bibitem{molcalc}
 Jan~H. Jensen and Jimmy~C. Kromann.
 \newblock The molecule calculator: A web application for fast quantum mechanics-based estimation of molecular properties.
 \newblock {\em Journal of Chemical Education}, 90(8):1093--1095, 2013.
-\newblock DOI: 10.1021/ed400164n.
+
+\bibitem{occ}
+Peter~R. Spackman.
+\newblock Open computational chemistry ({OCC}): A portable software library and program for quantum chemistry and crystallography.
+\newblock {\em Journal of Open Source Software}, 2026.
+\newblock Runs Hartree--Fock and DFT client-side in the browser via WebAssembly.
 
 \bibitem{schollwock}
 Ulrich Schollw{\"o}ck.
 \newblock The density-matrix renormalization group in the age of matrix product states.
 \newblock {\em Annals of Physics}, 326(1):96--192, 2011.
-\newblock DOI: 10.1016/j.aop.2010.09.012.
-
-\bibitem{webgpudispatch}
-{Anonymous}.
-\newblock Characterizing {WebGPU} dispatch overhead for {LLM} inference across four {GPU} vendors, three backends, and three browsers.
-\newblock {\em arXiv preprint}, arXiv:2604.02344, 2026.
 
 \bibitem{gmtkn55}
 Lars Goerigk, Andreas Hansen, Christoph Bauer, Stephan Ehrlich, Asim Najibi, and Stefan Grimme.
 \newblock A look at the density functional theory zoo with the advanced {GMTKN55} database for general main group thermochemistry, kinetics and noncovalent interactions.
 \newblock {\em Physical Chemistry Chemical Physics}, 19:32184--32215, 2017.
-\newblock DOI: 10.1039/C7CP04913G.
 
 \bibitem{cccbdb}
 {NIST}.
