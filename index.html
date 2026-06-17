@@ -38,6 +38,9 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
     <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' fill='%230b0d12'/><circle cx='32' cy='32' r='14' fill='none' stroke='%236ea8ff' stroke-width='3'/><circle cx='32' cy='32' r='6' fill='%23ffb56e'/></svg>" />
 
     <!-- Structured data — SoftwareApplication / WebSite / Person ─── -->
@@ -158,12 +161,43 @@
       nav.top .links a { color: var(--text-soft); }
       nav.top .links a:hover { color: var(--text); }
 
-      /* ── Hero ─── */
+      /* ── Hero — full-bleed living wavefunction ─── */
       .hero {
-        max-width: 1080px; margin: 0 auto;
-        padding: 88px 32px 48px;
-        position: relative;
+        position: relative; overflow: hidden;
+        min-height: 94vh; display: flex; align-items: center;
+        border-bottom: 1px solid var(--border);
       }
+      .hero .field {
+        position: fixed; inset: 0; width: 100vw; height: 100vh;
+        z-index: 0; display: block;
+      }
+      .hero-veil {
+        position: absolute; inset: 0; z-index: 1; pointer-events: none;
+        background:
+          linear-gradient(100deg, rgba(7,9,14,0.94) 0%, rgba(7,9,14,0.7) 34%, rgba(7,9,14,0.2) 64%, rgba(7,9,14,0) 88%),
+          linear-gradient(0deg, rgba(7,9,14,0.85) 0%, transparent 26%);
+      }
+      .hero-inner {
+        position: relative; z-index: 2;
+        max-width: 1080px; width: 100%; margin: 0 auto;
+        padding: 0 32px;
+        animation: rise 800ms cubic-bezier(.2,.7,.2,1) both;
+      }
+      .hero-inner .badge { backdrop-filter: blur(4px); }
+      .scroll-cue {
+        position: absolute; z-index: 2; left: 32px; bottom: 28px;
+        font-size: 11px; color: var(--muted); letter-spacing: 0.04em;
+        max-width: 460px; animation: rise 800ms cubic-bezier(.2,.7,.2,1) 360ms both;
+      }
+      .scroll-cue:hover { color: var(--text-soft); }
+      .viz { display: flex; flex-direction: column; gap: 12px; margin: 2px 0 12px; }
+      .viz-col { min-width: 0; }
+      .viz-label { font-size: 10px; color: var(--muted); letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 5px; }
+      .viz-plot { width: 100%; height: 150px; display: block; border: 1px solid var(--border); border-radius: 8px; background: #07090e; }
+      .viz-ladder { width: 100%; height: 104px; display: block; border: 1px solid var(--border); border-radius: 8px; background: #07090e; }
+      .hero-live { max-width: 640px; animation: rise 720ms cubic-bezier(.2,.7,.2,1) 80ms both; }
+      @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+      @media (prefers-reduced-motion: reduce) { .hero-inner, .hero-live, .scroll-cue { animation: none; } }
       .hero .badge {
         display: inline-flex; gap: 8px; align-items: center;
         flex-wrap: wrap;
@@ -176,24 +210,27 @@
         padding: 6px 12px; border-radius: 999px;
       }
       .hero h1 {
-        font-family: "Iowan Old Style", "Charter", "Georgia", serif;
-        font-weight: 500;
-        font-size: clamp(36px, 5.6vw, 72px);
-        line-height: 1.04;
-        letter-spacing: -0.02em;
-        margin: 22px 0 18px;
+        font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
+        font-weight: 700;
+        font-size: clamp(46px, 8.4vw, 122px);
+        line-height: 0.95;
+        letter-spacing: -0.035em;
+        margin: 20px 0 22px;
         color: var(--text);
+        text-shadow: 0 2px 40px rgba(0,0,0,0.5);
       }
       .hero h1 em {
-        font-style: italic;
-        color: var(--accent-warm);
-        font-family: inherit;
+        font-style: normal;
+        background: linear-gradient(95deg, #8a7bff 0%, #6ea8ff 28%, #3fd6e0 52%, #34d399 70%, #ffd56e 100%);
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: transparent;
       }
       .hero p.lead {
-        font-size: 16px; line-height: 1.6;
+        font-size: 16.5px; line-height: 1.62;
         color: var(--text-soft);
-        max-width: 680px;
-        margin: 0 0 28px;
+        max-width: 600px;
+        margin: 0 0 30px;
+        text-shadow: 0 1px 18px rgba(0,0,0,0.6);
       }
       .hero .ctas {
         display: flex; gap: 12px; flex-wrap: wrap;
@@ -218,6 +255,50 @@
       .btn.ghost:hover { border-color: var(--text-soft); color: var(--text); }
       .btn .arrow { display: inline-block; transition: 120ms ease; }
       .btn:hover .arrow { transform: translateX(2px); }
+
+      /* ── Live compute signature ─── */
+      .live {
+        margin: 0;
+        border: 1px solid var(--border-strong); border-radius: 14px;
+        background: linear-gradient(180deg, rgba(20, 26, 40, 0.55), rgba(7, 9, 14, 0.66));
+        backdrop-filter: blur(12px) saturate(1.1);
+        -webkit-backdrop-filter: blur(12px) saturate(1.1);
+        box-shadow: 0 28px 70px -28px rgba(0, 0, 0, 0.75), inset 0 0 0 1px rgba(110, 168, 255, 0.06);
+        overflow: hidden;
+      }
+      .live-head {
+        display: flex; align-items: center; gap: 9px;
+        padding: 9px 14px; border-bottom: 1px solid var(--border);
+        font-size: 11px; letter-spacing: 0.04em;
+      }
+      .live-dot {
+        width: 8px; height: 8px; border-radius: 50%; flex: none;
+        background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green);
+        animation: livepulse 2.4s ease-in-out infinite;
+      }
+      @keyframes livepulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+      @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+      .live-head .t { color: var(--text-soft); }
+      .live-head .eng { margin-left: auto; color: var(--accent); font-size: 10px; }
+      .live-body { padding: 14px; }
+      .live-mol { display: flex; gap: 8px; margin: 0 0 11px; }
+      .molbtn {
+        font: inherit; font-size: 12px; padding: 5px 13px; cursor: pointer;
+        background: var(--bg-soft); color: var(--text-soft);
+        border: 1px solid var(--border); border-radius: 7px; transition: 120ms ease;
+      }
+      .molbtn:hover { border-color: var(--border-strong); color: var(--text); }
+      .molbtn.on { border-color: var(--accent); color: var(--text); background: rgba(110, 168, 255, 0.1); }
+      .live-out {
+        background: #07090e; border: 1px solid var(--border); border-radius: 8px;
+        padding: 12px 14px; margin: 0 0 12px; font-size: 12.5px; line-height: 1.7;
+        color: var(--text-soft); min-height: 92px; white-space: pre-wrap; overflow-x: auto;
+      }
+      .live-out .ok { color: var(--accent-green); }
+      .live-out .e { color: var(--accent-warm); font-weight: 600; }
+      .live-out .dim { color: var(--muted); }
+      .live-run { width: 100%; justify-content: center; }
+      .live-run:disabled { opacity: 0.6; cursor: progress; }
 
       /* ── Numbers strip ─── */
       .stats {
@@ -256,10 +337,10 @@
         padding: 64px 32px;
       }
       .section h2 {
-        font-family: "Iowan Old Style", "Charter", "Georgia", serif;
-        font-size: 32px; font-weight: 500;
+        font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
+        font-size: clamp(28px, 3.4vw, 40px); font-weight: 700;
         margin: 0 0 8px;
-        letter-spacing: -0.01em;
+        letter-spacing: -0.02em;
       }
       .section .sub {
         color: var(--muted); font-size: 13px;
@@ -362,6 +443,9 @@
           align-items: flex-start;
         }
       }
+      @media (max-width: 880px) {
+        .hero-grid { grid-template-columns: 1fr; gap: 28px; padding: 64px 22px 44px; }
+      }
       @media (max-width: 720px) {
         .twocol { grid-template-columns: 1fr; }
         .demos, .ladder { grid-template-columns: 1fr !important; }
@@ -369,7 +453,7 @@
         .stats .stat { padding: 18px 14px; }
         .stats .stat:nth-child(2) { border-right: none; }
         .stats .stat .num { font-size: 24px; }
-        .hero { padding: 48px 18px 28px; }
+        .hero-grid { padding: 52px 18px 38px; }
         .hero p.lead { font-size: 14.5px; }
         .hero .ctas { flex-direction: column; align-items: stretch; }
         .hero .ctas .btn { justify-content: center; padding: 12px 18px; }
@@ -423,9 +507,139 @@
         display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
       }
       footer a { color: var(--text-soft); }
+
+      /* ════════════ v2 — one cohesive spectral language ════════════ */
+      :root { --spectral: linear-gradient(95deg, #8a7bff 0%, #6ea8ff 26%, #3fd6e0 50%, #34d399 70%, #ffd56e 100%); }
+
+      .section { padding: 88px 32px; }
+      .eyebrow {
+        display: inline-flex; align-items: center; gap: 11px;
+        font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
+        color: var(--muted); margin: 0 0 18px; font-weight: 600;
+      }
+      .eyebrow::before { content: ""; width: 30px; height: 2px; border-radius: 2px; background: var(--spectral); }
+
+      /* spectral display numbers everywhere */
+      .stats .stat .num, .lvl .num {
+        font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700;
+        letter-spacing: -0.02em;
+        background: var(--spectral); -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: transparent;
+      }
+
+      /* stats → a quiet spectral readout band */
+      .stats {
+        border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+        background: linear-gradient(180deg, rgba(20,26,40,0.34), rgba(7,9,14,0));
+      }
+      .stats .stat .num { font-size: clamp(30px, 3.4vw, 46px); line-height: 1; }
+      .stats .stat .lab { color: var(--muted); }
+
+      /* the research ladder → glass tiles, spectral indices */
+      .lvl {
+        background: linear-gradient(180deg, rgba(20,26,40,0.42), rgba(11,13,18,0.5));
+        border-radius: 13px;
+      }
+      .lvl .num { font-size: 26px; }
+
+      /* cards (demos + companions) → premium glass, spectral-lit hover */
+      .demo-card {
+        background: linear-gradient(180deg, rgba(20,26,40,0.5), rgba(11,13,18,0.62));
+        border-radius: 16px;
+      }
+      .demo-card:hover {
+        transform: translateY(-3px);
+        border-color: rgba(110,168,255,0.45);
+        box-shadow: 0 22px 54px -22px rgba(0,0,0,0.75), 0 0 34px -12px rgba(110,168,255,0.28);
+      }
+      .demo-card .body h3 { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; font-size: 15px; }
+
+      /* the panel + code blocks read as instruments on deep space */
+      .live { max-width: 720px; margin: 0 auto; }
+      .twocol .live-out, pre.code { background: #07090e; }
+
+      /* scroll-reveal */
+      .reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+      .reveal.in { opacity: 1; transform: none; }
+      @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
+
+      /* the spectral headline slowly flows — a living wavefunction in the type */
+      .hero h1 em {
+        background: linear-gradient(95deg, #8a7bff 0%, #6ea8ff 24%, #3fd6e0 46%, #34d399 64%, #ffd56e 86%, #8a7bff 110%);
+        background-size: 220% 100%;
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: transparent;
+        animation: spectral-flow 11s linear infinite;
+      }
+      @keyframes spectral-flow { to { background-position: 220% 0; } }
+      @media (prefers-reduced-motion: reduce) { .hero h1 em { animation: none; } }
+
+      /* glass nav, display brand */
+      nav.top {
+        background: rgba(7, 9, 14, 0.62);
+        backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      nav.top .brand { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; letter-spacing: -0.01em; }
+
+      /* ecosystem strip — compact, doesn't pull focus from the product */
+      .eco-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+      .eco-links a {
+        display: flex; flex-direction: column; gap: 3px;
+        padding: 13px 15px; border: 1px solid var(--border); border-radius: 11px;
+        background: linear-gradient(180deg, rgba(20,26,40,0.4), rgba(11,13,18,0.5));
+        color: var(--text); font-size: 13px; font-weight: 600; transition: 160ms ease;
+      }
+      .eco-links a span { font-size: 11px; font-weight: 400; color: var(--muted); }
+      .eco-links a:hover { border-color: rgba(110,168,255,0.45); transform: translateY(-2px); box-shadow: 0 14px 36px -18px rgba(0,0,0,0.7); }
+
+      /* unify the six demo thumbnails onto one deep-space + spectral-glow ground
+         (they were a rainbow of per-card gradients) */
+      .demos .demo-card .preview {
+        background:
+          radial-gradient(80% 80% at 28% 16%, rgba(110,168,255,0.14), transparent 60%),
+          radial-gradient(74% 74% at 84% 88%, rgba(52,211,153,0.12), transparent 60%),
+          #0a0d16 !important;
+      }
+
+      /* spectral scroll-progress rail */
+      .scroll-rail {
+        position: fixed; top: 0; left: 0; height: 3px; width: 0; z-index: 50;
+        background: var(--spectral); box-shadow: 0 0 12px rgba(110,168,255,0.5);
+        transition: width 90ms linear; pointer-events: none;
+      }
+      @media (prefers-reduced-motion: reduce) { .scroll-rail { transition: none; } }
+
+      /* the field lives behind the WHOLE page; the middle content rides over a
+         translucent veil so it dims to a faint living shimmer, then the field
+         re-emerges full-strength at the closing crescendo */
+      nav.top { position: sticky; }
+      .below { position: relative; z-index: 1; background: rgba(7, 9, 14, 0.82); }
+      .stats { background: linear-gradient(180deg, rgba(20,26,40,0.34), rgba(7,9,14,0)); }
+      .closing {
+        position: relative; z-index: 1;
+        padding: clamp(110px, 16vh, 200px) 32px; text-align: center;
+        border-top: 1px solid var(--border);
+      }
+      .closing .hero-inner { text-align: center; animation: none; }
+      .closing h2 {
+        font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700;
+        font-size: clamp(40px, 7vw, 92px); line-height: 0.98; letter-spacing: -0.03em;
+        margin: 0 0 28px; text-shadow: 0 2px 40px rgba(0,0,0,0.6);
+      }
+      .closing h2 em {
+        font-style: normal;
+        background: linear-gradient(95deg,#8a7bff,#6ea8ff 26%,#3fd6e0 48%,#34d399 66%,#ffd56e 88%);
+        background-size: 220% 100%;
+        -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+        animation: spectral-flow 11s linear infinite;
+      }
+      .closing .ctas { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+      footer { position: relative; z-index: 1; background: rgba(7, 9, 14, 0.82); max-width: none; padding-left: max(32px, calc((100vw - 1080px)/2)); padding-right: max(32px, calc((100vw - 1080px)/2)); }
     </style>
   </head>
   <body>
+    <div class="scroll-rail" id="scrollRail"></div>
     <nav class="top">
       <div class="brand">
         <span class="dot"></span>
@@ -444,73 +658,84 @@
     </nav>
 
     <section class="hero">
-      <span class="badge">browser-native · webGPU · PySCF cross-checked · distributed swarm · CI green</span>
-      <h1>
-        Quantum chemistry,<br/>
-        <em>in a browser tab.</em>
-      </h1>
-      <p class="lead">
-        Hartree-Fock + UHF + UCCSD (radicals),
-        <strong>RKS-DFT + UKS-DFT (5 functionals, open + closed shell)</strong>,
-        MP2, CCSD, <strong>CCSD(T) on GPU (~14× median speedup on H₂O cc-pVDZ)</strong>,
-        <strong>EE/IP/EA-EOM-CCSD (PySCF cross-checked)</strong>, a
-        <strong>size-gated f64 density-fitting engine</strong> across
-        RHF/UHF/RKS/UKS/MP2 — exact integrals for small systems, density fitting
-        when the 4-index ERI won't fit a tab (naphthalene's would be 9.7 GB —
-        never built, run to a converged energy anyway); <strong>DF validated to
-        chemical accuracy vs exact on small molecules</strong> (plus an optional
-        WebGPU-accelerated build for the medium regime), <strong>full polarizability
-        stack — static α + dynamic α(ω) + Casimir-Polder C₆ — across
-        every reference</strong> (RHF/UHF/RKS/UKS), <strong>Grimme D2
-        dispersion with analytical gradient</strong>, geometry
-        optimization, IR + Raman + UV-vis spectra (singlet + triplet),
-        <strong>Foster-Boys + Pipek-Mezey orbital localization</strong>,
-        NOON + multireference verdict + ⟨S²⟩ diagnostics, ionization
-        potentials + electron affinities, ideal-gas thermochemistry,
-        <strong>Molden + Gaussian Cube + QCSchema + XYZ exports</strong>
-        — plus a quantum-many-body playground (statevector, MPS, kernel
-        fusion, phase transitions). All WebGPU, all TypeScript, all
-        cross-validated against PySCF, libxc, ITensor, an internal
-        brute-force EOM-CCSD reference, and gas-phase experimental references.
-      </p>
-      <p class="lead" style="margin-top: 14px;">
-        <strong>And the crowd is the cluster.</strong> Open the page in many
-        tabs — or across machines — and they pool into a swarm over a free
-        broker, splitting a batch of single-points — each tile a chemistry-grade
-        DF energy, GPU-accelerated where there's a GPU. The distributed run is
-        cross-machine-validated on two independent CI runners (the throughput is
-        the scaling axis, not wall-time). <a href="/swarm.html">Open the swarm →</a>
-      </p>
-      <div class="ctas">
-        <a class="btn primary" href="/viz.html">
-          Open the hyperscope <span class="arrow">→</span>
-        </a>
-        <a class="btn ghost" href="/experiments/">
-          Browse the experiments <span class="arrow">→</span>
-        </a>
+      <canvas class="field" id="field" aria-hidden="true"></canvas>
+      <div class="hero-veil"></div>
+      <div class="hero-inner">
+        <span class="badge">browser-native · WebGPU · PySCF-validated · no install</span>
+        <h1>Real quantum<br/>chemistry, <em>in a<br/>browser tab.</em></h1>
+        <p class="lead">
+          Open a link and run the real thing — Hartree–Fock, DFT, MP2, CCSD(T),
+          excited states — computed on your own machine, right in the tab.
+          No install, no cluster, no CUDA. Every number cross-checked against PySCF.
+        </p>
+        <div class="ctas">
+          <a class="btn primary" href="/screening.html">▶ Run the live molecular screen <span class="arrow">→</span></a>
+          <a class="btn ghost" href="#proof">Watch it actually compute <span class="arrow">↓</span></a>
+        </div>
       </div>
+      <a class="scroll-cue" href="#proof">that glow is a live superposition of atomic orbitals — scroll to compute a real one ↓</a>
     </section>
 
+    <div class="below">
     <div class="stats">
       <div class="stat">
         <div class="num">~14×</div>
         <div class="lab">cc-pVDZ CCSD(T) on H₂O — GPU vs CPU <em>median</em> (39× best run; std/median 42%, noisy)</div>
       </div>
       <div class="stat">
-        <div class="num">35 µHa</div>
-        <div class="lab">match with PySCF on cc-pVDZ HF (spherical-d)</div>
+        <div class="num">≤0.1 mHa</div>
+        <div class="lab">match with PySCF — cc-pVDZ HF, spherical-d</div>
       </div>
       <div class="stat">
-        <div class="num">0.27 eV</div>
-        <div class="lab">LiH EOM-CCSD singlet vs PySCF — method precision</div>
+        <div class="num">&lt;10⁻¹⁰</div>
+        <div class="lab">Ha — EOM-CCSD σ vs exact projection (LiH brute-force)</div>
       </div>
       <div class="stat">
-        <div class="num">7×</div>
-        <div class="lab">geom-opt speedup vs FD (analytical gradients)</div>
+        <div class="num">0</div>
+        <div class="lab">bytes to install — it's just a URL</div>
       </div>
     </div>
 
-    <section class="section">
+    <section class="section" id="proof">
+      <div class="eyebrow">Proof · live in this tab</div>
+      <h2>Not a render. A real calculation.</h2>
+      <p class="sub">
+        The field up top is for show. This isn't: press run and a real Hartree–Fock
+        SCF converges right here in your browser — the energy falling to the ground
+        state, the molecule's orbital levels — cross-checked against PySCF in CI.
+      </p>
+      <div class="hero-live">
+        <div class="live" id="live">
+          <div class="live-head">
+            <span class="live-dot"></span>
+            <span class="t">live · Hartree–Fock SCF · runs in this tab</span>
+            <span class="eng" id="liveEng"></span>
+          </div>
+          <div class="live-body">
+            <div class="live-mol" id="liveMol">
+              <button class="molbtn on" data-mol="benzene" type="button">benzene</button>
+              <button class="molbtn" data-mol="h2o" type="button">H₂O</button>
+              <button class="molbtn" data-mol="ch4" type="button">CH₄</button>
+            </div>
+            <div class="viz">
+              <div class="viz-col">
+                <div class="viz-label">energy → ground state</div>
+                <canvas class="viz-plot" id="scfPlot"></canvas>
+              </div>
+              <div class="viz-col">
+                <div class="viz-label">MO levels</div>
+                <canvas class="viz-ladder" id="scfLadder"></canvas>
+              </div>
+            </div>
+            <pre class="live-out" id="liveOut"><span class="dim">A real self-consistent-field calculation runs here, in your browser — nothing is sent to a server.</span></pre>
+            <button class="btn primary live-run" id="liveRun" type="button">▶ Run Hartree–Fock</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="demos">
+      <div class="eyebrow">Explore · click any of them</div>
       <h2>Six live demos.</h2>
       <p class="sub">
         Six URLs. Open any of them — no install, no Linux, no Python. Just a tab.
@@ -748,6 +973,7 @@
     </section>
 
     <section class="section">
+      <div class="eyebrow">The ladder · six levels</div>
       <h2>The research ladder.</h2>
       <p class="sub">
         Each level builds on the last. Start at the GPU statevector and climb
@@ -793,7 +1019,8 @@
               <strong>hand-written WGSL CCSD(T) kernel</strong> (1 thread per
               occupied (i, j, k) triple, f32→f64 reduce). cc-pVDZ CCSD(T) on H₂O in
               <strong>~5 s on GPU vs ~199 s CPU</strong>; HF matches PySCF to
-              <strong>35 µHa</strong>; <strong>Cholesky density fitting</strong>
+              <strong>≤0.1 mHa</strong> (cc-pVDZ, spherical-d);
+              <strong>streaming aux-basis f64 density fitting</strong>
               wired into HF + MP2;
               <strong>full counterpoise/BSSE across all methods + optional D2
               dispersion add-on</strong>.</p>
@@ -836,238 +1063,28 @@
     </section>
 
     <section class="section">
-      <h2>Companion projects.</h2>
-      <p class="sub">
-        webgpu-q is one front of a broader research line on GPU-resident compute
-        in the browser. The umbrella site, the benchmark infrastructure, and the
-        sister demos:
-      </p>
-      <div class="demos">
-        <a class="demo-card" href="https://kernelfusion.dev" target="_blank" rel="noopener">
-          <div class="preview" style="background: linear-gradient(135deg, #0a1f1a 0%, #103028 100%);">
-            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
-              <g stroke="#00d4aa" stroke-width="1.6" fill="none" opacity="0.9">
-                <circle cx="160" cy="80" r="55"/>
-                <circle cx="160" cy="80" r="35"/>
-                <circle cx="160" cy="80" r="15"/>
-              </g>
-              <g fill="#00d4aa">
-                <circle cx="160" cy="25" r="3"/>
-                <circle cx="215" cy="80" r="3"/>
-                <circle cx="160" cy="135" r="3"/>
-                <circle cx="105" cy="80" r="3"/>
-              </g>
-            </svg>
-          </div>
-          <div class="body">
-            <h3>kernelfusion.dev <span class="arrow">↗</span></h3>
-            <p>
-              The research umbrella. Single-kernel fusion for GPU workloads —
-              evolutionary search, transformer decoding, and browser-to-browser
-              distributed evolution. Up to <strong>2,865× speedups</strong> on
-              Apple Silicon by collapsing per-dispatch overhead.
-            </p>
-            <div class="meta">
-              <span>Open SDK</span><span>Open benchmarks</span>
-            </div>
-          </div>
-        </a>
-
-        <a class="demo-card" href="https://webgpudna.com" target="_blank" rel="noopener">
-          <div class="preview" style="background: linear-gradient(135deg, #0c1a26 0%, #14283a 100%);">
-            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
-              <g stroke="#6ea8ff" stroke-width="1.4" fill="none" opacity="0.7">
-                <path d="M 30 30 Q 80 80 30 130"/>
-                <path d="M 70 30 Q 120 80 70 130"/>
-                <path d="M 110 30 Q 160 80 110 130"/>
-                <path d="M 150 30 Q 200 80 150 130"/>
-                <path d="M 190 30 Q 240 80 190 130"/>
-                <path d="M 230 30 Q 280 80 230 130"/>
-              </g>
-              <g fill="#ffb56e">
-                <circle cx="55" cy="80" r="3"/><circle cx="95" cy="80" r="3"/>
-                <circle cx="135" cy="80" r="3"/><circle cx="175" cy="80" r="3"/>
-                <circle cx="215" cy="80" r="3"/><circle cx="255" cy="80" r="3"/>
-              </g>
-            </svg>
-          </div>
-          <div class="body">
-            <h3>webgpudna.com <span class="arrow">↗</span></h3>
-            <p>
-              The sister project. Geant4-DNA (Monte Carlo electron track structure
-              + IRT radiolysis chemistry + DNA damage scoring) in the browser.
-              <strong>CSDA 0.985× of reference</strong>, Geant4-validated.
-              Where the splat shader and the &ldquo;3D field + time = 4D viewer&rdquo;
-              pattern in our hyperscope come from.
-            </p>
-            <div class="meta">
-              <span>Karamitros 2011 IRT</span><span>SSB/DSB scoring</span>
-            </div>
-          </div>
-        </a>
-
-        <a class="demo-card" href="https://gpubench.dev" target="_blank" rel="noopener">
-          <div class="preview" style="background: linear-gradient(135deg, #1a0e1f 0%, #2a1432 100%);">
-            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
-              <g fill="#ffb56e" opacity="0.85">
-                <rect x="40" y="100" width="20" height="35" rx="2"/>
-                <rect x="75" y="80" width="20" height="55" rx="2"/>
-                <rect x="110" y="60" width="20" height="75" rx="2"/>
-                <rect x="145" y="40" width="20" height="95" rx="2"/>
-                <rect x="180" y="55" width="20" height="80" rx="2"/>
-                <rect x="215" y="70" width="20" height="65" rx="2"/>
-                <rect x="250" y="90" width="20" height="45" rx="2"/>
-              </g>
-            </svg>
-          </div>
-          <div class="body">
-            <h3>gpubench.dev <span class="arrow">↗</span></h3>
-            <p>
-              &ldquo;How fast is your GPU in the browser?&rdquo; Real WebGPU
-              compute tests across <strong>592 devices, 7 vendors</strong> —
-              full transparency, no cherry-picking. Run it before you trust the
-              numbers on this page.
-            </p>
-            <div class="meta">
-              <span>Rastrigin · N-body</span><span>RL envs</span>
-            </div>
-          </div>
-        </a>
-
-        <a class="demo-card" href="https://zerotvm.com" target="_blank" rel="noopener">
-          <div class="preview" style="background: linear-gradient(135deg, #1a1009 0%, #2a1c0d 100%);">
-            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
-              <g stroke="#ffb56e" stroke-width="1.2" fill="none" opacity="0.7">
-                <path d="M 30 80 L 80 50 L 130 90 L 180 40 L 230 75 L 280 60"/>
-              </g>
-              <g fill="#ffb56e">
-                <circle cx="30" cy="80" r="3"/><circle cx="80" cy="50" r="3"/>
-                <circle cx="130" cy="90" r="3"/><circle cx="180" cy="40" r="3"/>
-                <circle cx="230" cy="75" r="3"/><circle cx="280" cy="60" r="3"/>
-              </g>
-              <text x="160" y="130" font-family="ui-monospace,monospace"
-                    font-size="11" fill="#7a8294" text-anchor="middle">~40 tok/s · M2 Pro</text>
-            </svg>
-          </div>
-          <div class="body">
-            <h3>zerotvm.com <span class="arrow">↗</span></h3>
-            <p>
-              Phi-3-mini (3.8B parameters) running entirely in the browser via
-              <strong>10 hand-written WebGPU kernel roles</strong> across 27 WGSL
-              files, replacing the 85 TVM-autotuned shaders WebLLM needs. ~40 tok/s
-              on M2 Pro.
-            </p>
-            <div class="meta">
-              <span>10 kernel roles</span><span>27 WGSL files</span>
-            </div>
-          </div>
-        </a>
-
-        <a class="demo-card" href="https://neuropulse.live" target="_blank" rel="noopener">
-          <div class="preview" style="background: linear-gradient(135deg, #190a26 0%, #2a1140 100%);">
-            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
-              <g stroke="#6ea8ff" stroke-width="0.8" fill="none" opacity="0.55">
-                <path d="M 60 30 Q 90 80 60 130"/>
-                <path d="M 100 30 Q 130 80 100 130"/>
-                <path d="M 140 30 Q 170 80 140 130"/>
-                <path d="M 180 30 Q 210 80 180 130"/>
-                <path d="M 220 30 Q 250 80 220 130"/>
-                <path d="M 260 30 Q 290 80 260 130"/>
-              </g>
-              <g fill="#ffb56e" opacity="0.9">
-                <circle cx="80" cy="80" r="2.5"/><circle cx="120" cy="80" r="2.5"/>
-                <circle cx="160" cy="80" r="2.5"/><circle cx="200" cy="80" r="2.5"/>
-                <circle cx="240" cy="80" r="2.5"/>
-              </g>
-            </svg>
-          </div>
-          <div class="body">
-            <h3>neuropulse.live <span class="arrow">↗</span></h3>
-            <p>
-              Watch a real 3.8B-parameter transformer think, tensor by tensor.
-              Every glow is a live activation read back from WebGPU — same
-              Phi-3-mini weights as zerotvm, but every intermediate tensor is
-              rendered 1:1.
-            </p>
-            <div class="meta">
-              <span>Live activations</span><span>No server</span>
-            </div>
-          </div>
-        </a>
-
-        <a class="demo-card" href="https://barisgunaydin.com" target="_blank" rel="noopener">
-          <div class="preview" style="background: linear-gradient(135deg, #11141d 0%, #1b2030 100%);">
-            <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice">
-              <g fill="#6ea8ff" opacity="0.85">
-                <text x="160" y="80" font-family="Iowan Old Style, Charter, Georgia, serif"
-                      font-size="32" font-style="italic" text-anchor="middle"
-                      fill="#e6e9f0">A·B·G</text>
-                <text x="160" y="105" font-family="ui-monospace, monospace"
-                      font-size="10" text-anchor="middle" opacity="0.7">Ahmet Baris Gunaydin</text>
-              </g>
-            </svg>
-          </div>
-          <div class="body">
-            <h3>barisgunaydin.com <span class="arrow">↗</span></h3>
-            <p>
-              The author's site. Index of all the projects, papers, and notes
-              behind this research line. Includes contact info and the full
-              kernel-fusion paper backlog.
-            </p>
-            <div class="meta">
-              <span>About</span><span>Papers</span><span>Contact</span>
-            </div>
-          </div>
-        </a>
+      <div class="eyebrow">Part of a broader research line</div>
+      <h2>Every physics sim, a URL.</h2>
+      <p class="sub">webgpu-q is one front of a line on GPU-resident compute in the browser:</p>
+      <div class="eco-links">
+        <a href="https://kernelfusion.dev" target="_blank" rel="noopener">kernelfusion.dev <span>research umbrella · kernel fusion</span></a>
+        <a href="https://webgpudna.com" target="_blank" rel="noopener">webgpudna.com <span>Geant4-DNA radiolysis in the browser</span></a>
+        <a href="https://gpubench.dev" target="_blank" rel="noopener">gpubench.dev <span>WebGPU benchmarks · 592 devices</span></a>
+        <a href="https://zerotvm.com" target="_blank" rel="noopener">zerotvm.com <span>Phi-3 in 27 hand-written WGSL kernels</span></a>
+        <a href="https://neuropulse.live" target="_blank" rel="noopener">neuropulse.live <span>a transformer's live activations</span></a>
+        <a href="https://barisgunaydin.com" target="_blank" rel="noopener">barisgunaydin.com <span>author · papers · notes</span></a>
       </div>
     </section>
+    </div><!-- /.below -->
 
-    <section class="section">
-      <h2>What's actually computed, in your tab.</h2>
-      <div class="twocol">
-        <div>
-          <p style="font-size: 13px; color: var(--text-soft); margin: 0 0 14px;">
-            Drag a slider in the hyperscope and a chain of math fires:
-          </p>
-          <pre class="code"><span class="c">// On every bond-slider tick (~60 fps target)</span>
-<span class="k">const</span> R = <span class="n">0.7414</span>;            <span class="c">// Å (slider value)</span>
-<span class="k">const</span> {H, integrals} = <span class="k">buildH2Dense</span>(R);
-<span class="c">// → STO-3G primitives, Boys F₀, ERIs, Löwdin S^(-½)</span>
-
-<span class="k">const</span> {value: E_FCI, vector: ψ} =
-  <span class="k">smallestEigenpair</span>(H, <span class="n">16</span>);
-<span class="c">// → 16×16 Jacobi diagonalization, ~1 ms</span>
-
-<span class="k">const</span> grid = <span class="k">densityGridFromCoeffs</span>(
-  R, ψ.cG, ψ.cU, GRID_SIZE
-);                       <span class="c">// 110k samples</span>
-scene.<span class="k">updateGrid</span>(grid);  <span class="c">// → WebGPU splat shader</span></pre>
-          <p style="font-size: 12px; color: var(--muted); margin: 14px 0 0;">
-            All of it runs in your tab. No server. No Python. No native code.
-          </p>
+    <section class="closing">
+      <div class="hero-inner">
+        <div class="eyebrow" style="justify-content:center">No install · no backend · just a link</div>
+        <h2>Open the URL.<br/><em>Run the science.</em></h2>
+        <div class="ctas">
+          <a class="btn primary" href="/screening.html">▶ Run the live screen <span class="arrow">→</span></a>
+          <a class="btn ghost" href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">Read the source ↗</a>
         </div>
-        <div>
-          <strong style="font-size: 13px;">What this means concretely:</strong>
-          <ul style="font-size: 12.5px; color: var(--text-soft); padding-left: 18px; margin: 12px 0 0;">
-            <li>The H₂ ground state is recomputed from molecular integrals
-                <strong>every frame</strong> as you drag the bond slider.</li>
-            <li>The conditional pair density ρ(r₂|r₀) is recomputed for every
-                cursor move, showing the textbook Fermi+Coulomb hole.</li>
-            <li>An MPS chain of 12+ qubits runs imaginary-time evolution in
-                <strong>under 1 second</strong> for the phase-transition demo.</li>
-            <li>Every animation frame is real numerical computation, not a
-                pre-rendered movie.</li>
-          </ul>
-        </div>
-      </div>
-      <div class="stack">
-        <span class="pill">WebGPU compute shaders</span>
-        <span class="pill">TypeScript · zero deps for math</span>
-        <span class="pill">WGSL · JIT-emitted for fusion</span>
-        <span class="pill">Vite · ESM-only</span>
-        <span class="pill">Vitest · CI green</span>
-        <span class="pill">Playwright e2e on Chromium-Metal-3</span>
-        <span class="pill">PySCF · ITensor · libxc reference</span>
       </div>
     </section>
 
@@ -1100,5 +1117,6 @@ scene.<span class="k">updateGrid</span>(grid);  <span class="c">// → WebGPU sp
         <a href="https://www.linkedin.com/in/abgnydn/" target="_blank" rel="noopener">LinkedIn ↗</a>
       </div>
     </footer>
+    <script type="module" src="/src/landing/main.ts"></script>
   </body>
 </html>
