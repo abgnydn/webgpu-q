@@ -11,6 +11,10 @@ Ali Javadi-Abhari, Matthew Treinish, Kevin Krsulich, Christopher~J. Wood, Jake L
 \newblock Quantum computing with {Q}iskit, 2024.
 \newblock Aer GPU statevector backend.
 
+\bibitem{webgpudispatch}
+J{\k{e}}drzej Maczan.
+\newblock Characterizing {WebGPU} dispatch overhead for {LLM} inference across four {GPU} vendors, three backends, and three browsers, 2026.
+
 \bibitem{fusionfitness}
 Ahmet~Bar{\i}{\c{s}} G{\"u}nayd{\i}n.
 \newblock Single-kernel fusion for sequential fitness evaluation via {WebGPU} compute shaders, 2026.

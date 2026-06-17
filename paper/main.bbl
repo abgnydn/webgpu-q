@@ -57,6 +57,10 @@ Ulrich Schollw{\"o}ck.
 \newblock The density-matrix renormalization group in the age of matrix product states.
 \newblock {\em Annals of Physics}, 326(1):96--192, 2011.
 
+\bibitem{webgpudispatch}
+J{\k{e}}drzej Maczan.
+\newblock Characterizing {WebGPU} dispatch overhead for {LLM} inference across four {GPU} vendors, three backends, and three browsers, 2026.
+
 \bibitem{gmtkn55}
 Lars Goerigk, Andreas Hansen, Christoph Bauer, Stephan Ehrlich, Asim Najibi, and Stefan Grimme.
 \newblock A look at the density functional theory zoo with the advanced {GMTKN55} database for general main group thermochemistry, kinetics and noncovalent interactions.

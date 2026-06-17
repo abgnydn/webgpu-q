@@ -481,7 +481,9 @@ QUICK~\cite{quick}, and VeloxChem~\cite{veloxchem} implement HF/DFT/Fock on
 CUDA. None runs in a browser. Browser volunteer computing ---
 Pando~\cite{pando}, Genet~\cite{genet}, QMachine~\cite{qmachine} ---
 distributes generic workloads across tabs and devices but has not run
-electronic structure. Web-based quantum-chemistry tools do exist ---
+electronic structure. WebGPU per-dispatch overhead is itself an actively
+characterized quantity~\cite{webgpudispatch}. Web-based quantum-chemistry tools
+do exist ---
 WebMO~\cite{webmo} and the Molecule Calculator~\cite{molcalc} --- but they are
 server-client front-ends: the browser is a molecular editor and job monitor,
 while the SCF runs on a native backend (GAMESS, Gaussian, etc.). The closest
