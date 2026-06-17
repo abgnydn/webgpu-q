@@ -5,6 +5,39 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [0.12.0] — 2026-06-17
+
+Presentation overhaul + manuscript corrections. No engine/method changes — this
+release brings the redesigned site and the corrected papers into a citable
+Zenodo version (everything since v0.11.2 was committed but not yet archived).
+
+### Changed
+
+- **Full landing + site redesign.** A living WebGPU wavefunction field behind the
+  whole page (fixed; perf-hardened — 36 fps cap, pauses when the tab is hidden,
+  static frame on mobile), a giant spectral headline, and a real Hartree–Fock SCF
+  converging in a glass instrument panel as the "it's real" proof. The same
+  language — Space Grotesk display, the emission-spectrum gradient, glass
+  cards/tables, section eyebrows, scroll-reveal — now carries through every
+  sub-page (screening, molecule, swarm, experiments) via a shared `public/q.css`
+  + `src/landing/page-fx`.
+- **README** rewritten to match (gif hero + fresh screenshots, ~half the length);
+  on-brand OG/social card regenerated.
+- Fusion headline synced to the latest committed artifact (2026-05-05):
+  **4.22×** (Tier-C) / **3.78×** (Tier-D plateau, honest negative).
+
+### Fixed — manuscripts
+
+- Both papers (`paper/main.tex`, `paper/main-fusion.tex`) audited and corrected:
+  acknowledge OCC (Spackman, JOSS 2026) and narrow the novelty claim to the
+  correlated post-HF hierarchy; "≤ 50 µHa" → the enforced gate (≤ 0.5 mHa /
+  ≤ 0.1 mHa spherical-d); the §4 density-fitting limitation that contradicted
+  §2.3; DOIs moved into proper `doi=` fields. The WebGPU-dispatch reference was
+  verified real (Jędrzej Maczan, arXiv:2604.02344) and cited with the correct
+  author. Both PDFs regenerated with zero undefined citations; the long-form
+  Markdown drafts were retired to corrected abstract stubs (one source of truth
+  per paper).
+
 ## [0.11.2] — 2026-06-16
 
 The **EA-EOM-CCSD correctness** patch — the one real method gap the v0.11.1

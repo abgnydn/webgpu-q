@@ -12,7 +12,7 @@
 &nbsp;
 <a href="https://webgpu-q.vercel.app/experiments/"><img alt="Research dashboard" src="https://img.shields.io/badge/RESEARCH%20DASH-%2Fexperiments-34d399?style=for-the-badge&labelColor=0b1224"/></a>
 
-<img alt="version" src="https://img.shields.io/badge/v0.11.2-0ea5e9?style=flat-square&labelColor=0b1224"/>
+<img alt="version" src="https://img.shields.io/badge/v0.12.0-0ea5e9?style=flat-square&labelColor=0b1224"/>
 <img alt="license" src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="tests" src="https://img.shields.io/badge/tests-CI%20green-22c55e?style=flat-square&labelColor=0b1224"/>
 <img alt="webgpu" src="https://img.shields.io/badge/WebGPU-required-ff7849?style=flat-square&labelColor=0b1224"/>
@@ -252,7 +252,7 @@ const eom = runEOMCCSD(runCCSD(hf, integrals), integrals, hf);
 | `STATEVECTOR_FIDELITY` | **F ≥ 0.999999** | f32 GPU vs f64 CPU |
 | `MPS_N_MAX / CHI_MAX` | **128 / 64** | TFIM/Heisenberg in browser · Phase 6 GPU MPS |
 | `H2O_ENTROPY` | **45.06 cal/(mol·K)** | vs expt 45.1 |
-| `STAGES_SHIPPED` | **v0.11.2** | EA-EOM PySCF-ported + multi-electron-validated; full landing/site redesign |
+| `STAGES_SHIPPED` | **v0.12.0** | full site/landing redesign (live wavefunction hero, cohesive spectral system across all pages); both manuscripts corrected + every citation verified |
 
 </details>
 
