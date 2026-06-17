@@ -31,7 +31,7 @@ what it unlocks*, not by ladder position.
 ### Shipped (recap)
 
 - ✓ **L1 statevector**, **L2 MPS** (incl. GPU MPS Phase 6 v1, χ ≤ 64),
-  **L3 kernel fusion** (Tier B/C/D — 4.18× headline), **L6 chemistry**
+  **L3 kernel fusion** (Tier B/C/D — 4.22× headline), **L6 chemistry**
   (full quantum-chemistry stack)
 - ✓ **DMRG** with Lanczos + MPO; ITensor cross-checked at N = 8 to f64
 - ✓ **Phase B**: TFIM/Heisenberg N = 128 in browser, validated vs Pfeuty/Bethe
@@ -111,8 +111,8 @@ highest-leverage demonstration.
 - L1 statevector: F ≥ 0.999999 vs CPU; 4-experiment ladder (E1–E4) green.
 - L2 MPS / DMRG: TFIM & Heisenberg N=128 in browser, χ=32, validated to
   Pfeuty/Bethe limits at 1/N. ITensor cross-checked at N=8 to f64.
-- L3 kernel fusion: **4.18× headline** (Tier C, 8×8 cascade); Tier D plateau
-  is the documented honest negative.
+- L3 kernel fusion: **4.22× headline** (Tier C, 8×8 cascade); Tier D plateau
+  (3.78×) is the documented honest negative.
 - L6 chemistry: HF (enforced ≤ 0.5 mHa vs PySCF general; ≤ 0.1 mHa H₂O cc-pVDZ
   spherical-d) → MP2 → FCI (CH₄ to 0.76 mHa) → CCSD (enforced ≥ 95% correlation
   capture, ~99% typical on H₂O/CH₄) → **CCSD(T)** (≤ 0.25 mHa vs FCI).
@@ -132,7 +132,7 @@ highest-leverage demonstration.
   benzene 5-6× whole-loop) is ~30 mHa **screening only**. Both kept as
   proof-of-mechanism ("GPU in the browser") and as the seam where a real win lands
   IF df64 emulation ever makes the GPU JK chemistry-grade. GPU genuinely wins on
-  the f32-tolerant tracks (statevector, kernel-fusion 4.18×, (T) 39×) — DF
+  the f32-tolerant tracks (statevector, kernel-fusion 4.22×, (T) 39×) — DF
   chemistry just isn't one (needs f64).
 
 **Live**: https://webgpu-q.vercel.app — landing, `/viz.html` (4D

@@ -106,7 +106,7 @@
         <text x="20" y="118">↳ GPU statevector · <tspan fill="#a78bfa" font-weight="700">F ≥ 0.999999</tspan></text>
         <text x="20" y="142">↳ MPS · canonical TEBD · Jacobi SVD</text>
         <text x="20" y="166">↳ DMRG + Lanczos + MPO</text>
-        <text x="20" y="190">↳ Kernel fusion · <tspan fill="#a78bfa" font-weight="700">4.18×</tspan> headline</text>
+        <text x="20" y="190">↳ Kernel fusion · <tspan fill="#a78bfa" font-weight="700">4.22×</tspan> headline</text>
         <text x="20" y="210" fill="#64748b" font-style="italic">TFIM / Heisenberg N=128 in browser</text>
       </g>
     </g>

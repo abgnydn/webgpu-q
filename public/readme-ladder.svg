@@ -54,7 +54,7 @@
       <text x="14" y="62" font-size="17" font-weight="700" fill="#e2e8f0">Kernel fusion</text>
       <text x="14" y="92" font-size="11" fill="#94a3b8">E8 – E13</text>
       <text x="14" y="112" font-size="11" fill="#94a3b8">Tier B/C/D</text>
-      <text x="14" y="138" font-size="13" font-weight="700" fill="#22d3ee">4.18× headline</text>
+      <text x="14" y="138" font-size="13" font-weight="700" fill="#22d3ee">4.22× headline</text>
       <text x="14" y="162" font-size="10" fill="#64748b" font-style="italic">shipped ✓ · Tier D honest</text>
     </g>
 

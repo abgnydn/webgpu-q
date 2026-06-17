@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-label="Key headline numbers: 2.56 GB swarm fit across 4 tabs, ~14x median CCSDT GPU (noisy), 1e-5 Ha EOM-CCSD vs FCI, 7e-14 Ha DF-HF, sub-pHa GPU/CPU, 4.18x fusion, F greater than 0.999999, N=128 MPS">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-label="Key headline numbers: 2.56 GB swarm fit across 4 tabs, ~14x median CCSDT GPU (noisy), 1e-5 Ha EOM-CCSD vs FCI, 7e-14 Ha DF-HF, sub-pHa GPU/CPU, 4.22x fusion, F greater than 0.999999, N=128 MPS">
   <defs>
     <linearGradient id="bgNum" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0b1224"/>
@@ -66,7 +66,7 @@
       <rect width="285" height="180" rx="10" fill="#0f172a" stroke="#a78bfa" stroke-opacity="0.35" filter="url(#cardShadow)"/>
       <rect x="0" y="0" width="4" height="180" rx="2" fill="#a78bfa"/>
       <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#a78bfa" font-weight="600">KERNEL FUSION</text>
-      <text x="22" y="105" font-size="64" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">4.18<tspan font-size="48">×</tspan></text>
+      <text x="22" y="105" font-size="64" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">4.22<tspan font-size="48">×</tspan></text>
       <text x="22" y="135" font-size="14" font-weight="600" fill="#94a3b8">headline · Tier C</text>
       <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">8×8 gate cascade · Tier D plateau honest</text>
     </g>

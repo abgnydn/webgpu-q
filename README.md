@@ -153,7 +153,7 @@ const eom = runEOMCCSD(runCCSD(hf, integrals), integrals, hf);
 **Correlation & excited states** CCSD · UCCSD · CCSD(T) (CPU + WebGPU) · EE/IP/EA-EOM-CCSD · CIS · TDA · TDDFT (singlet + triplet) · oscillator strengths
 **Properties** dipole · α(0)/α(ω)/α(iω) · C₆ · β · Mulliken · Wiberg/Mayer · NOON + multireference verdict · D2 dispersion · IR · Raman · UV-vis · thermochemistry · IPs/EAs
 **I/O** Molden · Gaussian Cube · QCSchema · XYZ · drag-import PDB/MOL/SDF
-**Many-body** GPU statevector · MPS/DMRG (ITensor-checked) · kernel fusion (4.18×)
+**Many-body** GPU statevector · MPS/DMRG (ITensor-checked) · kernel fusion (4.22×)
 
 <details>
 <summary><b>Full method catalog</b> (click)</summary>
@@ -184,7 +184,7 @@ const eom = runEOMCCSD(runCCSD(hf, integrals), integrals, hf);
 |---|---|
 | STO-3G · 6-31G* · cc-pVDZ · aug-cc-pVDZ | first + second period; spherical-d; f/g/h |
 | statevector · MPS · DMRG | GPU f32 (F ≥ 0.999999); Jacobi SVD + canonical TEBD; Lanczos + MPO |
-| kernel fusion | 4.18× (Tier C, 8×8 cascade); Tier D plateau = documented honest negative |
+| kernel fusion | 4.22× (Tier C, 8×8 cascade); Tier D 3.78× plateau = documented honest negative |
 
 </details>
 
@@ -248,7 +248,7 @@ const eom = runEOMCCSD(runCCSD(hf, integrals), integrals, hf);
 | `EOM_BRUTEFORCE_DIFF_LIH` | **< 1e-10 Ha** | EE/IP σ vs explicit H̄, element-wise; PySCF-ported, no patches |
 | `EA_EOM_BRUTEFORCE_DIFF_LIH` | **< 5e-13 Ha** | EA-EOM σ vs exact H̄ (multi-electron LiH); `eaccsd_matvec` port |
 | `DF_HF_PRECISION` | **7×10⁻¹⁴ Ha** | DF-HF vs direct (engineering assertion) |
-| `FUSION_HEADLINE` | **4.18×** | Tier C · 8×8 cascade |
+| `FUSION_HEADLINE` | **4.22×** | Tier C · 8×8 cascade |
 | `STATEVECTOR_FIDELITY` | **F ≥ 0.999999** | f32 GPU vs f64 CPU |
 | `MPS_N_MAX / CHI_MAX` | **128 / 64** | TFIM/Heisenberg in browser · Phase 6 GPU MPS |
 | `H2O_ENTROPY` | **45.06 cal/(mol·K)** | vs expt 45.1 |
