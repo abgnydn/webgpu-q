@@ -22,6 +22,29 @@ export interface SwarmMapOpts {
   readonly tileTimeoutMs?: number;
   /** Called when a tile completes. Lets UIs render progress. */
   readonly onProgress?: (done: number, total: number) => void;
+  /** Cost-aware scheduling (LPT — longest-processing-time-first). When given, the
+   *  master hands tiles out heaviest-first instead of FIFO, so a heavy tile starts
+   *  at t=0 and overlaps the light ones rather than tailing past everyone when
+   *  pulled late. Pure ordering hint — does NOT change results (independent tiles).
+   *  Cost only needs to be monotonic in real runtime (e.g. basis-function count). */
+  readonly costFn?: (tile: unknown, index: number) => number;
+}
+
+/** Compute-only makespan of the greedy-pull scheduler: k workers, tiles consumed
+ *  in `costsInOrder`, each worker taking the next tile when it goes free. Returns
+ *  the finish time of the slowest worker. FIFO = original order; LPT = costs sorted
+ *  descending. Models the parallel CEILING (ignores comms/scheduler overhead), so
+ *  it's the throughput analogue of the (T) S/C decomposition — runnable without
+ *  real tabs. speedup = Σcost / makespan, efficiency = speedup / k. */
+export function simulateGreedyMakespan(costsInOrder: readonly number[], k: number): number {
+  const nWorkers = Math.max(1, k);
+  const freeAt = new Array<number>(nWorkers).fill(0);
+  for (const c of costsInOrder) {
+    let m = 0;
+    for (let w = 1; w < nWorkers; w++) if (freeAt[w]! < freeAt[m]!) m = w;
+    freeAt[m] = freeAt[m]! + c;
+  }
+  return Math.max(...freeAt);
 }
 
 export interface KernelRegistry {
@@ -282,6 +305,12 @@ export function attachSwarmRuntime(transport: SwarmTransport): KernelRegistry {
     return new Promise<Result[]>((resolve, reject) => {
       const pending: number[] = [];
       for (let i = 0; i < tiles.length; i++) pending.push(i);
+      // Cost-aware (LPT): hand heaviest tiles out first. shift() pulls from the
+      // front, so sort the queue descending by cost. No-op without costFn (FIFO).
+      if (opts.costFn) {
+        const cost = tiles.map((t, i) => opts.costFn!(t, i));
+        pending.sort((a, b) => cost[b]! - cost[a]!);
+      }
       const job: JobState = {
         kind, tiles, tileSpec,
         results: new Array(tiles.length),
