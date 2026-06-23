@@ -9,9 +9,10 @@ import { test, expect } from "@playwright/test";
 // the HYPOTHESIS is the inverse: distributing (T) should beat MP2. MEASURED (H₂O
 // cc-pVDZ, frozen-core, single-threaded): CCSD=53 s, (T)=40 s → S=53 s, C=40 s,
 // C/S=0.76, predicted 2-tab speedup 1.28× — better than MP2's 1.10×, but the
-// redundant **CCSD** (not SCF/DF) is now the bottleneck, so (T) does NOT yet
-// dominate at this size. (T) is O(N⁷) vs CCSD O(N⁶), so C/S grows ~linearly with
-// N; the clean C≫S crossover is at LARGER molecules. CCSD itself is not
+// redundant **CCSD** (not SCF/DF) is the bottleneck, so (T) does NOT dominate.
+// MEASURED: C/S is FLAT ~0.9 across HF (n=20) and H₂O (n=25) — a bigger basis does
+// NOT help (both (T) and CCSD are O(N_v⁴); C/S ∝ N_o, the electron count). So this
+// is a robust ~1.3× (beats MP2's 1.10×), flat across size. CCSD itself is not
 // distributed here — that's the next frontier. See
 // experiments/results/2026-06-23/federated-ccsdt-regime/.
 //

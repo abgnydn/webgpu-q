@@ -41,16 +41,31 @@ Predicted single-molecule speedup `(S+C)/(S+C/k)`:
 
 1. **Distributing (T) beats distributing MP2** — 1.28× vs 1.10× on 2 tabs. The
    feature is a real, if modest, improvement on the swarm's single-molecule axis.
-2. **But (T) does NOT dominate at H₂O cc-pVDZ.** C/S = 0.76. The hypothesis that
-   "(T) ~100 s ≫ a few-second setup" was wrong on both numbers: (T) is **40 s**
-   (frozen-core; the stale `ccsd-t.ts` "~5 min" note predates this), and the
-   setup is **53 s — dominated by the redundant CCSD**, not SCF/DF.
+2. **But (T) does NOT dominate at H₂O cc-pVDZ.** C/S ≈ 0.8–0.9 (two runs gave
+   0.76 then 0.91 — the single-shot (T) timing carries ~±15% noise; CCSD is
+   stable). The hypothesis that "(T) ~100 s ≫ a few-second setup" was wrong on
+   both numbers: (T) is **~40–48 s** (frozen-core; the stale `ccsd-t.ts` "~5 min"
+   note predates this), and the setup is **~53 s — dominated by the redundant
+   CCSD**, not SCF/DF.
 3. **The bottleneck moved from SCF/DF (MP2's story) to CCSD.** Each tab rebuilds
    the full CCSD redundantly; that 53 s sits on the critical path of every tab.
-4. **The crossover is a size argument.** (T) is O(N⁷), CCSD is O(N⁶), so C/S ∝ N.
-   H₂O cc-pVDZ sits just *below* the clean crossover (C/S = 0.76); larger
-   molecules push C/S > 1 and the 2-tab speedup toward ~2×. To win at *accessible*
-   sizes you'd also distribute (or share) the CCSD — the next frontier.
+4. **Scaling — MEASURED, and it killed my "bigger wins" guess.** I first asserted
+   C/S ∝ N (crossover at larger molecules). **Wrong.** Measured HF (n=20, N_v=15)
+   vs H₂O (n=25, N_v=20) — same 10 e⁻ / 4 active-occupied, different virtual space:
+
+   | mol | n | N_v | CCSD | (T) | C/S | 2-tab pred |
+   |---|--:|--:|--:|--:|--:|--:|
+   | HF | 20 | 15 | 15.8 s | 14.6 s | 0.93 | 1.32× |
+   | H₂O | 25 | 20 | 52.6 s | 48.1 s | 0.91 | 1.31× |
+
+   **C/S is flat (~0.9) across a 3.3× size change** — a bigger *basis* does NOT
+   raise the win. Reason: (T) is O(N_o³·N_v⁴) and CCSD is O(N_o²·N_v⁴)·n_iter, so
+   **C/S ∝ N_o/n_iter — independent of N_v.** C/S tracks the number of correlated
+   **electrons** (N_o), not basis size. So the path to C/S > 1 is *more electrons*,
+   not a bigger basis — and even then the 2-tab speedup caps **below 2×** (the
+   redundant CCSD), with large-N_o systems hitting the same browser-size wall MP2
+   did. Net: federated (T) is a **robust ~1.3×** on 2 tabs (better than MP2's
+   1.10×), flat across size — not a path to large single-molecule speedups.
 
 ## Caveats
 

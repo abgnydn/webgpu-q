@@ -266,10 +266,12 @@ export function reduceMP2Slices(slices: readonly MP2SliceResult[]): {
 // single-threaded): CCSD=53 s, (T)=40 s → S(SCF+CCSD)=53 s vs C((T))=40 s,
 // C/S=0.76, predicted 2-tab speedup 1.28× (vs MP2's 1.10×). So distributing (T)
 // helps MORE than MP2 but does NOT yet dominate — the redundant **CCSD**, not
-// SCF/DF, is now the bottleneck (my "(T)≫setup" prior was wrong). Since (T) is
-// O(N⁷) and CCSD O(N⁶), C/S grows ~linearly with N, so the clean crossover
-// (C≫S → ~2×) is at molecules LARGER than H₂O cc-pVDZ; winning at accessible
-// sizes also needs distributing (or sharing) the CCSD. See
+// SCF/DF, is now the bottleneck (my "(T)≫setup" prior was wrong). MEASURED: C/S
+// is FLAT ~0.9 across HF (n=20) and H₂O (n=25) — a bigger basis does NOT raise the
+// win, because (T) is O(N_o³N_v⁴) and CCSD O(N_o²N_v⁴)·n_iter share the N_v⁴, so
+// C/S ∝ N_o/n_iter (electron count), not size. Federated (T) is a robust ~1.3×
+// (beats MP2's 1.10×), flat — not a path to large speedups; for that you'd
+// distribute the CCSD too. See
 // experiments/results/2026-06-23/federated-ccsdt-regime/.
 //
 // Each worker redundantly rebuilds the IDENTICAL deterministic RHF+CCSD reference
