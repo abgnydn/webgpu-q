@@ -20,6 +20,10 @@ import { runRHFAuto, runRKSAuto, runUHFAuto, runUKSAuto } from "../chemistry/rhf
 import { mp2EnergyDF } from "../chemistry/mp2.js";
 import { generateAutoAux, buildAuxBasisDFStreaming } from "../chemistry/df-aux.js";
 import type { FunctionalKind } from "../chemistry/dft/functional.js";
+import { computeMolecularIntegrals } from "../chemistry/cg-molecular.js";
+import { runRHFSCF } from "../chemistry/hf-scf.js";
+import { runCCSD } from "../chemistry/ccsd.js";
+import { runCCSDT } from "../chemistry/ccsd-t.js";
 
 export interface ChemEnergyTile {
   readonly label: string;
@@ -249,6 +253,131 @@ export function reduceMP2Slices(slices: readonly MP2SliceResult[]): {
     E_corr += s.partial;
   }
   return { correlationEnergy: E_corr, hfEnergy, totalEnergy: hfEnergy + E_corr };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Federated CCSD(T) — distribute the (T) triples across the swarm.
+//
+// The distributed-MP2 honest negative (above) pinned single-molecule speedup
+// near 1× because the redundant SCF+DF setup (S) dwarfs MP2's O(N⁵) splittable
+// grind (C): speedup = (S+C)/(S+C/k) ≈ 1 while S ≫ C. The (T) correction is a
+// better target — O(N⁷), NON-iterative, embarrassingly parallel over the outer
+// occupied spin-orbital i. But MEASURED honestly (H₂O cc-pVDZ, frozen-core,
+// single-threaded): CCSD=53 s, (T)=40 s → S(SCF+CCSD)=53 s vs C((T))=40 s,
+// C/S=0.76, predicted 2-tab speedup 1.28× (vs MP2's 1.10×). So distributing (T)
+// helps MORE than MP2 but does NOT yet dominate — the redundant **CCSD**, not
+// SCF/DF, is now the bottleneck (my "(T)≫setup" prior was wrong). MEASURED: C/S
+// is FLAT ~0.9 across HF (n=20) and H₂O (n=25) — a bigger basis does NOT raise the
+// win, because (T) is O(N_o³N_v⁴) and CCSD O(N_o²N_v⁴)·n_iter share the N_v⁴, so
+// C/S ∝ N_o/n_iter (electron count), not size. Federated (T) is a robust ~1.3×
+// (beats MP2's 1.10×), flat — not a path to large speedups; for that you'd
+// distribute the CCSD too. See
+// experiments/results/2026-06-23/federated-ccsdt-regime/.
+//
+// Each worker redundantly rebuilds the IDENTICAL deterministic RHF+CCSD reference
+// (no shipped amplitudes), then runs only its i-slice of the (T) sum.
+//
+// E_(T) = Σ_i (independent outer sum), so slicing i into disjoint ranges and
+// summing partials == single-shot to float noise (tests/chemistry/ccsdt-slice).
+// Exact 4-index ERI path (the (T) core needs ⟨pq||rs⟩), so this is a
+// medium-molecule kernel; the size ceiling is the ERI, not the swarm.
+
+export const CCSDT_SLICE_KIND = "ccsdt-slice" as const;
+
+export interface CCSDTSliceTile {
+  readonly label: string;
+  readonly atoms: readonly Atom[];
+  readonly basis: BasisName;
+  /** Outer occupied SPIN-ORBITAL slice this worker owns: [iLo, iHi).
+   *  Closed-shell NOCC (spin-orbitals) = nElectrons. */
+  readonly iLo: number;
+  readonly iHi: number;
+  /** Frozen-core spatial count (lowest occupied MOs excluded). Default: per-atom 1s. */
+  readonly nFrozenCore?: number;
+}
+
+export interface CCSDTSliceResult {
+  readonly label: string;
+  /** This slice's contribution to the (T) correction E_(T) (Hartree). */
+  readonly partial: number;
+  readonly iLo: number;
+  readonly iHi: number;
+  /** Shared deterministic reference — the converged CCSD total energy. Must agree
+   *  across workers (else they correlate different orbitals and the sum is wrong);
+   *  the reducer guards on it. Folds in E_HF + CCSD correlation. */
+  readonly eCCSD: number;
+  readonly nOccupiedSO: number;
+  readonly durationMs: number;
+}
+
+export async function runCCSDTSliceTile(tile: CCSDTSliceTile): Promise<CCSDTSliceResult> {
+  const t0 = performance.now();
+  const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(tile.atoms, tile.basis);
+  const integrals = computeMolecularIntegrals(shells, nuclei);
+  // Deterministic reference: every worker rebuilds the IDENTICAL RHF + CCSD so no
+  // amplitudes need shipping; each then computes only its (T) i-slice.
+  const hf = runRHFSCF(integrals, nElectrons, { maxIter: 200, energyTol: 1e-10, densityTol: 1e-8 });
+  const ccsd = runCCSD(hf, integrals, { tol: 1e-9, maxIter: 200 });
+  const nFrozen = tile.nFrozenCore ?? defaultFrozenCore(tile.atoms);
+  const t = runCCSDT(ccsd, hf, integrals, { nFrozenCore: nFrozen, iRange: [tile.iLo, tile.iHi] });
+  return {
+    label: tile.label, partial: t.tripleCorrection, iLo: tile.iLo, iHi: tile.iHi,
+    eCCSD: ccsd.totalEnergy, nOccupiedSO: 2 * hf.nOccupied,
+    durationMs: performance.now() - t0,
+  };
+}
+
+/** Partition one molecule's active occupied spin-orbital range into `nSlices`
+ *  near-equal contiguous i-slices over [2·nFrozen, NOCC) for a distributed (T). */
+export function ccsdtSliceTiles(opts: {
+  readonly label: string;
+  readonly atoms: readonly Atom[];
+  readonly basis: BasisName;
+  readonly nSlices: number;
+  readonly nFrozenCore?: number;
+}): CCSDTSliceTile[] {
+  const { nElectrons } = moleculeToShellsNuclei(opts.atoms, opts.basis);
+  const NOCC = nElectrons;                          // closed-shell: NOCC (spin) = nElectrons
+  const nFrozen = opts.nFrozenCore ?? defaultFrozenCore(opts.atoms);
+  const loSO = 2 * nFrozen;                          // RHF interleaved → frozen SOs [0, 2·nFrozen)
+  const active = Math.max(0, NOCC - loSO);
+  const k = Math.max(1, Math.min(opts.nSlices, active || 1));
+  const tiles: CCSDTSliceTile[] = [];
+  for (let s = 0; s < k; s++) {
+    const iLo = loSO + Math.floor((s * active) / k);
+    const iHi = loSO + Math.floor(((s + 1) * active) / k);
+    if (iHi <= iLo) continue;                        // empty slice (more slices than rows)
+    tiles.push({
+      label: `${opts.label} i∈[${iLo},${iHi})`,
+      atoms: opts.atoms, basis: opts.basis, iLo, iHi, nFrozenCore: nFrozen,
+    });
+  }
+  return tiles;
+}
+
+/** Reduce distributed (T) slices into the molecule's CCSD(T) energy. Sums the
+ *  scalar (T) partials (== E_(T)) and adds the shared CCSD energy. Guards the
+ *  deterministic-reference assumption: every worker's CCSD energy must agree, or
+ *  the slices correlate different orbitals and the (T) sum is silently wrong. */
+export function reduceCCSDTSlices(slices: readonly CCSDTSliceResult[]): {
+  readonly tripleCorrection: number;
+  readonly ccsdEnergy: number;
+  readonly totalEnergy: number;
+} {
+  if (slices.length === 0) throw new Error("reduceCCSDTSlices: no slices");
+  const ccsdEnergy = slices[0]!.eCCSD;
+  let E_T = 0;
+  for (const s of slices) {
+    if (Math.abs(s.eCCSD - ccsdEnergy) > 1e-7) {
+      throw new Error(
+        `reduceCCSDTSlices: CCSD references disagree across workers ` +
+        `(${s.eCCSD.toFixed(8)} vs ${ccsdEnergy.toFixed(8)}) — slices were computed ` +
+        `against different references; the (T) sum is invalid.`,
+      );
+    }
+    E_T += s.partial;
+  }
+  return { tripleCorrection: E_T, ccsdEnergy, totalEnergy: ccsdEnergy + E_T };
 }
 
 /** Generate a 1D bond-length scan for a diatomic; returns N tiles each

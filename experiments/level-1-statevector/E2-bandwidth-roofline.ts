@@ -40,6 +40,23 @@ const PEAK_BW_TABLE: Array<[RegExp, number, string]> = [
   [/rtx 3070/i,        448, "RTX 3070 (GDDR6, 448 GB/s)"],
   [/radeon rx 7900 xtx/i, 960, "Radeon RX 7900 XTX (GDDR6, 960 GB/s)"],
 
+  // NVIDIA datacenter parts — the cloud-GPU CI targets (see
+  // docs/webgpu-ci-providers.md). NB: headless Chrome on the web masks
+  // device/description to just `vendor=nvidia, architecture=turing|ampere|ada`
+  // (same fingerprinting reason as Apple below), so these device-name rows only
+  // match where the description is actually populated (self-hosted runners, some
+  // browsers). On a masked adapter use `?peak=NNN` — e.g. the Tesla T4 is 320.
+  [/a100[^0-9]*80|a100.*80\s*gb/i, 2039, "NVIDIA A100 80GB (HBM2e, 2039 GB/s)"],
+  [/\ba100\b/i,                    1555, "NVIDIA A100 40GB (HBM2e, 1555 GB/s)"],
+  [/tesla v100|\bv100\b/i,          900, "NVIDIA V100 (HBM2, 900 GB/s)"],
+  [/a10g\b|\ba10\b/i,               600, "NVIDIA A10/A10G (GDDR6, 600 GB/s)"],
+  [/tesla t4|nvidia t4|\bt4\b/i,    320, "NVIDIA T4 (GDDR6, 320 GB/s)"],
+  [/\bl4\b|nvidia l4/i,             300, "NVIDIA L4 (GDDR6, 300 GB/s)"],
+  // NVIDIA consumer Turing/Ampere (exposed by some non-Chrome WebGPU stacks)
+  [/rtx 2080 ti/i,                  616, "RTX 2080 Ti (GDDR6, 616 GB/s)"],
+  [/rtx 2070/i,                     448, "RTX 2070 (GDDR6, 448 GB/s)"],
+  [/rtx 2060/i,                     336, "RTX 2060 (GDDR6, 336 GB/s)"],
+
   // Chromium intentionally returns only `vendor=apple`, `architecture=metal-3`
   // (no device or description) for fingerprinting reasons, so we can't pin
   // down which Apple Silicon variant we're on. Map "apple metal-3" to the

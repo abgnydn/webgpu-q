@@ -147,10 +147,16 @@ Pfeuty/Bethe 1D limits, swarm partition-sum vs single-slab below 1e-12.
 benches (`e2e/`) cover all levels + the swarm/acene series.
 
 **Honest negatives / open work** (each its own session):
-- IP-EOM-CCSD: **PySCF-ported (2026-05-22)**. σ_1 + σ_2 follow
-  Tu-Wang-Li 2012 Eqs (8)-(9) with PySCF eom_gccsd intermediates. The
-  earlier R_2 satellite over-count (~60 eV on H₂) is closed; brute-force
-  H₂ diff < 1e-10 Ha element-by-element.
+- IP-EOM-CCSD: **PySCF-ported (2026-05-22), multi-electron-validated
+  (2026-06-23).** σ_1 + σ_2 follow Tu-Wang-Li 2012 Eqs (8)-(9) with PySCF
+  eom_gccsd intermediates. The earlier R_2 satellite over-count (~60 eV on H₂)
+  was a structural bug (NOT a curve-fit patch — unlike EA) and is closed. IP was
+  the one EOM variant whose *exact* oracle stayed H₂-only (T̂²≈0, can't probe σ_2);
+  a NEW multi-electron oracle (`tests/chemistry/ip-eom-ccsd-bruteforce-lih.test.ts`,
+  LiH NSO=6, T̂²≠0, full 16-eigenvalue H̄ = e^{-T}He^{T} projection vs
+  runIPEOMCCSD) **matches to 4.97e-13 Ha — IP passed first try, confirming it
+  carried no patch, only a too-weak verifier**. Element-by-element H₂ diff < 1e-10
+  retained.
 - **Phase D — swarm shipped (2026-05-22), all three steps**:
   - Step 1: `swarmMap(items, fn)` primitive + `BroadcastChannelTransport`
     (same-origin multi-tab, no infra).
@@ -228,7 +234,9 @@ benches (`e2e/`) cover all levels + the swarm/acene series.
   (`buildEOMIntermediates`: Fvv/Foo/Fov/Wvvvv/Wovvo/Wvovv/Wvvvo) + the proper
   `−½ Σ⟨kl||cd⟩ r_l^{cd} t_{ki}^{ab}` term, **matching the explicit H̄ projection
   to ~5e-13 Ha on LiH** (machine precision). All three EOM variants (EE/IP/EA)
-  are now patch-free PySCF ports with asserting brute-force verifiers.
+  are now patch-free PySCF ports with multi-electron (LiH, T̂²≠0) brute-force
+  verifiers — IP's LiH oracle added 2026-06-23 (it passed first try; only EA ever
+  carried an actual curve-fit patch, EE/IP did not).
 - ✓ Aux-basis DF (stage 31 proper) — **done**: `buildAuxBasisDFStreaming`
   (WASM) + `df-gpu.ts` (WGSL s/p/d 3-index V + metric). No longer open.
 - DF-CCSD via B-tensor through spin-orbital ERI build.

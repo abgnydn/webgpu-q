@@ -34,3 +34,6 @@ coverage/
 # Local Claude/agent scratch
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Throwaway benchmark/measurement scratch tests (never committed; deleted after use)
+**/_zzz-*.test.ts
