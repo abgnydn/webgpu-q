@@ -64,14 +64,23 @@ export async function bootExperimentsPage(page: Page): Promise<void> {
   // flags didn't take, fail loudly here rather than chasing a confusing
   // "no adapter" error 30 s into a sweep.
   const gpuOk = await page.evaluate(async () => {
-    if (!("gpu" in navigator)) return { ok: false, reason: "navigator.gpu missing" };
+    if (!("gpu" in navigator)) return { ok: false as const, reason: "navigator.gpu missing" };
     try {
       const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
-      if (!adapter) return { ok: false, reason: "no adapter" };
+      if (!adapter) return { ok: false as const, reason: "no adapter" };
       const info = adapter.info ?? {};
-      return { ok: true, vendor: info.vendor, arch: info.architecture, desc: info.description };
+      const fb =
+        (info as { isFallbackAdapter?: boolean }).isFallbackAdapter ??
+        (adapter as { isFallbackAdapter?: boolean }).isFallbackAdapter;
+      return {
+        ok: true as const,
+        vendor: info.vendor,
+        arch: info.architecture,
+        desc: info.description,
+        isFallbackAdapter: fb,
+      };
     } catch (err) {
-      return { ok: false, reason: String(err) };
+      return { ok: false as const, reason: String(err) };
     }
   });
   if (!gpuOk.ok) {
@@ -79,6 +88,20 @@ export async function bootExperimentsPage(page: Page): Promise<void> {
   }
   // eslint-disable-next-line no-console
   console.log(`[e2e] adapter: ${JSON.stringify(gpuOk)}`);
+
+  // Hard gate for the dedicated-GPU validation lane (WEBGPU_Q_NVIDIA=1): refuse
+  // to emit numbers from a CPU software rasterizer (SwiftShader/llvmpipe/lavapipe)
+  // so a misconfigured GPU runner fails loudly instead of silently "passing".
+  // Opt-in, so the macOS/Metal dev path and software-CI smoke runs are unaffected.
+  if (process.env.WEBGPU_Q_NVIDIA) {
+    const tag = `${gpuOk.vendor ?? ""} ${gpuOk.arch ?? ""} ${gpuOk.desc ?? ""}`;
+    if (gpuOk.isFallbackAdapter === true || /swiftshader|llvmpipe|lavapipe/i.test(tag)) {
+      throw new Error(
+        `WEBGPU_Q_NVIDIA set but the adapter is software/fallback — refusing to ` +
+          `emit benchmark numbers from a CPU rasterizer: ${JSON.stringify(gpuOk)}`,
+      );
+    }
+  }
 }
 
 /**

@@ -139,17 +139,26 @@ WebGPU adapter acquisition can still fail (Chromium #332726571).
 
 ## What this means for webgpu-q
 
-`playwright.config.ts` today launches with `--enable-unsafe-webgpu
---enable-features=Vulkan,WebGPU --ignore-gpu-blocklist --no-sandbox`. On
-Mac/Metal that's fine; **on an NVIDIA box it would likely fall back or null
-out** — it's missing `--use-angle=vulkan`, `--disable-vulkan-surface`, the
-**Dawn**-blocklist flag (note: `--ignore-gpu-blocklist` is Chrome's blocklist,
-*not* Dawn's), the `--use-angle=swiftshader-webgl` strip, and the hard gate.
+**Wired (2026-06-23).** `playwright.config.ts` now adds the NVIDIA-on-Linux
+flags (`--use-angle=vulkan --disable-vulkan-surface
+--enable-dawn-features=…disable_adapter_blocklist`) and strips Playwright's
+injected SwiftShader args **behind `WEBGPU_Q_NVIDIA=1`** — opt-in, so the
+macOS/Metal dev path is untouched (those flags would break Metal; note
+`--ignore-gpu-blocklist` is Chrome's blocklist, *not* Dawn's). With the same env
+var, `e2e/lib/run-level.ts` **hard-gates on a non-fallback adapter**: it throws
+if WebGPU comes up on SwiftShader/llvmpipe/lavapipe, so a misconfigured runner
+fails loudly instead of emitting CPU numbers.
 
-Half the gate is already built: `experiments/lib/env.ts → captureEnv` records
-`adapter.info` (vendor / architecture / description). To stand up a second-GPU
-lane you'd: (1) add the flags above, (2) assert non-fallback on `captureEnv`'s
-output, (3) point it at a real T4 (start with `tools/modal/webgpu_t4_probe.py`).
+Run the lane on a real NVIDIA GPU (Linux):
+
+```bash
+WEBGPU_Q_NVIDIA=1 npm run test:e2e -- level-1 level-3
+```
+
+For a quick one-shot without standing up Playwright, use
+`tools/modal/webgpu_t4_probe.py` (dedicated GPU, clean timing) or the Colab
+notebook (free shared T4, correctness only). Cross-vendor evidence so far:
+[`experiments/results/2026-06-23/cross-vendor-T4/`](../experiments/results/2026-06-23/cross-vendor-T4/README.md).
 
 ---
 
