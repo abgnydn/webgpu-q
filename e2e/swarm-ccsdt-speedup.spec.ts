@@ -6,15 +6,18 @@ import { test, expect } from "@playwright/test";
 // MP2 distribution pinned near 1.10× because the redundant SCF+DF setup (S) dwarfs
 // MP2's O(N⁵) grind (C): speedup = (S+C)/(S+C/k) ≈ 1 while S ≫ C. The (T) correction
 // is O(N⁷), non-iterative, and parallel over the outer occupied spin-orbital i. So
-// the HYPOTHESIS is the inverse: for (T)-dominated systems C ≫ S and 2 tabs → a real
-// speedup. Honest cap: here S = SCF + **CCSD** (both rebuilt redundantly on every tab
-// — CCSD itself is NOT distributed; that's the next frontier), so even (T)
-// distribution is bounded by the CCSD+SCF fraction — expect sub-linear, but well
-// above MP2's ~1×.
+// the HYPOTHESIS is the inverse: distributing (T) should beat MP2. MEASURED (H₂O
+// cc-pVDZ, frozen-core, single-threaded): CCSD=53 s, (T)=40 s → S=53 s, C=40 s,
+// C/S=0.76, predicted 2-tab speedup 1.28× — better than MP2's 1.10×, but the
+// redundant **CCSD** (not SCF/DF) is now the bottleneck, so (T) does NOT yet
+// dominate at this size. (T) is O(N⁷) vs CCSD O(N⁶), so C/S grows ~linearly with
+// N; the clean C≫S crossover is at LARGER molecules. CCSD itself is not
+// distributed here — that's the next frontier. See
+// experiments/results/2026-06-23/federated-ccsdt-regime/.
 //
 // CI default is H₂O STO-3G: (T) is sub-second, so setup dominates and this run mainly
 // proves CORRECTNESS (E_single == E_dist < 1e-9) + the harness. Flip MOL to h2o_ccpvdz
-// to measure the real crossover (~minutes; (T) ~100 s — the regime where C ≫ S).
+// to reproduce the ~1.28× measurement above (~minutes); go larger for the crossover.
 
 const MOLS = {
   h2o_sto3g: {

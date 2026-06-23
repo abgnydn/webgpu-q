@@ -260,17 +260,20 @@ export function reduceMP2Slices(slices: readonly MP2SliceResult[]): {
 //
 // The distributed-MP2 honest negative (above) pinned single-molecule speedup
 // near 1× because the redundant SCF+DF setup (S) dwarfs MP2's O(N⁵) splittable
-// grind (C): speedup = (S+C)/(S+C/k) ≈ 1 while S ≫ C. The (T) correction flips
-// that ratio — it is O(N⁷), NON-iterative, and embarrassingly parallel over the
-// outer occupied spin-orbital i. For systems where (T) dominates (e.g. H₂O
-// cc-pVDZ: (T) ~100 s vs a few-second SCF+CCSD), C ≫ S, so distributing the i
-// loop should give real single-molecule speedup — the regime MP2 could not reach.
+// grind (C): speedup = (S+C)/(S+C/k) ≈ 1 while S ≫ C. The (T) correction is a
+// better target — O(N⁷), NON-iterative, embarrassingly parallel over the outer
+// occupied spin-orbital i. But MEASURED honestly (H₂O cc-pVDZ, frozen-core,
+// single-threaded): CCSD=53 s, (T)=40 s → S(SCF+CCSD)=53 s vs C((T))=40 s,
+// C/S=0.76, predicted 2-tab speedup 1.28× (vs MP2's 1.10×). So distributing (T)
+// helps MORE than MP2 but does NOT yet dominate — the redundant **CCSD**, not
+// SCF/DF, is now the bottleneck (my "(T)≫setup" prior was wrong). Since (T) is
+// O(N⁷) and CCSD O(N⁶), C/S grows ~linearly with N, so the clean crossover
+// (C≫S → ~2×) is at molecules LARGER than H₂O cc-pVDZ; winning at accessible
+// sizes also needs distributing (or sharing) the CCSD. See
+// experiments/results/2026-06-23/federated-ccsdt-regime/.
 //
-// Like MP2-slice, this is comm-optimal: the molecule spec goes in (~hundreds of
-// bytes), one f64 partial comes out, one round. Each worker redundantly rebuilds
-// the IDENTICAL deterministic RHF+CCSD reference (no shipped amplitudes), then
-// runs only its i-slice of the (T) sum. The redundant rebuild is the cheap part
-// precisely BECAUSE (T) dominates — that is the whole thesis.
+// Each worker redundantly rebuilds the IDENTICAL deterministic RHF+CCSD reference
+// (no shipped amplitudes), then runs only its i-slice of the (T) sum.
 //
 // E_(T) = Σ_i (independent outer sum), so slicing i into disjoint ranges and
 // summing partials == single-shot to float noise (tests/chemistry/ccsdt-slice).
