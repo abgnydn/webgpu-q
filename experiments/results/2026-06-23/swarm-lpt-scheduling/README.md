@@ -56,6 +56,31 @@ first. (n⁴ groups same-n molecules, but ranks the genuinely heavy ones correct
    — i.e. single-molecule distribution, which is capped at ~1.3× (see the federated
    (T) result). The two axes meet exactly here.
 
+## Scaling law — how far does throughput go?
+
+The idle-4th-tab cap above is a special case of a general rule. Sweeping tab count
+on the real costs, and on a 3× library (a realistic 30-molecule screen):
+
+> **Throughput scales near-linearly under LPT until k ≈ total_work / longest_single_job,
+> then the longest INDIVISIBLE molecule floors the makespan.**
+
+| k | 10-mol (total 94 s, longest 34 s → cap k≈2.8) | 30-mol (total 282 s → cap k≈8.3) |
+|--:|---|---|
+| | FIFO / **LPT** | FIFO / **LPT** |
+| 2 | 1.92× / **1.97×** | 1.97× / **2.00×** |
+| 4 | 2.33× (58%) / **2.77× (69%)** | 3.32× (83%) / **3.98× (100%)** |
+| 6 | 2.70× (45%) / **2.77× (46%)** | 4.33× (72%) / **5.92× (99%)** |
+| 8 | 2.76× (35%) / **2.77× (35%)** | 5.23× (65%) / **7.60× (95%)** |
+
+1. **LPT's advantage GROWS with scale.** On the realistic 30-molecule screen, LPT
+   holds ~100% efficiency through 5 tabs and **95% at 8 tabs (7.60×)**, while FIFO
+   degrades to 65%. The 10-molecule library understated LPT precisely *because* it
+   was too small (capped at k≈3 by C₂H₄).
+2. **The cap is predictable.** Past k ≈ total/longest, the single longest molecule
+   floors the makespan regardless of tab count — the one place the throughput axis
+   touches the (capped ~1.3×) single-molecule axis. Want more tabs to help? Add
+   molecules (a bigger screen), not tabs.
+
 ## Caveats
 
 - **Compute-only makespan** — ignores BroadcastChannel comms + scheduler overhead.
@@ -70,7 +95,9 @@ first. (n⁴ groups same-n molecules, but ranks the genuinely heavy ones correct
 ## Verdict
 
 **The throughput axis's first clear win.** Cost-aware (LPT) scheduling is a ~5-line
-change (`costFn` on `swarmMap`) that buys +11–19 efficiency points on an uneven
-library and reaches the optimal makespan — and it cleanly exposes the real limit:
-the longest single molecule. Correctness is untouched (LPT reorders the queue, not
-the results — `tests/parallel/swarm-lpt`).
+change (`costFn` on `swarmMap`) that buys +11–19 efficiency points on the small
+library and, on a realistic 30-molecule screen, **scales to 8 tabs at 95%
+efficiency (7.60×) vs FIFO's 65%** — its advantage grows with scale. It reaches
+the optimal makespan and cleanly exposes the real limit (the longest single
+molecule, capped at k ≈ total/longest). Correctness is untouched — LPT reorders
+the queue, not the results (`tests/parallel/swarm-lpt`).
