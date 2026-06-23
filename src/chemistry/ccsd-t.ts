@@ -72,6 +72,14 @@ export interface CCSDTOpts {
    * but skipping the outer i/j/k core loops gives a 2-3× speedup.
    */
   readonly nFrozenCore?: number;
+  /**
+   * Distributed (T): restrict the OUTER occupied-SO index `i` to [iLo, iHi).
+   * The i loop is an independent sum, so each slice's `tripleCorrection` is a
+   * disjoint partial of the full E_(T) and Σ slices == single-shot to float
+   * noise. Drives `runCCSDTSliceTile` for the federated-swarm (T). Indices are
+   * spin-orbitals (closed-shell NOCC = nElectrons). Default: full [0, NOCC).
+   */
+  readonly iRange?: readonly [number, number];
 }
 
 export function runCCSDT(
@@ -97,7 +105,7 @@ export function runCCSDT(
   // frozen SOs [0, 2·nFrozenCore) — a contiguous range.
   const frozenOccSO = new Set<number>();
   for (let P = 0; P < nFrozenSO; P++) frozenOccSO.add(P);
-  const E_T = ccsdtFromSO(eri, eps, ccsd.T1, ccsd.T2, NOCC, NVIRT, frozenOccSO);
+  const E_T = ccsdtFromSO(eri, eps, ccsd.T1, ccsd.T2, NOCC, NVIRT, frozenOccSO, opts.iRange);
   return {
     tripleCorrection: E_T,
     totalEnergy: ccsd.totalEnergy + E_T,
@@ -129,8 +137,13 @@ export function ccsdtFromSO(
   NOCC: number,
   NVIRT: number,
   frozenOccSO: ReadonlySet<number>,
+  iRange?: readonly [number, number],
 ): number {
   const NSO = NOCC + NVIRT;
+  // Clamp the outer-i slice to the occupied range so an out-of-range tile is a
+  // safe empty sum (not an OOB amplitude read). i only ever indexes occupied SOs.
+  const iLo = iRange ? Math.max(0, iRange[0]) : 0;
+  const iHi = iRange ? Math.min(NOCC, iRange[1]) : NOCC;
 
   const eIdx = (P: number, Q: number, R: number, S: number) =>
     ((P * NSO + Q) * NSO + R) * NSO + S;
@@ -171,7 +184,7 @@ export function ccsdtFromSO(
   };
 
   let E_T = 0;
-  for (let i = 0; i < NOCC; i++) {
+  for (let i = iLo; i < iHi; i++) {
     if (frozenOccSO.has(i)) continue;
     const ei = eps[i]!;
     for (let j = 0; j < NOCC; j++) {
