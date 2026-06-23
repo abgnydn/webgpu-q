@@ -26,7 +26,7 @@ const LIBRARY: { label: string; atoms: Atom[] }[] = [
   { label: "C2H4", atoms: [{ symbol: "C", pos: [0, 0, 0.6695] }, { symbol: "C", pos: [0, 0, -0.6695] }, { symbol: "H", pos: [0, 0.9289, 1.2321] }, { symbol: "H", pos: [0, -0.9289, 1.2321] }, { symbol: "H", pos: [0, 0.9289, -1.2321] }, { symbol: "H", pos: [0, -0.9289, -1.2321] }] },
   { label: "CH2O", atoms: [{ symbol: "C", pos: [0, 0, -0.5293] }, { symbol: "O", pos: [0, 0, 0.6722] }, { symbol: "H", pos: [0, 0.9367, -1.1172] }, { symbol: "H", pos: [0, -0.9367, -1.1172] }] },
 ];
-const TABS = 4;
+const TABS = Number(process.env.SWARM_TABS ?? 4); // set to the box's core count (e.g. SWARM_TABS=2 on a 2-core cloud runner)
 const CH = "test-sched";
 
 function median(xs: number[]): number { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]!; }
@@ -90,7 +90,7 @@ test.describe("Swarm scheduling — LPT vs FIFO on an uneven library", () => {
       }
       const fifo = median(fifoT), lpt = median(lptT);
       function median(xs: number[]): number { const a = [...xs].sort((p, q) => p - q); return a[Math.floor(a.length / 2)]!; }
-      log(`${lib.length} molecules, ${"" + (1 + 0)} master + workers, cc-pVDZ HF`);
+      log(`${lib.length} molecules, cc-pVDZ HF`);
       log(`FIFO ${Math.round(fifo)}ms  LPT ${Math.round(lpt)}ms  speedup ${(fifo / lpt).toFixed(2)}x`);
       return { fifo, lpt, eFifo, eLpt };
     }, { lib: LIBRARY, ch: CH });
