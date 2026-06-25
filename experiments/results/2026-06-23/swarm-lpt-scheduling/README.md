@@ -5,10 +5,12 @@
 uneven and FIFO hands a heavy molecule out late → one tab tails past everyone.
 Does **LPT** (longest-processing-time-first — sort the queue heaviest-first) fix it?
 
-**Answer: yes, clearly — the first unambiguous win on this axis.** +19 efficiency
-points at 3 tabs, +11 at 4, and LPT reaches the *optimal* makespan (the longest
-single molecule). The ceiling then becomes that one indivisible molecule, not the
-scheduler.
+**Answer: yes, clearly — the first unambiguous win on this axis**, and the real win
+is *bigger* than the model. On a real 4-tab cloud swarm (GitHub Actions, 4 cores)
+**LPT ran 1.98× faster than FIFO** (89.5 s → 45.2 s) — see *Empirical* below. The
+compute-only sim under-predicted it (~1.2×): +19 efficiency points at 3 tabs, +11 at
+4, with LPT reaching the *optimal* makespan (the longest single molecule). The
+ceiling then becomes that one indivisible molecule, not the scheduler.
 
 ## Method
 
@@ -81,6 +83,40 @@ on the real costs, and on a 3× library (a realistic 30-molecule screen):
    touches the (capped ~1.3×) single-molecule axis. Want more tabs to help? Add
    molecules (a bigger screen), not tabs.
 
+## Empirical confirmation (GitHub Actions, 4-core runner, 4 tabs)
+
+Everything above is a compute-only model. `e2e/swarm-scheduling.spec.ts` ran the
+*same* 10-molecule cc-pVDZ library on a real 4-tab BroadcastChannel swarm (headless
+Chromium, `ubuntu-latest`, 4 cores) — FIFO then LPT, asserting identical energies:
+
+```
+[sched] 10 molecules, cc-pVDZ HF
+[sched] FIFO 89454ms  LPT 45166ms  speedup 1.98x
+```
+
+| order | wall (4 tabs) | vs serial (94.1 s sum) |
+|---|--:|--:|
+| **FIFO** | 89.5 s | 1.05× — *almost no parallelism* |
+| **LPT** | 45.2 s | 2.08× |
+| **LPT vs FIFO** | | **1.98×** |
+
+**LPT beats FIFO 1.98× — far more than the sim's ~1.2×.** The honest reason the model
+*under*-predicted the win: **real FIFO is much worse than the model.** The sim assumed
+ideal greedy-pull parallelism for both orders; on real tabs the single-threaded master
+blocks its own event loop while it computes a tile, so it can't route pull requests or
+hand out work while busy. The library is roughly ascending, so FIFO makes the master
+block on the *heavy* molecules last, with the worker tabs already drained and idle →
+the swarm collapses to **near-serial (89.5 s ≈ the 94.1 s serial sum, 1.05×)**. LPT
+front-loads the heavy molecules: they grind in parallel across all tabs from t=0 and
+the light tail overlaps, landing at 45 s — the same ballpark as the sim's 34 s LPT
+prediction (the cloud cores are slower than the costs the sim was fit on; the *ratio*
+is what transfers). LPT is robust to the master-blocking pathology; FIFO is not.
+
+**Takeaway:** on a real browser swarm the scheduler matters *more* than the
+compute-only model says, not less. FIFO + an ascending library ≈ serial; cost-aware
+LPT recovers ~2× on 4 tabs. The sim was the conservative case — a rare honest surprise
+in the right direction. (CI: run 28010504492, job `swarm-quick`, 6 passed.)
+
 ## Caveats
 
 - **Compute-only makespan** — ignores BroadcastChannel comms + scheduler overhead.
@@ -94,10 +130,13 @@ on the real costs, and on a 3× library (a realistic 30-molecule screen):
 
 ## Verdict
 
-**The throughput axis's first clear win.** Cost-aware (LPT) scheduling is a ~5-line
-change (`costFn` on `swarmMap`) that buys +11–19 efficiency points on the small
-library and, on a realistic 30-molecule screen, **scales to 8 tabs at 95%
-efficiency (7.60×) vs FIFO's 65%** — its advantage grows with scale. It reaches
-the optimal makespan and cleanly exposes the real limit (the longest single
-molecule, capped at k ≈ total/longest). Correctness is untouched — LPT reorders
-the queue, not the results (`tests/parallel/swarm-lpt`).
+**The throughput axis's first clear win — and confirmed on real hardware.** A 4-tab
+GitHub Actions swarm ran the 10-molecule library **1.98× faster under LPT than FIFO**
+(89.5 s → 45.2 s), *exceeding* the compute-only model because real FIFO collapses to
+near-serial (the master blocks its own event loop on late heavy tiles). Cost-aware
+(LPT) scheduling is a ~5-line change (`costFn` on `swarmMap`) that buys +11–19
+efficiency points on the small library in the sim and, on a realistic 30-molecule
+screen, **scales to 8 tabs at 95% efficiency (7.60×) vs FIFO's 65%** — its advantage
+grows with scale. It reaches the optimal makespan and cleanly exposes the real limit
+(the longest single molecule, capped at k ≈ total/longest). Correctness is untouched
+— LPT reorders the queue, not the results (`tests/parallel/swarm-lpt`).
