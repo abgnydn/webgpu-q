@@ -1,0 +1,833 @@
+{
+  "meta": {
+    "protocol": "screening-campaign",
+    "hypothesis": "HOMO–LUMO gap (HF/STO-3G) ranks conjugated chromophores: it reproduces the known polyene trend (validation) and, on a blind exhaustive aza-chain screen, enriches the top for the azo (N=N) dye motif (discovery).",
+    "passBar": "validation: gap monotonically decreasing, drop > 1 eV. discovery: ≥80% converged, isoelectronic, spread > 1 eV, azo-enriched top-15.",
+    "basis": "sto-3g",
+    "method": "rhf",
+    "seed": "deterministic — fixed library + deterministic SCF, no RNG",
+    "warmup": 0,
+    "trials": 1
+  },
+  "env": {
+    "runner": "node-vitest",
+    "node": "v22.22.2",
+    "platform": "linux",
+    "gitSha": "336dc7a2fa7616198ac5b759ee8a871e5413682e",
+    "timestamp": "2026-06-25T03:57:48.802Z",
+    "note": "Chemistry is engine-independent: the chem-energy kernel produces the identical ranking on a browser tab (the swarm path) and in Node. The multi-tab wall-clock (cost-aware LPT scheduling, 1.98×) is measured separately; this artifact records the SCIENCE (the ranking)."
+  },
+  "rows": {
+    "validation": [
+      {
+        "name": "ethylene",
+        "nDouble": 1,
+        "gapEv": 17.4166252316802,
+        "converged": true,
+        "ms": 554
+      },
+      {
+        "name": "butadiene",
+        "nDouble": 2,
+        "gapEv": 13.774212690150968,
+        "converged": true,
+        "ms": 5961
+      },
+      {
+        "name": "hexatriene",
+        "nDouble": 3,
+        "gapEv": 11.981324444514215,
+        "converged": true,
+        "ms": 24120
+      },
+      {
+        "name": "octatetraene",
+        "nDouble": 4,
+        "gapEv": 10.939815905829295,
+        "converged": true,
+        "ms": 56753
+      },
+      {
+        "name": "decapentaene",
+        "nDouble": 5,
+        "gapEv": 10.274018965434891,
+        "converged": true,
+        "ms": 107037
+      }
+    ],
+    "discoveryRanked": [
+      {
+        "label": "2,3,5-aza",
+        "gapEv": 2.3875003457203237,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 19106
+      },
+      {
+        "label": "2,4,5-aza",
+        "gapEv": 2.3875003457256687,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 19018
+      },
+      {
+        "label": "3,4-aza",
+        "gapEv": 7.606048574855873,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 2,
+        "ms": 20598
+      },
+      {
+        "label": "3,4,5-aza",
+        "gapEv": 7.711044025561914,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 19686
+      },
+      {
+        "label": "2,3,4-aza",
+        "gapEv": 7.7110440255698,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 19095
+      },
+      {
+        "label": "1,2,3-aza",
+        "gapEv": 11.196603035993233,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 18942
+      },
+      {
+        "label": "4,5,6-aza",
+        "gapEv": 11.19660303599591,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 19084
+      },
+      {
+        "label": "1,3,4-aza",
+        "gapEv": 11.608178580413645,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 18943
+      },
+      {
+        "label": "3,4,6-aza",
+        "gapEv": 11.608178580416645,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 19152
+      },
+      {
+        "label": "1,2-aza",
+        "gapEv": 11.827797050777905,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 2,
+        "ms": 20383
+      },
+      {
+        "label": "5,6-aza",
+        "gapEv": 11.82779705077909,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 2,
+        "ms": 21058
+      },
+      {
+        "label": "1,6-aza",
+        "gapEv": 11.857972329157441,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20287
+      },
+      {
+        "label": "1,2,6-aza",
+        "gapEv": 11.86073959093669,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 18711
+      },
+      {
+        "label": "1,5,6-aza",
+        "gapEv": 11.860739590937138,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 18648
+      },
+      {
+        "label": "1,2,4-aza",
+        "gapEv": 11.864081707579244,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 18825
+      },
+      {
+        "label": "3,5,6-aza",
+        "gapEv": 11.864081707581752,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 19060
+      },
+      {
+        "label": "1-aza",
+        "gapEv": 11.879973926698204,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 1,
+        "ms": 22190
+      },
+      {
+        "label": "6-aza",
+        "gapEv": 11.879973926699156,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 1,
+        "ms": 22516
+      },
+      {
+        "label": "1,4-aza",
+        "gapEv": 11.906079710541755,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20504
+      },
+      {
+        "label": "3,6-aza",
+        "gapEv": 11.90607971054335,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20788
+      },
+      {
+        "label": "1,3,6-aza",
+        "gapEv": 11.924558623988183,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 18819
+      },
+      {
+        "label": "1,4,6-aza",
+        "gapEv": 11.924558623988304,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 19214
+      },
+      {
+        "label": "1,3-aza",
+        "gapEv": 11.93254993629331,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20596
+      },
+      {
+        "label": "4,6-aza",
+        "gapEv": 11.932549936294059,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20936
+      },
+      {
+        "label": "2,3,6-aza",
+        "gapEv": 11.950168728574116,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 19318
+      },
+      {
+        "label": "1,4,5-aza",
+        "gapEv": 11.95016872857473,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 18900
+      },
+      {
+        "label": "1,2,5-aza",
+        "gapEv": 11.965331603333754,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 18857
+      },
+      {
+        "label": "2,5,6-aza",
+        "gapEv": 11.965331603333864,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 18866
+      },
+      {
+        "label": "all-C",
+        "gapEv": 11.969629667851763,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 0,
+        "ms": 24154
+      },
+      {
+        "label": "2,6-aza",
+        "gapEv": 11.979356491612712,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20636
+      },
+      {
+        "label": "1,5-aza",
+        "gapEv": 11.979356491612897,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20383
+      },
+      {
+        "label": "3-aza",
+        "gapEv": 11.984638611505382,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 1,
+        "ms": 22356
+      },
+      {
+        "label": "4-aza",
+        "gapEv": 11.984638611505424,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 1,
+        "ms": 22577
+      },
+      {
+        "label": "5-aza",
+        "gapEv": 12.01847357849167,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 1,
+        "ms": 22512
+      },
+      {
+        "label": "2-aza",
+        "gapEv": 12.01847357849187,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 1,
+        "ms": 22231
+      },
+      {
+        "label": "3,5-aza",
+        "gapEv": 12.042026352327012,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20809
+      },
+      {
+        "label": "2,4-aza",
+        "gapEv": 12.042026352327825,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20637
+      },
+      {
+        "label": "1,3,5-aza",
+        "gapEv": 12.044726448174819,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 18573
+      },
+      {
+        "label": "2,4,6-aza",
+        "gapEv": 12.044726448174945,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 19382
+      },
+      {
+        "label": "4,5-aza",
+        "gapEv": 12.097823812755738,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20801
+      },
+      {
+        "label": "2,3-aza",
+        "gapEv": 12.097823812756166,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20725
+      },
+      {
+        "label": "2,5-aza",
+        "gapEv": 12.106617691603791,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20596
+      }
+    ],
+    "discoveryRaw": [
+      {
+        "label": "all-C",
+        "gapEv": 11.969629667851763,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 0,
+        "ms": 24154
+      },
+      {
+        "label": "1-aza",
+        "gapEv": 11.879973926698204,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 1,
+        "ms": 22190
+      },
+      {
+        "label": "2-aza",
+        "gapEv": 12.01847357849187,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 1,
+        "ms": 22231
+      },
+      {
+        "label": "1,2-aza",
+        "gapEv": 11.827797050777905,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 2,
+        "ms": 20383
+      },
+      {
+        "label": "3-aza",
+        "gapEv": 11.984638611505382,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 1,
+        "ms": 22356
+      },
+      {
+        "label": "1,3-aza",
+        "gapEv": 11.93254993629331,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20596
+      },
+      {
+        "label": "2,3-aza",
+        "gapEv": 12.097823812756166,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20725
+      },
+      {
+        "label": "1,2,3-aza",
+        "gapEv": 11.196603035993233,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 18942
+      },
+      {
+        "label": "4-aza",
+        "gapEv": 11.984638611505424,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 1,
+        "ms": 22577
+      },
+      {
+        "label": "1,4-aza",
+        "gapEv": 11.906079710541755,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20504
+      },
+      {
+        "label": "2,4-aza",
+        "gapEv": 12.042026352327825,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20637
+      },
+      {
+        "label": "1,2,4-aza",
+        "gapEv": 11.864081707579244,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 18825
+      },
+      {
+        "label": "3,4-aza",
+        "gapEv": 7.606048574855873,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 2,
+        "ms": 20598
+      },
+      {
+        "label": "1,3,4-aza",
+        "gapEv": 11.608178580413645,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 18943
+      },
+      {
+        "label": "2,3,4-aza",
+        "gapEv": 7.7110440255698,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 19095
+      },
+      {
+        "label": "5-aza",
+        "gapEv": 12.01847357849167,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 1,
+        "ms": 22512
+      },
+      {
+        "label": "1,5-aza",
+        "gapEv": 11.979356491612897,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20383
+      },
+      {
+        "label": "2,5-aza",
+        "gapEv": 12.106617691603791,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20596
+      },
+      {
+        "label": "1,2,5-aza",
+        "gapEv": 11.965331603333754,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 18857
+      },
+      {
+        "label": "3,5-aza",
+        "gapEv": 12.042026352327012,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20809
+      },
+      {
+        "label": "1,3,5-aza",
+        "gapEv": 12.044726448174819,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 18573
+      },
+      {
+        "label": "2,3,5-aza",
+        "gapEv": 2.3875003457203237,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 19106
+      },
+      {
+        "label": "4,5-aza",
+        "gapEv": 12.097823812755738,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20801
+      },
+      {
+        "label": "1,4,5-aza",
+        "gapEv": 11.95016872857473,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 18900
+      },
+      {
+        "label": "2,4,5-aza",
+        "gapEv": 2.3875003457256687,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 19018
+      },
+      {
+        "label": "3,4,5-aza",
+        "gapEv": 7.711044025561914,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 19686
+      },
+      {
+        "label": "6-aza",
+        "gapEv": 11.879973926699156,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 1,
+        "ms": 22516
+      },
+      {
+        "label": "1,6-aza",
+        "gapEv": 11.857972329157441,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20287
+      },
+      {
+        "label": "2,6-aza",
+        "gapEv": 11.979356491612712,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20636
+      },
+      {
+        "label": "1,2,6-aza",
+        "gapEv": 11.86073959093669,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 18711
+      },
+      {
+        "label": "3,6-aza",
+        "gapEv": 11.90607971054335,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20788
+      },
+      {
+        "label": "1,3,6-aza",
+        "gapEv": 11.924558623988183,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 18819
+      },
+      {
+        "label": "2,3,6-aza",
+        "gapEv": 11.950168728574116,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 19318
+      },
+      {
+        "label": "4,6-aza",
+        "gapEv": 11.932549936294059,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 2,
+        "ms": 20936
+      },
+      {
+        "label": "1,4,6-aza",
+        "gapEv": 11.924558623988304,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 19214
+      },
+      {
+        "label": "2,4,6-aza",
+        "gapEv": 12.044726448174945,
+        "converged": true,
+        "nE": 44,
+        "azo": false,
+        "nN": 3,
+        "ms": 19382
+      },
+      {
+        "label": "3,4,6-aza",
+        "gapEv": 11.608178580416645,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 19152
+      },
+      {
+        "label": "5,6-aza",
+        "gapEv": 11.82779705077909,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 2,
+        "ms": 21058
+      },
+      {
+        "label": "1,5,6-aza",
+        "gapEv": 11.860739590937138,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 18648
+      },
+      {
+        "label": "2,5,6-aza",
+        "gapEv": 11.965331603333864,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 18866
+      },
+      {
+        "label": "3,5,6-aza",
+        "gapEv": 11.864081707581752,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 19060
+      },
+      {
+        "label": "4,5,6-aza",
+        "gapEv": 11.19660303599591,
+        "converged": true,
+        "nE": 44,
+        "azo": true,
+        "nN": 3,
+        "ms": 19084
+      }
+    ]
+  },
+  "summary": {
+    "validationMonotonic": true,
+    "validationDropEv": 7.142606266245309,
+    "screened": 42,
+    "converged": 42,
+    "gapMinEv": 2.3875003457203237,
+    "gapMaxEv": 12.106617691603791,
+    "winner": "2,3,5-aza",
+    "azoFractionAll": 0.35714285714285715,
+    "azoFractionTop15": 0.8,
+    "azoEnrichment": 2.24
+  },
+  "status": "pass",
+  "diagnosis": "Validated: polyene gap decreases monotonically (drop 7.14 eV). Discovery: 42/42 converged; winner 2,3,5-aza (2.39 eV); azo motif 2.24× enriched in the top 15. Caveat: the smallest-gap NON-azo hits are likely RHF-instability artifacts (near-diradical) to re-examine with UHF — a screen surfaces both leads and traps, so scrutinize the top, never trust the single best number blindly."
+}
