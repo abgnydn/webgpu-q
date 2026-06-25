@@ -70,6 +70,7 @@ jobs:
             e2e/swarm-jk-distributed.spec.ts \
             e2e/swarm-hf-distributed.spec.ts \
             e2e/swarm-hf-naphthalene.spec.ts \
+            e2e/swarm-scheduling.spec.ts \
             --reporter=list
       - name: Upload swarm result artifacts
         if: always()

@@ -109,6 +109,16 @@ export async function runChemEnergyTile(tile: ChemEnergyTile): Promise<ChemEnerg
   };
 }
 
+/** A-priori cost proxy for a chem-energy tile, for swarmMap's `costFn` (LPT
+ *  scheduling). Basis-function count to the 4th power — HF cost is ERI-bound at
+ *  O(n⁴); only the *ordering* matters for LPT, and `n` is known from geometry +
+ *  basis WITHOUT running SCF (so scheduling stays free). Bigger molecule → pulled
+ *  first → starts at t=0 instead of tailing the schedule. */
+export function chemTileCost(tile: { readonly atoms: readonly Atom[]; readonly basis: BasisName }): number {
+  const { shells } = moleculeToShellsNuclei(tile.atoms, tile.basis);
+  return shells.length ** 4;
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Distributed DF-MP2 — the swarm's first collaborative *correlation* reduction.
 //
