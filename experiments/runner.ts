@@ -15,6 +15,7 @@ import { runE32 } from "./level-6-chemistry/E32-ccsdt-gpu.js";
 import { runE33 } from "./level-6-chemistry/E33-h2o-uvvis.js";
 import { runE34 } from "./level-6-chemistry/E34-wallclock-vs-pyscf.js";
 import { runE35 } from "./level-6-chemistry/E35-eom-ccsd-validation.js";
+import { screenMolecules } from "../src/chemistry/screen.js";
 
 wireRunAllButton();
 wireRunLevel2Button();
@@ -32,6 +33,9 @@ declare global {
       runE33: typeof runE33;
       runE34: typeof runE34;
       runE35: typeof runE35;
+      /** Batch molecular screen — headless entry for drivers (Claude
+       *  Science / Playwright / Modal / the swarm). See src/chemistry/screen.ts. */
+      screen: typeof screenMolecules;
       ready: true;
     };
   }
@@ -46,5 +50,6 @@ window.__webgpuq = {
   runE33,
   runE34,
   runE35,
+  screen: screenMolecules,
   ready: true,
 };

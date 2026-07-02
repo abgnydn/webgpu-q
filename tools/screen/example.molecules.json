@@ -1,0 +1,9 @@
+{
+  "molecules": [
+    { "name": "water",   "xyz": "3\nwater\nO 0 0 0\nH 0 0 0.958\nH 0.926 0 -0.24\n" },
+    { "name": "methane", "xyz": "5\nmethane\nC 0 0 0\nH 0.629 0.629 0.629\nH 0.629 -0.629 -0.629\nH -0.629 0.629 -0.629\nH -0.629 -0.629 0.629\n" },
+    { "name": "ammonia", "xyz": "4\nammonia\nN 0 0 0\nH 0 0.94 0.38\nH 0.81 -0.47 0.38\nH -0.81 -0.47 0.38\n" },
+    { "name": "hydrogen", "xyz": "2\nH2\nH 0 0 0\nH 0 0 0.74\n" }
+  ],
+  "opts": { "basis": "sto-3g", "rankBy": "gap", "descending": true }
+}
