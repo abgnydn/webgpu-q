@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Learn: why water is special · webgpu-q</title>
+    <meta name="description" content="Play with a real water molecule in your browser. Drag the atoms, watch real Hartree–Fock recompute the dipole live. One molecule, four depths — from 'feel it' to the actual SCF. No install." />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <style>
+      :root {
+        --bg: #0b0d12; --panel: #141824; --panel2: #1b2030; --line: #262c40;
+        --fg: #e6e8ef; --dim: #96a0b5; --accent: #22d3ee; --plus: #ff6b6b; --minus: #6ea8ff;
+        --ok: #34d399;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        background: radial-gradient(1200px 700px at 50% -10%, #16203a 0%, var(--bg) 55%);
+        color: var(--fg); font: 15px/1.5 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      #app { display: flex; flex-direction: column; min-height: 100%; max-width: 1080px; margin: 0 auto; padding: 14px; }
+      header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+      h1 { font-size: 17px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+      h1 .mol { color: var(--accent); }
+      .depth { margin-left: auto; display: inline-flex; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+      .depth button {
+        border: 0; background: transparent; color: var(--dim); font: inherit; font-size: 13px; font-weight: 600;
+        padding: 6px 14px; border-radius: 999px; cursor: pointer; transition: .15s;
+      }
+      .depth button[aria-selected="true"] { background: var(--accent); color: #04222a; }
+      .stage { display: grid; grid-template-columns: 1fr 320px; gap: 14px; margin-top: 14px; }
+      @media (max-width: 780px) { .stage { grid-template-columns: 1fr; } }
+      .canvas-wrap { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; min-height: 380px; }
+      svg { display: block; width: 100%; height: 100%; touch-action: none; }
+      .hint { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 14px; font-size: 13px; color: var(--dim);
+        background: linear-gradient(transparent, rgba(0,0,0,.35)); text-align: center; }
+      .side { display: flex; flex-direction: column; gap: 12px; }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+      .card h2 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
+      .card p { margin: 0 0 8px; }
+      .num { font-variant-numeric: tabular-nums; }
+      .kv { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 3px 0; border-top: 1px dashed var(--line); }
+      .kv:first-of-type { border-top: 0; }
+      .kv b { font-weight: 650; font-variant-numeric: tabular-nums; }
+      .tutor .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+      .chip { border: 1px solid var(--line); background: var(--panel2); color: var(--fg); border-radius: 999px;
+        font: inherit; font-size: 12px; padding: 5px 10px; cursor: pointer; }
+      .chip:hover { border-color: var(--accent); }
+      .answer { font-size: 13px; color: var(--fg); background: var(--panel2); border-radius: 10px; padding: 10px; min-height: 20px; }
+      .answer .tag { color: var(--dim); font-size: 11px; }
+      .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+      .controls input[type=range] { flex: 1; accent-color: var(--accent); }
+      button.act { border: 1px solid var(--line); background: var(--panel2); color: var(--fg); border-radius: 8px;
+        font: inherit; font-size: 13px; padding: 6px 12px; cursor: pointer; }
+      button.act:hover { border-color: var(--accent); }
+      select { background: var(--panel2); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; font: inherit; }
+      .warn { color: #fbbf24; font-size: 12px; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--accent); word-break: break-all; }
+      .matrix { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--dim); white-space: pre; }
+      footer { margin-top: 16px; color: var(--dim); font-size: 12px; text-align: center; }
+      footer a { color: var(--accent); text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>Why is <span class="mol">water</span> special?</h1>
+        <div class="depth" role="tablist" aria-label="How deep do you want to go">
+          <button role="tab" data-depth="feel" aria-selected="true">Feel</button>
+          <button role="tab" data-depth="see">See</button>
+          <button role="tab" data-depth="know">Know</button>
+          <button role="tab" data-depth="prove">Prove</button>
+        </div>
+      </header>
+
+      <div class="stage">
+        <div class="canvas-wrap">
+          <svg id="scene" viewBox="0 0 640 420" preserveAspectRatio="xMidYMid meet" aria-label="Interactive water molecule"></svg>
+          <div class="hint" id="hint"></div>
+        </div>
+        <div class="side" id="side"></div>
+      </div>
+
+      <footer>
+        Real Hartree–Fock, recomputed live in your browser tab — no install, no backend.
+        Powered by <a href="https://github.com/abgnydn/webgpu-q">webgpu-q</a>.
+      </footer>
+    </div>
+    <script type="module" src="/src/learn/main.ts"></script>
+  </body>
+</html>
