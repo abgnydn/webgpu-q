@@ -91,3 +91,44 @@ GFLOP/s (2·m·n·k / time), warmup + median of trials:
   f64 multiply-add (this kernel is mul+add), so ~14 GFLOP/s is ~half the
   mul+add NEON ceiling and far below native AVX2/512 BLAS. This is a
   **naive-TS → WASM-SIMD** result, NOT a "vs PySCF/BLAS" claim.
+
+## Method-scale proof (the real MP2/CCSD contraction)
+
+`tools/gemm-bench/eri-transform.mjs` runs the kernel on the *actual* O(N⁵)
+hot loop — the ERI→MO quarter-transform `t[p,νλσ] = Σ_μ C[μ,p]·eri[μ,νλσ]`,
+a single fat GEMM `Cᵀ(p×μ) · eri(μ × n³)` — at cc-pVDZ H₂O size (n=24):
+
+| impl | ms | GFLOP/s |
+|---|--:|--:|
+| naive-TS | 7.43 | 2.14 |
+| WASM-SIMD | 1.46 | 10.87 |
+| **speedup** | | **5.1×** |
+
+Bit-identical output (max\|Δ\| = 0). ~5× (not the microbench's ~10×) because at
+n=24 the naive quadruple loop still caches well (2.1 vs ~1.0 GFLOP/s); the win
+grows with system size. This is the real per-contraction, chemistry-grade lever.
+
+## Integration status — deliberately deferred (scope-honest)
+
+The kernel is proven and integration-ready (typed lazy loader in
+`src/chemistry/wasm-gemm.ts`, opt-in), but it is **NOT wired into `mp2.ts` /
+`ccsd.ts` yet, on purpose:**
+
+1. **It's off the primary strategy.** The GEMM lever pays off on cc-pVDZ MP2/CCSD
+   — exactly the production-basis workload where we lose to BLAS (136×/480×) and
+   which we've explicitly chosen *not* to chase (see README "How fast"). The
+   product's real workloads — education (`learn.html`) and screening — run
+   STO-3G small molecules, where we already win and GEMM is not the bottleneck.
+2. **It would risk the tested core for that off-niche gain.** The full 4-index
+   transform is 4 quarter-transforms; keeping every pass a fat GEMM needs an
+   inter-pass transpose (cheap), and the naive per-`p`/`pq` batching devolves
+   passes 3–4 into tiny (n×1) GEMMs that *lose* to call overhead — so a correct
+   integration is real work against 872 passing chemistry tests.
+3. **The honest ceiling doesn't change the strategy.** Even fully integrated and
+   worker-parallel, browser CPU stays ~10–30× slower than a multithreaded MKL
+   PySCF at cc-pVDZ (128-bit SIMD, no f64 FMA, vs AVX-512 + threads). This
+   *narrows* the gap; it never closes it.
+
+**Decision:** land the proven kernel + benchmarks as reusable infrastructure and
+a shareable systems result; wire it into the correlation methods only if/when
+bigger in-browser systems become an actual goal. The lever is measured and ready.
