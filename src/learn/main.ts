@@ -266,12 +266,9 @@ function wireSide(): void {
   if (basisSel) basisSel.addEventListener("change", () => { state.basis = basisSel.value as BasisName; computeSafe(true); syncURL(); render(); });
 }
 
-function animateStraighten(): void {
-  const r = bondLen();
+function animateTo(target: AtomXY[], dur: number): void {
   const start = state.atoms.map((a) => ({ ...a }));
-  const target = geometryFromAngle(180, r);
   const t0 = performance.now();
-  const dur = 650;
   const step = (now: number): void => {
     const k = Math.min(1, (now - t0) / dur);
     const e = 1 - Math.pow(1 - k, 3);
@@ -280,6 +277,10 @@ function animateStraighten(): void {
     if (k < 1) requestAnimationFrame(step); else { computeSafe(true); syncURL(); render(); }
   };
   requestAnimationFrame(step);
+}
+
+function animateStraighten(): void {
+  animateTo(geometryFromAngle(180, bondLen()), 650);
 }
 
 // ── Dragging (pointer + touch) ───────────────────────────────
@@ -294,7 +295,7 @@ scene.addEventListener("pointerdown", (e) => {
   const t = e.target as SVGElement;
   if (!t.classList.contains("draggable")) return;
   dragging = Number(t.getAttribute("data-i"));
-  scene.setPointerCapture(e.pointerId);
+  try { scene.setPointerCapture(e.pointerId); } catch { /* synthetic/stale pointer — drag still works, just uncaptured */ }
   t.setAttribute("cursor", "grabbing");
 });
 scene.addEventListener("pointermove", (e) => {
@@ -306,7 +307,16 @@ scene.addEventListener("pointermove", (e) => {
   state.atoms[dragging] = { sym: "H", x: a.x / d * r, y: a.y / d * r };
   computeSafe(false); render();
 });
-scene.addEventListener("pointerup", () => { if (dragging >= 0) { dragging = -1; computeSafe(true); syncURL(); render(); } });
+scene.addEventListener("pointerup", () => {
+  if (dragging < 0) return;
+  dragging = -1;
+  // Feel = play mode: the molecule springs back to its comfy (equilibrium)
+  // shape on release, as the copy promises — the point at that depth is
+  // "molecules have a preferred shape." Deeper levels are lab mode: the
+  // geometry stays where you put it so stretched states can be studied.
+  if (state.depth === "feel") { animateTo(geometryFromAngle(A0, R0), 550); return; }
+  computeSafe(true); syncURL(); render();
+});
 
 // ── Depth tabs ───────────────────────────────────────────────
 tabs.forEach((tab) => tab.addEventListener("click", () => setDepth(tab.dataset.depth as Depth)));
