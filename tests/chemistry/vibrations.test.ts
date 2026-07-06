@@ -21,7 +21,7 @@ import { optimizeGeometry } from "../../src/chemistry/geometry.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
 describe("Vibrational frequencies — H₂O HF/STO-3G", () => {
-  test("H₂O at the optimized geometry: 3 real positive frequencies, no imaginaries", { timeout: 30000 }, () => {
+  test("H₂O at the optimized geometry: 3 real positive frequencies, no imaginaries", { timeout: 360000 }, () => {
     // Start from the experimental geometry; optimize.
     const half = (104.52 / 2) * Math.PI / 180;
     const x = 0.9572 * Math.sin(half);
@@ -89,7 +89,7 @@ describe("Vibrational frequencies — linear molecule (H₂)", () => {
 });
 
 describe("IR intensities — H₂O HF/STO-3G", () => {
-  test("All three H₂O modes are IR-active in a sensible range", { timeout: 30000 }, () => {
+  test("All three H₂O modes are IR-active in a sensible range", { timeout: 360000 }, () => {
     // H₂O has C₂ᵥ symmetry; all three vibrational modes are IR-active
     // (no symmetry forces ∂μ/∂q to zero for any of bend / sym / asym).
     // STO-3G is a notoriously bad basis for properties — dipoles and

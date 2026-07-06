@@ -31,7 +31,7 @@ describe("DMRG TFIM converges toward Pfeuty as N grows", () => {
     // At N=24, OBC-vs-thermodynamic-limit per-site error is < 0.07
     // (boundary contribution ~ 1.0 / N at criticality).
     expect(d24).toBeLessThan(0.07);
-  }, 90_000);
+  }, 360_000);
 });
 
 describe("DMRG Heisenberg AFM converges toward Bethe as N grows", () => {
@@ -50,5 +50,5 @@ describe("DMRG Heisenberg AFM converges toward Bethe as N grows", () => {
     // Heisenberg has gapless boundary mode → slower convergence than TFIM.
     // At N=24 the gap is still ~ 0.05 per site.
     expect(d24).toBeLessThan(0.06);
-  }, 120_000);
+  }, 360_000);
 });

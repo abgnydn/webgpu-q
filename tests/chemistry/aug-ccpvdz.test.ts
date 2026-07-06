@@ -30,7 +30,7 @@ describe("aug-cc-pVDZ basis (cc-pVDZ + diffuse)", () => {
     const sph  = computeMolecularIntegrals(shells, nuclei, { spherical: true });
     expect(cart.n).toBe(43);
     expect(sph.n).toBe(41);
-  }, 30_000);
+  }, 360_000);
 
   test("H₂O HF/aug-cc-pvdz spherical matches PySCF to ≤ 0.5 mHa", () => {
     const { shells, nuclei } = moleculeToShellsNuclei(h2o, "aug-cc-pvdz");
@@ -41,7 +41,7 @@ describe("aug-cc-pVDZ basis (cc-pVDZ + diffuse)", () => {
     expect(hf.converged).toBe(true);
     // PySCF aug-cc-pVDZ HF/H₂O at experimental geometry = -76.041358 Ha.
     expect(Math.abs(hf.energy - (-76.041358))).toBeLessThan(5e-4);
-  }, 30_000);
+  }, 360_000);
 
   test("aug-cc-pVDZ HF < cc-pVDZ HF (variational: larger basis lowers energy)", () => {
     const cc  = moleculeToShellsNuclei(h2o, "cc-pvdz");
@@ -52,5 +52,5 @@ describe("aug-cc-pVDZ basis (cc-pVDZ + diffuse)", () => {
     const hfAug = runRHFSCF(augInt, 10, { useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8 });
     expect(hfAug.energy).toBeLessThan(hfDz.energy);
     expect((hfDz.energy - hfAug.energy) * 1000).toBeGreaterThan(5);  // gain > 5 mHa
-  }, 30_000);
+  }, 360_000);
 });

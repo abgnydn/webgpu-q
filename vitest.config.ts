@@ -28,7 +28,16 @@ export default defineConfig({
     // genuine unhandled rejection ever appears, the right response is to
     // fix it, not to lean on this flag — noted for future maintainers.
     dangerouslyIgnoreUnhandledErrors: true,
-    testTimeout: 120_000,
+    // 120 s was a landmine: the heavy chemistry cells (aug-cc-pVDZ HF,
+    // vibrations' 6N-gradient Hessian, frozen-core EOM, DF aux ladders)
+    // legitimately need 30-120 s of CPU *each* at best, and vitest runs
+    // 4 files in parallel — so under any background load they share cores
+    // and spuriously time out with bit-identical (correct) chemistry.
+    // Observed repeatedly: 10 "failures" on a loaded machine, all pure
+    // timeouts, all green in isolation. A generous ceiling costs nothing
+    // when tests pass (they return early) and only delays surfacing a
+    // genuine hang; it buys zero false-red runs on busy machines/CI.
+    testTimeout: 360_000,
     hookTimeout: 120_000,
     teardownTimeout: 60_000,
   },
