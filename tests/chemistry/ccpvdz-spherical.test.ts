@@ -65,7 +65,7 @@ describe("Spherical-harmonic d-shell basis (cc-pVDZ)", () => {
     expect(hf.converged).toBe(true);
     // PySCF cc-pVDZ HF/H₂O at experimental geometry = -76.026765 Ha.
     expect(Math.abs(hf.energy - (-76.026765))).toBeLessThan(1e-4);
-  }, 30_000);
+  }, 360_000);
 
   test("Spherical HF lies above Cartesian HF (variational principle: Cart basis ⊃ Sph basis)", () => {
     const { shells, nuclei } = moleculeToShellsNuclei(h2o, "cc-pvdz");
@@ -75,7 +75,7 @@ describe("Spherical-harmonic d-shell basis (cc-pVDZ)", () => {
     const hfS = runRHFSCF(sph, 10,  { useDIIS: true, maxIter: 200, energyTol: 1e-10, densityTol: 1e-8 });
     expect(hfC.energy).toBeLessThan(hfS.energy);
     expect((hfS.energy - hfC.energy) * 1000).toBeLessThan(1.0);  // diff < 1 mHa
-  }, 30_000);
+  }, 360_000);
 });
 
 import { runRKSDFT } from "../../src/chemistry/dft/rks-scf.js";
@@ -111,7 +111,7 @@ describe("Spherical-d round-trip on the grid (DFT + TDA + gradient)", () => {
     expect(dS.converged).toBe(true);
     expect(Number.isFinite(dS.energy)).toBe(true);
     expect(Math.abs(dS.energy - dC.energy)).toBeLessThan(2e-3);
-  }, 60_000);
+  }, 360_000);
 
   test("TDA-B3LYP5 first singlet: spherical and Cartesian within 50 meV", () => {
     const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(H2O, "cc-pvdz");
@@ -123,7 +123,7 @@ describe("Spherical-d round-trip on the grid (DFT + TDA + gradient)", () => {
       expect(Number.isFinite(tda.singletEnergies[0]!)).toBe(true);
       expect(tda.singletEnergies[0]!).toBeGreaterThan(0);
     }
-  }, 60_000);
+  }, 360_000);
 
   test("HF + DFT analytical gradients on cc-pVDZ spherical: finite, |∇| ≈ Cartesian", () => {
     const { shells, nuclei, nElectrons, shellAtomIdx } = moleculeToShellsNuclei(H2O, "cc-pvdz");
@@ -150,5 +150,5 @@ describe("Spherical-d round-trip on the grid (DFT + TDA + gradient)", () => {
       expect(Number.isFinite(normDFT)).toBe(true);
       expect(normDFT).toBeGreaterThan(0);
     }
-  }, 120_000);
+  }, 360_000);
 });

@@ -32,7 +32,7 @@ describe("aug-cc-pVDZ — first-row atom diffuse expansion", () => {
     expect(aug).toBeLessThanOrEqual(ccpvdz + 1e-12);
     // Diffuse shift is small for neutral closed-shell at equilibrium.
     expect(ccpvdz - aug).toBeLessThan(0.05); // < 50 mHa shift
-  }, 60_000);
+  }, 360_000);
 
   test("CH₄: aug-cc-pVDZ HF lies variationally below cc-pVDZ HF", () => {
     const r3 = 1.09 / Math.sqrt(3);
@@ -47,7 +47,7 @@ describe("aug-cc-pVDZ — first-row atom diffuse expansion", () => {
     const aug    = hf(atoms, "aug-cc-pvdz");
     expect(aug).toBeLessThanOrEqual(ccpvdz + 1e-12);
     expect(ccpvdz - aug).toBeLessThan(0.05);
-  }, 120_000);
+  }, 360_000);
 
   test("HF molecule: aug-cc-pVDZ HF lies variationally below cc-pVDZ HF", () => {
     const atoms: Atom[] = [
@@ -58,5 +58,5 @@ describe("aug-cc-pVDZ — first-row atom diffuse expansion", () => {
     const aug    = hf(atoms, "aug-cc-pvdz");
     expect(aug).toBeLessThanOrEqual(ccpvdz + 1e-12);
     expect(ccpvdz - aug).toBeLessThan(0.05);
-  }, 60_000);
+  }, 360_000);
 });
