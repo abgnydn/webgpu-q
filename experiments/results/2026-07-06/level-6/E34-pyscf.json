@@ -1,0 +1,354 @@
+{
+  "meta": {
+    "protocol": "E34-wallclock-vs-pyscf-reference",
+    "hypothesis": "PySCF reference side of E34 wall-clock comparison. Same molecules, same basis, same convergence thresholds (SCF 1e-10, CCSD 1e-10) as webgpu-q E34.",
+    "passBar": "Every method converges OR is explicitly skipped.",
+    "seed": "E34_PYSCF_REFERENCE",
+    "warmup": 0,
+    "trials": 1
+  },
+  "env": {
+    "runtime": "python 3.13.14",
+    "pyscf_version": "2.13.0",
+    "platform": "macOS-26.5-arm64-arm-64bit-Mach-O",
+    "arch": "arm64",
+    "hostname": "HUAWEI_P30_Pro-268d34bb66.localdomain",
+    "timestamp": "2026-07-06T10:52:16.308720Z",
+    "method": "PySCF reference: scf.RHF → mp.MP2 → cc.CCSD → ccsd_t() (CPU only, no gpu4pyscf in this run)"
+  },
+  "rows": [
+    {
+      "molecule": "H₂",
+      "basis": "sto-3g",
+      "method": "HF",
+      "seconds": 0.02621491601166781,
+      "energy_Ha": -1.116684387085341,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "sto-3g",
+      "method": "MP2",
+      "seconds": 0.0008532499923603609,
+      "energy_Ha": -1.1298551535553099,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "sto-3g",
+      "method": "CCSD",
+      "seconds": 0.02185000000463333,
+      "energy_Ha": -1.1372701746789946,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0.00430887499533128,
+      "energy_Ha": -1.1372701746789946,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "not run — install gpu4pyscf and re-run for GPU comparison"
+    },
+    {
+      "molecule": "H₂",
+      "basis": "cc-pvdz",
+      "method": "HF",
+      "seconds": 0.015378209005575627,
+      "energy_Ha": -1.128714959029653,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "cc-pvdz",
+      "method": "MP2",
+      "seconds": 0.00013962500088382512,
+      "energy_Ha": -1.1550991952028995,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "cc-pvdz",
+      "method": "CCSD",
+      "seconds": 0.02486466700793244,
+      "energy_Ha": -1.1634139343189116,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0.00201312500576023,
+      "energy_Ha": -1.1634139343189116,
+      "success": true
+    },
+    {
+      "molecule": "H₂",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "not run — install gpu4pyscf and re-run for GPU comparison"
+    },
+    {
+      "molecule": "LiH",
+      "basis": "sto-3g",
+      "method": "HF",
+      "seconds": 0.018291125001269393,
+      "energy_Ha": -7.804242631940016,
+      "success": true
+    },
+    {
+      "molecule": "LiH",
+      "basis": "sto-3g",
+      "method": "MP2",
+      "seconds": 0.00014737500168848783,
+      "energy_Ha": -7.82615773398094,
+      "success": true
+    },
+    {
+      "molecule": "LiH",
+      "basis": "sto-3g",
+      "method": "CCSD",
+      "seconds": 0.015178749992628582,
+      "energy_Ha": -7.843394245683683,
+      "success": true
+    },
+    {
+      "molecule": "LiH",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0.0009431660000700504,
+      "energy_Ha": -7.843394245683683,
+      "success": true
+    },
+    {
+      "molecule": "LiH",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "not run — install gpu4pyscf and re-run for GPU comparison"
+    },
+    {
+      "molecule": "LiH",
+      "basis": "cc-pvdz",
+      "method": "HF",
+      "seconds": 0.024795541001367383,
+      "energy_Ha": -7.9836158670095605,
+      "success": true
+    },
+    {
+      "molecule": "LiH",
+      "basis": "cc-pvdz",
+      "method": "MP2",
+      "seconds": 0.0002569579955888912,
+      "energy_Ha": -8.006430842603196,
+      "success": true
+    },
+    {
+      "molecule": "LiH",
+      "basis": "cc-pvdz",
+      "method": "CCSD",
+      "seconds": 0.06064395800058264,
+      "energy_Ha": -8.014717204359908,
+      "success": true
+    },
+    {
+      "molecule": "LiH",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "skipped — match webgpu-q E34 (CPU (T) at cc-pVDZ is minutes; GPU only)"
+    },
+    {
+      "molecule": "LiH",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "not run — install gpu4pyscf and re-run for GPU comparison"
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "sto-3g",
+      "method": "HF",
+      "seconds": 0.018256166993523948,
+      "energy_Ha": -15.559405412277242,
+      "success": true
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "sto-3g",
+      "method": "MP2",
+      "seconds": 0.00015866599278524518,
+      "energy_Ha": -15.582893403813653,
+      "success": true
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "sto-3g",
+      "method": "CCSD",
+      "seconds": 0.03932041699590627,
+      "energy_Ha": -15.594456282046844,
+      "success": true
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0.0013113330060150474,
+      "energy_Ha": -15.59467149586411,
+      "success": true
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "not run — install gpu4pyscf and re-run for GPU comparison"
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "cc-pvdz",
+      "method": "HF",
+      "seconds": 0.025800083996728063,
+      "energy_Ha": -15.767366393439188,
+      "success": true
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "cc-pvdz",
+      "method": "MP2",
+      "seconds": 0.0004295410035410896,
+      "energy_Ha": -15.819119948146891,
+      "success": true
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "cc-pvdz",
+      "method": "CCSD",
+      "seconds": 0.04293558301287703,
+      "energy_Ha": -15.83582320265436,
+      "success": true
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "skipped — match webgpu-q E34 (CPU (T) at cc-pVDZ is minutes; GPU only)"
+    },
+    {
+      "molecule": "BeH₂",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "not run — install gpu4pyscf and re-run for GPU comparison"
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "sto-3g",
+      "method": "HF",
+      "seconds": 0.019660791993374005,
+      "energy_Ha": -74.96292794774783,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "sto-3g",
+      "method": "MP2",
+      "seconds": 0.00017133299843408167,
+      "energy_Ha": -74.99842042839526,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "sto-3g",
+      "method": "CCSD",
+      "seconds": 0.01846487500006333,
+      "energy_Ha": -75.01228678295575,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0.0011324590013828129,
+      "energy_Ha": -75.01235415039577,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "sto-3g",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "not run — install gpu4pyscf and re-run for GPU comparison"
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "cc-pvdz",
+      "method": "HF",
+      "seconds": 0.025450000001001172,
+      "energy_Ha": -76.02679877075681,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "cc-pvdz",
+      "method": "MP2",
+      "seconds": 0.0005881670076632872,
+      "energy_Ha": -76.23075857788986,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "cc-pvdz",
+      "method": "CCSD",
+      "seconds": 0.06749554099224042,
+      "energy_Ha": -76.24008248324593,
+      "success": true
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-CPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "skipped — match webgpu-q E34 (CPU (T) at cc-pVDZ is minutes; GPU only)"
+    },
+    {
+      "molecule": "H₂O",
+      "basis": "cc-pvdz",
+      "method": "CCSD(T)-GPU",
+      "seconds": 0,
+      "energy_Ha": null,
+      "success": true,
+      "notes": "not run — install gpu4pyscf and re-run for GPU comparison"
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "Generated 40 reference rows. Merge with webgpu-q E34 artifact for side-by-side comparison."
+}

@@ -95,7 +95,7 @@ All vs **PySCF 2.13.0 on identical inputs** ([E34 run](./experiments/results/202
 | 🔴 **loss** | CCSD · H₂O · cc-pVDZ | **480× slower** (NumPy/BLAS dominates) |
 | 🔴 **loss** | MP2 · H₂O · cc-pVDZ | **136× slower** (BLAS gap) |
 
-The honest takeaway: we win on no-startup + small systems + the GPU (T) kernel; we lose badly at production basis where BLAS rules. The speedups are vs **our own** CPU baseline, *not* vs PySCF wall-clock or GPU4PySCF — that apples-to-apples comparison is open work.
+The honest takeaway: we win on no-startup + small systems; we lose badly at production basis where BLAS rules. **The CPU rows (HF/MP2/CCSD wins *and* losses) are real wall-clock vs PySCF 2.13.0 on identical inputs** — the E34 comparison, [reproduced 2026-07-06](./experiments/results/2026-07-06/level-6/E34-pyscf.json) with bit-identical energies. The **one** self-referential number is the **CCSD(T)-GPU ~14×**, which is vs our *own* CPU TypeScript — and here's the honest reason it *stays* that way: **there is no accessible GPU-CCSD(T) reference to compare against.** `gpu4pyscf` (the obvious GPU PySCF) supports SCF/DFT/gradients/Hessian/TDDFT and lists MP2/CCSD as *experimental* — **it has no GPU CCSD(T) at all** ([verified 2026-07-06](https://github.com/pyscf/gpu4pyscf)). A GPU-vs-GPU (T) comparison would need TeraChem (commercial) or a research CC-on-GPU code (ByteQC, Psi4 `gpu_dfcc`) — a different undertaking, tracked in [BENCHMARKS](./BENCHMARKS.md), not a quick `pip install`.
 
 <br/>
 
