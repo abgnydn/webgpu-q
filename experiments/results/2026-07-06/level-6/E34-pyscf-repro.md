@@ -24,9 +24,12 @@ still holds, and correct the README framing that mislabeled it "open work."
 - ⚠️ The **webgpu-q side** of E34 is still the 2026-05-12 in-browser measurement
   (chemistry unchanged on this branch, so still valid; a fresh in-browser E34 run
   is a cheap follow-up to re-timestamp it).
-- 🔴 Still genuinely open: the **CCSD(T)-GPU** number is vs our own CPU TypeScript.
-  A same-hardware **gpu4pyscf** (CUDA) comparison needs an NVIDIA GPU — runnable on
-  Modal/Colab per the `tools/modal/webgpu_t4_probe.py` precedent. That, not the CPU
-  comparison, is the remaining apples-to-apples work.
+- 🟡 The **CCSD(T)-GPU** number is vs our own CPU TypeScript — and it stays that way
+  for a concrete reason, not laziness: **no accessible GPU-CCSD(T) reference exists.**
+  `gpu4pyscf` (verified against its README, 2026-07-06) supports SCF/DFT/gradient/
+  Hessian/TDDFT and lists MP2/CCSD as *experimental* — **no GPU CCSD(T) at all.** So a
+  same-hardware gpu4pyscf head-to-head on the (T) kernel is impossible; it would take
+  TeraChem (commercial) or a research GPU-CC code (ByteQC, Psi4 gpu_dfcc). Documented,
+  not hand-waved.
 
 Fresh PySCF artifact: [`E34-pyscf.json`](./E34-pyscf.json).
