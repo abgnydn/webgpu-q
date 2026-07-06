@@ -60,6 +60,10 @@ describe("streaming-DF accuracy vs exact HF, by aux richness", () => {
       // inside chemical accuracy.
       expect(rows[2]!.err).toBeLessThanOrEqual(rows[0]!.err + 1e-9);
       expect(rows[2]!.err).toBeLessThan(CHEM_ACC);
-    });
+      // CH₄'s L3 ladder (824 aux fns) needs ~115-120 s at best on an idle
+      // M2 Pro — exactly the global 120 s ceiling, so any background load
+      // produced a spurious timeout with correct chemistry. Long-running
+      // test, long-running timeout.
+    }, 360_000);
   }
 });

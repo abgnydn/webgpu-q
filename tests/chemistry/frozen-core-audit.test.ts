@@ -231,5 +231,5 @@ describe("Frozen-core audit", () => {
       const shiftHa = Math.abs(eomFC.energies[k]! - eomAll.energies[k]!);
       expect(shiftHa).toBeLessThan(0.1); // < 100 mHa per root
     }
-  }, 60_000); // EOM-CCSD all-electron + frozen-core on H₂O ≈ 30 s with PySCF-port intermediates.
+  }, 360_000); // EOM-CCSD all-electron + frozen-core on H₂O ≈ 30-44 s observed — 60 s was chronically marginal under load.
 });

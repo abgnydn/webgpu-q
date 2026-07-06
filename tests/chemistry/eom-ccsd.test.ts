@@ -213,5 +213,9 @@ describe("EE-EOM-CCSD — Tier 2 stage 24b", () => {
     }`);
     console.log(`[eom-ccsd-h2o] CIS lowest singlet: ${(cisLowestSinglet * 27.2114).toFixed(3)} eV`);
     expect(eom.energies[0]!).toBeLessThan(cisLowestSinglet);
-  }, 30000);
+    // ~24-28 s at best on an idle M2 Pro — the old explicit 30 s left ~5%
+    // headroom, so any background load (parallel vitest workers, a browser,
+    // another job) tipped it into a spurious timeout with correct chemistry.
+    // Long-running test, long-running timeout (matches the global ceiling).
+  }, 360_000);
 });
