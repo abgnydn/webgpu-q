@@ -5,12 +5,13 @@
 //   - Cross-origin: bypass (don't cache 3rd-party).
 // Cache key bumps on every release so old shells get evicted.
 
-const CACHE_NAME = "webgpu-q-v0.6.0";
+const CACHE_NAME = "webgpu-q-v0.6.1";
 const SHELL = [
   "/",
   "/index.html",
   "/molecule.html",
   "/viz.html",
+  "/learn.html",
   "/site.webmanifest",
   "/favicon-32.png",
   "/icon-192.png",
