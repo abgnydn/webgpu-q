@@ -217,6 +217,7 @@ export function runUCCSD(
     history: core.history,
     iter: core.iter,
     converged: core.converged,
+    residualNorm: core.residualNorm,
     t1Diagnostic: diag.t1,
     d1Diagnostic: diag.d1,
     nAlpha,

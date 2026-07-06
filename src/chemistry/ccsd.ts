@@ -61,8 +61,12 @@ export interface CCSDResult {
   readonly history: readonly number[];
   /** Number of iterations performed. */
   readonly iter: number;
-  /** True if energy converged to within tol. */
+  /** True if BOTH the energy change and the amplitude update ‖ΔT‖ fell below
+   *  tol. A dE-only criterion can report convergence on an energy plateau
+   *  while the amplitudes are still moving; requiring both closes that hole. */
   readonly converged: boolean;
+  /** RMS amplitude update ‖ΔT‖ at the final iteration (residual proxy). */
+  readonly residualNorm: number;
   /** T1 diagnostic (Lee, Taylor 1989): ‖T1‖_F / √(2·n_electrons).
    *  Heuristic flag for multi-reference character — CCSD becomes
    *  unreliable when t1Diagnostic > 0.02 (closed-shell) or > 0.05
@@ -82,6 +86,14 @@ export interface CCSDOpts {
   readonly tol?: number;
   /** Damping for amplitude update. 1.0 = none (default). 0.5 = half-step. */
   readonly damping?: number;
+  /** Pulay DIIS acceleration on the amplitude vector (default true). Plain
+   *  energy-denominator iteration can enter an amplitude limit cycle — the
+   *  energy plateaus (ΔE→0) while ‖ΔT‖ stalls well above tol and never
+   *  settles (observed on frozen-core CCSD). DIIS extrapolates that soft mode
+   *  out and drives the true residual to tol. Set false for the raw iteration. */
+  readonly useDIIS?: boolean;
+  /** Max DIIS subspace size (default 6). */
+  readonly diisDim?: number;
   /**
    * Number of frozen-core spatial orbitals. The lowest `nFrozenCore`
    * occupied MOs are excluded from the correlation treatment by
@@ -128,6 +140,7 @@ export function runCCSD(
     history: core.history,
     iter: core.iter,
     converged: core.converged,
+    residualNorm: core.residualNorm,
     t1Diagnostic: diag.t1,
     d1Diagnostic: diag.d1,
   };
@@ -195,6 +208,59 @@ export function ccsdDiagnostics(
   }
   const d1 = Math.sqrt(Math.max(0, lambda));
   return { t1, d1 };
+}
+
+/** Solve the Pulay DIIS coefficient system for a set of error vectors.
+ *  Minimises ‖Σ cᵢ eᵢ‖ subject to Σ cᵢ = 1 via the bordered normal
+ *  equations [[B, −1], [−1ᵀ, 0]] [c; λ] = [0; −1], B_ij = ⟨eᵢ, eⱼ⟩.
+ *  Returns the n coefficients, or null if the system is singular (caller
+ *  then skips extrapolation for this step). */
+function solveDIIS(errs: readonly Float64Array[]): number[] | null {
+  const n = errs.length;
+  const m = n + 1;
+  const A: number[][] = Array.from({ length: m }, () => new Array<number>(m).fill(0));
+  for (let i = 0; i < n; i++) {
+    const ei = errs[i]!;
+    for (let j = i; j < n; j++) {
+      const ej = errs[j]!;
+      let s = 0;
+      for (let k = 0; k < ei.length; k++) s += ei[k]! * ej[k]!;
+      A[i]![j] = s;
+      A[j]![i] = s;
+    }
+  }
+  for (let i = 0; i < n; i++) { A[i]![n] = -1; A[n]![i] = -1; }
+  A[n]![n] = 0;
+  const rhs = new Array<number>(m).fill(0);
+  rhs[n] = -1;
+  const sol = gaussSolve(A, rhs);
+  if (!sol) return null;
+  return sol.slice(0, n);
+}
+
+/** Dense Gaussian elimination with partial pivoting for a small square
+ *  system A x = b. Returns null if A is singular. A and b are consumed. */
+function gaussSolve(A: number[][], b: number[]): number[] | null {
+  const m = b.length;
+  for (let col = 0; col < m; col++) {
+    let piv = col;
+    for (let r = col + 1; r < m; r++) if (Math.abs(A[r]![col]!) > Math.abs(A[piv]![col]!)) piv = r;
+    if (Math.abs(A[piv]![col]!) < 1e-14) return null;
+    if (piv !== col) { [A[piv], A[col]] = [A[col]!, A[piv]!]; [b[piv], b[col]] = [b[col]!, b[piv]!]; }
+    const pivRow = A[col]!;
+    const pivVal = pivRow[col]!;
+    for (let r = 0; r < m; r++) {
+      if (r === col) continue;
+      const factor = A[r]![col]! / pivVal;
+      if (factor === 0) continue;
+      const row = A[r]!;
+      for (let c = col; c < m; c++) row[c] = row[c]! - factor * pivRow[c]!;
+      b[r] = b[r]! - factor * b[col]!;
+    }
+  }
+  const x = new Array<number>(m);
+  for (let i = 0; i < m; i++) x[i] = b[i]! / A[i]![i]!;
+  return x;
 }
 
 /**
@@ -272,12 +338,25 @@ export function ccsdIterate(
   const maxIter = opts.maxIter ?? 100;
   const tol = opts.tol ?? 1e-9;
   const damping = opts.damping ?? 1.0;
+  const useDIIS = opts.useDIIS ?? true;
+  const diisDim = opts.diisDim ?? 6;
+  // DIIS subspace: parameter vectors (post-Jacobi amplitudes) and their error
+  // vectors (the Jacobi update ΔT). Concatenation order is [T1 | T2].
+  const nAmpTotal = NOCC * NVIRT + NOCC * NOCC * NVIRT * NVIRT;
+  const diisP: Float64Array[] = [];
+  const diisE: Float64Array[] = [];
 
   let E_corr = computeECorr(T1, T2, eri, NOCC, NVIRT, NSO);
   const history: number[] = [E_corr];
   let converged = false;
   let iter = 0;
   let E_old = E_corr;
+  // RMS of the amplitude update ‖ΔT‖ — a residual proxy. A dE-only stop can
+  // report `converged` on an energy plateau while the amplitudes are still
+  // moving (the energy is stationary to first order in the amplitude error, so
+  // |ΔE| can undershoot ‖ΔT‖ near the fixed point). We require BOTH to fall
+  // below tol before declaring convergence, and surface the final value.
+  let residualNorm = Infinity;
 
   for (iter = 1; iter <= maxIter; iter++) {
     const tau_t = makeTau(T1, T2, NOCC, NVIRT, 0.5);
@@ -295,31 +374,89 @@ export function ccsdIterate(
     const r2 = makeRHS_T2(T1, T2, tau, F_ae, F_mi, F_me,
                           W_mnij, W_abef, W_mbej, eri, NOCC, NVIRT, NSO);
 
-    // Update amplitudes via energy denominators.
+    // Update amplitudes via energy denominators, capturing the Jacobi update
+    // ΔT as the DIIS error vector [T1 | T2] and accumulating ‖ΔT‖² so we can
+    // measure how far the amplitudes still moved this step (the true residual).
+    const off2 = NOCC * NVIRT;
+    const errVec = new Float64Array(nAmpTotal);
+    let sumSqDelta = 0;
+    let nActive = 0;
+    // Frozen (core) amplitudes are constrained to zero by zeroCoreAmplitudes,
+    // so the Jacobi step still produces a nonzero r/D push for them that we
+    // immediately discard. Counting that push as "residual" measures progress
+    // along a projected-out direction that can never converge — it pins the
+    // frozen-core residual at ~1e-4 forever. Exclude those constrained
+    // directions from BOTH the residual norm and the DIIS error vector; only
+    // the free amplitudes define convergence.
     for (let i = 0; i < NOCC; i++) {
+      const frozenI = frozenSet.has(i);
       for (let a = 0; a < NVIRT; a++) {
         const idx = i * NVIRT + a;
         const tnew = r1[idx]! / D_ia[idx]!;
-        T1[idx] = damping * tnew + (1 - damping) * T1[idx]!;
+        const updated = damping * tnew + (1 - damping) * T1[idx]!;
+        const delta = updated - T1[idx]!;
+        T1[idx] = updated;
+        if (frozenI) continue;
+        errVec[idx] = delta;
+        sumSqDelta += delta * delta;
+        nActive++;
       }
     }
     for (let i = 0; i < NOCC; i++) {
+      const frozenI = frozenSet.has(i);
       for (let j = 0; j < NOCC; j++) {
+        const frozenIJ = frozenI || frozenSet.has(j);
         for (let a = 0; a < NVIRT; a++) {
           for (let b = 0; b < NVIRT; b++) {
             const idx = ((i * NOCC + j) * NVIRT + a) * NVIRT + b;
             const tnew = r2[idx]! / D_ijab[idx]!;
-            T2[idx] = damping * tnew + (1 - damping) * T2[idx]!;
+            const updated = damping * tnew + (1 - damping) * T2[idx]!;
+            const delta = updated - T2[idx]!;
+            T2[idx] = updated;
+            if (frozenIJ) continue;
+            errVec[off2 + idx] = delta;
+            sumSqDelta += delta * delta;
+            nActive++;
           }
         }
       }
     }
     zeroCoreAmplitudes(T1, T2, frozenSet, NOCC, NVIRT);
+    // ‖ΔT‖ of the raw Jacobi step (pre-extrapolation) over the FREE amplitudes
+    // — the honest measure of how far we still are from the fixed point.
+    residualNorm = nActive > 0 ? Math.sqrt(sumSqDelta / nActive) : 0;
+
+    // Pulay DIIS: extrapolate the amplitudes from the stored subspace so the
+    // soft/limit-cycle mode that stalls the raw iteration is projected out.
+    if (useDIIS) {
+      const parVec = new Float64Array(nAmpTotal);
+      parVec.set(T1, 0);
+      parVec.set(T2, off2);
+      diisP.push(parVec);
+      diisE.push(errVec);
+      if (diisP.length > diisDim) { diisP.shift(); diisE.shift(); }
+      if (diisP.length >= 2) {
+        const c = solveDIIS(diisE);
+        if (c) {
+          const ext = new Float64Array(nAmpTotal);
+          for (let k = 0; k < c.length; k++) {
+            const ck = c[k]!;
+            const pk = diisP[k]!;
+            for (let t = 0; t < nAmpTotal; t++) ext[t]! += ck * pk[t]!;
+          }
+          T1.set(ext.subarray(0, off2));
+          T2.set(ext.subarray(off2));
+          zeroCoreAmplitudes(T1, T2, frozenSet, NOCC, NVIRT);
+        }
+      }
+    }
 
     E_corr = computeECorr(T1, T2, eri, NOCC, NVIRT, NSO);
     history.push(E_corr);
 
-    if (Math.abs(E_corr - E_old) < tol) {
+    // Converge only when the energy AND the amplitudes have both settled — a
+    // dE-only test can stop early on a plateau while ‖ΔT‖ is still sizeable.
+    if (Math.abs(E_corr - E_old) < tol && residualNorm < tol) {
       converged = true;
       break;
     }
@@ -328,7 +465,7 @@ export function ccsdIterate(
 
   return {
     correlationEnergy: E_corr,
-    T1, T2, history, iter, converged,
+    T1, T2, history, iter, converged, residualNorm,
   };
 }
 

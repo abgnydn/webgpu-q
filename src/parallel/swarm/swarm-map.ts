@@ -104,6 +104,7 @@ export function attachSwarmRuntime(transport: SwarmTransport): KernelRegistry {
     readonly tileSpec: unknown;
     readonly results: unknown[];
     readonly assigned: Map<number, string>;  // tileIndex -> worker currently running it
+    readonly assignedAt: Map<number, number>; // tileIndex -> ts we handed it to a remote worker
     readonly pending: number[];               // FIFO queue of unassigned tile indices
     readonly settle: (value: unknown[]) => void;
     readonly reject: (e: Error) => void;
@@ -131,6 +132,7 @@ export function attachSwarmRuntime(transport: SwarmTransport): KernelRegistry {
       return;
     }
     job.assigned.set(idx, worker);
+    job.assignedAt.set(idx, Date.now());
     transport.send({ type: "tile-assign", to: worker, payload: { jobId, tileIndex: idx, worker, accepted: true, tile: job.tiles[idx] } });
   }
 
@@ -141,6 +143,7 @@ export function attachSwarmRuntime(transport: SwarmTransport): KernelRegistry {
     if (job.results[tileIndex] !== undefined) return;  // duplicate / already settled
     job.results[tileIndex] = result;
     job.assigned.delete(tileIndex);
+    job.assignedAt.delete(tileIndex);
     const done = job.results.filter((r) => r !== undefined).length;
     job.opts.onProgress?.(done, job.tiles.length);
     if (done === job.tiles.length) { job.settle(job.results); jobs.delete(jobId); }
@@ -248,6 +251,24 @@ export function attachSwarmRuntime(transport: SwarmTransport): KernelRegistry {
     // — swarmMap often runs before the first hello lands, so the roster is empty.)
     await delay(pollMs);
     while (jobs.has(jobId)) {
+      // Watchdog: reclaim any tile whose assigned remote worker has gone silent
+      // past tileTimeoutMs (tab closed / peer vanished with NO tile-fail — the
+      // tile-fail path only fires on a kernel throw, not on a dead peer). Without
+      // this the master spins here forever: `pending` is empty but `assigned`
+      // still holds the lost tile, so the job never settles. Requeueing is safe —
+      // recordResult()'s duplicate guard makes a late reply from a merely-slow
+      // (still-alive) worker a no-op (first result wins), so a false reclaim only
+      // ever costs redundant compute, never a wrong or double-counted result.
+      const tileTimeout = job.opts.tileTimeoutMs ?? 30_000;
+      const now = Date.now();
+      for (const [idx, ts] of job.assignedAt) {
+        if (now - ts <= tileTimeout) continue;
+        job.assignedAt.delete(idx);
+        job.assigned.delete(idx);
+        if (job.results[idx] === undefined && !job.pending.includes(idx)) {
+          job.pending.unshift(idx);   // front of queue → retried promptly
+        }
+      }
       // While remote workers are actively pulling, yield each round so they get
       // priority — the master takes only what they leave. Local kernel compute
       // blocks the event loop, so without this the master would drain everything
@@ -315,6 +336,7 @@ export function attachSwarmRuntime(transport: SwarmTransport): KernelRegistry {
         kind, tiles, tileSpec,
         results: new Array(tiles.length),
         assigned: new Map(),
+        assignedAt: new Map(),
         pending,
         settle: resolve as (v: unknown[]) => void,
         reject,

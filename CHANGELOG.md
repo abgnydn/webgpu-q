@@ -5,6 +5,59 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) starting
 from `0.1.0`.
 
+## [Unreleased]
+
+Rigor-hardening round: two latent correctness bugs found by a verify-first audit
+(reproduce CI green → confirm each finding against the actual code/tests before
+touching it). Several audit "findings" did **not** survive verification and are
+recorded as such below rather than "fixed".
+
+### Fixed
+
+- **CCSD/UCCSD false convergence.** The iteration stopped on `|ΔE| < tol` alone.
+  Because the energy is stationary to first order in the amplitude error, `|ΔE|`
+  can fall below `tol` while `‖ΔT‖` is still large — a false `converged: true`.
+  A CH₄/STO-3G probe caught the worst case: **frozen-core CCSD** reported
+  convergence on an energy plateau (`ΔE` bit-exactly 0) with `‖ΔT‖` pinned at
+  `1.26e-4` that never settled in 400 iterations. Root cause of the plateau was a
+  residual **measurement** artifact — `zeroCoreAmplitudes` constrains core
+  amplitudes to zero, but the Jacobi step still produces a nonzero `r/D` push for
+  them that is discarded each iteration; counting it measured a residual along a
+  projected-out direction that can never converge. Fixes: (a) gate `converged` on
+  **both** `|ΔE| < tol` and `‖ΔT‖ < tol`; (b) measure `‖ΔT‖` over the **free**
+  amplitudes only (exclude frozen directions from the residual and the DIIS error
+  vector); (c) add **Pulay DIIS** on the amplitude vector (default on, dim 6).
+  Result (CH₄/STO-3G): all-electron 22→10 iters (`‖ΔT‖` 6.6e-11); frozen-core
+  401-never→10 (`‖ΔT‖` 1.8e-10). Energies unchanged to ~2e-10 — CCSD(T) FCI gates
+  (CH₄ ≤0.5 mHa, BeH₂ ≤0.3 mHa) and the full suite stay green. `CCSDResult` now
+  exposes `residualNorm`. Regression test: `tests/chemistry/ccsd-convergence.test.ts`.
+- **Swarm `tileTimeoutMs` never enforced → job hang on silent peer death.**
+  `SwarmMapOpts.tileTimeoutMs` (default 30000 ms) was documented ("if a peer
+  disappears, the master reassigns") but unused. The `tile-fail` recovery path
+  only fires when a worker's kernel *throws*; a peer that pulls a tile and then
+  silently dies (tab closed, crash, network drop) emits no `tile-fail`, so its
+  tile stayed pinned in `assigned` while `pending` drained empty and `masterPump`
+  spun forever — `swarmMap` never resolved. Added a watchdog that reclaims any
+  tile older than `tileTimeoutMs` for reassignment/local execution; safe because
+  `recordResult`'s duplicate guard makes a late reply from a slow-but-alive worker
+  a no-op. Regression test: `tests/parallel/swarm-tile-timeout.test.ts` (verified
+  failing at 10 s timeout without the fix, passing at 243 ms with it).
+
+### Verified (audited, not a bug — recorded for honesty)
+
+- **EOM-CCSD (EE/IP/EA) is correct**, contrary to an audit note claiming ~10 mHa
+  incompleteness. All three brute-force `H̄ = e⁻ᵀHeᵀ` LiH oracles (NSO=6, T̂²≠0)
+  match to machine precision (EA 5.35e-13, IP 4.97e-13, EE 0.0000 mHa Ha). The
+  claim traced to a stale code comment predating the PySCF port.
+- **D2 dispersion / heavy-atom params**: no reachable bug. `AtomSymbol` is exactly
+  {H,He,Li,Be,C,N,O,F}; `C6_AU`/`R_R`/`PERIODIC_TABLE` cover all of them, and the
+  XYZ/PDB/MOL/SDF importers validate element symbols and throw on unsupported, so
+  no undefined-param path exists.
+- **Worker-pool slice bounds**: no safe generic guard. Write-disjointness is
+  kernel-specific (row-range for buildG/JK; canonical-encoding ownership for the
+  ERI scatter, which legitimately spans the whole tensor). Parallel==serial tests
+  already catch real mis-writes.
+
 ## [0.12.0] — 2026-06-17
 
 Presentation overhaul + manuscript corrections. No engine/method changes — this
