@@ -7,11 +7,16 @@
 // depth only re-skins overlays + side panel + copy — it never
 // recomputes. Dragging an atom recomputes (the fast HF is the
 // product). CPU/WASM path: no GPU, no backend, no install.
+//
+// The SCF runs in a Web Worker (compute-worker.ts) so a slow
+// basis (cc-pVDZ ≈ 1 s) can never jank the drag. Latest-wins:
+// at most one request is in flight; newer geometry overwrites
+// whatever was waiting; stale replies are dropped by seq.
 // ─────────────────────────────────────────────────────────────
 
 import type { Atom, BasisName } from "../chemistry/atoms.js";
-import { quickReport } from "../chemistry/quick-report.js";
 import type { MolecularReport } from "../chemistry/molecular-report.js";
+import type { ComputeReply } from "./compute-worker.js";
 
 type Depth = "feel" | "see" | "know" | "prove";
 interface P2 { x: number; y: number } // Ångström, molecule frame (O at origin)
@@ -30,10 +35,19 @@ const hintEl = document.getElementById("hint") as HTMLElement;
 const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>(".depth button"));
 
 // ── State ────────────────────────────────────────────────────
-const state: { depth: Depth; atoms: AtomXY[]; report: MolecularReport | null; basis: BasisName; error: string | null } = {
+const state: {
+  depth: Depth;
+  atoms: AtomXY[];
+  report: MolecularReport | null;
+  /** basis that produced `report` — differs from `basis` while a fast preview is on screen */
+  reportBasis: BasisName | null;
+  basis: BasisName;
+  error: string | null;
+} = {
   depth: "feel",
   atoms: geometryFromAngle(A0, R0),
   report: null,
+  reportBasis: null,
   basis: "sto-3g",
   error: null,
 };
@@ -47,20 +61,66 @@ function geometryFromAngle(angleDeg: number, r: number): AtomXY[] {
   ];
 }
 
-// ── Live compute (throttled, fault-tolerant) ─────────────────
-let lastComputeT = 0;
-function computeSafe(force: boolean): void {
-  const now = performance.now();
-  if (!force && now - lastComputeT < 45) return;   // ~20fps ceiling on recompute
-  lastComputeT = now;
-  try {
-    const atoms: Atom[] = state.atoms.map((a) => ({ symbol: a.sym, pos: [a.x, a.y, 0] as const }));
-    state.report = quickReport(atoms, { basis: state.basis });
-    state.error = null;
-  } catch (e) {
-    state.error = e instanceof Error ? e.message : String(e);   // keep last good report on screen
-  }
+// ── Live compute (Web Worker, latest-wins, fault-tolerant) ───
+// The SCF never runs on this thread. At most ONE request is in
+// flight in the worker; while it runs, newer geometry overwrites
+// the single `queued` slot (so the worker never builds a queue and
+// always computes the freshest geometry next). Replies carry the
+// request's seq; anything but the in-flight seq is stale → dropped.
+// On SCF failure the last good report stays rendered + a warning.
+//
+// Basis-aware drag strategy: "live" requests (drag / slider /
+// animation in progress) run STO-3G when the selected basis is
+// cc-pVDZ, so feedback stays ~ms-fast; "final" requests (release)
+// run the selected basis. While a preview-basis result is on
+// screen, renderSide says so honestly (know/prove depths).
+const worker = new Worker(new URL("./compute-worker.ts", import.meta.url), { type: "module" });
+let computeSeq = 0;
+let inFlight: { seq: number; basis: BasisName } | null = null;
+let queued: { atoms: Atom[]; basis: BasisName } | null = null;
+let finalTimer: number | null = null;
+
+function snapshotAtoms(): Atom[] {
+  return state.atoms.map((a) => ({ symbol: a.sym, pos: [a.x, a.y, 0] as const }));
 }
+
+function post(atoms: Atom[], basis: BasisName): void {
+  computeSeq += 1;
+  inFlight = { seq: computeSeq, basis };
+  worker.postMessage({ atoms, basis, seq: computeSeq });
+}
+
+/** live = in-progress feedback (drag / slider / animation frame);
+ *  final = settled geometry, always in the SELECTED basis. */
+function requestCompute(kind: "live" | "final"): void {
+  const basis: BasisName = kind === "live" && state.basis === "cc-pvdz" ? "sto-3g" : state.basis;
+  if (kind === "final" && finalTimer !== null) { clearTimeout(finalTimer); finalTimer = null; }
+  if (kind === "live" && basis !== state.basis) scheduleFinal();  // safety net: converge to the selected basis even if a release event is missed
+  const atoms = snapshotAtoms();
+  if (inFlight) { queued = { atoms, basis }; return; }   // latest wins — overwrite whatever waited
+  post(atoms, basis);
+}
+
+function scheduleFinal(): void {
+  if (finalTimer !== null) clearTimeout(finalTimer);
+  finalTimer = window.setTimeout(() => { finalTimer = null; requestCompute("final"); }, 400);
+}
+
+worker.addEventListener("message", (ev: MessageEvent<ComputeReply>) => {
+  const reply = ev.data;
+  if (!inFlight || reply.seq !== inFlight.seq) return;   // stale — a newer request owns the screen
+  const basis = inFlight.basis;
+  inFlight = null;
+  if (reply.report) {
+    state.report = reply.report;
+    state.reportBasis = basis;
+    state.error = null;
+  } else {
+    state.error = reply.error;   // keep last good report on screen
+  }
+  if (queued) { const q = queued; queued = null; post(q.atoms, q.basis); }
+  render();
+});
 
 // ── Geometry helpers ─────────────────────────────────────────
 const toPx = (p: P2): P2 => ({ x: OX + p.x * SCALE, y: OY - p.y * SCALE });
@@ -182,7 +242,8 @@ function renderSide(): void {
       kv("O charge", rep.mullikenCharges[0]!.toFixed(3)) +
       kv("H charge", `${rep.mullikenCharges[1]!.toFixed(3)} ×2`) +
       kv("HOMO–LUMO", `${rep.homoLumoGapEv.toFixed(1)} eV`) +
-      kv("Total energy", `${rep.totalEnergy.toFixed(4)} Ha`)));
+      kv("Total energy", `${rep.totalEnergy.toFixed(4)} Ha`) +
+      previewNote()));
     parts.push(angleControl());
   }
 
@@ -198,7 +259,8 @@ function renderSide(): void {
       kv("μ vector (a.u.)", `[${rep.dipole.map((d) => d.toFixed(3)).join(", ")}]`) +
       kv("Mulliken O / H", `${rep.mullikenCharges[0]!.toFixed(3)} / ${rep.mullikenCharges[1]!.toFixed(3)}`) +
       kv("HOMO–LUMO", `${rep.homoLumoGapEv.toFixed(3)} eV`) +
-      kv("Reference", rep.multireferenceSeverity)));
+      kv("Reference", rep.multireferenceSeverity) +
+      previewNote()));
     parts.push(card("Reproduce this exact run",
       `<p style="margin:0 0 6px;color:var(--dim);font-size:12px">Same URL → same numbers, forever.</p>
        <code>${esc(location.href)}</code>`));
@@ -209,6 +271,17 @@ function renderSide(): void {
 
   side.innerHTML = parts.join("");
   wireSide();
+}
+
+const BASIS_LABEL: Partial<Record<BasisName, string>> = { "sto-3g": "STO-3G", "cc-pvdz": "cc-pVDZ" };
+
+/** Honesty note (know/prove): while a drag shows fast preview-basis numbers,
+ *  say so. Disappears as soon as the final selected-basis result lands. */
+function previewNote(): string {
+  if (!state.report || state.reportBasis === null || state.reportBasis === state.basis) return "";
+  const from = BASIS_LABEL[state.reportBasis] ?? state.reportBasis;
+  const to = BASIS_LABEL[state.basis] ?? state.basis;
+  return `<p class="preview-note" style="margin:6px 0 0;color:var(--dim);font-size:11px">previewing in ${esc(from)}… ${esc(to)} lands on release</p>`;
 }
 
 function card(title: string, body: string): string { return `<div class="card"><h2>${title}</h2>${body}</div>`; }
@@ -259,11 +332,16 @@ function wireSide(): void {
     });
   });
   const angle = side.querySelector<HTMLInputElement>("#angle");
-  if (angle) angle.addEventListener("input", () => { state.atoms = geometryFromAngle(Number(angle.value), bondLen()); computeSafe(true); syncURL(); render(); });
+  if (angle) {
+    angle.addEventListener("input", () => { state.atoms = geometryFromAngle(Number(angle.value), bondLen()); requestCompute("live"); syncURL(); render(); });
+    // Slider release → the selected basis. (`change` fires on release;
+    // the debounced final in requestCompute covers any missed release.)
+    angle.addEventListener("change", () => requestCompute("final"));
+  }
   const straighten = side.querySelector<HTMLButtonElement>("#straighten");
   if (straighten) straighten.addEventListener("click", animateStraighten);
   const basisSel = side.querySelector<HTMLSelectElement>("#basisSel");
-  if (basisSel) basisSel.addEventListener("change", () => { state.basis = basisSel.value as BasisName; computeSafe(true); syncURL(); render(); });
+  if (basisSel) basisSel.addEventListener("change", () => { state.basis = basisSel.value as BasisName; requestCompute("final"); syncURL(); render(); });
 }
 
 function animateTo(target: AtomXY[], dur: number): void {
@@ -273,8 +351,8 @@ function animateTo(target: AtomXY[], dur: number): void {
     const k = Math.min(1, (now - t0) / dur);
     const e = 1 - Math.pow(1 - k, 3);
     state.atoms = start.map((a, i) => ({ sym: a.sym, x: a.x + (target[i]!.x - a.x) * e, y: a.y + (target[i]!.y - a.y) * e }));
-    computeSafe(false); render();
-    if (k < 1) requestAnimationFrame(step); else { computeSafe(true); syncURL(); render(); }
+    requestCompute("live"); render();
+    if (k < 1) requestAnimationFrame(step); else { requestCompute("final"); syncURL(); render(); }
   };
   requestAnimationFrame(step);
 }
@@ -305,7 +383,7 @@ scene.addEventListener("pointermove", (e) => {
   const d = Math.hypot(a.x, a.y) || 1e-6;
   const r = Math.max(0.5, Math.min(1.6, d));
   state.atoms[dragging] = { sym: "H", x: a.x / d * r, y: a.y / d * r };
-  computeSafe(false); render();
+  requestCompute("live"); render();   // geometry renders at 60fps; numbers land when the worker replies
 });
 scene.addEventListener("pointerup", () => {
   if (dragging < 0) return;
@@ -315,7 +393,7 @@ scene.addEventListener("pointerup", () => {
   // "molecules have a preferred shape." Deeper levels are lab mode: the
   // geometry stays where you put it so stretched states can be studied.
   if (state.depth === "feel") { animateTo(geometryFromAngle(A0, R0), 550); return; }
-  computeSafe(true); syncURL(); render();
+  requestCompute("final"); syncURL(); render();
 });
 
 // ── Depth tabs ───────────────────────────────────────────────
@@ -356,5 +434,5 @@ function restoreURL(): void {
 function render(): void { renderScene(); renderSide(); }
 restoreURL();
 tabs.forEach((t) => t.setAttribute("aria-selected", String(t.dataset.depth === state.depth)));
-computeSafe(true);
+requestCompute("final");   // async: page renders immediately, numbers land when the worker replies
 setDepth(state.depth);
