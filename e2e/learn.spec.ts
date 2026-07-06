@@ -182,4 +182,46 @@ test.describe("Learn page — why is water special?", () => {
     await pollSideNumber(page, MU_RE, (p) => p.toBeLessThan(0.05));
     await pollSideNumber(page, ANGLE_RE, (p) => p.toBeGreaterThan(179.5));
   });
+
+  test("Feel idle-wiggles the molecule (real normal modes), and stops on See", async ({ page }) => {
+    await page.goto("/learn.html?d=feel", { waitUntil: "domcontentloaded" });
+    const cy = () => page.locator("#scene circle.draggable").first().getAttribute("cy").then(Number);
+    const samples: number[] = [];
+    for (let i = 0; i < 8; i++) { samples.push(await cy()); await page.waitForTimeout(55); }
+    const range = Math.max(...samples) - Math.min(...samples);
+    expect(range, "Feel should animate the atoms").toBeGreaterThan(0.5);
+
+    // Deeper depths are still (lab mode): See must not wiggle.
+    await page.locator('.depth button[data-depth="see"]').click();
+    await page.waitForTimeout(120);
+    const s2: number[] = [];
+    for (let i = 0; i < 6; i++) { s2.push(await cy()); await page.waitForTimeout(55); }
+    expect(Math.max(...s2) - Math.min(...s2), "See should be still").toBeLessThan(0.5);
+  });
+
+  test("Know: orbital toggle renders a real MO field; μ-vs-angle plot is a computed curve", async ({ page }) => {
+    await page.goto("/learn.html?d=know", { waitUntil: "domcontentloaded" });
+    await pollSideNumber(page, MU_RE, (p) => p.toBeGreaterThan(0)); // wait for first report
+
+    // μ(angle) sweep: a real polyline with the full 23-point ladder appears.
+    await expect.poll(async () =>
+      (await page.locator("#side polyline").first().getAttribute("points").catch(() => ""))?.split(" ").length ?? 0,
+      { timeout: 30_000 },
+    ).toBeGreaterThan(20);
+
+    // Orbital overlay: off by default, an <image> field appears after toggling on.
+    await expect(page.locator("#scene image")).toHaveCount(0);
+    await page.locator("#orbToggle").click();
+    await expect(page.locator("#scene image")).toHaveCount(1, { timeout: 30_000 });
+    await expect(page.locator("#scene text").filter({ hasText: "HOMO−1" })).toBeVisible();
+    await expect(page).toHaveURL(/orb=1/);
+  });
+
+  test("depth tablist is keyboard-operable (ArrowRight moves + activates)", async ({ page }) => {
+    await page.goto("/learn.html?d=feel", { waitUntil: "domcontentloaded" });
+    await page.locator('.depth button[data-depth="feel"]').focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.locator('.depth button[data-depth="see"]')).toHaveAttribute("aria-selected", "true");
+    await expect(page).toHaveURL(/d=see/);
+  });
 });

@@ -16,7 +16,7 @@
 
 import type { Atom, BasisName } from "../chemistry/atoms.js";
 import type { MolecularReport } from "../chemistry/molecular-report.js";
-import type { ComputeReply } from "./compute-worker.js";
+import type { ComputeReply, SweepPoint, OrbitalGrid } from "./compute-worker.js";
 
 type Depth = "feel" | "see" | "know" | "prove";
 interface P2 { x: number; y: number } // Ångström, molecule frame (O at origin)
@@ -87,13 +87,14 @@ function snapshotAtoms(): Atom[] {
 function post(atoms: Atom[], basis: BasisName): void {
   computeSeq += 1;
   inFlight = { seq: computeSeq, basis };
-  worker.postMessage({ atoms, basis, seq: computeSeq });
+  worker.postMessage({ kind: "report", atoms, basis, seq: computeSeq });
 }
 
 /** live = in-progress feedback (drag / slider / animation frame);
  *  final = settled geometry, always in the SELECTED basis. */
 function requestCompute(kind: "live" | "final"): void {
   const basis: BasisName = kind === "live" && state.basis === "cc-pvdz" ? "sto-3g" : state.basis;
+  if (kind === "final") { ensureOrbital(); ensureSweep(); }   // refresh overlays for the settled geometry
   if (kind === "final" && finalTimer !== null) { clearTimeout(finalTimer); finalTimer = null; }
   if (kind === "live" && basis !== state.basis) scheduleFinal();  // safety net: converge to the selected basis even if a release event is missed
   const atoms = snapshotAtoms();
@@ -108,6 +109,7 @@ function scheduleFinal(): void {
 
 worker.addEventListener("message", (ev: MessageEvent<ComputeReply>) => {
   const reply = ev.data;
+  if (reply.kind !== "report") return;                   // this worker only serves reports
   if (!inFlight || reply.seq !== inFlight.seq) return;   // stale — a newer request owns the screen
   const basis = inFlight.basis;
   inFlight = null;
@@ -120,6 +122,93 @@ worker.addEventListener("message", (ev: MessageEvent<ComputeReply>) => {
   }
   if (queued) { const q = queued; queued = null; post(q.atoms, q.basis); }
   render();
+});
+
+// ── μ(angle) reference sweep: its OWN worker, so a ~1-2 s 23-point
+// sweep can never queue behind (or block) the live drag reports.
+// Every point is a full HF/STO-3G SCF at the current bond length —
+// the curve is computed, not drawn. Cached per bond length (0.02 Å
+// buckets); a changed bond length after a drag re-sweeps.
+const sweepWorker = new Worker(new URL("./compute-worker.ts", import.meta.url), { type: "module" });
+let sweepSeq = 0;
+let sweep: { key: string; points: readonly SweepPoint[] } | null = null;
+let sweepPendingKey: string | null = null;
+
+function sweepKeyOf(): string { return (Math.round(bondLen() / 0.02) * 0.02).toFixed(2); }
+
+function ensureSweep(): void {
+  const key = sweepKeyOf();
+  if ((sweep && sweep.key === key) || sweepPendingKey === key) return;
+  sweepPendingKey = key;
+  sweepSeq += 1;
+  sweepWorker.postMessage({ kind: "sweep", rAngstrom: Number(key), basis: "sto-3g", seq: sweepSeq });
+}
+
+// ── Orbital overlay: a REAL MO sampled on the molecular plane ─
+// HOMO−1 (water's 3a₁ in-plane lone pair) evaluated by the worker with the
+// same primitive the Gaussian-cube exporter uses — ψ(x,y,0) on a 72×56 grid,
+// rendered as a two-phase (cyan +, pink −) translucent field. The out-of-
+// plane HOMO (1b₁) would be ~zero on this plane, so HOMO−1 is the honest
+// in-plane choice. Recomputed when the geometry settles; hidden mid-drag
+// (a stale field over a moved molecule would be a lie).
+let orbitalsOn = false;
+let orbSeq = 0;
+let orbCache: { key: string; url: string; label: string; grid: OrbitalGrid } | null = null;
+let orbPendingKey: string | null = null;
+const ORB_WIN = { x0: -1.9, y0: -1.7, x1: 1.9, y1: 1.3, nx: 72, ny: 56 };
+
+function atomsKey(): string {
+  return state.atoms.map((a) => `${a.x.toFixed(2)},${a.y.toFixed(2)}`).join(";");
+}
+
+function ensureOrbital(): void {
+  if (!orbitalsOn) return;
+  const key = atomsKey();
+  if ((orbCache && orbCache.key === key) || orbPendingKey === key) return;
+  orbPendingKey = key;
+  orbSeq += 1;
+  sweepWorker.postMessage({ kind: "orbital", atoms: snapshotAtoms(), belowHomo: 1, ...ORB_WIN, seq: orbSeq });
+}
+
+function orbitalToDataURL(grid: OrbitalGrid): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = grid.nx; canvas.height = grid.ny;
+  const ctx = canvas.getContext("2d")!;
+  const img = ctx.createImageData(grid.nx, grid.ny);
+  let vmax = 1e-12;
+  for (let i = 0; i < grid.values.length; i++) vmax = Math.max(vmax, Math.abs(grid.values[i]!));
+  for (let iy = 0; iy < grid.ny; iy++) {
+    for (let ix = 0; ix < grid.nx; ix++) {
+      const v = grid.values[iy * grid.nx + ix]!;
+      const row = grid.ny - 1 - iy;              // grid y ascends; canvas rows descend
+      const o = (row * grid.nx + ix) * 4;
+      const a = Math.pow(Math.min(1, Math.abs(v) / vmax), 0.55) * 150;
+      if (v >= 0) { img.data[o] = 34;  img.data[o + 1] = 211; img.data[o + 2] = 238; }  // + phase: cyan
+      else        { img.data[o] = 244; img.data[o + 1] = 114; img.data[o + 2] = 182; }  // − phase: pink
+      img.data[o + 3] = a;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas.toDataURL();
+}
+
+sweepWorker.addEventListener("message", (ev: MessageEvent<ComputeReply>) => {
+  const reply = ev.data;
+  if (reply.kind === "sweep") {
+    if (reply.seq !== sweepSeq) return;
+    sweep = { key: sweepPendingKey ?? sweepKeyOf(), points: reply.points };
+    sweepPendingKey = null;
+    render();
+    return;
+  }
+  if (reply.kind === "orbital") {
+    if (reply.seq !== orbSeq) return;
+    if (reply.grid) {
+      orbCache = { key: orbPendingKey ?? atomsKey(), url: orbitalToDataURL(reply.grid), label: reply.grid.label, grid: reply.grid };
+    }
+    orbPendingKey = null;
+    render();
+  }
 });
 
 // ── Geometry helpers ─────────────────────────────────────────
@@ -145,13 +234,79 @@ function el<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, 
   return n;
 }
 
+// ── Feel-mode idle wiggle: REAL normal modes ─────────────────
+// The three H₂O normal-mode displacement patterns below are NOT hand-drawn —
+// they were computed by this repo's own vibrationalFrequencies() (HF/STO-3G,
+// finite-difference Hessian) at the STO-3G optimized geometry, via a one-off
+// precompute script. Frequencies: bend 2170 cm⁻¹, symmetric stretch 4140,
+// asymmetric stretch 4391 (HF/STO-3G overestimates experiment ~35% — the
+// PATTERNS are what the wiggle shows; the tempo is scaled to be watchable).
+// Layout per mode: [x_O, y_O, x_H1, y_H1, x_H2, y_H2] (z dropped — planar).
+const WIGGLE_MODES = [
+  { relFreq: 1.0, amp: 0.040, d: [0, -0.2645, -0.4331, 0.5268, 0.4331, 0.5268] },   // bend (scissor)
+  { relFreq: 4139.8 / 2169.7, amp: 0.018, d: [0, 0.2049, -0.559, -0.4081, 0.559, -0.4081] },  // sym stretch
+  { relFreq: 4391.0 / 2169.7, amp: 0.014, d: [-0.2625, 0, 0.5229, 0.4384, 0.5228, -0.4384] }, // asym stretch
+] as const;
+const WIGGLE_BASE_HZ = 0.55;   // bend period ~1.8 s on screen
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+let wiggleRAF = 0;
+
+/** Visual-only displacement (Å) for atom i at time t — superposed real modes.
+ *  Never touches state.atoms: no recompute, no URL change, pure decoration. */
+function wiggleOffset(i: number, tMs: number): P2 {
+  let x = 0, y = 0;
+  for (const m of WIGGLE_MODES) {
+    const s = Math.sin(2 * Math.PI * WIGGLE_BASE_HZ * m.relFreq * (tMs / 1000)) * m.amp;
+    x += m.d[i * 2]! * s;
+    y += m.d[i * 2 + 1]! * s;
+  }
+  return { x, y };
+}
+
+function wiggleActive(): boolean {
+  return state.depth === "feel" && dragging < 0 && !document.hidden && !reducedMotion.matches;
+}
+
+function wiggleLoop(): void {
+  wiggleRAF = 0;
+  if (!wiggleActive()) return;
+  renderScene();
+  wiggleRAF = requestAnimationFrame(wiggleLoop);
+}
+
+function syncWiggle(): void {
+  if (wiggleActive() && wiggleRAF === 0) wiggleRAF = requestAnimationFrame(wiggleLoop);
+}
+document.addEventListener("visibilitychange", syncWiggle);
+reducedMotion.addEventListener?.("change", syncWiggle);
+
 // ── Render: the scene (molecule + depth overlays) ────────────
 function renderScene(): void {
   while (scene.firstChild) scene.removeChild(scene.firstChild);
   const rep = state.report;
   const depth = state.depth;
-  const px = state.atoms.map(toPx);
+  const wiggling = wiggleActive();
+  const t = performance.now();
+  const px = state.atoms.map((a, i) => {
+    if (!wiggling) return toPx(a);
+    const w = wiggleOffset(i, t);
+    return toPx({ x: a.x + w.x, y: a.y + w.y });
+  });
   const O = px[0]!, H1 = px[1]!, H2 = px[2]!;
+
+  // Orbital field (Know/Prove, toggled): a real MO on the molecular plane,
+  // drawn under everything. Hidden while its geometry key is stale (mid-drag)
+  // — a lobes field over a moved molecule would be showing the wrong physics.
+  if (orbitalsOn && (depth === "know" || depth === "prove") && orbCache && orbCache.key === atomsKey()) {
+    scene.appendChild(el("image", {
+      href: orbCache.url,
+      x: OX + ORB_WIN.x0 * SCALE, y: OY - ORB_WIN.y1 * SCALE,
+      width: (ORB_WIN.x1 - ORB_WIN.x0) * SCALE, height: (ORB_WIN.y1 - ORB_WIN.y0) * SCALE,
+      preserveAspectRatio: "none", opacity: 0.9,
+    }));
+    scene.appendChild(el("text", { x: OX + ORB_WIN.x0 * SCALE + 4, y: OY - ORB_WIN.y1 * SCALE + 12, fill: "#96a0b5", "font-size": 10 },
+      `${orbCache.label} (3a₁ lone pair) · cyan + / pink −`));
+  }
 
   // Bonds
   for (const H of [H1, H2]) scene.appendChild(el("line", { x1: O.x, y1: O.y, x2: H.x, y2: H.y, stroke: "#39415a", "stroke-width": 8, "stroke-linecap": "round" }));
@@ -244,6 +399,17 @@ function renderSide(): void {
       kv("HOMO–LUMO", `${rep.homoLumoGapEv.toFixed(1)} eV`) +
       kv("Total energy", `${rep.totalEnergy.toFixed(4)} Ha`) +
       previewNote()));
+    ensureSweep();
+    if (orbitalsOn) ensureOrbital();
+    parts.push(card("Orbitals",
+      `<div class="controls"><button class="act" id="orbToggle">${orbitalsOn ? "Hide" : "Show"} the lone pair</button></div>
+       <p style="margin:8px 0 0;color:var(--dim);font-size:12px">${orbitalsOn
+         ? "A real molecular orbital (HOMO−1, the in-plane 3a₁ lone pair) computed on this plane — cyan and pink are the two phases of ψ. The out-of-plane HOMO would be ≈0 here."
+         : "Reveal the electron cloud that causes the bend — computed, not drawn."}</p>`));
+    parts.push(card("Dipole vs angle — every point computed",
+      muAnglePlot(rep) +
+      `<p style="margin:6px 0 0;color:var(--dim);font-size:11px">HF/STO-3G sweep at the
+       current bond length — 23 real SCF runs, not a drawing. The dot is you.</p>`));
     parts.push(angleControl());
   }
 
@@ -286,6 +452,33 @@ function previewNote(): string {
 
 function card(title: string, body: string): string { return `<div class="card"><h2>${title}</h2>${body}</div>`; }
 function kv(k: string, v: string): string { return `<div class="kv"><span>${k}</span><b class="num">${esc(v)}</b></div>`; }
+
+/** Inline SVG: the computed μ(angle) reference curve + a live dot at the
+ *  current geometry. Pure presentation — every data point came from the
+ *  sweep worker's real SCF runs. */
+function muAnglePlot(rep: MolecularReport): string {
+  const W = 280, H = 96, PAD = 18;
+  if (!sweep || sweep.points.length < 2) {
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="dipole versus angle, computing">
+      <text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="#96a0b5" font-size="11">computing the curve — 23 SCF runs…</text></svg>`;
+  }
+  const pts = sweep.points;
+  const muMax = Math.max(...pts.map((p) => p.muDebye), rep.dipoleMagnitudeDebye, 0.1);
+  const X = (a: number): number => PAD + ((a - 70) / (180 - 70)) * (W - 2 * PAD);
+  const Y = (m: number): number => H - PAD - (m / muMax) * (H - 2 * PAD);
+  const line = pts.map((p) => `${X(p.angleDeg).toFixed(1)},${Y(p.muDebye).toFixed(1)}`).join(" ");
+  const curA = Math.max(70, Math.min(180, angleDeg()));
+  const dotX = X(curA), dotY = Y(rep.dipoleMagnitudeDebye);
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="dipole versus bond angle, live">
+    <line x1="${PAD}" y1="${H - PAD}" x2="${W - PAD}" y2="${H - PAD}" stroke="#262c40"/>
+    <line x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H - PAD}" stroke="#262c40"/>
+    <text x="${PAD}" y="${H - 4}" fill="#96a0b5" font-size="9">70°</text>
+    <text x="${W - PAD}" y="${H - 4}" fill="#96a0b5" font-size="9" text-anchor="end">180°</text>
+    <text x="${PAD - 4}" y="${PAD + 3}" fill="#96a0b5" font-size="9" text-anchor="end">${muMax.toFixed(1)}D</text>
+    <polyline points="${line}" fill="none" stroke="#22d3ee" stroke-width="1.5" opacity="0.85"/>
+    <circle cx="${dotX.toFixed(1)}" cy="${dotY.toFixed(1)}" r="4" fill="#f472b6"/>
+  </svg>`;
+}
 function angleControl(): string {
   return `<div class="card"><h2>Bend it</h2>
     <div class="controls">
@@ -342,6 +535,8 @@ function wireSide(): void {
   if (straighten) straighten.addEventListener("click", animateStraighten);
   const basisSel = side.querySelector<HTMLSelectElement>("#basisSel");
   if (basisSel) basisSel.addEventListener("change", () => { state.basis = basisSel.value as BasisName; requestCompute("final"); syncURL(); render(); });
+  const orbToggle = side.querySelector<HTMLButtonElement>("#orbToggle");
+  if (orbToggle) orbToggle.addEventListener("click", () => { orbitalsOn = !orbitalsOn; if (orbitalsOn) ensureOrbital(); syncURL(); render(); });
 }
 
 function animateTo(target: AtomXY[], dur: number): void {
@@ -392,15 +587,34 @@ scene.addEventListener("pointerup", () => {
   // shape on release, as the copy promises — the point at that depth is
   // "molecules have a preferred shape." Deeper levels are lab mode: the
   // geometry stays where you put it so stretched states can be studied.
-  if (state.depth === "feel") { animateTo(geometryFromAngle(A0, R0), 550); return; }
+  if (state.depth === "feel") { animateTo(geometryFromAngle(A0, R0), 550); syncWiggle(); return; }
   requestCompute("final"); syncURL(); render();
 });
 
 // ── Depth tabs ───────────────────────────────────────────────
-tabs.forEach((tab) => tab.addEventListener("click", () => setDepth(tab.dataset.depth as Depth)));
+const DEPTHS: readonly Depth[] = ["feel", "see", "know", "prove"];
+tabs.forEach((tab, i) => {
+  tab.addEventListener("click", () => setDepth(tab.dataset.depth as Depth));
+  // Standard tablist keyboard model: ←/→ move + activate, Home/End jump.
+  tab.addEventListener("keydown", (e) => {
+    let j = -1;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") j = (i + 1) % tabs.length;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") j = (i - 1 + tabs.length) % tabs.length;
+    else if (e.key === "Home") j = 0;
+    else if (e.key === "End") j = tabs.length - 1;
+    else return;
+    e.preventDefault();
+    tabs[j]!.focus();
+    setDepth(DEPTHS[j]!);
+  });
+});
 function setDepth(d: Depth): void {
   state.depth = d;
-  tabs.forEach((t) => t.setAttribute("aria-selected", String(t.dataset.depth === d)));
+  tabs.forEach((t) => {
+    const on = t.dataset.depth === d;
+    t.setAttribute("aria-selected", String(on));
+    t.tabIndex = on ? 0 : -1;   // roving tabindex — only the selected tab is in the tab order
+  });
   hintEl.textContent = {
     feel: "👆 drag a white atom — it springs back to its comfy shape",
     see: "slide the angle to 180° → watch the dipole arrow vanish",
@@ -408,18 +622,21 @@ function setDepth(d: Depth): void {
     prove: "change the basis, or copy the URL to reproduce this exact run",
   }[d];
   syncURL(); render();   // depth switch: re-skin only, no recompute
+  syncWiggle();          // start/stop the Feel idle animation
 }
 
 // ── URL state (reproducibility-as-a-URL) ─────────────────────
 function syncURL(): void {
   const g = state.atoms.slice(1).map((a) => `${a.x.toFixed(3)},${a.y.toFixed(3)}`).join(";");
-  const p = new URLSearchParams({ d: state.depth, b: state.basis, g });
-  history.replaceState(null, "", `?${p.toString()}`);
+  const params: Record<string, string> = { d: state.depth, b: state.basis, g };
+  if (orbitalsOn) params.orb = "1";
+  history.replaceState(null, "", `?${new URLSearchParams(params).toString()}`);
 }
 function restoreURL(): void {
   const p = new URLSearchParams(location.search);
   const d = p.get("d") as Depth | null;
   if (d && ["feel", "see", "know", "prove"].includes(d)) state.depth = d;
+  if (p.get("orb") === "1") orbitalsOn = true;
   const b = p.get("b"); if (b === "sto-3g" || b === "cc-pvdz") state.basis = b;
   const g = p.get("g");
   if (g) {

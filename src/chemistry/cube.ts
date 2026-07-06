@@ -316,7 +316,10 @@ function evalDensityAtPoint(
   return rho;
 }
 
-function evalMOAtPoint(
+/** Evaluate one MO ψ(r) = Σ_μ c_μ φ_μ(r) at a point (BOHR coordinates).
+ *  Exported for in-page orbital visualization (learn page) — the same
+ *  primitive the cube exporters are built on. */
+export function evalMOAtPoint(
   coeffs: Float64Array,
   shells: readonly CGShell[],
   r: readonly [number, number, number],
