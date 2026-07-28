@@ -45,6 +45,13 @@ There is no `[cli]` extra — asking for one warns and installs the base package
 - **The wasm is served via HF's Xet CDN behind a 302.** It ends up correct
   (`application/wasm`, `access-control-allow-origin: *`, which satisfies COEP
   `require-corp`), but a `curl -I` without `-L` only shows the redirect. Follow it.
+- **Bare directory URLs do not resolve.** `/experiments/` 302s to
+  `huggingface.co/Experiments` (off-site, wrong page) and `/experiments/gpu-mps/`
+  returns 401. Always link `/experiments/index.html`, which works on Vercel too.
+  `index.html`, `demo.html`, `molecule.html`, `swarm.html`, `screening.html` and
+  `experiments/gpu-mps/index.html` still use the bare form, so "experiments" is
+  broken from those pages on the Space. Fixing them also means updating
+  `e2e/landing-smoke.spec.ts`, which asserts `a[href="/experiments/"]`.
 - **Static Spaces have no logs and cannot be restarted** — `hf spaces logs` returns
   500 and `hf spaces restart` refuses. Diagnose from response headers instead.
 - **`app_build_command` is deliberately unused.** Letting HF run the build would stamp
