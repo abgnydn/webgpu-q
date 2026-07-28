@@ -4,7 +4,7 @@ emoji: ⚛️
 colorFrom: indigo
 colorTo: pink
 sdk: static
-app_file: learn.html
+app_file: index.html
 header: mini
 pinned: false
 short_description: Hartree–Fock to CCSD(T) in your browser. No install.
@@ -24,7 +24,7 @@ custom_headers:
 
 The whole electronic-structure ladder — **Hartree–Fock, UHF, DFT (LDA/GGA/hybrid), MP2, CCSD, CCSD(T), EOM-CCSD** — running entirely in your browser tab. TypeScript plus a Rust/WASM SIMD integrals core. No Python, no BLAS, no CUDA, no server round-trip. The computation happens on your machine, in the tab, and the state is shareable as a URL.
 
-**This Space opens on the interactive lesson.** Drag the water molecule and watch a real SCF converge as the geometry changes — that's live Hartree–Fock in a Web Worker, not a precomputed animation. Every other page is one link away.
+**This Space is the full site**, landing on the same page as the canonical deployment. Start with the interactive lesson if you want the fastest way in: drag a water molecule and watch a real SCF converge as the geometry changes — live Hartree–Fock in a Web Worker, not a precomputed animation.
 
 ## Why this exists
 
@@ -50,7 +50,7 @@ Requires a WebGPU-capable browser for the GPU paths; the CPU/WASM paths run anyw
 
 This Space is a **pinned static snapshot**, not the canonical deployment.
 
-- Snapshot: `v0.12.0` @ `cf8c39eb122f`
+- Snapshot: `v0.12.0` @ `2a7b175c88e2`
 - Canonical site: **https://webgpu-q.vercel.app**
 - Source, methods, benchmarks, and pre-registered experiments: see the repository linked from the canonical site
 
