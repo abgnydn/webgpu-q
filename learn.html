@@ -88,14 +88,29 @@
       .matrix { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--dim); white-space: pre; }
       footer { margin-top: 16px; color: var(--dim); font-size: 12px; text-align: center; }
       footer a { color: var(--accent); text-decoration: none; }
-      /* Without this the lesson is a dead end: it was the landing page with no
-         route to the engine, swarm or experiments. */
-      footer nav { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px 14px; justify-content: center; }
-      footer nav a:hover { text-decoration: underline; }
+      /* Without this the lesson is a dead end: it is the HF Space's landing page
+         and had no route to the engine, swarm or experiments. Sits ABOVE the
+         header — as a footer it fell below the fold in the Space's iframe,
+         which defeats the point. */
+      .sitenav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12px; margin-bottom: 10px; }
+      .sitenav a { color: var(--dim); text-decoration: none; }
+      .sitenav a:hover, .sitenav a:focus-visible { color: var(--accent); }
+      .sitenav .here { color: var(--fg); font-weight: 650; }
     </style>
   </head>
   <body>
     <div id="app">
+      <nav class="sitenav" aria-label="webgpu-q pages">
+        <span class="here">learn</span>
+        <a href="/index.html">engine</a>
+        <a href="/molecule.html">molecule</a>
+        <a href="/screening.html">screen</a>
+        <a href="/swarm.html">swarm</a>
+        <a href="/viz.html">hyperscope</a>
+        <!-- explicit index.html: HF Spaces' static server does not resolve
+             bare directory URLs (/experiments/ 302s off-site) -->
+        <a href="/experiments/index.html">experiments</a>
+      </nav>
       <header>
         <h1>Why is <span class="mol">water</span> special?</h1>
         <div class="depth" role="tablist" aria-label="How deep do you want to go">
@@ -117,16 +132,6 @@
       <footer>
         Real Hartree–Fock, recomputed live in your browser tab — no install, no backend.
         Powered by <a href="https://github.com/abgnydn/webgpu-q">webgpu-q</a>.
-        <nav aria-label="More of webgpu-q">
-          <a href="/index.html">engine</a>
-          <a href="/molecule.html">molecule</a>
-          <a href="/screening.html">screen</a>
-          <a href="/swarm.html">swarm</a>
-          <a href="/viz.html">hyperscope</a>
-          <!-- explicit index.html: HF Spaces' static server does not resolve
-               bare directory URLs (/experiments/ 302s off-site) -->
-          <a href="/experiments/index.html">experiments</a>
-        </nav>
       </footer>
     </div>
     <script type="module" src="/src/learn/main.ts"></script>
