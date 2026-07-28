@@ -50,7 +50,7 @@ Requires a WebGPU-capable browser for the GPU paths; the CPU/WASM paths run anyw
 
 This Space is a **pinned static snapshot**, not the canonical deployment.
 
-- Snapshot: `v0.12.0` @ `ec257087725b`
+- Snapshot: `v0.12.0` @ `cf8c39eb122f`
 - Canonical site: **https://webgpu-q.vercel.app**
 - Source, methods, benchmarks, and pre-registered experiments: see the repository linked from the canonical site
 
