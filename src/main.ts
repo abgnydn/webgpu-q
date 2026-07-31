@@ -42,7 +42,10 @@ function fmt(x: number, digits = 6): string {
 
 async function main(): Promise<void> {
   log(`<h1>webgpu-q — quantum circuit simulator</h1>`);
-  log(`<p>Statevector simulation on WebGPU, cross-checked against a
+  // Class is load-bearing: demo.html hides THIS blurb (it has its own header).
+  // It used to hide `p:first-of-type`, which also swallowed the "WebGPU
+  // unavailable" notice below, leaving non-WebGPU browsers with a blank page.
+  log(`<p class="intro-blurb">Statevector simulation on WebGPU, cross-checked against a
         Float64 CPU reference. Each row below is a circuit; "Δ" is the
         max |p_gpu − p_cpu| over all basis states.</p>`);
 

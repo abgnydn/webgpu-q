@@ -176,8 +176,13 @@ function renderCard(r: Row): void {
     el.innerHTML = `<div class="rank">·</div><div class="name">${r.label} ${azoBadge}</div>${structSVG(r)}<div class="gap" style="color:var(--faint)">computing…</div><div class="meta">SCF running</div>`;
     return;
   }
-  if (r.res && !Number.isFinite(r.gap)) {
-    el.innerHTML = `<div class="rank">—</div><div class="name">${r.label}</div>${structSVG(r)}<div class="gap" style="color:var(--err)">no gap</div><div class="meta">${r.res.converged ? "no virtual orbital" : "did not converge"}</div>`;
+  // `!r.res` must be handled here, not just a non-finite gap: a thrown SCF leaves
+  // res null while done=true, and the code below dereferences `r.res!`. One failed
+  // molecule used to throw a TypeError mid-render and strand the Run button
+  // disabled for the whole screen.
+  if (!r.res || !Number.isFinite(r.gap)) {
+    const why = !r.res ? "SCF failed" : r.res.converged ? "no virtual orbital" : "did not converge";
+    el.innerHTML = `<div class="rank">—</div><div class="name">${r.label}</div>${structSVG(r)}<div class="gap" style="color:var(--err)">no gap</div><div class="meta">${why}</div>`;
     return;
   }
   const res = r.res!;

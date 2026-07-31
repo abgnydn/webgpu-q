@@ -31,7 +31,11 @@
   <style>
     /* page-specific: the demo script injects its own h1 + intro; we have a header */
     #demo-slot h1 { display: none; }
-    #demo-slot > div > p:first-of-type { display: none; }
+    /* Hide only the demo's own duplicated intro blurb. The previous
+       `p:first-of-type` also matched the "WebGPU unavailable" notice that
+       src/main.ts injects on init failure, so a non-WebGPU browser saw a
+       silently empty page instead of the reason. */
+    #demo-slot > div > p.intro-blurb { display: none; }
     #demo-slot p { color: var(--muted); font-size: 12.5px; }
     #demo-slot td .ok { color: var(--accent-green); }
   </style>
@@ -48,7 +52,7 @@
       <a href="/molecule.html">molecule</a>
       <a href="/swarm.html">swarm</a>
       <a href="/screening.html">screen</a>
-      <a href="/experiments/">experiments</a>
+      <a href="/experiments/index.html">experiments</a>
       <a class="on" href="/demo.html">gate demo</a>
       <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub ↗</a>
     </div>
@@ -80,7 +84,7 @@
 
   <footer>
     <div><strong style="color: var(--text);">webgpu-q</strong> — gate-throughput demo · MIT</div>
-    <div><a href="/">← back to webgpu-q</a> · <a href="/experiments/">research dashboard →</a></div>
+    <div><a href="/">← back to webgpu-q</a> · <a href="/experiments/index.html">research dashboard →</a></div>
   </footer>
 
   <script type="module" src="/src/main.ts"></script>

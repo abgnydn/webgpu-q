@@ -4,7 +4,12 @@ import { resolve } from "node:path";
 
 function gitSha(): string {
   try {
-    return execSync("git rev-parse --short=12 HEAD", { encoding: "utf-8" }).trim();
+    const sha = execSync("git rev-parse --short=12 HEAD", { encoding: "utf-8" }).trim();
+    // A clean SHA on a dirty tree is a provenance lie: every artifact produced by
+    // a locally-modified build would claim to come from an unmodified commit that
+    // anyone else checking out that SHA cannot reproduce. Mark it.
+    const dirty = execSync("git status --porcelain", { encoding: "utf-8" }).trim() !== "";
+    return dirty ? `${sha}-dirty` : sha;
   } catch {
     return "dev-unknown";
   }
