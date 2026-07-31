@@ -47,6 +47,20 @@ export default defineConfig({
   server: {
     port: 5175,
     host: true,
+    watch: {
+      // Playwright's outputDir is ./e2e/.artifacts (playwright.config.ts), i.e.
+      // INSIDE the Vite root. Without this, every trace/video/screenshot the
+      // runner writes is seen by the dev-server watcher and triggers an HMR
+      // page reload — of the page currently under test. Observed live: reload
+      // events firing inside timed benchmark cells, which is how a benchmark
+      // silently becomes noise, and a hung spec becomes a mystery. These paths
+      // are gitignored but that does not affect the watcher.
+      ignored: [
+        "**/e2e/.artifacts/**",
+        "**/test-results/**",
+        "**/playwright-report/**",
+      ],
+    },
     // Mirror vercel.json's COOP/COEP headers so SharedArrayBuffer +
     // crossOriginIsolated are available in dev (required for Web Worker
     // parallel HF buildG). Without these, runRHFSCFAsync silently falls

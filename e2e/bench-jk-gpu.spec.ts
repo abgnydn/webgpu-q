@@ -327,7 +327,27 @@ test.describe("WGSL JK build (WebGPU)", () => {
     console.log(`Total cold→converged with WASM:  ${((r.eriMs + r.wasmMs) / 1000).toFixed(2)} s`);
     console.log(`Total cold→converged with WGSL:  ${((r.eriMs + r.gpuMs) / 1000).toFixed(2)} s`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-     
+
+    // This test previously asserted NOTHING — it printed eleven lines and could
+    // never fail, so it gated the WGSL-JK SCF path in name only. The assertions
+    // below are limited to what is unambiguously true for this path, on purpose:
+    //
+    //   • Both SCFs must actually converge, and both energies must be finite.
+    //     A WGSL-JK regression that diverges or NaNs the SCF now fails here.
+    //   • The two paths must agree to SCREENING grade. CLAUDE.md characterises
+    //     the fully-GPU f32-JK path as ~30 mHa screening-only, so a tight bound
+    //     would false-fail by design; 0.1 Ha is ~3x that documented figure.
+    //
+    // NOT asserted: a tight energy-agreement bound. That needs a clean measured
+    // delta from this cell, which has not been obtained (the n=120 run is long
+    // and was repeatedly disturbed). Tighten this the moment a clean number
+    // exists — do not guess one. The sibling ethane cell above IS tightened to
+    // 1e-3, against a measured 2.26e-5 Ha.
+    expect(r.cWasm, "WASM-JK SCF must converge").toBe(true);
+    expect(r.cGpu, "WGSL-JK SCF must converge").toBe(true);
+    expect(Number.isFinite(r.eWasm)).toBe(true);
+    expect(Number.isFinite(r.eGpu)).toBe(true);
+    expect(Math.abs(r.eWasm - r.eGpu), "WASM vs WGSL SCF energy, screening grade").toBeLessThan(0.1);
   });
 
   test("benzene cc-pVDZ — WGSL JK at LOOSE tolerance (1e-3) for fast geom-scan", async ({ page }) => {
