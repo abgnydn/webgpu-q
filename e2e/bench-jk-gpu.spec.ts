@@ -116,7 +116,11 @@ test.describe("WGSL JK build (WebGPU)", () => {
     console.log(`══════════════════════════════════════════════════════════\n`);
      
 
-    expect(r.maxAbs).toBeLessThan(0.01);  // 10 mHa is generous for f32
+    // Measured 2026-07-31 on M2 Pro: max|ΔG| = 2.26e-5 Ha, max rel = 6.25e-6 —
+    // i.e. the f32 expectation printed just above. The old 0.01 bound sat 442×
+    // above the real error, so it could only ever catch total breakage, not a
+    // precision regression. 1e-3 keeps ~44× headroom over the measurement.
+    expect(r.maxAbs).toBeLessThan(1e-3);
   });
 
   test("benzene cc-pVDZ — WASM vs GPU JK build, per-iter wall time", async ({ page }) => {

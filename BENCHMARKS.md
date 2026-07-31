@@ -91,8 +91,10 @@ Reviewer's #1 question. **Infrastructure is now in place**:
 - `scripts/run-pyscf-reference.py` runs the PySCF side with **matching
   JSON schema** so the two can be merged offline.
 - `e2e/wallclock-vs-pyscf.spec.ts` runs E34 in headless WebGPU
-  Chromium. Run it locally — it is NOT in CI (hosted runners have no
-  WebGPU adapter), so this row has no automated regression gate.
+  Chromium. Run it locally — no workflow names this spec, and hosted
+  runners have no WebGPU adapter, so this row has no automated
+  regression gate. (Some non-GPU swarm specs *do* run on PRs via
+  `swarm-benches.yml`; this is not one of them.)
 
 **To complete the comparison** (once PySCF env is available):
 

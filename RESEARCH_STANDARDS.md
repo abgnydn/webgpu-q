@@ -357,14 +357,22 @@ Patch releases (doc-only, refactor, etc.) skip the Zenodo step.
 
 - TypeScript `strict` + `noUncheckedIndexedAccess`. No exceptions.
 - ESLint clean — 0 errors. Warnings tracked, ideally 0.
-- CI green. Every PR runs unit + typecheck + lint + build.
-  The Playwright **e2e suite is deliberately NOT in CI** — hosted runners
-  expose no WebGPU adapter, so those specs cannot execute there. It runs
-  locally (`npm run test:e2e`). Consequence to state plainly rather than
-  paper over: every GPU-dependent number (the WGSL (T) kernel, fusion
-  tiers, GPU statevector, GPU-DF) has **no automated regression gate**,
-  and is reproduced by hand on the author's machine. Do not describe the
-  e2e suite as CI-gated anywhere.
+- CI green. Every PR runs unit + typecheck + lint + build (`ci.yml`).
+  Playwright coverage in CI is **partial, and split by whether a spec needs
+  a GPU**:
+  - `ci.yml` runs **no** Playwright at all.
+  - `swarm-benches.yml` runs a small subset of swarm specs on PRs, but only
+    when the PR touches swarm paths. Those work in CI because they need
+    `BroadcastChannel`/`SharedArrayBuffer`, not an adapter.
+  - Every **WebGPU-dependent** spec runs nowhere in CI: hosted runners expose
+    no adapter, so they cannot execute there. They run locally
+    (`npm run test:e2e`).
+
+  Consequence, stated plainly rather than papered over: every GPU-dependent
+  number — the WGSL (T) kernel, the fusion tiers, GPU statevector, GPU-DF —
+  has **no automated regression gate** and is reproduced by hand on the
+  author's machine. Do not describe the e2e suite as CI-gated without naming
+  which half you mean.
 - Each method has paired test coverage by **intent**, not by
   metric:
   - **Analytical** (FCI / Bethe / Pfeuty / ICRU) where it exists.

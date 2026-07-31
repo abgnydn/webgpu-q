@@ -215,7 +215,7 @@ const eom = runEOMCCSD(runCCSD(hf, integrals), integrals, hf);
 - 5 warmup + 20 trials per measurement **on the GPU-kernel experiments**; experiments that deviate (e.g. E34's wall-clock comparison) must say so in `meta.timingNote`
 - pass bar `F ≥ 1 − 10⁻⁵`; `std/median > 0.1` → `status: "noisy"`
 - honest negatives **committed** as JSON with a diagnosis
-- vitest + typecheck + lint gated in CI; Playwright e2e is **local-only** (CI runners expose no WebGPU) · TS strict + `noUncheckedIndexedAccess`
+- vitest + typecheck + lint gated in CI; **GPU-dependent** Playwright specs are local-only (runners expose no WebGPU adapter — a swarm subset does run on PRs) · TS strict + `noUncheckedIndexedAccess`
 
 </td>
 </tr>
