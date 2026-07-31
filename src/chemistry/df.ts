@@ -41,8 +41,17 @@
 export interface DFResult {
   /** Density-fitting B-tensor, row-major B[(μ·n + ν)·M_aux + P]. */
   readonly B: Float64Array;
-  /** Number of auxiliary functions M_aux retained at the threshold. */
+  /** B's auxiliary STRIDE M_aux — every consumer indexes `B[i·nAux + P]`, so this
+   *  MUST equal `B.length / n²`, never a smaller "kept modes" count. Builders that
+   *  regularize by zeroing λ⁻¹⸍² in place keep the full stride (the dropped columns
+   *  are exactly zero and contribute nothing); builders that physically compact B
+   *  report the compacted width. Reporting kept-modes here while B stays full-width
+   *  silently misaligns every J/K read — measured 5.0 Ha error on H₂O/STO-3G from a
+   *  SINGLE dropped mode. Use {@link nKeptModes} for the diagnostic count. */
   readonly nAux: number;
+  /** Diagnostic: aux modes surviving the metric threshold. Equals `nAux` unless the
+   *  metric was rank-deficient. Never use as a stride. */
+  readonly nKeptModes?: number;
   /** Cholesky truncation threshold τ used to derive the tensor. */
   readonly threshold: number;
   /** Original AO basis dimension n. */
