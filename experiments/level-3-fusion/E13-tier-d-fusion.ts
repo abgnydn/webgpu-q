@@ -2,7 +2,7 @@
 // E13 — Tier D 4-qubit tile fusion.
 //
 // E11 (Tier B): 3 ops per pair → 1 dispatch (2.69× headline)
-// E12 (Tier C): 5 ops per triple → 1 dispatch (4.18× headline)
+// E12 (Tier C): 5 ops per triple → 1 dispatch (4.22× headline)
 // E13 (Tier D): 7 ops per quadruple → 1 dispatch — same playbook,
 // wider window. The cascade pattern is
 //
@@ -250,7 +250,10 @@ export async function runE13(
             `Honest negative: Tier D crosses into compute-bound territory — per-block ` +
             `cmul count (256) grows 4× over Tier C while memory traffic only 2×, so ` +
             `dispatch collapse no longer translates 1:1 into wall-time speedup. ` +
-            `Tier C (8×8) remains the bandwidth-bound sweet spot at 4.18×.`;
+            // Deliberately unnumbered: hardcoding Tier C's speedup here made every
+            // E13 artifact contradict the E12 artifact generated beside it once
+            // Tier C moved 4.18× → 4.22×. Read the number off E12's own artifact.
+            `Tier C (8×8) remains the bandwidth-bound sweet spot.`;
 
   return { meta, env, rows, status, diagnosis, summary };
 }

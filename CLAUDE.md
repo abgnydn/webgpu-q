@@ -60,7 +60,7 @@ Ranked by ROI. One focused session ≈ a few hours.
 |---|---:|---|
 | **DFT (LDA + B3LYP + Lebedev grids)** | ✓ | **~90% of all real chemistry** |
 | **HF analytical gradients + BFGS** | ✓ | **geometry optimization** |
-| **WebGPU port of (T) kernel** | ✓ (39× on H₂O cc-pVDZ, single-run) | 10-100× speedup; cc-pVTZ CCSD(T) routine |
+| **WebGPU port of (T) kernel** | ✓ (13.8× median on H₂O cc-pVDZ, 5w+20t; 28.4× p10) | 10-100× speedup; cc-pVTZ CCSD(T) routine |
 | **EOM-CCSD (excited states)** | ✓ (+ eigenvectors, oscillator strengths, spin classifier) | UV-vis, photochemistry |
 | **UHF + open-shell CCSD** | ✓ (UHF stage 21, UCCSD stage 25) | radicals, transition metals |
 | **Density fitting (RI)** | ✓ correctness + **speedup** (aux-basis 3-index DF now shipped: `buildAuxBasisDFStreaming` WASM, never builds the 4-index ERI; the old CD-DF 11-20× regression is retired) | half memory + faster |
@@ -132,7 +132,7 @@ highest-leverage demonstration.
   benzene 5-6× whole-loop) is ~30 mHa **screening only**. Both kept as
   proof-of-mechanism ("GPU in the browser") and as the seam where a real win lands
   IF df64 emulation ever makes the GPU JK chemistry-grade. GPU genuinely wins on
-  the f32-tolerant tracks (statevector, kernel-fusion 4.22×, (T) 39×) — DF
+  the f32-tolerant tracks (statevector, kernel-fusion 4.22×, (T) 13.8× median) — DF
   chemistry just isn't one (needs f64).
 
 **Live**: https://webgpu-q.vercel.app — landing, `/viz.html` (4D
@@ -262,7 +262,7 @@ benches (`e2e/`) cover all levels + the swarm/acene series.
   to naphthalene" needs an external PySCF DF-HF reference for that geometry + a
   sub-mHa assertion (exact ERI is uncomputable in a tab there). Surfaced by the
   scientific-critic pass 2026-06-09. Don't conflate *feasible* with *validated*.
-- WGSL (T) kernel optimization to push 39× → 100× (no warmup+trials harness yet).
+- WGSL (T) kernel optimization to push 13.8× median → 100× (no warmup+trials harness yet).
 - UKS-TDDFT response α(ω) — only remaining {ref}×{response} cell.
 - Z-vector for MP2 / CCSD analytical gradients.
 - NMR shielding via magnetic-perturbation CPHF.

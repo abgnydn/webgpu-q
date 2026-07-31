@@ -32,7 +32,7 @@
       <text x="22" y="38" font-size="10" letter-spacing="0.25em" fill="#34d399" font-weight="600">CCSD(T) ON GPU</text>
       <text x="22" y="105" font-size="64" font-weight="800" fill="#e2e8f0" letter-spacing="-0.03em">~14<tspan font-size="48">×</tspan></text>
       <text x="22" y="135" font-size="14" font-weight="600" fill="#94a3b8">H₂O cc-pVDZ · CCSD(T) GPU median</text>
-      <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">5 warmup + 20 trials · 39× best run · std/median 42% noisy</text>
+      <text x="22" y="158" font-size="11" fill="#64748b" font-style="italic">5 warmup + 20 trials · 28.4× best of 20 · std/median 42% noisy</text>
     </g>
 
     <g transform="translate(610 20)">

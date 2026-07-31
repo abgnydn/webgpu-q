@@ -54,4 +54,4 @@ This Space is a **pinned static snapshot**, not the canonical deployment.
 - Canonical site: **https://webgpu-q.vercel.app**
 - Source, methods, benchmarks, and pre-registered experiments: see the repository linked from the canonical site
 
-The build stamps its own git SHA into the UI, so what you see running is traceable to the commit above.
+Every experiment artifact this build produces records the git SHA it was built from (`env.gitSha`), so any result you download from `/experiments/` is traceable to a commit. The SHA is not displayed in the UI itself.

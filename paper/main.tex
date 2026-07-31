@@ -254,8 +254,11 @@ partitioned Fock build itself matches the single-slab build below the
 $10^{-12}$ pass bar (next paragraph).
 
 Correctness is enforced by reference-grounded gates that run in continuous
-integration on every push (alongside the end-to-end browser benchmarks driven
-through headless Chromium), not by aggregate test counts. The EOM-CCSD family
+integration on every push, not by aggregate test counts. The end-to-end browser
+benchmarks driven through headless Chromium are run locally rather than in CI,
+because hosted runners expose no WebGPU adapter; the GPU-dependent timings
+reported here are therefore reproduced on the author's hardware and are not
+protected by an automated regression gate. The EOM-CCSD family
 is gated by \emph{full-tensor} brute-force diagnostics --- the complete
 $\sigma$-matrix is differenced element-by-element against an exact reference
 (e.g.\ a $14\times14$ LiH $M_{\mathrm{mine}} - M_{\mathrm{exact}}$ diff), not by

@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#6ea8ff" />
 
     <title>webgpu-q — quantum simulation in a browser tab</title>
-    <meta name="description" content="WebGPU quantum + chemistry tool in a browser tab: HF / UHF / RKS-DFT / UKS-DFT, MP2, CCSD, CCSD(T) on GPU (~14× median, 39× best run, noisy), EE/IP/EA-EOM-CCSD PySCF-ported (brute-force diff <1e-10 Ha, EA multi-electron-validated on LiH), TDDFT α(ω), C₆ dispersion, D2 correction, orbital localization, geometry opt, IR + Raman + UV-vis, polarizability, IPs/EAs, thermochemistry. Browser-platform stack: Web Worker JK parallelism (SharedArrayBuffer), embedded Pyodide REPL with PySCF-compare, drag-import (XYZ/PDB/MOL/SDF), PWA + offline + IndexedDB. URL-as-citation contract. Inline-SVG visualization. Molden / Cube / QCSchema / XYZ I/O. Browser-native, no install." />
+    <meta name="description" content="WebGPU quantum + chemistry tool in a browser tab: HF / UHF / RKS-DFT / UKS-DFT, MP2, CCSD, CCSD(T) on GPU (13.8× median, 28.4× best of 20 trials, noisy), EE/IP/EA-EOM-CCSD PySCF-ported (brute-force diff <1e-10 Ha, EA multi-electron-validated on LiH), TDDFT α(ω), C₆ dispersion, D2 correction, orbital localization, geometry opt, IR + Raman + UV-vis, polarizability, IPs/EAs, thermochemistry. Browser-platform stack: Web Worker JK parallelism (SharedArrayBuffer), embedded Pyodide REPL with PySCF-compare, drag-import (XYZ/PDB/MOL/SDF), PWA + offline + IndexedDB. URL-as-citation contract. Inline-SVG visualization. Molden / Cube / QCSchema / XYZ I/O. Browser-native, no install." />
     <meta name="author" content="Ahmet Baris Gunaydin" />
     <meta name="keywords" content="WebGPU, quantum simulator, MPS, DMRG, kernel fusion, VQE, quantum chemistry, TFIM, phase transition, ITensor, condensed matter, browser, WGSL, TypeScript" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -55,7 +55,7 @@
           "applicationCategory": "ScienceApplication",
           "applicationSubCategory": "Quantum Many-Body Simulation",
           "operatingSystem": "Any OS with a WebGPU-capable browser",
-          "description": "A WebGPU quantum + computational-chemistry tool: HF + UHF + UCCSD, RKS-DFT + UKS-DFT (full LDA/GGA/hybrid functional ladder), MP2 + size-gated aux-basis density fitting (f64 streaming, runRHFAuto family), CCSD, CCSD(T) on GPU (~14× median, 39× best run, noisy), EE/IP/EA-EOM-CCSD (PySCF cross-checked), CIS / TDA / TDDFT (singlet + triplet) including frequency-dependent α(ω), Casimir-Polder C₆ van-der-Waals dispersion across all reference types, Grimme D2 dispersion correction with analytical gradient, Foster-Boys + Pipek-Mezey orbital localization, NOON + multireference verdict diagnostics, geometry optimization, IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, ionization potentials + electron affinities, thermochemistry, statevector + MPS, kernel fusion. Molden / Gaussian Cube / QCSchema JSON / multi-frame XYZ exports. PySCF + libxc + ITensor + experiment validated.",
+          "description": "A WebGPU quantum + computational-chemistry tool: HF + UHF + UCCSD, RKS-DFT + UKS-DFT (full LDA/GGA/hybrid functional ladder), MP2 + size-gated aux-basis density fitting (f64 streaming, runRHFAuto family), CCSD, CCSD(T) on GPU (13.8× median, 28.4× best of 20 trials, noisy), EE/IP/EA-EOM-CCSD (PySCF cross-checked), CIS / TDA / TDDFT (singlet + triplet) including frequency-dependent α(ω), Casimir-Polder C₆ van-der-Waals dispersion across all reference types, Grimme D2 dispersion correction with analytical gradient, Foster-Boys + Pipek-Mezey orbital localization, NOON + multireference verdict diagnostics, geometry optimization, IR + Raman + UV-vis spectra, polarizability + hyperpolarizability, ionization potentials + electron affinities, thermochemistry, statevector + MPS, kernel fusion. Molden / Gaussian Cube / QCSchema JSON / multi-frame XYZ exports. PySCF + libxc + ITensor + experiment validated.",
           "url": "https://webgpu-q.vercel.app/",
           "author": {
             "@type": "Person",
@@ -652,7 +652,7 @@
         <a href="/learn.html">learn</a>
         <a href="/swarm.html">swarm</a>
         <a href="/screening.html">screen</a>
-        <a href="/experiments/">experiments</a>
+        <a href="/experiments/index.html">experiments</a>
         <a href="/demo.html">gate demo</a>
         <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub ↗</a>
       </div>
@@ -681,7 +681,7 @@
     <div class="stats">
       <div class="stat">
         <div class="num">~14×</div>
-        <div class="lab">cc-pVDZ CCSD(T) on H₂O — GPU vs CPU <em>median</em> (39× best run; std/median 42%, noisy)</div>
+        <div class="lab">cc-pVDZ CCSD(T) on H₂O — GPU vs CPU <em>median</em> (28.4× best of 20 trials; std/median 42%, noisy)</div>
       </div>
       <div class="stat">
         <div class="num">≤0.1 mHa</div>
@@ -936,7 +936,7 @@
           </div>
         </a>
 
-        <a href="/experiments/" class="demo-card">
+        <a href="/experiments/index.html" class="demo-card">
           <div class="preview" style="background: linear-gradient(135deg, #0e1426 0%, #1a2240 100%);">
             <div class="grid"></div>
             <svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice"
@@ -1038,8 +1038,8 @@
           <div class="body">
             <strong>Kernel fusion</strong>
             <p>JIT-emitted WGSL chains plus 4×4 brick-wall, 8×8 cascade, and
-              16×16 quad-cascade tile fusion. <strong>4.18×</strong> at the
-              8×8 sweet spot (Tier C, N=15); 16×16 (Tier D) plateaus at 3.14× —
+              16×16 quad-cascade tile fusion. <strong>4.22×</strong> at the
+              8×8 sweet spot (Tier C, N=15); 16×16 (Tier D) plateaus at 3.78× —
               an honest negative as the wider tile crosses into compute-bound
               territory.</p>
           </div>
@@ -1054,7 +1054,8 @@
               CCSD + <strong>UCCSD</strong>, CPU CCSD(T) + UCCSD(T), and a
               <strong>hand-written WGSL CCSD(T) kernel</strong> (1 thread per
               occupied (i, j, k) triple, f32→f64 reduce). cc-pVDZ CCSD(T) on H₂O in
-              <strong>~5 s on GPU vs ~199 s CPU</strong>; HF matches PySCF to
+              <strong>8.4 s on GPU vs 116.4 s CPU</strong> (median of 20 trials);
+              HF matches PySCF to
               <strong>≤0.1 mHa</strong> (cc-pVDZ, spherical-d);
               <strong>streaming aux-basis f64 density fitting</strong>
               wired into HF + MP2;
@@ -1148,7 +1149,7 @@
         <a href="/learn.html">learn</a>
         <a href="/swarm.html">swarm</a>
         <a href="/screening.html">screen</a>
-        <a href="/experiments/">experiments</a>
+        <a href="/experiments/index.html">experiments</a>
         <a href="/demo.html">gate demo</a>
         <a href="https://github.com/abgnydn/webgpu-q" target="_blank" rel="noopener">GitHub ↗</a>
         <a href="https://www.linkedin.com/in/abgnydn/" target="_blank" rel="noopener">LinkedIn ↗</a>
