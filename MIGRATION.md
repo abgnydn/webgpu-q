@@ -32,8 +32,8 @@ Status legend: 🟢 ported · 🟡 ported in flight · 🔴 hand-derived (curren
 
 | module | reference | license | status | notes |
 |---|---|---|---|---|
-| `eom-ccsd.ts` σ_2 | PySCF `pyscf/cc/eom_rccsd.py` | Apache 2.0 | 🔴 → next | open bug from E35; biggest priority |
-| `eom-ccsd.ts` σ_1 | PySCF same | Apache 2.0 | 🔴 → after σ_2 | currently mostly correct (see LIMITATIONS) |
+| `eom-ccsd.ts` σ_2 | PySCF `pyscf/cc/eom_gccsd.py` | Apache 2.0 | 🟢 ported | Wang-Tu-Wang Eq. (10) on PySCF intermediates. E35 bug closed; LiH brute-force diff < 1e-10 Ha element-wise |
+| `eom-ccsd.ts` σ_1 | PySCF same | Apache 2.0 | 🟢 ported | Eq. (9); validated with σ_2 by the same LiH verifier |
 | `ccsd.ts` residual + amplitudes | PySCF `pyscf/cc/ccsd.py` | Apache 2.0 | 🔴 | passing tests but worth re-validating |
 | `ccsd-t.ts` (T) correction | PySCF `pyscf/cc/ccsd_t.py` | Apache 2.0 | 🔴 | E34 surfaced ≤ 100 µHa discrepancy |
 | `uccsd.ts` open-shell | PySCF `pyscf/cc/uccsd.py` | Apache 2.0 | 🔴 | shares core with `ccsd.ts` |
@@ -58,13 +58,21 @@ Status legend: 🟢 ported · 🟡 ported in flight · 🔴 hand-derived (curren
 
 Rank by *closes an open bug* > *unblocks a benchmark* > *codebase health*:
 
-1. **`eom-ccsd.ts` σ_2** ← PySCF `eom_rccsd.py`. Closes the singlet bug E35
-   surfaced. **First scheduled port.** LiH brute-force diagnostic is
-   the verifier — port success = M_mine − M_exact < 10⁻⁴ Ha on every
-   matrix element.
+1. ~~**`eom-ccsd.ts` σ_2** ← PySCF `eom_gccsd.py`~~ — **DONE.** All three EOM
+   variants (EE / IP / EA) are now patch-free PySCF ports on shared dressed
+   intermediates, each with a multi-electron LiH brute-force verifier (T̂² ≠ 0):
+   EE and IP agree with the explicit H̄ projection to < 1e-10 Ha element-wise,
+   EA to ~5e-13 Ha. EA was the only variant that ever carried an empirical
+   patch, removed 2026-06-16. This entry sat at "🔴 open bug, biggest priority"
+   for months after the work landed — MIGRATION.md is what README points
+   researchers at for port provenance, so a stale 🔴 here understates the repo
+   to exactly the audience that checks.
 
 2. **Basis-set primitives** ← EMSL JSON dump. Currently LiH, BeH₂, H₂O,
-   NH₃, CH₄ work at STO-3G; cc-pVDZ blocked for everything except H, O.
+   NH₃, CH₄ work at STO-3G; cc-pVDZ is wired for H, He, Li, Be, C, N, O, F
+   (this line previously said "blocked for everything except H, O", which went
+   stale once the basis tables were completed — and that stale belief was also
+   hardcoded into E34's element gate, silently dropping 10 artifact rows).
    Port unblocks the **full Thiel/QUEST 28-molecule benchmark** plus
    GMTKN55 thermochemistry. Pure data-table port, no math.
 

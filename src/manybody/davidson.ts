@@ -172,6 +172,12 @@ export function davidson(
   const lastImag = new Float64Array(k);
   const lastVectors = new Float64Array(k * dim);
   const lastResiduals = new Float64Array(k);
+  // Whether the Ritz block below ever wrote lastEnergies/lastResiduals. Both
+  // start as zeros, so without this the "honest convergence check" after the
+  // loop reads finalMaxRes = 0 < tol and reports all-zero energies as CONVERGED
+  // when the subspace could not grow (the `if (!added) break` exit) before a
+  // single Ritz step ran.
+  let haveRitz = false;
   let converged = false;
   let iter = 0;
 
@@ -277,6 +283,7 @@ export function davidson(
 
     // Cache the current best estimate (in case we hit maxIter).
     for (let p = 0; p < k; p++) {
+      haveRitz = true;
       lastEnergies[p] = accepted[p]!.re;
       lastImag[p] = accepted[p]!.im;
       lastResiduals[p] = resNorms[p]!;
@@ -349,7 +356,8 @@ export function davidson(
   for (let p = 0; p < k; p++) {
     if (lastResiduals[p]! > finalMaxRes) finalMaxRes = lastResiduals[p]!;
   }
-  if (!converged && finalMaxRes < tol) converged = true;
+  // Only meaningful once a Ritz step has actually produced energies + residuals.
+  if (!converged && haveRitz && finalMaxRes < tol) converged = true;
 
   return {
     energies: lastEnergies,

@@ -67,7 +67,10 @@ export interface CCSDResult {
   readonly converged: boolean;
   /** RMS amplitude update ‖ΔT‖ at the final iteration (residual proxy). */
   readonly residualNorm: number;
-  /** T1 diagnostic (Lee, Taylor 1989): ‖T1‖_F / √(2·n_electrons).
+  /** T1 diagnostic (Lee, Taylor 1989): ‖T1‖_F / √(N_corr), where N_corr is the
+   *  number of CORRELATED occupied spin-orbitals (NOCC − frozen). This docstring
+   *  previously said √(2·n_electrons), which disagreed with both the
+   *  implementation and its own docstring 80 lines below by a factor of √2.
    *  Heuristic flag for multi-reference character — CCSD becomes
    *  unreliable when t1Diagnostic > 0.02 (closed-shell) or > 0.05
    *  (open-shell). Values < 0.01 indicate confidently single-reference. */
@@ -131,7 +134,7 @@ export function runCCSD(
   for (let P = 0; P < NSO; P++) eps[P] = hf.orbitalEnergies[P >> 1]!;
 
   const core = ccsdIterate(eri, eps, NOCC, NVIRT, NSO, nFrozenSO, opts);
-  const diag = ccsdDiagnostics(core.T1, NOCC, NVIRT);
+  const diag = ccsdDiagnostics(core.T1, NOCC, NVIRT, nFrozenSO);
   return {
     correlationEnergy: core.correlationEnergy,
     totalEnergy: hf.energy + core.correlationEnergy,
@@ -150,8 +153,11 @@ export function runCCSD(
  *  amplitude tensor. T1 here is the spin-orbital amplitudes
  *  T1[i * NVIRT + a] with i ∈ [0, NOCC), a ∈ [0, NVIRT).
  *
- *  - t1 (Lee, Taylor 1989): ‖T1‖_F / √(N_e), with N_e the number
- *    of correlated electrons (NOCC spin-orbitals).
+ *  - t1 (Lee, Taylor 1989): ‖T1‖_F / √(N_corr), with N_corr the number of
+ *    CORRELATED occupied spin-orbitals. Under a frozen core that is
+ *    NOCC − nFrozenSO, not NOCC: frozen amplitudes are held at zero, so
+ *    dividing by the full NOCC dilutes the diagnostic and under-reports
+ *    multi-reference character exactly when a core is frozen.
  *  - d1 (Janssen, Nielsen 1998): largest singular value of T1
  *    reshaped as the (n_occ × n_virt) matrix.
  *
@@ -160,12 +166,13 @@ export function runCCSD(
  *  0.02 < t1 < 0.04 ≈ borderline; t1 > 0.05 ≈ trust at your own risk.
  *  D1 is roughly 2-3× more sensitive than the Lee diagnostic. */
 export function ccsdDiagnostics(
-  T1: Float64Array, NOCC: number, NVIRT: number,
+  T1: Float64Array, NOCC: number, NVIRT: number, nFrozenSO = 0,
 ): { t1: number; d1: number } {
   // T1 Frobenius norm.
   let norm2 = 0;
   for (let k = 0; k < T1.length; k++) norm2 += T1[k]! * T1[k]!;
-  const t1 = Math.sqrt(norm2) / Math.sqrt(NOCC);
+  const nCorrelated = Math.max(1, NOCC - nFrozenSO);
+  const t1 = Math.sqrt(norm2) / Math.sqrt(nCorrelated);
 
   // D1: largest singular value of T1 reshaped as (NOCC × NVIRT).
   // For our small dimensions, computing σ_max via power iteration

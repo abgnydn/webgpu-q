@@ -27,7 +27,7 @@ import { runRHFSCFAsync, type HFResult, type HFOpts } from "./hf-scf.js";
 import { runUHFSCF, type UHFResult, type UHFOpts } from "./uhf-scf.js";
 import { generateAutoAux, buildAuxBasisDFStreaming } from "./df-aux.js";
 import { buildHybridDFStreaming } from "./df-gpu.js";
-import { type DFResult } from "./df.js";
+import { type DFResult, preloadWasmJK } from "./df.js";
 import { runRKSDFT, type RKSResult, type RKSOpts } from "./dft/rks-scf.js";
 import { runUKSDFT, type UKSResult, type UKSOpts } from "./dft/uks-scf.js";
 import { runMP2, mp2EnergyDF } from "./mp2.js";
@@ -155,6 +155,11 @@ async function buildDFForRegime(
   }
 
   // RECOMMENDED DEFAULT: f64 WASM aux-basis (standard RI-JK), B reused in the SCF.
+  // preloadWasmJK() is what actually unlocks the native f64 JK kernel inside
+  // buildJK_DF; nothing in src/ ever called it, so every shipped DF-SCF ran the
+  // TypeScript fallback while provenance advertised engine "wasm". Best-effort:
+  // if the module will not load, buildJK_DF still works via the TS path.
+  await preloadWasmJK().catch(() => { /* TS fallback inside buildJK_DF */ });
   const df = await buildAuxBasisDFStreaming(shells, aux);
   return {
     df,

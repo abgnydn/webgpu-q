@@ -125,11 +125,15 @@ export async function runE34(): Promise<Artifact<E34Row>> {
     for (const basis of BASES) {
       const label = `${mol.name}/${basis}`;
 
-      // Honest scope: cc-pVDZ is only wired for H and O in our codebase
-      // (see LIMITATIONS.md). Skip LiH and BeH₂ cc-pVDZ cells cleanly.
+      // cc-pVDZ is wired for H, He, Li, Be, C, N, O and F (see the cc-pvdz
+      // branch of atoms.ts). This gate used to skip anything that was not H or
+      // O — a belief that went stale once the basis tables were completed — and
+      // silently dropped 10 rows (LiH and BeH₂ cc-pVDZ × 5 methods) from the
+      // artifact behind the README's headline comparison table.
+      const CCPVDZ_ELEMENTS = new Set(["H", "He", "Li", "Be", "C", "N", "O", "F"]);
       const symbols = new Set(mol.atoms.map((a) => a.symbol));
       const ccPvdzMissing = basis === "cc-pvdz"
-        && [...symbols].some((s) => s !== "H" && s !== "O");
+        && [...symbols].some((s) => !CCPVDZ_ELEMENTS.has(s));
       if (ccPvdzMissing) {
         for (const method of ["HF", "MP2", "CCSD", "CCSD(T)-CPU", "CCSD(T)-GPU"]) {
           rows.push({
