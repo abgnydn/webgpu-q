@@ -104,6 +104,10 @@ bugs to fix; they are findings.
   `webgpu-dna` and are an open gap in `webgpu-q`.
 - 5 warmup samples are discarded; 20 trials retained.
 - Report **median + p10/p90/p99 + std + IQR** — never single-shot.
+- A protocol deviation is permitted when the measurement does not warrant the
+  full harness, but it must be **disclosed in `meta.timingNote`**, not left for
+  the reader to infer from `warmup: 0, trials: 1`. An undisclosed single-shot
+  number quoted as a headline is the failure mode this rule exists to prevent.
 - If `std/median > 0.1` on any cell → label the artifact `"noisy"`.
 
 ---

@@ -249,6 +249,14 @@ export async function runE34(): Promise<Artifact<E34Row>> {
     protocol: "E34-wallclock-vs-pyscf",
     hypothesis: "Generates webgpu-q side of an apples-to-apples wall-clock and energy comparison vs PySCF on 4 small molecules × 2 basis sets × {HF, MP2, CCSD, CCSD(T) CPU, CCSD(T) GPU}. PySCF reference produced separately via scripts/run-pyscf-reference.py with matching schema.",
     passBar: "Every method on every (molecule, basis) cell either converges OR is explicitly skipped. Performance numbers are informational, not pass/fail.",
+    // Disclosure, using the same field the swarm artifacts already carry. This
+    // experiment does NOT follow the repo's 5-warmup/20-trial protocol: `timed()`
+    // is a single un-warmed performance.now() bracket per cell. On the fastest
+    // cells (H₂/STO-3G HF at 300 µs) the browser clock's 100 µs quantization is
+    // ~±17% before any run-to-run variance, so the derived speedups are
+    // order-of-magnitude indicative, not precise. The slow cells that carry the
+    // loss rows (CCSD H₂O cc-pVDZ, 41.6 s) dominate their own quantization.
+    timingNote: "Single representative run, no warmup, 1 trial, 100 µs timer floor — indicative, NOT the 5-warmup/20-trial protocol used for the GPU-kernel experiments.",
     seed: "E34_WALLCLOCK",
     warmup: 0,
     trials: 1,

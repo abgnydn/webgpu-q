@@ -87,6 +87,8 @@
 
 All vs **PySCF 2.13.0 on identical inputs** ([E34 run](./experiments/results/2026-05-12/level-6/E34-comparison.md)); energy agreement ≤ 10⁻⁴ Ha on all 19 comparable cells (well below the 1.594 mHa chemical-accuracy bar).
 
+> **Timing caveat, stated up front:** the E34 wall-clock cells are a *single representative run with no warmup* (`warmup: 0, trials: 1`) against a 100 µs browser clock — **not** the 5-warmup/20-trial protocol used for the GPU-kernel experiments. On the fastest cells that is ~±17 % quantization before any run-to-run variance, so read these as order-of-magnitude, not precise. Direction and rough size of every win and loss survive; the decimal places do not.
+
 | | system | result |
 |---|---|---|
 | 🟢 **win** | HF · H₂ · STO-3G | **105×** faster (no Python startup) |
@@ -210,7 +212,7 @@ const eom = runEOMCCSD(runCCSD(hf, integrals), integrals, hf);
 
 **Non-negotiables**
 
-- 5 warmup + 20 trials per measurement
+- 5 warmup + 20 trials per measurement **on the GPU-kernel experiments**; experiments that deviate (e.g. E34's wall-clock comparison) must say so in `meta.timingNote`
 - pass bar `F ≥ 1 − 10⁻⁵`; `std/median > 0.1` → `status: "noisy"`
 - honest negatives **committed** as JSON with a diagnosis
 - vitest + typecheck + lint gated in CI; Playwright e2e is **local-only** (CI runners expose no WebGPU) · TS strict + `noUncheckedIndexedAccess`
