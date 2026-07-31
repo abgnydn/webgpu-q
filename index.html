@@ -923,13 +923,15 @@
               machines) and they form a swarm over a free broker, splitting a batch
               of chemistry single-points — each tile a chemistry-grade HF/DFT/MP2
               energy (RHF/UHF/RKS/UKS), auto-picking exact or density fitting by size.
-              Bond-length scans, radical curves, and <strong>screen a molecule
-              library by HOMO–LUMO gap</strong> across the crowd (greedy-pull
+              This page ships <strong>prime-counting and a distributed H₂
+              bond-length scan</strong> over BroadcastChannel or WebRTC. Library
+              screening by HOMO–LUMO gap and the MQTT cross-machine relay are
+              exercised by the e2e suite, not wired into this page (greedy-pull
               balancing; ~1.7×/2.4× on 2/4 tabs — throughput is the win, not
               single-molecule speed).
             </p>
             <div class="meta">
-              <span>BroadcastChannel · WebRTC · MQTT relay</span>
+              <span>BroadcastChannel · WebRTC</span>
               <span>GPU-DF, chemistry-grade</span>
               <span>cross-machine on free VMs</span>
             </div>

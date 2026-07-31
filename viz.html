@@ -216,12 +216,26 @@
         -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
         border: none; padding: 0; font-weight: 700;
       }
+          .sitenav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
+        font-size: 12px; padding: 10px 14px 0; }
+      .sitenav a { color: var(--muted, #7a8294); text-decoration: none; }
+      .sitenav a:hover, .sitenav a:focus-visible { color: var(--accent, #6ea8ff); }
+      .sitenav .here { color: var(--text, #e6e9f0); font-weight: 650; }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
   </head>
   <body>
+    <nav class="sitenav" aria-label="webgpu-q pages">
+      <a href="/index.html">engine</a>
+      <a href="/learn.html">learn</a>
+      <a href="/molecule.html">molecule</a>
+      <a href="/screening.html">screen</a>
+      <a href="/swarm.html">swarm</a>
+      <span class="here">hyperscope</span>
+      <a href="/experiments/index.html">experiments</a>
+    </nav>
     <div class="stage">
       <div class="pane left">
         <canvas id="cL"></canvas>

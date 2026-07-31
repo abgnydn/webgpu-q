@@ -92,18 +92,23 @@ async function boot(): Promise<void> {
   window.addEventListener("resize", resizeAll);
   resizeAll();
 
-  let device: GPUDevice;
+  // A WebGPU failure must NOT abort boot(): the MPS bond-network panel below is
+  // pure CPU (mps-recorder + inline SVG) and used to be left permanently on
+  // "init…" because this path returned early. Degrade the 3D panels only.
+  let sceneL: Scene | null = null;
+  let sceneR: Scene | null = null;
   try {
-    device = await getDevice();
+    const device = await getDevice();
+    sceneL = Scene.fromDevice({ device, canvas: canvasL, maxSplats: MAX_SPLATS });
+    sceneR = Scene.fromDevice({ device, canvas: canvasR, maxSplats: MAX_SPLATS });
+    sceneR.tint = [1.6, 1.05, 0.55];
   } catch (err) {
-    statusL.textContent = `WebGPU init failed: ${(err as Error).message}`;
+    const msg = `WebGPU unavailable — 3D density panels disabled: ${(err as Error).message}`;
+    statusL.textContent = msg;
     statusL.style.color = "#ff6e6e";
-    return;
+    statusR.textContent = "3D panel needs WebGPU. The MPS bond-network panel below still works.";
+    statusR.style.color = "#ff6e6e";
   }
-
-  const sceneL = Scene.fromDevice({ device, canvas: canvasL, maxSplats: MAX_SPLATS });
-  const sceneR = Scene.fromDevice({ device, canvas: canvasR, maxSplats: MAX_SPLATS });
-  sceneR.tint = [1.6, 1.05, 0.55];
 
   // ── 3D-cloud panel state ────────────────────────────────
   function R(): number { return parseFloat(bond.value); }
@@ -117,6 +122,7 @@ async function boot(): Promise<void> {
   }
   function rebuildLeft(): void {
     const t0 = performance.now();
+    if (!sceneL) return;
     const grid = densityGridFromCoeffs(R(), cG, cU, GRID_SIZE);
     sceneL.updateGrid(grid);
     statusL.textContent =
@@ -126,6 +132,7 @@ async function boot(): Promise<void> {
   }
   function rebuildRight(): void {
     const t0 = performance.now();
+    if (!sceneR) return;
     const grid = pairDensityGridFromCoeffs(R(), cG, cU, r0(), GRID_SIZE);
     sceneR.updateGrid(grid);
     statusR.textContent =
@@ -343,20 +350,25 @@ async function boot(): Promise<void> {
       scene.zoomBy(Math.exp(e.deltaY * 0.001));
     }, { passive: false });
   }
-  attachOrbit(canvasL, sceneL);
-  attachOrbit(canvasR, sceneR);
+  if (sceneL) attachOrbit(canvasL, sceneL);
+  if (sceneR) attachOrbit(canvasR, sceneR);
 
   // ── Render loop ────────────────────────────────────────
   function tick(now: number): void {
     tickPlay(now);
-    sceneL.render();
-    sceneR.render();
+    sceneL?.render();
+    sceneR?.render();
     requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
 }
 
-boot().catch((err) => {
-
+boot().catch((err: unknown) => {
   console.error(err);
+  // Surface it: previously any boot failure left the page silently half-rendered.
+  const status = document.getElementById("statusL");
+  if (status) {
+    status.textContent = `Failed to start: ${(err as Error)?.message ?? String(err)}`;
+    status.style.color = "#ff6e6e";
+  }
 });

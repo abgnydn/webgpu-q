@@ -22,11 +22,19 @@ export default defineConfig({
     // Correct fix: dangerouslyIgnoreUnhandledErrors. It prevents an
     // *unhandled* error (this teardown RPC timeout) from failing the run,
     // while every test's own assertion still gates pass/fail normally —
-    // a real test failure still fails CI. Safe here because this is a
-    // synchronous numerical suite with no stray async handlers, so the
-    // only unhandled error is the teardown flush race itself. If a
-    // genuine unhandled rejection ever appears, the right response is to
-    // fix it, not to lean on this flag — noted for future maintainers.
+    // a real test failure still fails CI.
+    //
+    // The original justification said "a synchronous numerical suite with no
+    // stray async handlers". That was NOT true: tests/parallel/swarm*.test.ts
+    // called attachSwarmRuntime 24 times without ever calling the dispose() its
+    // own docstring says to always call, leaking a 1 s hello-broadcast interval
+    // per runtime for the whole run. Those are now disposed in afterEach, so the
+    // claim holds again — but it was load-bearing for this flag and had drifted.
+    //
+    // Measured 2026-07-31: 0 unhandled errors on an idle machine, 6-9 while the
+    // machine was saturated — consistent with the teardown flush race, not with
+    // a real defect. If a genuine unhandled rejection ever appears, the right
+    // response is to fix it, not to lean on this flag.
     dangerouslyIgnoreUnhandledErrors: true,
     // 120 s was a landmine: the heavy chemistry cells (aug-cc-pVDZ HF,
     // vibrations' 6N-gradient Hessian, frozen-core EOM, DF aux ladders)
