@@ -27,7 +27,7 @@ test.describe("GPU 3-index build — V output beyond the 128 MB default cap", ()
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const r = await page.evaluate(async (atoms: { symbol: string; pos: number[] }[]) => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[buf] ${s}`); };
+      const log = (s: string): void => { console.log(`[buf] ${s}`); };
       const [{ moleculeToShellsNuclei }, { generateAutoAux, buildV3idxCPU }, { buildV3idxGPU }] = await Promise.all([
         import("/src/chemistry/atoms.ts" as string),
         import("/src/chemistry/df-aux.ts" as string),
@@ -53,8 +53,7 @@ test.describe("GPU 3-index build — V output beyond the 128 MB default cap", ()
       log(`naphthalene n=${n}, nAuxLow=${auxLow.length}/${aux1.length}: GPU V output = ${outMB.toFixed(0)} MB (> 128 default), GPU len=${Vg.length}, maxAbs=${maxAbs.toExponential(2)}, maxRel(sig)=${maxRel.toExponential(2)}`);
       return { n, nAuxLow: auxLow.length, outMB, gpuLen: Vg.length, refLen: Vc.length, maxRel, maxAbs };
     }, NAPHTHALENE);
-
-    console.log(`\n[df-gpu-largebuf] ${JSON.stringify(r)}\n`);
+console.log(`\n[df-gpu-largebuf] ${JSON.stringify(r)}\n`);
     expect(r.outMB).toBeGreaterThan(128);        // genuinely past the default cap
     expect(r.gpuLen).toBe(r.refLen);             // GPU produced the full tensor (didn't throw)
     expect(r.maxRel).toBeLessThan(5e-3);         // and it's correct (f32 3-index ~1e-4..1e-3)

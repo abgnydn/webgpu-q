@@ -15,11 +15,8 @@ test.describe("CCSD(T) GPU port", () => {
       if (!hook) throw new Error("window.__webgpuq missing");
       return await hook.runE32();
     });
-     
-    console.log(`[e2e:E32] status=${artifact.status} — ${artifact.diagnosis}`);
-    for (const r of artifact.rows) {
-       
-      console.log(`  ${r.molecule}: CPU ${r.cpuET.toExponential(4)}, GPU ${r.gpuET.toExponential(4)}, |Δ| ${r.deltaHartree.toExponential(2)} Ha, speedup ${r.speedup.toFixed(1)}×`);
+     console.log(`[e2e:E32] status=${artifact.status} — ${artifact.diagnosis}`);
+    for (const r of artifact.rows) { console.log(`  ${r.molecule}: CPU ${r.cpuET.toExponential(4)}, GPU ${r.gpuET.toExponential(4)}, |Δ| ${r.deltaHartree.toExponential(2)} Ha, speedup ${r.speedup.toFixed(1)}×`);
     }
     expect(artifact.status).toBe("pass");
     for (const r of artifact.rows) {

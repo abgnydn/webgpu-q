@@ -5,11 +5,10 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
     page.on("console", (msg) => {
       const text = msg.text();
       if (text.startsWith("{")) return;
-      // eslint-disable-next-line no-console
-      console.log(`[browser:${msg.type()}] ${text}`);
+       console.log(`[browser:${msg.type()}] ${text}`);
     });
     page.on("pageerror", (err) => {
-      // eslint-disable-next-line no-console
+       
       console.error(`[browser:pageerror] ${err.message}`);
     });
 
@@ -21,11 +20,8 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
       return await window.__gpuMpsBench!.run();
     });
 
-    // eslint-disable-next-line no-console
-    console.log(`[gpu-mps] ${rows.length} shapes tested`);
-    for (const r of rows) {
-      // eslint-disable-next-line no-console
-      console.log(`  ${r.shape}: rel=${r.rel.toExponential(2)} match=${r.match} cpu=${r.cpuMs.toFixed(2)}ms gpu=${r.gpuMs.toFixed(2)}ms speedup=${r.speedup.toFixed(2)}×`);
+     console.log(`[gpu-mps] ${rows.length} shapes tested`);
+    for (const r of rows) { console.log(`  ${r.shape}: rel=${r.rel.toExponential(2)} match=${r.match} cpu=${r.cpuMs.toFixed(2)}ms gpu=${r.gpuMs.toFixed(2)}ms speedup=${r.speedup.toFixed(2)}×`);
       // FP32 matmul should agree with FP32 reference to ~1e-4 relative.
       expect(r.rel, `shape ${r.shape}`).toBeLessThan(1e-3);
       expect(r.match).toBe(true);
@@ -38,11 +34,10 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
     page.on("console", (msg) => {
       const text = msg.text();
       if (text.startsWith("{")) return;
-      // eslint-disable-next-line no-console
-      console.log(`[browser:${msg.type()}] ${text}`);
+       console.log(`[browser:${msg.type()}] ${text}`);
     });
     page.on("pageerror", (err) => {
-      // eslint-disable-next-line no-console
+       
       console.error(`[browser:pageerror] ${err.message}`);
     });
 
@@ -53,11 +48,8 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
       return await window.__gpuMpsBench!.runSvd();
     });
 
-    // eslint-disable-next-line no-console
-    console.log(`[gpu-svd] ${svdRows.length} sizes tested`);
-    for (const r of svdRows) {
-      // eslint-disable-next-line no-console
-      console.log(`  n=${r.n}: rel=${r.reconstructRel.toExponential(2)} match=${r.match} σ_max=${r.sigmaMax.toFixed(3)} gpu=${r.gpuMs.toFixed(2)}ms`);
+     console.log(`[gpu-svd] ${svdRows.length} sizes tested`);
+    for (const r of svdRows) { console.log(`  n=${r.n}: rel=${r.reconstructRel.toExponential(2)} match=${r.match} σ_max=${r.sigmaMax.toFixed(3)} gpu=${r.gpuMs.toFixed(2)}ms`);
       // f32 Jacobi reconstruction floor: ~1e-5 for n ≤ 32 random Gaussians.
       expect(r.reconstructRel, `n=${r.n}`).toBeLessThan(1e-3);
       expect(r.match).toBe(true);
@@ -70,11 +62,10 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
     page.on("console", (msg) => {
       const text = msg.text();
       if (text.startsWith("{")) return;
-      // eslint-disable-next-line no-console
-      console.log(`[browser:${msg.type()}] ${text}`);
+       console.log(`[browser:${msg.type()}] ${text}`);
     });
     page.on("pageerror", (err) => {
-      // eslint-disable-next-line no-console
+       
       console.error(`[browser:pageerror] ${err.message}`);
     });
 
@@ -85,11 +76,8 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
       return await window.__gpuMpsBench!.runMps();
     });
 
-    // eslint-disable-next-line no-console
-    console.log(`[gpu-mps-phase2] ${rows.length} configs tested`);
-    for (const r of rows) {
-      // eslint-disable-next-line no-console
-      console.log(`  N=${r.N} χ=${r.chi}: F=${r.fidelity.toFixed(7)} cpu=${r.cpuMs.toFixed(2)}ms gpu=${r.gpuMs.toFixed(2)}ms speedup=${r.speedup.toFixed(2)}×`);
+     console.log(`[gpu-mps-phase2] ${rows.length} configs tested`);
+    for (const r of rows) { console.log(`  N=${r.N} χ=${r.chi}: F=${r.fidelity.toFixed(7)} cpu=${r.cpuMs.toFixed(2)}ms gpu=${r.gpuMs.toFixed(2)}ms speedup=${r.speedup.toFixed(2)}×`);
       expect(r.match, `N=${r.N} χ=${r.chi} fidelity=${r.fidelity}`).toBe(true);
     }
     await page.screenshot({ path: "e2e/.artifacts/gpu-mps-phase2.png", fullPage: true });
@@ -99,11 +87,10 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
     page.on("console", (msg) => {
       const text = msg.text();
       if (text.startsWith("{")) return;
-      // eslint-disable-next-line no-console
-      console.log(`[browser:${msg.type()}] ${text}`);
+       console.log(`[browser:${msg.type()}] ${text}`);
     });
     page.on("pageerror", (err) => {
-      // eslint-disable-next-line no-console
+       
       console.error(`[browser:pageerror] ${err.message}`);
     });
 
@@ -114,11 +101,8 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
       return await window.__gpuMpsBench!.runResident();
     });
 
-    // eslint-disable-next-line no-console
-    console.log(`[gpu-mps-phase4a] ${rows.length} configs tested`);
-    for (const r of rows) {
-      // eslint-disable-next-line no-console
-      console.log(`  N=${r.N} gates=${r.gateCount}: F=${r.fidelity.toFixed(7)} cpu=${r.cpuMs.toFixed(2)}ms gpu=${r.gpuMs.toFixed(2)}ms speedup=${r.speedup.toFixed(2)}×`);
+     console.log(`[gpu-mps-phase4a] ${rows.length} configs tested`);
+    for (const r of rows) { console.log(`  N=${r.N} gates=${r.gateCount}: F=${r.fidelity.toFixed(7)} cpu=${r.cpuMs.toFixed(2)}ms gpu=${r.gpuMs.toFixed(2)}ms speedup=${r.speedup.toFixed(2)}×`);
       expect(r.match, `N=${r.N} fidelity=${r.fidelity}`).toBe(true);
     }
     await page.screenshot({ path: "e2e/.artifacts/gpu-mps-phase4a.png", fullPage: true });
@@ -128,11 +112,10 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
     page.on("console", (msg) => {
       const text = msg.text();
       if (text.startsWith("{")) return;
-      // eslint-disable-next-line no-console
-      console.log(`[browser:${msg.type()}] ${text}`);
+       console.log(`[browser:${msg.type()}] ${text}`);
     });
     page.on("pageerror", (err) => {
-      // eslint-disable-next-line no-console
+       
       console.error(`[browser:pageerror] ${err.message}`);
     });
 
@@ -143,11 +126,8 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
       return await window.__gpuMpsBench!.runPhase5v1();
     });
 
-    // eslint-disable-next-line no-console
-    console.log(`[gpu-mps-phase5v1] ${rows.length} configs tested`);
-    for (const r of rows) {
-      // eslint-disable-next-line no-console
-      console.log(`  N=${r.N} gates=${r.gateCount} + canonicalize: F=${r.fidelity.toFixed(7)} gpu=${r.gpuMs.toFixed(2)}ms`);
+     console.log(`[gpu-mps-phase5v1] ${rows.length} configs tested`);
+    for (const r of rows) { console.log(`  N=${r.N} gates=${r.gateCount} + canonicalize: F=${r.fidelity.toFixed(7)} gpu=${r.gpuMs.toFixed(2)}ms`);
       expect(r.match, `N=${r.N} fidelity=${r.fidelity}`).toBe(true);
     }
     await page.screenshot({ path: "e2e/.artifacts/gpu-mps-phase5v1.png", fullPage: true });
@@ -157,11 +137,10 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
     page.on("console", (msg) => {
       const text = msg.text();
       if (text.startsWith("{")) return;
-      // eslint-disable-next-line no-console
-      console.log(`[browser:${msg.type()}] ${text}`);
+       console.log(`[browser:${msg.type()}] ${text}`);
     });
     page.on("pageerror", (err) => {
-      // eslint-disable-next-line no-console
+       
       console.error(`[browser:pageerror] ${err.message}`);
     });
 
@@ -172,11 +151,8 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
       return await window.__gpuMpsBench!.runPhase4b();
     });
 
-    // eslint-disable-next-line no-console
-    console.log(`[gpu-mps-phase4b] ${rows.length} configs tested`);
-    for (const r of rows) {
-      // eslint-disable-next-line no-console
-      console.log(`  N=${r.N} gates=${r.gateCount}: F=${r.fidelity.toFixed(7)} cpu=${r.cpuMs.toFixed(2)}ms gpu=${r.gpuMs.toFixed(2)}ms`);
+     console.log(`[gpu-mps-phase4b] ${rows.length} configs tested`);
+    for (const r of rows) { console.log(`  N=${r.N} gates=${r.gateCount}: F=${r.fidelity.toFixed(7)} cpu=${r.cpuMs.toFixed(2)}ms gpu=${r.gpuMs.toFixed(2)}ms`);
       expect(r.match, `N=${r.N} fidelity=${r.fidelity}`).toBe(true);
     }
     await page.screenshot({ path: "e2e/.artifacts/gpu-mps-phase4b.png", fullPage: true });
@@ -186,11 +162,10 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
     page.on("console", (msg) => {
       const text = msg.text();
       if (text.startsWith("{")) return;
-      // eslint-disable-next-line no-console
-      console.log(`[browser:${msg.type()}] ${text}`);
+       console.log(`[browser:${msg.type()}] ${text}`);
     });
     page.on("pageerror", (err) => {
-      // eslint-disable-next-line no-console
+       
       console.error(`[browser:pageerror] ${err.message}`);
     });
 
@@ -201,11 +176,8 @@ test.describe("GPU MPS Phase 1A — complex matmul", () => {
       return await window.__gpuMpsBench!.runPhaseATrunc();
     });
 
-    // eslint-disable-next-line no-console
-    console.log(`[gpu-mps-phaseA] ${rows.length} truncating configs tested`);
-    for (const r of rows) {
-      // eslint-disable-next-line no-console
-      console.log(`  N=${r.N} d=${r.depth} χ=${r.chiMax}: ‖ψ‖²=${r.normSq.toFixed(6)} F=${r.fidelity.toFixed(6)}`);
+     console.log(`[gpu-mps-phaseA] ${rows.length} truncating configs tested`);
+    for (const r of rows) { console.log(`  N=${r.N} d=${r.depth} χ=${r.chiMax}: ‖ψ‖²=${r.normSq.toFixed(6)} F=${r.fidelity.toFixed(6)}`);
       expect(Math.abs(r.normSq - 1), `N=${r.N} d=${r.depth} χ=${r.chiMax} norm-leak`).toBeLessThan(5e-3);
     }
     await page.screenshot({ path: "e2e/.artifacts/gpu-mps-phaseA.png", fullPage: true });

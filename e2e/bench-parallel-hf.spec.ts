@@ -87,12 +87,9 @@ function logBench(r: {
   label: string; n: number; hwConcurrency: number; eriBuildMs?: number;
   sync: { stats: { median: number; p10: number; p90: number }; energy: number };
   parallel: Record<string, { stats: { median: number; p10: number; p90: number }; energy: number }>;
-}): void {
-  /* eslint-disable no-console */
-  console.log("\n──────────────────────────────────────────────────────────");
+}): void { console.log("\n──────────────────────────────────────────────────────────");
   console.log(`Parallel HF buildG — ${r.label} (n = ${r.n} basis functions, HC = ${r.hwConcurrency})`);
-  if (r.eriBuildMs !== undefined) {
-    console.log(`ERI build (one-time): ${(r.eriBuildMs / 1000).toFixed(1)} s`);
+  if (r.eriBuildMs !== undefined) { console.log(`ERI build (one-time): ${(r.eriBuildMs / 1000).toFixed(1)} s`);
   }
   console.log("──────────────────────────────────────────────────────────");
   const fmt = (ms: number): string => `${ms.toFixed(0).padStart(6)} ms`;
@@ -103,7 +100,7 @@ function logBench(r: {
   }
   const maxDelta = Math.max(...Object.values(r.parallel).map(p => Math.abs(p.energy - r.sync.energy)));
   console.log(`Energy: sync = ${r.sync.energy.toFixed(8)}, parallel max |Δ| = ${maxDelta.toExponential(2)} Ha`);
-  /* eslint-enable no-console */
+   
 }
 
 test.describe("Parallel HF buildG benchmark", () => {
@@ -193,8 +190,7 @@ test.describe("Parallel HF buildG benchmark", () => {
       };
     });
 
-    /* eslint-disable no-console */
-    console.log("\n──────────────────────────────────────────────────────────");
+     console.log("\n──────────────────────────────────────────────────────────");
     console.log("Parallel HF buildG benchmark — H₂O / cc-pVDZ");
     console.log(`n = ${results.n} basis functions, hardwareConcurrency = ${results.hwConcurrency}, COI = ${results.crossOriginIsolated}`);
     console.log("──────────────────────────────────────────────────────────");
@@ -207,7 +203,7 @@ test.describe("Parallel HF buildG benchmark", () => {
     console.log("──────────────────────────────────────────────────────────");
     console.log(`Energies match: sync = ${results.sync.energy.toFixed(10)}, parallel = ${Object.values(results.parallel)[0]!.energy.toFixed(10)}`);
     console.log(`Energy max |Δ|: ${Math.max(...Object.values(results.parallel).map(p => Math.abs(p.energy - results.sync.energy))).toExponential(2)} Ha`);
-    /* eslint-enable no-console */
+     
 
     // Energy correctness: parallel path must match sync to numerical noise.
     for (const entry of Object.values(results.parallel)) {
@@ -299,13 +295,12 @@ test.describe("Parallel HF buildG benchmark", () => {
       const med = (a: number[]): number => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)]!;
       return { n: integrals.n, directMs: med(dT), dfMs: med(dfT), eD, eDF };
     });
-    /* eslint-disable no-console */
-    console.log(`\n── DF-HF vs direct HF — ethane cc-pVDZ (n=${r.n}, 3 trials) ──`);
+     console.log(`\n── DF-HF vs direct HF — ethane cc-pVDZ (n=${r.n}, 3 trials) ──`);
     console.log(`  direct HF median: ${r.directMs.toFixed(0)} ms   E = ${r.eD.toFixed(8)} Ha`);
     console.log(`  DF-HF  median:    ${r.dfMs.toFixed(0)} ms   E = ${r.eDF.toFixed(8)} Ha`);
     console.log(`  DF/direct ratio:  ${(r.dfMs / r.directMs).toFixed(2)}× (>1 = DF SLOWER)`);
     console.log(`  Energy |Δ|:       ${Math.abs(r.eD - r.eDF).toExponential(2)} Ha`);
-    /* eslint-enable no-console */
+     
     expect(Math.abs(r.eD - r.eDF)).toBeLessThan(1e-3);
   });
 
@@ -363,13 +358,12 @@ test.describe("Parallel HF buildG benchmark", () => {
       };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n── DF-HF vs direct HF — H₂O cc-pVDZ (n=${r.n}, 5 trials each) ──`);
+     console.log(`\n── DF-HF vs direct HF — H₂O cc-pVDZ (n=${r.n}, 5 trials each) ──`);
     console.log(`  direct HF median: ${r.directMs.toFixed(0)} ms   E = ${r.eDirect.toFixed(8)} Ha`);
     console.log(`  DF-HF  median:    ${r.dfMs.toFixed(0)} ms   E = ${r.eDF.toFixed(8)} Ha`);
     console.log(`  DF/direct ratio:  ${(r.dfMs / r.directMs).toFixed(2)}× (>1 = DF SLOWER)`);
     console.log(`  Energy |Δ|:       ${r.energyDelta.toExponential(2)} Ha`);
-    /* eslint-enable no-console */
+     
 
     // Energy correctness — DF must be within chemical accuracy of direct.
     // (Empirically DF at τ=1e-10 gives ~1e-5 to 1e-6 Ha vs direct on cc-pVDZ;

@@ -71,8 +71,7 @@ test.describe("screening validation — HOMO–LUMO gap vs conjugation length", 
       log(`drop ethylene→decapentaene: ${(out[0]!.gapEv - out[out.length - 1]!.gapEv).toFixed(2)} eV`);
       return out;
     }, SERIES);
-
-    console.log(`\n[screening-validation] ${rows.map((r) => `${r.name}:${r.gapEv.toFixed(1)}`).join("  ")}\n`);
+console.log(`\n[screening-validation] ${rows.map((r) => `${r.name}:${r.gapEv.toFixed(1)}`).join("  ")}\n`);
 
     expect(rows.every((r) => r.converged)).toBe(true);
     expect(rows.every((r) => r.gapEv > 0)).toBe(true);

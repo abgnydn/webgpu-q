@@ -30,7 +30,7 @@ test.describe("WebGPU 3-index build — speedup vs system size", () => {
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const rows = await page.evaluate(async (lattices: { symbol: string; pos: number[] }[][]) => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[scale] ${s}`); };
+      const log = (s: string): void => { console.log(`[scale] ${s}`); };
       const [
         { moleculeToShellsNuclei },
         { generateAutoAux, buildV3idxCPU },
@@ -55,8 +55,7 @@ test.describe("WebGPU 3-index build — speedup vs system size", () => {
       }
       return out;
     }, [h2Lattice(4), h2Lattice(8), h2Lattice(14), h2Lattice(22)]);
-
-    console.log(`\n[scaling] ${JSON.stringify(rows)}\n`);
+console.log(`\n[scaling] ${JSON.stringify(rows)}\n`);
     // Characterize the s/p regime: GPU does NOT win here (light pairs), but the
     // ratio is STABLE in n (parallelism holds the line; it doesn't collapse).
     // The win is angular-momentum-driven — benzene s/p/d is 1.19x elsewhere.
@@ -81,7 +80,7 @@ test.describe("WebGPU 3-index build — speedup vs system size", () => {
     };
 
     const rows = await page.evaluate(async (lattices: { symbol: string; pos: number[] }[][]) => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[scaleD] ${s}`); };
+      const log = (s: string): void => { console.log(`[scaleD] ${s}`); };
       const [{ moleculeToShellsNuclei }, { generateAutoAux, buildV3idxCPU }, { buildV3idxGPU }] = await Promise.all([
         import("/src/chemistry/atoms.ts" as string),
         import("/src/chemistry/df-aux.ts" as string),
@@ -100,8 +99,7 @@ test.describe("WebGPU 3-index build — speedup vs system size", () => {
       }
       return out;
     }, [cLattice(2), cLattice(6), cLattice(12)]);
-
-    console.log(`\n[scaling-d] ${JSON.stringify(rows)}\n`);
+console.log(`\n[scaling-d] ${JSON.stringify(rows)}\n`);
     const largest = rows[rows.length - 1]!;
     expect(largest.ratio).toBeGreaterThan(1.0); // d-regime: GPU wins
   });
@@ -116,7 +114,7 @@ test.describe("WebGPU 3-index build — speedup vs system size", () => {
       return a;
     };
     const rows = await page.evaluate(async (lattices: { symbol: string; pos: number[] }[][]) => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[e2e] ${s}`); };
+      const log = (s: string): void => { console.log(`[e2e] ${s}`); };
       const [{ moleculeToShellsNuclei }, { generateAutoAux, buildAuxBasisDFStreaming }, { buildDFAuto }] = await Promise.all([
         import("/src/chemistry/atoms.ts" as string),
         import("/src/chemistry/df-aux.ts" as string),

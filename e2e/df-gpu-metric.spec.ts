@@ -12,7 +12,7 @@ async function runMetric(page: import("@playwright/test").Page, c: MetricCase): 
   ok: boolean; error?: string; nAux?: number; maxAbs?: number; maxRel?: number; maxMag?: number; maxL?: number;
 }> {
   return await page.evaluate(async (cfg: MetricCase) => {
-    const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[gpumetric] ${s}`); };
+    const log = (s: string): void => { console.log(`[gpumetric] ${s}`); };
     const [
       { moleculeToShellsNuclei },
       { generateAutoAux, buildMetric2idxCPU },

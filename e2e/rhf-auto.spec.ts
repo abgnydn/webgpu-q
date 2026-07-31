@@ -17,7 +17,7 @@ test.describe("runRHFAuto — size-gated exact/DF with provenance", () => {
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const r = await page.evaluate(async () => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[auto] ${s}`); };
+      const log = (s: string): void => { console.log(`[auto] ${s}`); };
       const [{ moleculeToShellsNuclei }, { runRHFAuto }] = await Promise.all([
         import("/src/chemistry/atoms.ts" as string),
         import("/src/chemistry/rhf-auto.ts" as string),
@@ -43,8 +43,7 @@ test.describe("runRHFAuto — size-gated exact/DF with provenance", () => {
         eriLenExact: exact.integrals.eri_AO.length, eriLenDF: dfW.integrals.eri_AO.length,
       };
     });
-
-    console.log(`\n[rhf-auto] ${JSON.stringify(r)}\n`);
+console.log(`\n[rhf-auto] ${JSON.stringify(r)}\n`);
 
     // Provenance is honest about what ran (the core contract of runRHFAuto).
     expect(r.exactProv.method).toBe("exact-eri");
@@ -73,7 +72,7 @@ test.describe("runRHFAuto — size-gated exact/DF with provenance", () => {
     page.on("console", (m) => { if (m.text().startsWith("[big]")) console.log(m.text()); });
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
     const r = await page.evaluate(async () => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[big] ${s}`); };
+      const log = (s: string): void => { console.log(`[big] ${s}`); };
       const [{ moleculeToShellsNuclei }, { runRHFAuto }] = await Promise.all([
         import("/src/chemistry/atoms.ts" as string),
         import("/src/chemistry/rhf-auto.ts" as string),
@@ -101,7 +100,7 @@ test.describe("runRHFAuto — size-gated exact/DF with provenance", () => {
     page.on("console", (m) => { if (m.text().startsWith("[gate]")) console.log(m.text()); });
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
     const r = await page.evaluate(async () => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[gate] ${s}`); };
+      const log = (s: string): void => { console.log(`[gate] ${s}`); };
       const [{ moleculeToShellsNuclei }, { runRHFAuto }] = await Promise.all([
         import("/src/chemistry/atoms.ts" as string),
         import("/src/chemistry/rhf-auto.ts" as string),

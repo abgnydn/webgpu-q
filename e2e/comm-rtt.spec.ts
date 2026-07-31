@@ -11,7 +11,7 @@ test.describe("Transport RTT — broker vs local", () => {
     page.on("console", (m) => { if (m.text().startsWith("[rtt]")) console.log(m.text()); });
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
     const r = await page.evaluate(async () => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[rtt] ${s}`); };
+      const log = (s: string): void => { console.log(`[rtt] ${s}`); };
       await new Promise<void>((res, rej) => { const s = document.createElement("script");
         s.src = "https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"; s.onload = () => res(); s.onerror = () => rej(new Error("cdn")); document.head.appendChild(s); });
       const mqtt = (window as unknown as { mqtt: { connect(u: string, o?: unknown): MqttC } }).mqtt;
@@ -54,7 +54,7 @@ test.describe("Transport RTT — broker vs local", () => {
     // B echoes.
     await b.evaluate(() => { const ch = new BroadcastChannel("rtt-local"); ch.onmessage = (e) => { if (typeof e.data === "number") ch.postMessage(-e.data); }; });
     const r = await a.evaluate(async () => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[rtt] ${s}`); };
+      const log = (s: string): void => { console.log(`[rtt] ${s}`); };
       const ch = new BroadcastChannel("rtt-local");
       const rtts: number[] = []; const pending = new Map<number, number>();
       await new Promise<void>((resolve) => {

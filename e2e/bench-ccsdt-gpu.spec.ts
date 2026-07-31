@@ -117,8 +117,7 @@ test.describe("CCSD(T) GPU kernel — proper trials benchmark", () => {
       return;
     }
 
-    /* eslint-disable no-console */
-    console.log("\n══════════════════════════════════════════════════════════");
+     console.log("\n══════════════════════════════════════════════════════════");
     console.log("CCSD(T) GPU kernel — 5 warmup + 20 trials");
     console.log("══════════════════════════════════════════════════════════");
     console.log(`Molecule: H₂O cc-pVDZ (n=${results.n}, NOCC=${results.NOCC}, NVIRT=${results.NVIRT})`);
@@ -144,11 +143,10 @@ test.describe("CCSD(T) GPU kernel — proper trials benchmark", () => {
     console.log(`  at p90:    ${results.speedupP90.toFixed(1)}× (worst case)`);
     console.log();
     console.log(`Correctness: |GPU − CPU| = ${results.delta.toExponential(2)} Ha (pass bar: ≤ 5e-6 Ha)`);
-    if (s.stdOverMedian > 0.1) {
-      console.log(`⚠  noisy: std/median = ${(s.stdOverMedian * 100).toFixed(1)}% > 10% — treat as range, not point estimate`);
+    if (s.stdOverMedian > 0.1) { console.log(`⚠  noisy: std/median = ${(s.stdOverMedian * 100).toFixed(1)}% > 10% — treat as range, not point estimate`);
     }
     console.log("══════════════════════════════════════════════════════════\n");
-    /* eslint-enable no-console */
+     
 
     // Correctness gate.
     expect(results.delta).toBeLessThan(5e-6);

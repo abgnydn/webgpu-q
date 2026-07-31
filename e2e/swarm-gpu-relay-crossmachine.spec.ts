@@ -38,7 +38,7 @@ test.describe(`Cross-machine GPU-DF batch over a relay (N=${NTOTAL})`, () => {
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const result = await page.evaluate(async ({ idx, ntot, room, masterId, tiles }) => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[gx] ${s}`); };
+      const log = (s: string): void => { console.log(`[gx] ${s}`); };
       const [{ attachSwarmRuntime, swarmMap }, { RelayTransport }, { runChemEnergyTile, CHEM_ENERGY_KIND }] = await Promise.all([
         import("/src/parallel/swarm/swarm-map.ts" as string),
         import("/src/parallel/swarm/relay-transport.ts" as string),
@@ -100,8 +100,7 @@ test.describe(`Cross-machine GPU-DF batch over a relay (N=${NTOTAL})`, () => {
         engines: Array.from(new Set(out.map((r) => r.engine))),
       };
     }, { idx: IDX, ntot: NTOTAL, room: ROOM, masterId: ID(0), tiles: N2_TILES });
-
-    console.log(`\n[gpu-relay-x node ${IDX}/${NTOTAL}] ${JSON.stringify(result)}\n`);
+console.log(`\n[gpu-relay-x node ${IDX}/${NTOTAL}] ${JSON.stringify(result)}\n`);
     expect(result.ok, `stage=${result.stage} ${result.error ?? ""}`).toBe(true);
   });
 });

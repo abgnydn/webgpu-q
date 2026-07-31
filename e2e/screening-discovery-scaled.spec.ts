@@ -125,8 +125,7 @@ test.describe("scaled discovery — exhaustive aza-chain screen across the swarm
         minGap: rows[0]!.gap, maxGap: rows[rows.length - 1]!.gap, azoAll, azoTop, wallS: wall / 1000,
         topAzoCount: rows.slice(0, TOP).filter((r) => r.azo).length };
     }, LIB);
-
-    console.log(`\n[scaled-discovery] ${res.conv}/${res.total} converged in ${res.wallS.toFixed(0)}s · gap ${res.minGap.toFixed(1)}–${res.maxGap.toFixed(1)} eV · azo top-15 ${res.topAzoCount}/15 · enrichment ${(res.azoTop / Math.max(res.azoAll, 1e-9)).toFixed(2)}x\n`);
+console.log(`\n[scaled-discovery] ${res.conv}/${res.total} converged in ${res.wallS.toFixed(0)}s · gap ${res.minGap.toFixed(1)}–${res.maxGap.toFixed(1)} eV · azo top-15 ${res.topAzoCount}/15 · enrichment ${(res.azoTop / Math.max(res.azoAll, 1e-9)).toFixed(2)}x\n`);
 
     expect(res.total).toBe(LIB.length);
     expect(res.conv).toBeGreaterThan(LIB.length * 0.8);             // most candidates compute

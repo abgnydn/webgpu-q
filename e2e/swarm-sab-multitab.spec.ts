@@ -41,8 +41,7 @@ test.describe("Multi-tab SAB + BroadcastChannel partitioning", () => {
     const result = await Promise.all(pages.map(async (page, tabId) => {
       return page.evaluate(async ({ tabId, perTabMB, nTabs }) => {
         const bytes = perTabMB * 1024 * 1024;
-        // eslint-disable-next-line no-console
-        console.log(`[tab${tabId}] crossOriginIsolated=${crossOriginIsolated}, allocating SAB ${perTabMB} MB`);
+         console.log(`[tab${tabId}] crossOriginIsolated=${crossOriginIsolated}, allocating SAB ${perTabMB} MB`);
         if (typeof SharedArrayBuffer === "undefined" || !crossOriginIsolated) {
           return { tabId, error: "SAB unavailable / not COI" };
         }
@@ -54,8 +53,7 @@ test.describe("Multi-tab SAB + BroadcastChannel partitioning", () => {
         for (let i = 0; i < view.length; i += stride) {
           view[i] = (i + tabId * 1e6) % 10007;
         }
-        // eslint-disable-next-line no-console
-        console.log(`[tab${tabId}] SAB filled; ${view.length / 1e6}M f64 elements`);
+         console.log(`[tab${tabId}] SAB filled; ${view.length / 1e6}M f64 elements`);
 
         const ch = new BroadcastChannel("sab-mvp");
         const isMaster = tabId === 0;
@@ -115,8 +113,7 @@ test.describe("Multi-tab SAB + BroadcastChannel partitioning", () => {
       }, { tabId, perTabMB: PER_TAB_MB, nTabs: N_TABS });
     }));
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Multi-tab SAB partitioning — ${N_TABS} tabs × ${PER_TAB_MB} MB`);
     console.log(`══════════════════════════════════════════════════════════`);
     const totalAllocated = result.reduce((s, r) => s + (r.sabBytes ?? 0), 0);
@@ -129,14 +126,13 @@ test.describe("Multi-tab SAB + BroadcastChannel partitioning", () => {
       console.log(`  tab ${r.tabId}: partial=${partial.toExponential(4)}  ${dur.toFixed(1)} ms`);
     }
     const master = result[0]!;
-    if ("aggregate" in master && master.aggregate !== undefined) {
-      console.log();
+    if ("aggregate" in master && master.aggregate !== undefined) { console.log();
       console.log(`Master aggregated total: ${master.aggregate.toExponential(6)}`);
       console.log(`Master saw ${master.fromWorkers?.length ?? 0} worker partials`);
       console.log(`Round-trip wall-clock: ${master.durMs.toFixed(1)} ms`);
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     // Assert all tabs succeeded
     for (const r of result) {

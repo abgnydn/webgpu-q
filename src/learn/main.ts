@@ -416,7 +416,7 @@ function renderSide(): void {
   if (depth === "prove" && rep) {
     parts.push(card("The calculation",
       `<div class="controls" style="margin-bottom:8px">Method <b>RHF</b> · basis
-       <select id="basisSel">
+       <select id="basisSel" aria-label="Basis set">
          <option value="sto-3g"${state.basis === "sto-3g" ? " selected" : ""}>STO-3G</option>
          <option value="cc-pvdz"${state.basis === "cc-pvdz" ? " selected" : ""}>cc-pVDZ</option>
        </select></div>` +
@@ -482,7 +482,7 @@ function muAnglePlot(rep: MolecularReport): string {
 function angleControl(): string {
   return `<div class="card"><h2>Bend it</h2>
     <div class="controls">
-      <input type="range" id="angle" min="70" max="180" step="0.5" value="${angleDeg().toFixed(1)}" />
+      <input type="range" id="angle" aria-label="H–O–H bond angle in degrees" min="70" max="180" step="0.5" value="${angleDeg().toFixed(1)}" />
       <button class="act" id="straighten">Straighten →</button>
     </div>
     <p style="margin:8px 0 0;color:var(--dim);font-size:12px">Slide to 180° — watch the dipole arrow vanish.</p></div>`;

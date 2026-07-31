@@ -50,12 +50,11 @@ test.describe("Parallel ERI build", () => {
       return { n: integrals.n, seqMs, parMs, maxDelta };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n── Parallel ERI build — benzene cc-pVDZ (n=${r.n}) ──`);
+     console.log(`\n── Parallel ERI build — benzene cc-pVDZ (n=${r.n}) ──`);
     console.log(`sequential:       ${(r.seqMs / 1000).toFixed(1).padStart(6)} s`);
     console.log(`parallel=8:       ${(r.parMs / 1000).toFixed(1).padStart(6)} s  → ${(r.seqMs / r.parMs).toFixed(2)}× vs sequential`);
     console.log(`max |Δ|: ${r.maxDelta.toExponential(2)} Ha`);
-    /* eslint-enable no-console */
+     
     expect(r.maxDelta).toBeLessThan(1e-12);
   });
 
@@ -114,14 +113,13 @@ test.describe("Parallel ERI build", () => {
       return { n: integrals.n, seqMs, parResults };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n── Parallel ERI build — ethane cc-pVDZ (n=${r.n}) ──`);
+     console.log(`\n── Parallel ERI build — ethane cc-pVDZ (n=${r.n}) ──`);
     console.log(`sequential:       ${r.seqMs.toFixed(0).padStart(7)} ms`);
     for (const [name, p] of Object.entries(r.parResults)) {
       const speedup = (r.seqMs / p.ms).toFixed(2);
       console.log(`${name.padEnd(15)} ${p.ms.toFixed(0).padStart(7)} ms  → ${speedup.padStart(5)}× vs sequential   max |Δ| = ${p.maxDelta.toExponential(2)} Ha`);
     }
-    /* eslint-enable no-console */
+     
 
     // Correctness: parallel must bit-match sequential.
     for (const p of Object.values(r.parResults)) {

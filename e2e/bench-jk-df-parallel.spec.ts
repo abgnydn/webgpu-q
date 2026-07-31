@@ -95,8 +95,7 @@ test.describe("Parallel buildJK_DF", () => {
       return s[Math.floor(s.length / 2)]!;
     };
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Parallel buildJK_DF — benzene cc-pVDZ (n=${r.n}, n_aux=${r.nAux})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Serial WASM:  median ${median(r.serialMs).toFixed(0).padStart(6)} ms   trials [${r.serialMs.map((x) => x.toFixed(0)).join(", ")}] ms`);
@@ -105,7 +104,7 @@ test.describe("Parallel buildJK_DF", () => {
     console.log(`max |J_serial − J_parallel|: ${r.maxDJ.toExponential(2)}`);
     console.log(`max |K_serial − K_parallel|: ${r.maxDK.toExponential(2)}`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.maxDJ).toBeLessThan(1e-8);
     expect(r.maxDK).toBeLessThan(1e-8);

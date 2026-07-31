@@ -86,8 +86,7 @@ test.describe("Naphthalene cc-pVDZ — direct OOMs, aux-DF unlocks", () => {
     });
 
     const totalMs = r.integMs + r.dfMs + r.hfMs;
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Naphthalene C₁₀H₈ cc-pVDZ aux-DF HF SCF`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`n_orb = ${r.n}    n_electrons = ${r.nElectrons}`);
@@ -103,7 +102,7 @@ test.describe("Naphthalene cc-pVDZ — direct OOMs, aux-DF unlocks", () => {
     console.log();
     console.log(`E = ${r.energy.toFixed(8)} Ha`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(Number.isFinite(r.energy)).toBe(true);
     expect(r.converged).toBe(true);

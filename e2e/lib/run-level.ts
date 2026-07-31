@@ -45,11 +45,10 @@ export async function bootExperimentsPage(page: Page): Promise<void> {
     // Skip the firehose of artifact JSON dumps from emitArtifact —
     // we keep the [artifact:…] header line for grep visibility.
     if (text.startsWith("{")) return;
-    // eslint-disable-next-line no-console
-    console.log(`[browser:${msg.type()}] ${text}`);
+     console.log(`[browser:${msg.type()}] ${text}`);
   });
   page.on("pageerror", (err) => {
-    // eslint-disable-next-line no-console
+     
     console.error(`[browser:pageerror] ${err.message}`);
   });
 
@@ -86,8 +85,7 @@ export async function bootExperimentsPage(page: Page): Promise<void> {
   if (!gpuOk.ok) {
     throw new Error(`WebGPU unavailable in test browser: ${gpuOk.reason}`);
   }
-  // eslint-disable-next-line no-console
-  console.log(`[e2e] adapter: ${JSON.stringify(gpuOk)}`);
+   console.log(`[e2e] adapter: ${JSON.stringify(gpuOk)}`);
 
   // Hard gate for the dedicated-GPU validation lane (WEBGPU_Q_NVIDIA=1): refuse
   // to emit numbers from a CPU software rasterizer (SwiftShader/llvmpipe/lavapipe)
@@ -133,8 +131,7 @@ export async function runLevelE2E(
     const filename = `${protocol}.json`;
     const fullPath = resolve(outDir, filename);
     await writeFile(fullPath, JSON.stringify(art, null, 2), "utf-8");
-    // eslint-disable-next-line no-console
-    console.log(
+     console.log(
       `[e2e] level-${levelN} ${protocol}: ${art.status} — ${art.diagnosis ?? ""} → ${fullPath}`,
     );
   }
@@ -162,9 +159,7 @@ export function assertLevelStatus(result: LevelResult, _allowNoisy = true): void
   for (const art of result.artifacts) {
     expect(art.meta?.protocol, "artifact missing meta.protocol").toBeTruthy();
     expect(["pass", "fail", "noisy"]).toContain(art.status);
-    if (art.status !== "pass") {
-      // eslint-disable-next-line no-console
-      console.log(`[e2e][note] ${art.meta?.protocol} ${art.status}: ${art.diagnosis}`);
+    if (art.status !== "pass") { console.log(`[e2e][note] ${art.meta?.protocol} ${art.status}: ${art.diagnosis}`);
     }
   }
   expect(result.artifacts.length, "no artifacts produced").toBeGreaterThan(0);

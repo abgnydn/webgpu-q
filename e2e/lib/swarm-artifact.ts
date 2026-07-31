@@ -138,7 +138,6 @@ export async function writeSwarmArtifact(
   fs.mkdirSync(outDir, { recursive: true });
   const outPath = path.join(outDir, `${meta.molecule}-${meta.basis.replace(/[^a-z0-9]/gi, "")}.json`);
   fs.writeFileSync(outPath, JSON.stringify(artifact, null, 2));
-  // eslint-disable-next-line no-console
-  console.log(`[artifact] wrote ${outPath} (status=${artifact.status})`);
+   console.log(`[artifact] wrote ${outPath} (status=${artifact.status})`);
   return outPath;
 }

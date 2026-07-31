@@ -65,8 +65,7 @@ test.describe("aux-DF via pivoted Cholesky", () => {
       return { eDirect, results };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`H₂O cc-pVDZ — pivoted Cholesky vs eigendecomp`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Direct ERI HF:  E = ${r.eDirect.toFixed(8)} Ha`);
@@ -79,7 +78,7 @@ test.describe("aux-DF via pivoted Cholesky", () => {
       console.log(`  Cholesky:    rank=${String(x.choR).padStart(3)}  E=${x.choE.toFixed(6).padStart(13)}  cnv=${x.choCnv}  err=${choErr.toExponential(2)}`);
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.results.every((x) => Number.isFinite(x.choE))).toBe(true);
   });
@@ -139,8 +138,7 @@ test.describe("aux-DF via pivoted Cholesky", () => {
       };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Benzene cc-pVDZ aux-DF via Cholesky (n=${r.n}, n_aux=${r.nAuxIn} → rank ${r.nAuxKept})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`B-tensor build (Cholesky path):  ${(r.dfMs / 1000).toFixed(2)} s`);
@@ -149,7 +147,7 @@ test.describe("aux-DF via pivoted Cholesky", () => {
     const directE = -230.72273482;
     console.log(`Error vs WASM-direct reference:  ${(r.energy - directE).toExponential(2)} Ha`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(Number.isFinite(r.energy)).toBe(true);
   });

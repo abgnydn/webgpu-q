@@ -85,8 +85,7 @@ test.describe("WASM ERI kernel", () => {
       };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Benzene cc-pVDZ — end-to-end HF wall time with WASM ERI`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Molecule:  benzene cc-pVDZ, n=${r.n} basis functions`);
@@ -104,7 +103,7 @@ test.describe("WASM ERI kernel", () => {
     console.log(`  TS path:                 ${((r.tsEriMs + r.hfSyncMs) / 1000).toFixed(1).padStart(6)} s`);
     console.log(`  WASM + parallel HF:      ${((r.wasmEriMs + r.hfParMs) / 1000).toFixed(1).padStart(6)} s   → ${((r.tsEriMs + r.hfSyncMs) / (r.wasmEriMs + r.hfParMs)).toFixed(2)}× faster than TS-only`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.maxDelta).toBeLessThan(1e-10);
     expect(Math.abs(r.eSync - r.ePar)).toBeLessThan(1e-8);
@@ -168,12 +167,11 @@ test.describe("WASM ERI kernel", () => {
       return { n: integrals.n, tsMs, wasmMs, maxDelta, maxRel };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n── WASM ERI vs TypeScript ERI — ethane cc-pVDZ (n=${r.n}) ──`);
+     console.log(`\n── WASM ERI vs TypeScript ERI — ethane cc-pVDZ (n=${r.n}) ──`);
     console.log(`TypeScript sequential:  ${r.tsMs.toFixed(0).padStart(7)} ms`);
     console.log(`Rust+WASM sequential:   ${r.wasmMs.toFixed(0).padStart(7)} ms  → ${(r.tsMs / r.wasmMs).toFixed(2)}× vs TS`);
     console.log(`max |Δ|: ${r.maxDelta.toExponential(2)} Ha    max relative diff: ${r.maxRel.toExponential(2)}`);
-    /* eslint-enable no-console */
+     
 
     // Bit-level match: WASM and TS implement the same algorithm; expect ≤ 1e-10.
     expect(r.maxDelta).toBeLessThan(1e-10);

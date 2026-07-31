@@ -218,8 +218,7 @@ test.describe(`Swarm heptacene HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`,
       };
     }, { nTabs: N_TABS, INNER_POOL });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Swarm HF SCF — heptacene C₃₀H₁₈ STO-3G across ${N_TABS} tabs × ${INNER_POOL} inner`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`atoms = ${result.nC} C + ${result.nH} H`);
@@ -236,7 +235,7 @@ test.describe(`Swarm heptacene HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`,
     console.log(`Trajectory:  first → ${result.firstFive.map((e: number) => e.toFixed(2)).join(", ")}`);
     console.log(`             last  → ${result.lastFive.map((e: number) => e.toFixed(6)).join(", ")}`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     // Heptacene (7 rings) is deep in the polyradical regime — it was
     // only ever isolated in cryogenic matrices precisely because its

@@ -56,7 +56,7 @@ test.describe("RelayTransport — gzip-binary big message round-trips losslessly
       for (let i = 0; i < 40 && !w.__got; i++) await new Promise((r) => setTimeout(r, 250));
       return w.__got;
     });
-    await rx.evaluate(() => { /* eslint-disable-next-line no-console */ console.log("[big] received:", JSON.stringify((window as unknown as { __got: unknown }).__got)); });
+    await rx.evaluate(() => { console.log("[big] received:", JSON.stringify((window as unknown as { __got: unknown }).__got)); });
 
     expect(got, "no bigD message arrived").not.toBeNull();
     expect(got!.n).toBe(sent!.n);

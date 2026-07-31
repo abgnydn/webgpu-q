@@ -11,11 +11,8 @@ test.describe("H₂O EOM-CCSD UV-vis (E33)", () => {
       if (!hook) throw new Error("window.__webgpuq missing");
       return await hook.runE33();
     });
-     
-    console.log(`[e2e:E33] status=${artifact.status} — ${artifact.diagnosis}`);
-    for (const r of artifact.rows.slice(0, 10)) {
-       
-      console.log(
+     console.log(`[e2e:E33] status=${artifact.status} — ${artifact.diagnosis}`);
+    for (const r of artifact.rows.slice(0, 10)) { console.log(
         `  root ${r.root}: ${r.energyEV.toFixed(3)} eV  f=${r.oscillator.toExponential(2)}  ${r.assignment}`,
       );
     }

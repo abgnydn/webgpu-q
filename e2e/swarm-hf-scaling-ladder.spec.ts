@@ -179,8 +179,7 @@ test.describe(`Streaming swarm scaling ladder (${N_TABS} tabs, ${BASIS})`, () =>
       const dOracle = Math.abs(result.energy - oracle);
       const crossedWall = fullBBytes > ARRAYBUFFER_WALL;
 
-      /* eslint-disable no-console */
-      console.log(`\n══════════════════════════════════════════════════════════`);
+       console.log(`\n══════════════════════════════════════════════════════════`);
       console.log(`Scaling rung: ${result.M} H2 (${BASIS}), ${N_TABS} tabs`);
       console.log(`  n=${result.n}, electrons=${result.nElectrons} | per-tab slice build=${(result.buildMs / 1000).toFixed(1)} s, SCF=${(result.swMs / 1000).toFixed(1)} s (${result.iter} iters)`);
       console.log(`  full B ≈ ${(fullBBytes / 1e9).toFixed(2)} GB  ${crossedWall ? "→ EXCEEDS the 2 GB single-ArrayBuffer wall (impossible single-tab)" : "(still fits one tab)"}`);
@@ -188,7 +187,7 @@ test.describe(`Streaming swarm scaling ladder (${N_TABS} tabs, ${BASIS})`, () =>
       console.log(`  swarm E   = ${result.energy.toFixed(8)} Ha`);
       console.log(`  oracle M·E(H2) = ${oracle.toFixed(8)} Ha   |Δ| = ${dOracle.toExponential(2)} (E(H2)=${result.eH2.toFixed(8)})`);
       console.log(`══════════════════════════════════════════════════════════\n`);
-      /* eslint-enable no-console */
+       
 
       // Commit a traceable, env-stamped artifact for this rung (energy is
       // deterministic; failures are emitted too, per research-grade discipline).

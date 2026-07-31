@@ -71,17 +71,15 @@ test.describe("JK_DF worker-count sweep", () => {
 
     if (r.skipped) { test.skip(); return; }
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Worker-count sweep — benzene cc-pVDZ (n=${r.n}, n_aux=${r.nAux})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`workers | median ms | trials`);
     console.log(`--------+-----------+----------------------`);
-    for (const row of r.results) {
-      console.log(`${String(row.N).padStart(7)} | ${row.medianMs.toFixed(0).padStart(9)} | [${row.trialsMs.map((x) => x.toFixed(0)).join(", ")}]`);
+    for (const row of r.results) { console.log(`${String(row.N).padStart(7)} | ${row.medianMs.toFixed(0).padStart(9)} | [${row.trialsMs.map((x) => x.toFixed(0)).join(", ")}]`);
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.results.length).toBeGreaterThan(0);
   });

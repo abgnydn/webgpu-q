@@ -133,8 +133,7 @@ test.describe("Federated CCSD(T) — wall-clock speedup vs single machine", () =
       log(`speedup = ${spd.toFixed(2)}x   (E_single=${eSingle.toFixed(8)}  E_dist=${eDist.toFixed(8)})`);
       return { eSingle, eDist, singleMed: full, distMed: med(distT), speedup: spd, singleT, distT, S, C };
     }, { mol: MOL, nSlices: N_SLICES, warmup: WARMUP, trials: TRIALS });
-
-    console.log(`\n[swarm-ccsdt-speedup] single ${Math.round(out.singleMed)}ms, dist ${Math.round(out.distMed)}ms, ` +
+console.log(`\n[swarm-ccsdt-speedup] single ${Math.round(out.singleMed)}ms, dist ${Math.round(out.distMed)}ms, ` +
       `speedup ${out.speedup.toFixed(2)}x (S≈${Math.round(out.S)}ms C≈${Math.round(out.C)}ms)\n`);
 
     // Correctness is the hard gate; speedup is a measurement, not a pass/fail.

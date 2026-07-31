@@ -26,7 +26,7 @@ test.describe("WebGPU 3-index build — measure the win", () => {
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const r = await page.evaluate(async (atoms) => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[bench] ${s}`); };
+      const log = (s: string): void => { console.log(`[bench] ${s}`); };
       const [
         { moleculeToShellsNuclei }, { computeMolecularIntegrals }, { runRHFSCF },
         { generateAutoAux, buildV3idxCPU, buildBFromV }, { buildV3idxGPU },
@@ -62,8 +62,7 @@ test.describe("WebGPU 3-index build — measure the win", () => {
       log(`H2O: WASM-V HF ${eWASM.toFixed(8)}, GPU-V HF ${eGPU.toFixed(8)}, |ΔE|=${Math.abs(eGPU - eWASM).toExponential(2)}`);
       return { n: shells.length, nAux: aux.length, wasmMs, gpuMs, dE: Math.abs(eGPU - eWASM) };
     }, H2O);
-
-    console.log(`\n[bench H2O] ${JSON.stringify(r)}\n`);
+console.log(`\n[bench H2O] ${JSON.stringify(r)}\n`);
     expect(r.dE).toBeLessThan(1e-3); // GPU vs WASM integrals → same HF energy within f32
   });
 
@@ -74,7 +73,7 @@ test.describe("WebGPU 3-index build — measure the win", () => {
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const r = await page.evaluate(async (atoms) => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[bench] ${s}`); };
+      const log = (s: string): void => { console.log(`[bench] ${s}`); };
       const [
         { moleculeToShellsNuclei }, { computeMolecularIntegrals }, { runRHFSCF },
         { generateAutoAux, buildV3idxCPU, buildBFromV }, { buildV3idxGPU },
@@ -107,8 +106,7 @@ test.describe("WebGPU 3-index build — measure the win", () => {
       log(`benzene: WASM-V HF ${eWASM.toFixed(8)}, GPU-V HF ${eGPU.toFixed(8)}, |ΔE|=${Math.abs(eGPU - eWASM).toExponential(2)}`);
       return { n: shells.length, nAux: aux.length, wasmMs, gpuMs, dE: Math.abs(eGPU - eWASM) };
     }, BENZENE);
-
-    console.log(`\n[bench benzene] ${JSON.stringify(r)}\n`);
+console.log(`\n[bench benzene] ${JSON.stringify(r)}\n`);
     expect(r.dE).toBeLessThan(1e-3); // GPU vs WASM integrals → same HF energy within f32
   });
 });

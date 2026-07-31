@@ -5,11 +5,10 @@ test.describe("Molecule SI report page", () => {
     page.on("console", (msg) => {
       const text = msg.text();
       if (text.startsWith("{")) return;
-      // eslint-disable-next-line no-console
-      console.log(`[browser:${msg.type()}] ${text}`);
+       console.log(`[browser:${msg.type()}] ${text}`);
     });
     page.on("pageerror", (err) => {
-      // eslint-disable-next-line no-console
+       
       console.error(`[browser:pageerror] ${err.message}`);
     });
 

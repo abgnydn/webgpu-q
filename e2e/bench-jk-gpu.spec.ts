@@ -95,8 +95,7 @@ test.describe("WGSL JK build (WebGPU)", () => {
       };
     });
 
-    if (r.skipped) {
-      console.log(`(skipped: ${r.reason})`);
+    if (r.skipped) { console.log(`(skipped: ${r.reason})`);
       test.skip();
       return;
     }
@@ -106,8 +105,7 @@ test.describe("WGSL JK build (WebGPU)", () => {
       return s[Math.floor(s.length / 2)]!;
     };
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`JK build per-iter wall — ethane cc-pVDZ (n=${r.n}), 5 trials`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`WASM JK (par=8): median ${median(r.wasmMs).toFixed(2).padStart(7)} ms   trials [${r.wasmMs.map((x) => x.toFixed(1)).join(", ")}] ms`);
@@ -116,7 +114,7 @@ test.describe("WGSL JK build (WebGPU)", () => {
     console.log(`max |G_WASM - G_GPU|: ${r.maxAbs.toExponential(2)} Ha   (f32 precision: expect ~1e-5 abs)`);
     console.log(`max relative error:   ${r.maxRel.toExponential(2)}    (expect ~1e-6 from f32)`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.maxAbs).toBeLessThan(0.01);  // 10 mHa is generous for f32
   });
@@ -216,8 +214,7 @@ test.describe("WGSL JK build (WebGPU)", () => {
       };
     });
 
-    if (r.skipped) {
-      console.log(`(skipped: ${r.reason})`);
+    if (r.skipped) { console.log(`(skipped: ${r.reason})`);
       test.skip();
       return;
     }
@@ -227,8 +224,7 @@ test.describe("WGSL JK build (WebGPU)", () => {
       return s[Math.floor(s.length / 2)]!;
     };
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`JK build per-iter wall — benzene cc-pVDZ (n=${r.n}), 3 trials`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`WASM JK (par=8): median ${median(r.wasmMs).toFixed(1).padStart(7)} ms   trials [${r.wasmMs.map((x) => x.toFixed(0)).join(", ")}] ms`);
@@ -237,7 +233,7 @@ test.describe("WGSL JK build (WebGPU)", () => {
     console.log(`max |G_WASM - G_GPU|: ${r.maxAbs.toExponential(2)} Ha`);
     console.log(`max relative error:   ${r.maxRel.toExponential(2)}`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.maxAbs).toBeLessThan(0.1);  // 100 mHa generous for f32 at n=120
   });
@@ -313,8 +309,7 @@ test.describe("WGSL JK build (WebGPU)", () => {
 
     if (r.skipped) { test.skip(); return; }
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Benzene cc-pVDZ HF SCF — WASM JK vs WGSL JK (n=${r.n})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`ERI build (WASM ×8 parallel):  ${(r.eriMs / 1000).toFixed(2)} s`);
@@ -328,7 +323,7 @@ test.describe("WGSL JK build (WebGPU)", () => {
     console.log(`Total cold→converged with WASM:  ${((r.eriMs + r.wasmMs) / 1000).toFixed(2)} s`);
     console.log(`Total cold→converged with WGSL:  ${((r.eriMs + r.gpuMs) / 1000).toFixed(2)} s`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
   });
 
   test("benzene cc-pVDZ — WGSL JK at LOOSE tolerance (1e-3) for fast geom-scan", async ({ page }) => {
@@ -415,8 +410,7 @@ test.describe("WGSL JK build (WebGPU)", () => {
 
     if (r.skipped) { test.skip(); return; }
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`WGSL JK convergence vs tolerance — benzene cc-pVDZ (n=${r.n})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`WGSL JK (tol=1e-3):  ${(r.loose.ms / 1000).toFixed(2).padStart(7)} s  iters=${r.loose.iter}  E=${r.loose.e.toFixed(6)}  cnv=${r.loose.cnv}`);
@@ -429,10 +423,9 @@ test.describe("WGSL JK build (WebGPU)", () => {
     console.log(`  med:   ${(r.med.e - r.ref.e).toExponential(2)} Ha`);
     console.log(`  tight: ${(r.tight.e - r.ref.e).toExponential(2)} Ha`);
     console.log();
-    if (r.loose.cnv) {
-      console.log(`Speedup at tol=1e-3 (loose): ${(r.ref.ms / r.loose.ms).toFixed(2)}× vs WASM tight`);
+    if (r.loose.cnv) { console.log(`Speedup at tol=1e-3 (loose): ${(r.ref.ms / r.loose.ms).toFixed(2)}× vs WASM tight`);
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
   });
 });

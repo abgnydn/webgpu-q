@@ -16,7 +16,7 @@ test.describe("runRKSAuto — DFT with size-gated exact/DF", () => {
       await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
       const r = await page.evaluate(async (functional: string) => {
-        const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[rks] ${s}`); };
+        const log = (s: string): void => { console.log(`[rks] ${s}`); };
         const [{ moleculeToShellsNuclei }, { runRKSAuto }] = await Promise.all([
           import("/src/chemistry/atoms.ts" as string),
           import("/src/chemistry/rhf-auto.ts" as string),
@@ -41,8 +41,7 @@ test.describe("runRKSAuto — DFT with size-gated exact/DF", () => {
           conv: exact.rks.converged && dfW.rks.converged && dfG.rks.converged,
         };
       }, fn);
-
-      console.log(`\n[rks-auto ${fn}] ${JSON.stringify(r)}\n`);
+console.log(`\n[rks-auto ${fn}] ${JSON.stringify(r)}\n`);
       const CHEM = 1.594e-3;
       expect(r.exactM).toBe("exact-eri");
       expect(r.dfWProv).toMatchObject({ method: "density-fitting", engine: "wasm" });

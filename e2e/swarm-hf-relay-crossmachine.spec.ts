@@ -40,7 +40,7 @@ test.describe(`N=${NTOTAL} cross-machine distributed HF over a free relay`, () =
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const result = await page.evaluate(async ({ idx, ntot, room, atoms, masterId }) => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[hfN] ${s}`); };
+      const log = (s: string): void => { console.log(`[hfN] ${s}`); };
       const [
         { moleculeToShellsNuclei },
         { computeMolecularIntegrals },
@@ -147,8 +147,7 @@ test.describe(`N=${NTOTAL} cross-machine distributed HF over a free relay`, () =
       log(`N=${ntot}: distributed E = ${swEnergy.toFixed(8)}, |ΔE| = ${dE.toExponential(2)}, ${iters} iters, ${(scfMs / 1000).toFixed(1)}s, per-machine ${sliceMB.toFixed(2)} MB`);
       return { ok: dE < 1e-7, stage: "scf", N: ntot, refEnergy: ref, swEnergy, deltaE: dE, iters, scfMs, sliceMB: Number(sliceMB.toFixed(2)), fullMB: Number(fullMB.toFixed(1)) };
     }, { idx: IDX, ntot: NTOTAL, room: ROOM, atoms: BENZENE, masterId: ID(0) });
-
-    console.log(`\n[hfN-relay node ${IDX}/${NTOTAL}] result:`, JSON.stringify(result), "\n");
+console.log(`\n[hfN-relay node ${IDX}/${NTOTAL}] result:`, JSON.stringify(result), "\n");
     expect(result.ok, `stage=${result.stage} ${result.error ?? ""}`).toBe(true);
   });
 });

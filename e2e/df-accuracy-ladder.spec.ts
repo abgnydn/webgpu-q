@@ -43,7 +43,7 @@ test.describe("DF accuracy ladder — DF stays chemistry-grade as size grows", (
       await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
       const r = await page.evaluate(async (mol) => {
-        const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[lad] ${s}`); };
+        const log = (s: string): void => { console.log(`[lad] ${s}`); };
         const [{ moleculeToShellsNuclei }, { runRHFAuto }] = await Promise.all([
           import("/src/chemistry/atoms.ts" as string),
           import("/src/chemistry/rhf-auto.ts" as string),
@@ -57,8 +57,7 @@ test.describe("DF accuracy ladder — DF stays chemistry-grade as size grows", (
         return { n: shells.length, dW, dG, gEng: dfG.provenance.engine,
           eriExact: exact.integrals.eri_AO.length, eriDF: dfW.integrals.eri_AO.length };
       }, m);
-
-      console.log(`\n[df-ladder ${m.name}] ${JSON.stringify(r)}\n`);
+console.log(`\n[df-ladder ${m.name}] ${JSON.stringify(r)}\n`);
       const CHEM = 1.594e-3;
       expect(r.eriExact).toBeGreaterThan(0);   // exact really built the 4-index ERI
       expect(r.eriDF).toBe(0);                  // DF really skipped it
