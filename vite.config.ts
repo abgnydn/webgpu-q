@@ -8,7 +8,12 @@ function gitSha(): string {
     // A clean SHA on a dirty tree is a provenance lie: every artifact produced by
     // a locally-modified build would claim to come from an unmodified commit that
     // anyone else checking out that SHA cannot reproduce. Mark it.
-    const dirty = execSync("git status --porcelain", { encoding: "utf-8" }).trim() !== "";
+    //
+    // --untracked-files=no matches `git describe --dirty` semantics: only TRACKED
+    // modifications make a build unreproducible. An untracked scratch file changes
+    // no input to the build, and counting it produced false "-dirty" stamps on
+    // otherwise-clean production builds.
+    const dirty = execSync("git status --porcelain --untracked-files=no", { encoding: "utf-8" }).trim() !== "";
     return dirty ? `${sha}-dirty` : sha;
   } catch {
     return "dev-unknown";
