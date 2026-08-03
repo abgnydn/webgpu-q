@@ -12,22 +12,31 @@
 //   Spin-polarized energy decomposition:
 //     E = Σ_σ Σ D_σ h + ½ Σ D_total J(D_total)
 //       + E_xc[ρ_α, ρ_β, γ_αα, γ_αβ, γ_ββ]
-//       − ¼ hfMix [Σ D_α K(D_α) + Σ D_β K(D_β)] + V_nn
+//       − ½ hfMix [Σ D_α K(D_α) + Σ D_β K(D_β)] + V_nn
 //
 //   Per-spin Fock:
-//     F_σ = h + J(D_total) + V_xc^σ  − ½ hfMix · K(D_σ)
+//     F_σ = h + J(D_total) + V_xc^σ  − hfMix · K(D_σ)
+//
+//   NOTE the open-shell convention: there is NO extra ½ on the Fock K term and
+//   the energy carries ½, not ¼. The closed-shell RKS expressions have the extra
+//   halves because D_RKS = 2·D_α. This header previously published the RKS
+//   factors, i.e. both terms a factor of 2 off the code below (see the Fock
+//   assembly and `Ehfx = -0.5 * hfMix * (EkA + EkB)`), which is exactly the
+//   spec a re-implementer would copy.
 //
 // For closed-shell input (n_α = n_β, no symmetry breaking) the UKS
 // converged density and energy collapse to RKS to numerical precision
 // — same "open-shell-as-closed-shell" sanity check that uhf-scf.ts
 // uses against rhf-scf.
 //
-// Scope (this stage):
-//   - LDA-SVWN5 only. GGA (BVWN5/BLYP/B3VWN5/B3LYP5) needs a
-//     spin-polarized buildVxcGGA helper (per-spin v_γαα + cross-spin
-//     v_γαβ terms with both ∇ρ_α and ∇ρ_β); follow-up.
-//   - Hybrid functionals would also need spin-resolved K builds; the
-//     scaffolding is here but only LDA (hfMix=0) is wired.
+// Scope:
+//   - Full spin-polarized ladder is wired and tested: lda-svwn, bvwn5, blyp,
+//     b3vwn5, b3lyp5 (see the hasSpinPolarizedForm guard below, and
+//     tests/chemistry/uks-scf.test.ts which runs b3lyp5 and blyp through it).
+//     GGA uses the spin-polarized v_γαα / cross-spin v_γαβ path in
+//     functional-spin.ts; hybrids use spin-resolved K builds with hfMix > 0.
+//     This block previously said "LDA-SVWN5 only ... only LDA (hfMix=0) is
+//     wired", which understated the module by four functionals.
 //   - DIIS on stacked (α + β) error vector — same pattern as uhf-scf.
 //   - Optional virtual-orbital level shift on per-spin Fock.
 //   - Symmetry-breaking perturbation on initial α-Fock (default
@@ -77,7 +86,8 @@ export interface UKSResult {
 }
 
 export interface UKSOpts {
-  /** XC functional. Only "lda-svwn" supported in this stage. */
+  /** XC functional. Any with a spin-polarized form: lda-svwn, bvwn5, blyp,
+   *  b3vwn5, b3lyp5. Others are refused explicitly by runUKSDFT. */
   readonly functional?: FunctionalKind;
   readonly maxIter?: number;
   readonly energyTol?: number;

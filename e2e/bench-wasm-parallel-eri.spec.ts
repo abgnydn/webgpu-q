@@ -96,14 +96,12 @@ test.describe("WASM × Workers ERI compound", () => {
       };
     });
 
-    if (r.skipped) {
-      console.log(`(skipped: ${r.reason})`);
+    if (r.skipped) { console.log(`(skipped: ${r.reason})`);
       test.skip();
       return;
     }
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Ethane cc-pVDZ ERI build — TS vs WASM vs WASM+parallel`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Molecule:  ethane cc-pVDZ, n=${r.n} basis functions`);
@@ -116,7 +114,7 @@ test.describe("WASM × Workers ERI compound", () => {
       console.log(`C. WASM × parallel=${c.N}:  ${c.ms.toFixed(0).padStart(7)} ms   → ${vsA.toFixed(2)}× vs A, ${vsB.toFixed(2)}× vs B   max|Δ|=${c.maxDelta.toExponential(2)}`);
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.maxDeltaWasm).toBeLessThan(1e-10);
     for (const c of r.wasmParResults) {
@@ -187,24 +185,21 @@ test.describe("WASM × Workers ERI compound", () => {
       };
     });
 
-    if (r.skipped) {
-      console.log(`(skipped: ${r.reason})`);
+    if (r.skipped) { console.log(`(skipped: ${r.reason})`);
       test.skip();
       return;
     }
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Benzene cc-pVDZ ERI build — WASM single vs WASM+parallel`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Molecule:  benzene cc-pVDZ, n=${r.n} basis functions`);
     console.log();
     console.log(`B. WASM single-thread:   ${(r.wasmMs / 1000).toFixed(1).padStart(7)} s`);
-    for (const c of r.parResults) {
-      console.log(`C. WASM × parallel=${c.N}:    ${(c.ms / 1000).toFixed(1).padStart(7)} s   → ${(r.wasmMs / c.ms).toFixed(2)}× vs B   max|Δ|=${c.maxDelta.toExponential(2)}`);
+    for (const c of r.parResults) { console.log(`C. WASM × parallel=${c.N}:    ${(c.ms / 1000).toFixed(1).padStart(7)} s   → ${(r.wasmMs / c.ms).toFixed(2)}× vs B   max|Δ|=${c.maxDelta.toExponential(2)}`);
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     for (const c of r.parResults) {
       expect(c.maxDelta).toBeLessThan(1e-10);

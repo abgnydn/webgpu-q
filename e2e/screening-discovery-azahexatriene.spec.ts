@@ -86,8 +86,7 @@ test.describe("screening discovery — aza-hexatriene chromophore (blind rank)",
       log(`winner: ${rows[0]!.name} (${rows[0]!.gapEv.toFixed(2)} eV); spread ${(rows[rows.length - 1]!.gapEv - rows[0]!.gapEv).toFixed(2)} eV`);
       return rows;
     }, LIBRARY);
-
-    console.log(`\n[screening-discovery] winner ${result[0]!.name} ${result[0]!.gapEv.toFixed(2)} eV\n`);
+console.log(`\n[screening-discovery] winner ${result[0]!.name} ${result[0]!.gapEv.toFixed(2)} eV\n`);
 
     // Discovery bars = sanity only (the rank IS the result, not a known answer):
     expect(result.every((r) => r.conv)).toBe(true);

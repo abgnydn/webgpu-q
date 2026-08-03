@@ -35,13 +35,16 @@ abstract: >-
   API. Methods include RHF/UHF/DFT/MP2/CCSD/UCCSD/CCSD(T), Cholesky
   density fitting (DF-HF, DF-MP2), and EE/IP/EA-EOM-CCSD for excited
   states / ionization / electron attachment. CCSD(T) on H2O cc-pVDZ
-  is accelerated 39.3× via a WGSL compute kernel. The Stanton-Bartlett
-  σ-equation implementation of EOM-CCSD is validated against
-  brute-force projection of H̄ = e^(-T̂) H e^(T̂) in the full Fock
-  space on H2 STO-3G to 10⁻⁵ Ha. Many-body sector covers GPU
-  statevector simulation (F ≥ 0.999999 vs CPU), MPS / DMRG with
-  Lanczos and MPO (N = 128 TFIM/Heisenberg in browser), and kernel
-  fusion (4.18× headline). A browser-tab swarm partitions the
+  is accelerated 13.8× (median of 20 trials after 5 warmup; 28.4× best,
+  10.1× worst, std/median 42% — noisy) via a WGSL compute kernel,
+  measured against this project's own single-threaded CPU TypeScript.
+  The EOM-CCSD σ-equations are ports of PySCF's eom_gccsd matvecs,
+  validated against brute-force projection of H̄ = e^(-T̂) H e^(T̂) in
+  the full Fock space: EE and IP agree element-wise to < 1e-10 Ha and
+  EA to < 5e-13 Ha on multi-electron LiH (T̂² ≠ 0). Many-body sector
+  covers GPU statevector simulation (F ≥ 0.999999 vs CPU), MPS / DMRG
+  with Lanczos and MPO (N = 128 TFIM/Heisenberg in browser), and kernel
+  fusion (4.22× headline, Tier C 8×8 cascade). A browser-tab swarm partitions the
   density-fitted Fock build by auxiliary index across N same-origin
   tabs (BroadcastChannel + SharedArrayBuffer), reproducing the
   single-tab build to ~1e-15 and scaling Hartree-Fock to C60

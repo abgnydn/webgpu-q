@@ -2,11 +2,28 @@
 // Verifies the swarmMap claim/assign/result protocol routes correctly
 // between a "master" peer and a "worker" peer in the same process.
 
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 import type {
   SwarmTransport, SwarmMessage, SwarmListener, PeerId,
 } from "../../src/parallel/swarm/transport.js";
 import { attachSwarmRuntime, swarmMap } from "../../src/parallel/swarm/swarm-map.js";
+
+// KernelRegistry.dispose() stops a 1 s hello-broadcast interval and closes the
+// transport; its own docstring says "always call this". No test did, so every
+// attachSwarmRuntime here leaked a live timer for the whole run — which is also
+// why vitest.config.ts's "no stray async handlers" justification for
+// dangerouslyIgnoreUnhandledErrors was not actually true. Track and dispose.
+const liveRuntimes: { dispose(): void }[] = [];
+function attachTracked(transport: Parameters<typeof attachSwarmRuntime>[0]) {
+  const reg = attachSwarmRuntime(transport);
+  liveRuntimes.push(reg);
+  return reg;
+}
+afterEach(() => {
+  while (liveRuntimes.length > 0) {
+    try { liveRuntimes.pop()!.dispose(); } catch { /* already closed */ }
+  }
+});
 
 class FakeBus {
   private readonly tabs: { id: PeerId; listeners: Set<SwarmListener> }[] = [];
@@ -47,8 +64,8 @@ describe("Swarm — in-process protocol round-trip", () => {
     // and tile claim timeout — we don't need them for this test.
     // (jsdom env provides these by default; just rely on it.)
 
-    const mReg = attachSwarmRuntime(master);
-    const wReg = attachSwarmRuntime(worker);
+    const mReg = attachTracked(master);
+    const wReg = attachTracked(worker);
 
     mReg.registerKernel<number, number>("square", (t) => t * t);
     wReg.registerKernel<number, number>("square", (t) => t * t);
@@ -66,7 +83,7 @@ describe("Swarm — in-process protocol round-trip", () => {
   test("swarmMap with no peers runs all tiles locally on master", async () => {
     const bus = new FakeBus();
     const master = bus.newTransport("solo");
-    const mReg = attachSwarmRuntime(master);
+    const mReg = attachTracked(master);
     mReg.registerKernel<number, number>("cube", (t) => t * t * t);
 
     const results = await swarmMap<number, number>(mReg, "cube", [2, 3, 4], {
@@ -80,9 +97,9 @@ describe("Swarm — in-process protocol round-trip", () => {
     const m = bus.newTransport("m");
     const w1 = bus.newTransport("w1");
     const w2 = bus.newTransport("w2");
-    const mReg = attachSwarmRuntime(m);
-    const w1Reg = attachSwarmRuntime(w1);
-    const w2Reg = attachSwarmRuntime(w2);
+    const mReg = attachTracked(m);
+    const w1Reg = attachTracked(w1);
+    const w2Reg = attachTracked(w2);
     const workers = { m: 0, w1: 0, w2: 0 };
     mReg.registerKernel<number, number>("id", (t) => { workers.m++; return t; });
     w1Reg.registerKernel<number, number>("id", (t) => { workers.w1++; return t; });
@@ -107,8 +124,8 @@ describe("Swarm — in-process protocol round-trip", () => {
     const bus = new FakeBus();
     const m = bus.newTransport("m");
     const flaky = bus.newTransport("flaky");
-    const mReg = attachSwarmRuntime(m);
-    const fReg = attachSwarmRuntime(flaky);
+    const mReg = attachTracked(m);
+    const fReg = attachTracked(flaky);
 
     // Master kernel: succeeds.
     mReg.registerKernel<number, number>("k", (t) => t + 100);
@@ -127,7 +144,7 @@ describe("Swarm — in-process protocol round-trip", () => {
   test("swarmMap with 0 tiles resolves immediately to []", async () => {
     const bus = new FakeBus();
     const m = bus.newTransport("solo");
-    const mReg = attachSwarmRuntime(m);
+    const mReg = attachTracked(m);
     mReg.registerKernel<number, number>("noop", (t) => t);
     const results = await swarmMap<number, number>(mReg, "noop", [], { claimTimeoutMs: 10 });
     expect(results).toEqual([]);
@@ -137,8 +154,8 @@ describe("Swarm — in-process protocol round-trip", () => {
     const bus = new FakeBus();
     const m = bus.newTransport("m");
     const useless = bus.newTransport("useless");
-    const mReg = attachSwarmRuntime(m);
-    const uReg = attachSwarmRuntime(useless);
+    const mReg = attachTracked(m);
+    const uReg = attachTracked(useless);
     mReg.registerKernel<number, number>("k", (t) => t * 10);
     uReg.registerKernel<number, number>("OTHER", (t) => t * -1);
     await new Promise((r) => setTimeout(r, 60));
@@ -153,8 +170,8 @@ describe("Swarm — in-process protocol round-trip", () => {
     const bus = new FakeBus();
     const m = bus.newTransport("m");
     const w = bus.newTransport("w");
-    const mReg = attachSwarmRuntime(m);
-    const wReg = attachSwarmRuntime(w);
+    const mReg = attachTracked(m);
+    const wReg = attachTracked(w);
     const seenSpecs: unknown[] = [];
     mReg.registerKernel<number, number>("withSpec", (t, spec) => {
       seenSpecs.push(spec);
@@ -179,8 +196,8 @@ describe("Swarm — in-process protocol round-trip", () => {
     const bus = new FakeBus();
     const m = bus.newTransport("m");
     const w = bus.newTransport("w");
-    const mReg = attachSwarmRuntime(m);
-    const wReg = attachSwarmRuntime(w);
+    const mReg = attachTracked(m);
+    const wReg = attachTracked(w);
     mReg.registerKernel<number, number>("doubler", (t) => t * 2);
     wReg.registerKernel<number, number>("doubler", (t) => t * 2);
     mReg.registerKernel<number, string>("stringer", (t) => `n${t}`);
@@ -200,9 +217,9 @@ describe("Swarm — in-process protocol round-trip", () => {
     const m = bus.newTransport("m");
     const a = bus.newTransport("a");
     const b = bus.newTransport("b");
-    const mReg = attachSwarmRuntime(m);
-    attachSwarmRuntime(a);
-    attachSwarmRuntime(b);
+    const mReg = attachTracked(m);
+    attachTracked(a);
+    attachTracked(b);
     // Initially knownPeers() may be empty — wait one hello tick.
     await new Promise((r) => setTimeout(r, 80));
     const peers = mReg.knownPeers();
@@ -215,8 +232,8 @@ describe("Swarm — in-process protocol round-trip", () => {
     const bus = new FakeBus();
     const m = bus.newTransport("m");
     const w = bus.newTransport("w");
-    const mReg = attachSwarmRuntime(m);
-    const wReg = attachSwarmRuntime(w);
+    const mReg = attachTracked(m);
+    const wReg = attachTracked(w);
     mReg.registerKernel<number, number>("k", (t) => t);
     wReg.registerKernel<number, number>("k", (t) => t);
     await new Promise((r) => setTimeout(r, 60));

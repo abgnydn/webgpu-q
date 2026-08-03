@@ -144,8 +144,7 @@ test.describe("Distributed DF-MP2 — wall-clock speedup vs single machine", () 
       function med(xs: number[]): number { const s = [...xs].sort((p, q) => p - q); return s[Math.floor(s.length / 2)]!; }
       return { eSingle, eDist, singleMed: full, distMed: med(distT), speedup: spd, singleT, distT, S, C };
     }, { mol: MOL, nSlices: N_SLICES, warmup: WARMUP, trials: TRIALS });
-
-    console.log(`\n[swarm-mp2-speedup] single ${Math.round(out.singleMed)}ms, dist ${Math.round(out.distMed)}ms, speedup ${out.speedup.toFixed(2)}x\n`);
+console.log(`\n[swarm-mp2-speedup] single ${Math.round(out.singleMed)}ms, dist ${Math.round(out.distMed)}ms, speedup ${out.speedup.toFixed(2)}x\n`);
 
     // Correctness is the hard gate; speedup is a measurement, not a pass/fail.
     expect(Math.abs(out.eSingle - out.eDist)).toBeLessThan(1e-9);

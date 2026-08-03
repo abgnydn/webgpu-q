@@ -14,7 +14,7 @@ test.describe("runUHFAuto — open-shell UHF with size-gated exact/DF", () => {
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const r = await page.evaluate(async () => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[uhf] ${s}`); };
+      const log = (s: string): void => { console.log(`[uhf] ${s}`); };
       const [{ moleculeToShellsNuclei }, { runUHFAuto }] = await Promise.all([
         import("/src/chemistry/atoms.ts" as string),
         import("/src/chemistry/rhf-auto.ts" as string),
@@ -40,8 +40,7 @@ test.describe("runUHFAuto — open-shell UHF with size-gated exact/DF", () => {
         s2: exact.uhf.s2, energy: exact.uhf.energy,
       };
     });
-
-    console.log(`\n[uhf-auto] ${JSON.stringify(r)}\n`);
+console.log(`\n[uhf-auto] ${JSON.stringify(r)}\n`);
     const CHEM = 1.594e-3;
     expect(r.exactProv.method).toBe("exact-eri");
     expect(r.dfWProv).toMatchObject({ method: "density-fitting", engine: "wasm", precision: "f64" });
@@ -65,7 +64,7 @@ test.describe("runUHFAuto — open-shell UHF with size-gated exact/DF", () => {
       await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
       const r = await page.evaluate(async (functional: string) => {
-        const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[uks] ${s}`); };
+        const log = (s: string): void => { console.log(`[uks] ${s}`); };
         const [{ moleculeToShellsNuclei }, { runUKSAuto }] = await Promise.all([
           import("/src/chemistry/atoms.ts" as string),
           import("/src/chemistry/rhf-auto.ts" as string),
@@ -88,8 +87,7 @@ test.describe("runUHFAuto — open-shell UHF with size-gated exact/DF", () => {
           conv: exact.uks.converged && dfW.uks.converged && dfG.uks.converged,
         };
       }, fn);
-
-      console.log(`\n[uks-auto ${fn}] ${JSON.stringify(r)}\n`);
+console.log(`\n[uks-auto ${fn}] ${JSON.stringify(r)}\n`);
       const CHEM = 1.594e-3;
       expect(r.exactM).toBe("exact-eri");
       expect(r.dfWProv).toMatchObject({ method: "density-fitting", engine: "wasm" });

@@ -14,7 +14,7 @@
 
 <img alt="version" src="https://img.shields.io/badge/v0.12.0-0ea5e9?style=flat-square&labelColor=0b1224"/>
 <img alt="license" src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square&labelColor=0b1224"/>
-<img alt="tests" src="https://img.shields.io/badge/tests-CI%20green-22c55e?style=flat-square&labelColor=0b1224"/>
+<a href="https://github.com/abgnydn/webgpu-q/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/abgnydn/webgpu-q/actions/workflows/ci.yml/badge.svg"/></a>
 <img alt="webgpu" src="https://img.shields.io/badge/WebGPU-required-ff7849?style=flat-square&labelColor=0b1224"/>
 <a href="https://doi.org/10.5281/zenodo.20494382"><img alt="DOI" src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20494382-3b82f6?style=flat-square&labelColor=0b1224"/></a>
 
@@ -87,11 +87,13 @@
 
 All vs **PySCF 2.13.0 on identical inputs** ([E34 run](./experiments/results/2026-05-12/level-6/E34-comparison.md)); energy agreement ≤ 10⁻⁴ Ha on all 19 comparable cells (well below the 1.594 mHa chemical-accuracy bar).
 
+> **Timing caveat, stated up front:** the E34 wall-clock cells are a *single representative run with no warmup* (`warmup: 0, trials: 1`) against a 100 µs browser clock — **not** the 5-warmup/20-trial protocol used for the GPU-kernel experiments. On the fastest cells that is ~±17 % quantization before any run-to-run variance, so read these as order-of-magnitude, not precise. Direction and rough size of every win and loss survive; the decimal places do not.
+
 | | system | result |
 |---|---|---|
 | 🟢 **win** | HF · H₂ · STO-3G | **105×** faster (no Python startup) |
 | 🟢 **win** | CCSD · LiH · STO-3G | **40×** faster (small-system advantage) |
-| 🟢 **win** | CCSD(T) · H₂O · cc-pVDZ · GPU | **~14× median** vs our CPU TypeScript (39× best run; std/median ≈ 42%, *noisy* — [LIMITATIONS](./LIMITATIONS.md)) |
+| 🟢 **win** | CCSD(T) · H₂O · cc-pVDZ · GPU | **~14× median** vs our CPU TypeScript (28.4× p10 best of 20; std/median ≈ 42%, *noisy* — [LIMITATIONS](./LIMITATIONS.md)) |
 | 🔴 **loss** | CCSD · H₂O · cc-pVDZ | **480× slower** (NumPy/BLAS dominates) |
 | 🔴 **loss** | MP2 · H₂O · cc-pVDZ | **136× slower** (BLAS gap) |
 
@@ -210,10 +212,10 @@ const eom = runEOMCCSD(runCCSD(hf, integrals), integrals, hf);
 
 **Non-negotiables**
 
-- 5 warmup + 20 trials per measurement
+- 5 warmup + 20 trials per measurement **on the GPU-kernel experiments**; experiments that deviate (e.g. E34's wall-clock comparison) must say so in `meta.timingNote`
 - pass bar `F ≥ 1 − 10⁻⁵`; `std/median > 0.1` → `status: "noisy"`
 - honest negatives **committed** as JSON with a diagnosis
-- vitest + Playwright e2e · CI green · TS strict + `noUncheckedIndexedAccess`
+- vitest + typecheck + lint gated in CI; **GPU-dependent** Playwright specs are local-only (runners expose no WebGPU adapter — a swarm subset does run on PRs) · TS strict + `noUncheckedIndexedAccess`
 
 </td>
 </tr>

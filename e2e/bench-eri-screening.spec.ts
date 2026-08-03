@@ -60,8 +60,7 @@ test.describe("ERI screening — hit-rate + threshold sweep", () => {
       return { n: rows[0]!.totalUnique > 0 ? 60 : 0, rows };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n── Schwarz screening sweep — ethane cc-pVDZ ──`);
+     console.log(`\n── Schwarz screening sweep — ethane cc-pVDZ ──`);
     console.log("threshold      | unique-pairs       computed      skipped    skip%    ERI build    HF run     total      energy");
     console.log("─────────────────────────────────────────────────────────────────────────────────────────────────────────────────");
     const e0 = r.rows[1]!.energy; // 1e-10 reference
@@ -80,7 +79,7 @@ test.describe("ERI screening — hit-rate + threshold sweep", () => {
         } ms   |ΔE|=${dE} Ha`,
       );
     }
-    /* eslint-enable no-console */
+     
 
     // Energy at the 1e-6 threshold should still be within chemical accuracy.
     const e_loose = r.rows[r.rows.length - 1]!.energy;

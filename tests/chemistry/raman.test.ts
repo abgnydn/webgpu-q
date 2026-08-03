@@ -16,7 +16,12 @@ import { optimizeGeometry } from "../../src/chemistry/geometry.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
 describe("Raman activities — H₂O HF/STO-3G", () => {
-  test("All 3 H₂O modes Raman-active in a sensible range", { timeout: 120000 }, () => {
+  // Per-test timeout raised to match vitest.config.ts's global 360 s. The old
+  // value (120000 ms) was tight enough to false-red under ordinary background
+  // load — measured on an idle M2 Pro this cell takes ~35 s, but under a
+  // loaded machine it took 137 s and timed out with correct chemistry,
+  // which is exactly the landmine the global ceiling was raised to remove.
+  test("All 3 H₂O modes Raman-active in a sensible range", { timeout: 360_000 }, () => {
     const half = (104.52 / 2) * Math.PI / 180;
     const x = 0.9572 * Math.sin(half);
     const z = 0.9572 * Math.cos(half);

@@ -254,8 +254,14 @@ partitioned Fock build itself matches the single-slab build below the
 $10^{-12}$ pass bar (next paragraph).
 
 Correctness is enforced by reference-grounded gates that run in continuous
-integration on every push (alongside the end-to-end browser benchmarks driven
-through headless Chromium), not by aggregate test counts. The EOM-CCSD family
+integration on every push, not by aggregate test counts. Continuous integration
+covers the unit suite, type checking and linting; a subset of the distributed
+browser-tab specs additionally runs on pull requests that touch that subsystem,
+since those require only \texttt{BroadcastChannel} and \texttt{SharedArrayBuffer}.
+The \emph{GPU-dependent} end-to-end benchmarks driven through headless Chromium
+are run locally rather than in CI, because hosted runners expose no WebGPU
+adapter; the GPU timings reported here are therefore reproduced on the author's
+hardware and are not protected by an automated regression gate. The EOM-CCSD family
 is gated by \emph{full-tensor} brute-force diagnostics --- the complete
 $\sigma$-matrix is differenced element-by-element against an exact reference
 (e.g.\ a $14\times14$ LiH $M_{\mathrm{mine}} - M_{\mathrm{exact}}$ diff), not by
@@ -522,8 +528,13 @@ UTC ISO-8601 timestamp, and the echoed \texttt{protocol}, \texttt{hypothesis},
 \texttt{Math.random()} appears on any experiment path --- every random draw is
 a named deterministic seed. Wall-clock is measured with
 \texttt{performance.now()} bracketed by forced GPU sync (a mapped readback)
-because \texttt{queue.submit} is non-blocking; 5 warmup samples are discarded
-and 20 retained, reporting median/p10/p90/p99/std/IQR. Failing configurations
+because \texttt{queue.submit} is non-blocking. For the GPU-kernel experiments,
+5 warmup samples are discarded and 20 retained, reporting
+median/p10/p90/p99/std/IQR. Experiments that deviate from this protocol --- most
+notably the E34 wall-clock comparison against PySCF, which uses a single
+un-warmed run per cell --- disclose the deviation in \texttt{meta.timingNote},
+and their derived ratios should be read as order-of-magnitude rather than
+precise. Failing configurations
 are committed with \texttt{status:"fail"} and a diagnosis rather than silently
 rerun --- the honest-negative discipline that surfaced, for example, the acene
 multireference wall and the anthracene cc-pVDZ basin-selection issue reported in

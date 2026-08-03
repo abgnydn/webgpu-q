@@ -68,15 +68,13 @@ test.describe("aux-DF Phase 1 — kernel debug", () => {
       return { results };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`(s|s) closed-form vs kernel — single normalized 1s @ origin`);
     console.log(`══════════════════════════════════════════════════════════`);
-    for (const x of r.results) {
-      console.log(`${x.name.padEnd(8)}  computed=${x.computed.toFixed(8)}  expected=${x.expected.toFixed(8)}  rel=${x.rel.toExponential(2)}`);
+    for (const x of r.results) { console.log(`${x.name.padEnd(8)}  computed=${x.computed.toFixed(8)}  expected=${x.expected.toFixed(8)}  rel=${x.rel.toExponential(2)}`);
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     for (const x of r.results) {
       expect(x.rel).toBeLessThan(1e-10);
@@ -142,15 +140,13 @@ test.describe("aux-DF Phase 1 — kernel debug", () => {
       return { results };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`(s_a s_a | s_c) closed-form vs 3-idx kernel`);
     console.log(`══════════════════════════════════════════════════════════`);
-    for (const x of r.results) {
-      console.log(`α=${x.α}    computed=${x.computed.toFixed(8)}  expected=${x.expected.toFixed(8)}  rel=${x.rel.toExponential(2)}`);
+    for (const x of r.results) { console.log(`α=${x.α}    computed=${x.computed.toFixed(8)}  expected=${x.expected.toFixed(8)}  rel=${x.rel.toExponential(2)}`);
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     for (const x of r.results) {
       expect(x.rel).toBeLessThan(1e-10);
@@ -222,8 +218,7 @@ test.describe("aux-DF Phase 1 — kernel debug", () => {
       return { results };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`(P|Q) parity sanity at same center, α=1`);
     console.log(`══════════════════════════════════════════════════════════`);
     for (const x of r.results) {
@@ -232,7 +227,7 @@ test.describe("aux-DF Phase 1 — kernel debug", () => {
       console.log(`${x.name.padEnd(25)} ${expect.padEnd(10)} value=${x.value.toExponential(3)}  ${flag}`);
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     for (const x of r.results) {
       expect(x.correct).toBe(true);

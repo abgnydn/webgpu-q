@@ -20,11 +20,9 @@ test.describe("E35 EOM-CCSD validation", () => {
       if (!hook) throw new Error("window.__webgpuq missing");
       return await hook.runE35();
     });
-
-    console.log(`[e2e:E35] status=${artifact.status} — ${artifact.diagnosis}`);
+console.log(`[e2e:E35] status=${artifact.status} — ${artifact.diagnosis}`);
     for (const r of artifact.rows) {
-      if (!r.success) {
-        console.log(`  ✗ ${r.molecule}: ${r.notes ?? "failed"}`);
+      if (!r.success) { console.log(`  ✗ ${r.molecule}: ${r.notes ?? "failed"}`);
         continue;
       }
       const exc = r.excitations_eV.map((e: number) => e.toFixed(3)).join("  ");

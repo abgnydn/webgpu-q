@@ -55,8 +55,7 @@ test.describe("Persistent worker pool", () => {
 
     if (r.skipped) { test.skip(); return; }
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Persistent worker pool — ethane cc-pVDZ, N=${r.N} workers`);
     console.log(`══════════════════════════════════════════════════════════`);
     for (let i = 0; i < r.callMs.length; i++) {
@@ -72,7 +71,7 @@ test.describe("Persistent worker pool", () => {
     console.log(`  warm median: ${warmMedian.toFixed(0).padStart(6)} ms`);
     console.log(`  spawn cost:  ${(cold - warmMedian).toFixed(0).padStart(6)} ms`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     // First call should be at least as slow as warm; warm calls should be
     // bit-stable. Loose pass bar — just make sure we don't regress badly.

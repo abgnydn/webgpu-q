@@ -24,14 +24,12 @@ test.describe("E34 wall-clock vs PySCF", () => {
       if (!hook) throw new Error("window.__webgpuq missing");
       return await hook.runE34();
     });
-
-    console.log(`[e2e:E34] status=${artifact.status} — ${artifact.diagnosis}`);
+console.log(`[e2e:E34] status=${artifact.status} — ${artifact.diagnosis}`);
     for (const r of artifact.rows) {
       const flag = r.success ? "✓" : "✗";
       const energy = isNaN(r.energy_Ha) ? "       (skip)" : r.energy_Ha.toFixed(8);
       const notes = r.notes ? `   ${r.notes}` : "";
-      // eslint-disable-next-line no-console
-      console.log(
+       console.log(
         `  ${flag} ${r.molecule.padEnd(5)} ${r.basis.padEnd(8)} ${r.method.padEnd(14)} ` +
         `${r.seconds.toFixed(4).padStart(10)} s   E = ${energy} Ha${notes}`,
       );
@@ -46,8 +44,7 @@ test.describe("E34 wall-clock vs PySCF", () => {
     fs.mkdirSync(outDir, { recursive: true });
     const outPath = path.join(outDir, "E34-wallclock-vs-pyscf.json");
     fs.writeFileSync(outPath, JSON.stringify(artifact, null, 2));
-    // eslint-disable-next-line no-console
-    console.log(`[e2e:E34] wrote ${outPath}`);
+     console.log(`[e2e:E34] wrote ${outPath}`);
 
     // Every row either succeeded or carries an explicit notes field
     // explaining the skip — never a silent failure.

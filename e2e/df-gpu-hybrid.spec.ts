@@ -14,7 +14,7 @@ test.describe("Hybrid GPU/WASM 3-index DF build — accuracy", () => {
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const r = await page.evaluate(async () => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[hyb] ${s}`); };
+      const log = (s: string): void => { console.log(`[hyb] ${s}`); };
       const [
         { moleculeToShellsNuclei }, { computeMolecularIntegrals }, { runRHFSCF },
         { generateAutoAux, buildV3idxCPU, buildBFromV, buildAuxBasisDFStreaming }, { buildV3idxHybrid },
@@ -53,8 +53,7 @@ test.describe("Hybrid GPU/WASM 3-index DF build — accuracy", () => {
       log(`  hybrid   DF ${eH.toFixed(8)} |Δexact|=${Math.abs(eH - eExact).toExponential(2)}, V maxRel(f32 low)=${vMaxRel.toExponential(2)}`);
       return { nF, dWexact: Math.abs(eW - eExact), dHexact: Math.abs(eH - eExact), dHW: Math.abs(eH - eW), vMaxRel };
     });
-
-    console.log(`\n[df-gpu-hybrid] ${JSON.stringify(r)}\n`);
+console.log(`\n[df-gpu-hybrid] ${JSON.stringify(r)}\n`);
     expect(r.nF).toBeGreaterThan(0);                 // extraL=1 really produced f-aux
     expect(r.dWexact).toBeLessThan(1.594e-3);        // pure f64 DF is chemistry-grade
     // The headline: hybrid (GPU f32 bulk + f64 f-aux) is ALSO chemistry-grade —
@@ -69,7 +68,7 @@ test.describe("Hybrid GPU/WASM 3-index DF build — accuracy", () => {
     page.on("console", (m) => { if (m.text().startsWith("[hybt]")) console.log(m.text()); });
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
     const r = await page.evaluate(async () => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[hybt] ${s}`); };
+      const log = (s: string): void => { console.log(`[hybt] ${s}`); };
       const [{ moleculeToShellsNuclei }, { generateAutoAux, buildV3idxCPU }, { buildV3idxHybrid }] = await Promise.all([
         import("/src/chemistry/atoms.ts" as string),
         import("/src/chemistry/df-aux.ts" as string),

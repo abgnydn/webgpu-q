@@ -54,7 +54,7 @@ export interface ChemEnergyResult {
   /** How THIS worker produced the number — the swarm is heterogeneous, so each
    *  tile records its own method/engine/precision (e.g. one tab exact, another
    *  gpu+wasm DF). */
-  readonly engine: "wasm" | "gpu" | "gpu+wasm";
+  readonly engine: "ts" | "wasm" | "gpu" | "gpu+wasm";
   readonly dfMethod: "exact-eri" | "density-fitting";
   /** Which SCF flavor ran this tile. */
   readonly scf: "rhf" | "uhf" | "rks" | "uks";
@@ -177,7 +177,7 @@ export interface MP2SliceResult {
   readonly nOccupied: number;
   readonly nBasisFunctions: number;
   readonly durationMs: number;
-  readonly engine: "wasm" | "gpu" | "gpu+wasm";
+  readonly engine: "ts" | "wasm" | "gpu" | "gpu+wasm";
 }
 
 export const MP2_SLICE_KIND = "mp2-slice" as const;

@@ -27,7 +27,7 @@ import { runRHFSCFAsync, type HFResult, type HFOpts } from "./hf-scf.js";
 import { runUHFSCF, type UHFResult, type UHFOpts } from "./uhf-scf.js";
 import { generateAutoAux, buildAuxBasisDFStreaming } from "./df-aux.js";
 import { buildHybridDFStreaming } from "./df-gpu.js";
-import { type DFResult } from "./df.js";
+import { type DFResult, preloadWasmJK } from "./df.js";
 import { runRKSDFT, type RKSResult, type RKSOpts } from "./dft/rks-scf.js";
 import { runUKSDFT, type UKSResult, type UKSOpts } from "./dft/uks-scf.js";
 import { runMP2, mp2EnergyDF } from "./mp2.js";
@@ -51,7 +51,12 @@ export interface RHFAutoOpts {
 /** How the energy was actually produced — record this in any artifact. */
 export interface RHFAutoProvenance {
   readonly method: "exact-eri" | "density-fitting";
-  readonly engine: "wasm" | "gpu" | "gpu+wasm";
+  /** "ts" is a real, distinct answer, not a synonym for "wasm": on the exact-ERI
+   *  path the dominant O(n⁴) integral build (`computeMolecularIntegrals`) is pure
+   *  TypeScript with no WASM call anywhere, and only the SCF's buildG is
+   *  optionally WASM/worker-accelerated. Labelling that path "wasm" asserted an
+   *  engine that never ran — and this string is surfaced to users. */
+  readonly engine: "ts" | "wasm" | "gpu" | "gpu+wasm";
   readonly precision: "f64" | "f32" | "mixed";
   /** Number of auxiliary functions (DF only; 0 for exact). */
   readonly nAux: number;
@@ -92,7 +97,7 @@ export async function runRHFAuto(
     const hf = await runRHFSCFAsync(integrals, nElectrons, hfOpts);
     return {
       hf, integrals,
-      provenance: { method: "exact-eri", engine: "wasm", precision: "f64", nAux: 0,
+      provenance: { method: "exact-eri", engine: "ts", precision: "f64", nAux: 0,
         expectedError: "exact (no integral approximation)" },
     };
   }
@@ -150,6 +155,11 @@ async function buildDFForRegime(
   }
 
   // RECOMMENDED DEFAULT: f64 WASM aux-basis (standard RI-JK), B reused in the SCF.
+  // preloadWasmJK() is what actually unlocks the native f64 JK kernel inside
+  // buildJK_DF; nothing in src/ ever called it, so every shipped DF-SCF ran the
+  // TypeScript fallback while provenance advertised engine "wasm". Best-effort:
+  // if the module will not load, buildJK_DF still works via the TS path.
+  await preloadWasmJK().catch(() => { /* TS fallback inside buildJK_DF */ });
   const df = await buildAuxBasisDFStreaming(shells, aux);
   return {
     df,
@@ -200,7 +210,7 @@ export async function runRKSAuto(
     const rks = runRKSDFT(integrals, nElectrons, symbols, rksOpts);
     return {
       rks, integrals,
-      provenance: { method: "exact-eri", engine: "wasm", precision: "f64", nAux: 0,
+      provenance: { method: "exact-eri", engine: "ts", precision: "f64", nAux: 0,
         expectedError: "exact ERI J/K (XC on grid); no integral approximation" },
     };
   }
@@ -250,7 +260,7 @@ export async function runUHFAuto(
     const uhf = runUHFSCF(integrals, nAlpha, nBeta, uhfOpts);
     return {
       uhf, integrals,
-      provenance: { method: "exact-eri", engine: "wasm", precision: "f64", nAux: 0,
+      provenance: { method: "exact-eri", engine: "ts", precision: "f64", nAux: 0,
         expectedError: "exact (no integral approximation)" },
     };
   }
@@ -302,7 +312,7 @@ export async function runUKSAuto(
     const uks = runUKSDFT(integrals, nAlpha, nBeta, symbols, uksOpts);
     return {
       uks, integrals,
-      provenance: { method: "exact-eri", engine: "wasm", precision: "f64", nAux: 0,
+      provenance: { method: "exact-eri", engine: "ts", precision: "f64", nAux: 0,
         expectedError: "exact ERI J/K (XC on grid); no integral approximation" },
     };
   }
@@ -362,7 +372,7 @@ export async function runMP2Auto(
     return {
       hfEnergy: hf.energy, correlationEnergy: mp2.correlationEnergy, totalEnergy: mp2.totalEnergy,
       nOccupied: hf.nOccupied, integrals,
-      provenance: { method: "exact-eri", engine: "wasm", precision: "f64", nAux: 0,
+      provenance: { method: "exact-eri", engine: "ts", precision: "f64", nAux: 0,
         expectedError: "exact MP2 (no integral approximation)" },
     };
   }
@@ -387,7 +397,10 @@ export interface UMP2AutoOpts {
   readonly fast?: boolean;
   /** Force a path regardless of size: "exact" | "df". Default: auto by size. */
   readonly force?: "exact" | "df";
-  /** Frozen-core spatial orbitals excluded per spin. Default 0. */
+  /** Frozen-core spatial orbitals excluded per spin. Default 0.
+   *  DF path only — the exact-ERI path throws if this is > 0, because `runUMP2`
+   *  is all-electron and honouring it silently on one path but not the other
+   *  made the method depend on which side of `exactMaxN` the molecule landed. */
   readonly nFrozenCore?: number;
   /** UHF SCF controls passed through. */
   readonly uhf?: UHFOpts;
@@ -420,13 +433,24 @@ export async function runUMP2Auto(
   const uhfOpts: UHFOpts = { useDIIS: true, energyTol: 1e-9, densityTol: 1e-7, maxIter: 200, ...opts.uhf };
 
   if (!useDF) {
+    // runUMP2 has no frozen-core parameter, while the DF branch below honours
+    // nFrozen via mp2EnergyUDF. Silently ignoring it here meant the SAME molecule
+    // returned frozen-core UMP2 above exactMaxN and all-electron UMP2 below it,
+    // with identical provenance. Refuse rather than return the wrong method.
+    if (nFrozen > 0) {
+      throw new Error(
+        `runUMP2Auto: nFrozenCore=${nFrozen} is not supported on the exact-ERI path ` +
+        `(runUMP2 is all-electron). Force the DF path with { force: "df" }, or drop ` +
+        `nFrozenCore to get all-electron UMP2.`,
+      );
+    }
     const integrals = computeMolecularIntegrals(shells, nuclei);
     const uhf = runUHFSCF(integrals, nAlpha, nBeta, uhfOpts);
     const mp2 = runUMP2(uhf, integrals);
     return {
       uhfEnergy: uhf.energy, correlationEnergy: mp2.correlationEnergy, totalEnergy: mp2.totalEnergy,
       integrals,
-      provenance: { method: "exact-eri", engine: "wasm", precision: "f64", nAux: 0,
+      provenance: { method: "exact-eri", engine: "ts", precision: "f64", nAux: 0,
         expectedError: "exact UMP2 (no integral approximation)" },
     };
   }

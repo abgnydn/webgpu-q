@@ -38,8 +38,7 @@ test.describe("Distributed JK_DF across tabs via BroadcastChannel", () => {
       ]);
       await preloadWasmJK();
       const ch = new BroadcastChannel("swarm-jk-test");
-      // eslint-disable-next-line no-console
-      console.log("[w] ready, listening on swarm-jk-test");
+       console.log("[w] ready, listening on swarm-jk-test");
 
       const w = window as unknown as { __swarmJK: { n: number; nAuxLocal: number; B: Float64Array } | null };
       w.__swarmJK = null;
@@ -48,8 +47,7 @@ test.describe("Distributed JK_DF across tabs via BroadcastChannel", () => {
         const msg = ev.data as { type: string; n?: number; nAuxLocal?: number; B?: Float64Array; D?: Float64Array };
         if (msg.type === "B-slice" && msg.B && typeof msg.n === "number" && typeof msg.nAuxLocal === "number") {
           w.__swarmJK = { n: msg.n, nAuxLocal: msg.nAuxLocal, B: msg.B };
-          // eslint-disable-next-line no-console
-          console.log(`[w] received B-slice: ${(msg.B.byteLength / 1e6).toFixed(1)} MB, n_aux_local=${msg.nAuxLocal}`);
+           console.log(`[w] received B-slice: ${(msg.B.byteLength / 1e6).toFixed(1)} MB, n_aux_local=${msg.nAuxLocal}`);
           ch.postMessage({ type: "B-slice-ack" });
         } else if (msg.type === "jk" && msg.D && w.__swarmJK) {
           const { n, nAuxLocal, B } = w.__swarmJK;
@@ -57,8 +55,7 @@ test.describe("Distributed JK_DF across tabs via BroadcastChannel", () => {
           const t0 = performance.now();
           const { J, K } = buildJK_DF(localDF, msg.D);
           const durMs = performance.now() - t0;
-          // eslint-disable-next-line no-console
-          console.log(`[w] JK partial computed in ${durMs.toFixed(1)} ms`);
+           console.log(`[w] JK partial computed in ${durMs.toFixed(1)} ms`);
           ch.postMessage({ type: "jk-partial", J, K, durMs });
         }
       });
@@ -109,8 +106,7 @@ test.describe("Distributed JK_DF across tabs via BroadcastChannel", () => {
       // Reference: full JK on the full B.
       const ref = buildJK_DF(df, D);
 
-      // eslint-disable-next-line no-console
-      console.log(`[m] benzene n=${n}, n_aux=${nAux}, B size=${(B.byteLength / 1e6).toFixed(1)} MB`);
+       console.log(`[m] benzene n=${n}, n_aux=${nAux}, B size=${(B.byteLength / 1e6).toFixed(1)} MB`);
 
       // Partition by P: master takes [0..nAux/2), worker takes [nAux/2..nAux).
       const pMid = Math.floor(nAux / 2);
@@ -146,8 +142,7 @@ test.describe("Distributed JK_DF across tabs via BroadcastChannel", () => {
         // 30 s ack timeout
         setTimeout(() => { ch.removeEventListener("message", handler); reject(new Error("worker ack timeout")); }, 30000);
       });
-      // eslint-disable-next-line no-console
-      console.log(`[m] B-slice sent (${(workerSlice.B.byteLength / 1e6).toFixed(1)} MB to worker), ack=${ackOk}`);
+       console.log(`[m] B-slice sent (${(workerSlice.B.byteLength / 1e6).toFixed(1)} MB to worker), ack=${ackOk}`);
 
       // Now request JK with D
       const partialPromise = new Promise<{ J: Float64Array; K: Float64Array; durMs: number }>((resolve, reject) => {
@@ -196,8 +191,7 @@ test.describe("Distributed JK_DF across tabs via BroadcastChannel", () => {
       };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Swarm JK_DF — benzene cc-pVDZ across 2 tabs (n=${result.n}, n_aux=${result.nAux})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Master B-slice:  ${(result.masterBytes / 1e6).toFixed(1)} MB   compute ${result.masterDurMs.toFixed(1)} ms`);
@@ -207,7 +201,7 @@ test.describe("Distributed JK_DF across tabs via BroadcastChannel", () => {
     console.log(`max |ΔJ| = ${result.maxDJ.toExponential(2)}  (rel ${result.relDJ.toExponential(2)})`);
     console.log(`max |ΔK| = ${result.maxDK.toExponential(2)}  (rel ${result.relDK.toExponential(2)})`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(result.relDJ).toBeLessThan(1e-12);
     expect(result.relDK).toBeLessThan(1e-12);

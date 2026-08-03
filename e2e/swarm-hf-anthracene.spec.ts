@@ -102,8 +102,7 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
       const integMs = performance.now() - tInt0;
 
       const auxShells = generateAutoAux(shells, 1);
-      // eslint-disable-next-line no-console
-      console.log(`[m] anthracene n=${integrals.n}, n_aux_in=${auxShells.length}, building DF B (this is the memory peak)...`);
+       console.log(`[m] anthracene n=${integrals.n}, n_aux_in=${auxShells.length}, building DF B (this is the memory peak)...`);
 
       const tDF0 = performance.now();
       const df = await buildAuxBasisDFCholesky(shells, auxShells, 1e-8);
@@ -111,8 +110,7 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
       const n = df.n, nAux = df.nAux;
       const B = df.B;
 
-      // eslint-disable-next-line no-console
-      console.log(`[m] DF built: n=${n}, n_aux=${nAux}, B=${(B.byteLength / 1e6).toFixed(0)} MB, in ${(dfMs / 1000).toFixed(2)} s`);
+       console.log(`[m] DF built: n=${n}, n_aux=${nAux}, B=${(B.byteLength / 1e6).toFixed(0)} MB, in ${(dfMs / 1000).toFixed(2)} s`);
 
       // Partition.
       const step = Math.ceil(nAux / nTabs);
@@ -165,8 +163,7 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
       (df as { B: Float64Array }).B = new Float64Array(0);
       void sentB;  // explicit reference dropped
       await Promise.all(ackPromises);
-      // eslint-disable-next-line no-console
-      console.log(`[m] all worker slices acked; master holds only its own ${(masterSlice.B.byteLength / 1e6).toFixed(0)} MB slice`);
+       console.log(`[m] all worker slices acked; master holds only its own ${(masterSlice.B.byteLength / 1e6).toFixed(0)} MB slice`);
 
       let iterCount = 0;
       const customJKBuilder = async (D: Float64Array): Promise<{ J: Float64Array; K: Float64Array }> => {
@@ -220,8 +217,7 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
       };
     }, { nTabs: N_TABS });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Swarm HF SCF — anthracene C₁₄H₁₀ STO-3G across ${N_TABS} tabs`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`n_orb = ${result.n}    n_aux = ${result.nAux}`);
@@ -244,11 +240,10 @@ test.describe(`Swarm anthracene HF SCF — ${N_TABS} tabs`, () => {
     } else {
       for (let i = 5; i < hist.length; i++) showIters.push(i);
     }
-    for (const i of showIters) {
-      console.log(`  iter ${(i + 1).toString().padStart(3)}: E = ${hist[i]!.toFixed(8)} Ha`);
+    for (const i of showIters) { console.log(`  iter ${(i + 1).toString().padStart(3)}: E = ${hist[i]!.toFixed(8)} Ha`);
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(Number.isFinite(result.energy)).toBe(true);
     expect(result.converged).toBe(true);

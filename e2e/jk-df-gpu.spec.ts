@@ -12,7 +12,7 @@ test.describe("GPU DF-JK (f32) vs WASM buildJK_DF (f64)", () => {
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const r = await page.evaluate(async () => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[jkdf] ${s}`); };
+      const log = (s: string): void => { console.log(`[jkdf] ${s}`); };
       const [
         { moleculeToShellsNuclei }, { computeMolecularIntegrals }, { runRHFSCF },
         { generateAutoAux, buildAuxBasisDFStreaming }, { buildJK_DF }, { buildJK_DF_GPU },
@@ -44,8 +44,7 @@ test.describe("GPU DF-JK (f32) vs WASM buildJK_DF (f64)", () => {
       log(`benzene n=${shells.length} n_aux=${df.nAux}: J max rel ${jr.mRel.toExponential(2)} (|J|max ${jr.mMag.toFixed(2)}), K max rel ${kr.mRel.toExponential(2)} (|K|max ${kr.mMag.toFixed(2)})`);
       return { jRel: jr.mRel, kRel: kr.mRel };
     });
-
-    console.log(`\n[jk-df-gpu] ${JSON.stringify(r)}\n`);
+console.log(`\n[jk-df-gpu] ${JSON.stringify(r)}\n`);
     expect(r.jRel).toBeLessThan(1e-3);
     expect(r.kRel).toBeLessThan(1e-3);
   });

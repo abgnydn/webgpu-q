@@ -37,11 +37,11 @@
     "preview": "vite preview --port 4173",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint src/ tests/ experiments/ --ext .ts",
+    "lint": "eslint src/ tests/ experiments/ e2e/ --ext .ts",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "benchmarks:render": "tsx benchmarks/render.ts"
+    "benchmarks:render": "npx --yes tsx benchmarks/render.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

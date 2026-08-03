@@ -382,7 +382,11 @@ function buildProjectionVectors(
   // r_i = atoms[i].pos − com. Components in Bohr (rotation generator
   // works in any consistent length unit; the projector is unit-norm).
   for (let a = 0; a < 3; a++) {
-    if (linear && a === 2) break;            // skip the molecular-axis rotation
+    // No orientation assumption here. This used to `break` on (linear && a === 2),
+    // which is only right when the molecular axis IS z — an x-aligned linear
+    // molecule then kept a spurious rotational mode as a vibration. The zero-norm
+    // guard below already drops the axis rotation for ANY orientation, because
+    // r × e_axis vanishes for every atom on the axis.
     const v = new Float64Array(nDof);
     for (let i = 0; i < nA; i++) {
       const rx = atoms[i]!.pos[0] - com[0];
@@ -407,6 +411,23 @@ function buildProjectionVectors(
     if (norm > 1e-10) {
       normalizeInPlace(v);
       out.push(v);
+    }
+  }
+
+  // The geometry — not the caller — decides how many rotations survive, so
+  // `linear` is now a claim to CHECK rather than an instruction to obey. A
+  // mismatch means the caller mislabelled the molecule, which would silently
+  // mis-count vibrational modes and corrupt ZPE/thermo downstream; say so.
+  // Only meaningful for ≥ 2 atoms (a single atom has no rotational modes).
+  if (nA >= 2) {
+    const nRot = out.length - 3;                 // out currently holds 3 translations + rotations
+    const expected = linear ? 2 : 3;
+    if (nRot !== expected) {
+      throw new Error(
+        `buildProjectionVectors: opts.linear=${linear} implies ${expected} rotational modes, ` +
+        `but the geometry yields ${nRot}. The molecule is ${nRot === 2 ? "linear" : "non-linear"} ` +
+        `— fix the flag (mode counts and thermochemistry depend on it).`,
+      );
     }
   }
 

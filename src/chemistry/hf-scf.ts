@@ -397,9 +397,16 @@ export async function runRHFSCFAsync(
   // The async loop body is also the only place customJKBuilder is
   // honored, so force into the async path when it's set even if
   // parallel was left at 0.
-  // Parallel path: SAB required.
-  if (typeof SharedArrayBuffer === "undefined" ||
-      (typeof crossOriginIsolated !== "undefined" && !crossOriginIsolated)) {
+  // Parallel path: SAB required — but NOT for a caller-supplied customJKBuilder,
+  // which needs no SharedArrayBuffer and is honored only in the async loop below.
+  // Falling back to the sync path here silently dropped it, and with
+  // skipERI: true that yields energy: NaN, converged: false and no throw —
+  // contradicting the comment directly above. Latent today (no src/ caller
+  // passes customJKBuilder), which is why it needs the guard rather than a test.
+  const needsSab = opts.customJKBuilder === undefined;
+  if (needsSab &&
+      (typeof SharedArrayBuffer === "undefined" ||
+       (typeof crossOriginIsolated !== "undefined" && !crossOriginIsolated))) {
     return runRHFSCF(integrals, nElectrons, opts);
   }
 

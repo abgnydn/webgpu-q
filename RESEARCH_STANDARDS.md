@@ -57,19 +57,20 @@ Shape (locked; don't add top-level keys without updating the runner):
   "meta":     { "protocol": "...", "hypothesis": "...", "passBar": "...",
                 "seed": "named-seed-id", "warmup": 5, "trials": 20 },
   "env":      { "gitSha": "...", "userAgent": "...", "adapter": {...},
-                "limits": {...}, "timestamp": "2026-05-14T...",
-                "shaderHashes": {"helpers_wgsl": "...", ...} },
+                "limits": {...}, "timestamp": "2026-05-14T..." },
   "rows":     [ { /* per-cell measurements */ } ],
   "status":   "pass" | "fail" | "noisy" | "partial",
   "diagnosis": "first-failing-cell + smoking-gun explanation"
 }
 ```
 
-`npm run experiments -- <id>` re-runs deterministically. Same machine
+`npm run dev` → `/experiments/index.html` re-runs deterministically. Same machine
 + same seed + same shader hash = bit-exact. fp32 `atomicAdd` is NOT
 order-deterministic across GPU vendors — same input on different
 hardware yields statistically equivalent but not bit-exact results;
-shaderHashes lets reviewers group rows correctly.
+shaderHashes lets reviewers group rows correctly — **implemented in
+`webgpu-dna`; NOT implemented in `webgpu-q`**, whose artifacts carry no
+such field. Stated here as the target, not as something webgpu-q meets.
 
 ---
 
@@ -99,9 +100,14 @@ bugs to fix; they are findings.
   or `experiments/lib/seeds.mjs` (webgpu-dna) via `mulberry32(seed)`.
 - Every JSON artifact records: git SHA (when available), full
   `navigator.userAgent`, `adapter.info`, WebGPU `limits`, UTC
-  ISO8601 timestamp, **shader-file SHA-256 / git-rev-parse hashes**.
+  ISO8601 timestamp. **Shader-file SHA-256 hashes** are required in
+  `webgpu-dna` and are an open gap in `webgpu-q`.
 - 5 warmup samples are discarded; 20 trials retained.
 - Report **median + p10/p90/p99 + std + IQR** — never single-shot.
+- A protocol deviation is permitted when the measurement does not warrant the
+  full harness, but it must be **disclosed in `meta.timingNote`**, not left for
+  the reader to infer from `warmup: 0, trials: 1`. An undisclosed single-shot
+  number quoted as a headline is the failure mode this rule exists to prevent.
 - If `std/median > 0.1` on any cell → label the artifact `"noisy"`.
 
 ---
@@ -257,14 +263,18 @@ future sessions don't re-test them.
 
 ## 9. Shader byte-hashing for reproducibility
 
-Every artifact records the SHA-256 (or git-rev-parse short hash) of
-each WGSL shader file the experiment depended on. Old artifacts get
-retrofitted via `tools/retrofit-shader-hashes.mjs` (webgpu-dna's
-pattern; adoptable to webgpu-q). This lets reviewers group rows by
-shader version when a tunable scale shifts the baseline.
+In `webgpu-dna`, every artifact records the SHA-256 (or git-rev-parse short
+hash) of each WGSL shader file the experiment depended on, and old artifacts
+get retrofitted via `tools/retrofit-shader-hashes.mjs`. This lets reviewers
+group rows by shader version when a tunable scale shifts the baseline.
 
-The `env` block carries `shaderHashes: { helpers_wgsl: "...",
+There, the `env` block carries `shaderHashes: { helpers_wgsl: "...",
 primary_wgsl: "...", ... }`.
+
+> **Status in `webgpu-q`: NOT implemented.** No code writes this field and no
+> committed artifact contains it. It is tracked as an open gap in
+> `LIMITATIONS.md`, not satisfied. Do not describe webgpu-q artifacts as
+> carrying shader hashes.
 
 ---
 
@@ -347,7 +357,22 @@ Patch releases (doc-only, refactor, etc.) skip the Zenodo step.
 
 - TypeScript `strict` + `noUncheckedIndexedAccess`. No exceptions.
 - ESLint clean — 0 errors. Warnings tracked, ideally 0.
-- CI green. Every PR runs unit + e2e + typecheck + lint.
+- CI green. Every PR runs unit + typecheck + lint + build (`ci.yml`).
+  Playwright coverage in CI is **partial, and split by whether a spec needs
+  a GPU**:
+  - `ci.yml` runs **no** Playwright at all.
+  - `swarm-benches.yml` runs a small subset of swarm specs on PRs, but only
+    when the PR touches swarm paths. Those work in CI because they need
+    `BroadcastChannel`/`SharedArrayBuffer`, not an adapter.
+  - Every **WebGPU-dependent** spec runs nowhere in CI: hosted runners expose
+    no adapter, so they cannot execute there. They run locally
+    (`npm run test:e2e`).
+
+  Consequence, stated plainly rather than papered over: every GPU-dependent
+  number — the WGSL (T) kernel, the fusion tiers, GPU statevector, GPU-DF —
+  has **no automated regression gate** and is reproduced by hand on the
+  author's machine. Do not describe the e2e suite as CI-gated without naming
+  which half you mean.
 - Each method has paired test coverage by **intent**, not by
   metric:
   - **Analytical** (FCI / Bethe / Pfeuty / ICRU) where it exists.

@@ -66,16 +66,13 @@ test.describe("SCF per-iter profiling", () => {
       const hf = await runRHFSCFAsync(integrals, nElectrons, {
         useDIIS: true, energyTol: 1e-6, densityTol: 1e-5, maxIter: 60,
         useDF: df, parallel: 8,
-        profileCallback: (iter: number, ms: Record<string, number>) => {
-          // eslint-disable-next-line no-console
-          console.log("[scf-profile]", JSON.stringify({ iter, ms }));
+        profileCallback: (iter: number, ms: Record<string, number>) => { console.log("[scf-profile]", JSON.stringify({ iter, ms }));
         },
       });
       return { n: integrals.n, energy: hf.energy, iter: hf.iter, converged: hf.converged };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`SCF per-iter breakdown — naphthalene cc-pVDZ (n=${r.n})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`iter |   jk   | f_asm  | trans  |   eig   | dens  | total`);
@@ -117,7 +114,7 @@ test.describe("SCF per-iter profiling", () => {
     console.log();
     console.log(`E = ${r.energy.toFixed(8)} Ha   (iter=${r.iter}, conv=${r.converged})`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.converged).toBe(true);
     expect(profiles.length).toBeGreaterThan(0);

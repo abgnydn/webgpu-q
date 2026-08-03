@@ -225,8 +225,7 @@ test.describe(`Swarm pentacene HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`,
       };
     }, { nTabs: N_TABS, INNER_POOL });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Swarm HF SCF — pentacene C₂₂H₁₄ STO-3G across ${N_TABS} tabs × ${INNER_POOL} inner`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`n_orb = ${result.n}    n_aux = ${result.nAux}`);
@@ -242,7 +241,7 @@ test.describe(`Swarm pentacene HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`,
     console.log(`Trajectory:  first → ${result.firstFiveE.map((e: number) => e.toFixed(2)).join(", ")}`);
     console.log(`             last  → ${result.lastFiveE.map((e: number) => e.toFixed(6)).join(", ")}`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(Number.isFinite(result.energy)).toBe(true);
     expect(result.converged).toBe(true);

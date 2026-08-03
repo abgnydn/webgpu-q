@@ -223,14 +223,16 @@ test.describe(`Swarm HF SCF scaled to ${N_WORKERS_TOTAL} tabs`, () => {
         n, nAux,
         refEnergy: refHF.energy, refIter: refHF.iter, refMs,
         swEnergy: swHF.energy, swIter: swHF.iter, swMs,
+        // Real SCF convergence, not "agreed with the reference" — the artifact's
+        // passBar is "converged === true" and must be falsifiable.
+        swConverged: swHF.converged, refConverged: refHF.converged,
         deltaE: Math.abs(swHF.energy - refHF.energy),
         slicesPerTab: slices.map((s) => s.nAuxLocal),
         masterSliceMB: masterSlice.B.byteLength / 1e6,
       };
     }, { nTabs: N_WORKERS_TOTAL, INNER_POOL });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Swarm HF SCF — naphthalene cc-pVDZ across ${N_WORKERS_TOTAL} tabs (n=${result.n}, n_aux=${result.nAux})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Slices per tab (aux entries): [${result.slicesPerTab.join(", ")}]`);
@@ -240,15 +242,20 @@ test.describe(`Swarm HF SCF scaled to ${N_WORKERS_TOTAL} tabs`, () => {
     console.log(`Swarm     (${N_WORKERS_TOTAL}-tab × ${INNER_POOL} inner workers):  ${result.swMs.toFixed(0).padStart(6)} ms   iter=${result.swIter}   E = ${result.swEnergy.toFixed(8)} Ha`);
     console.log(`|ΔE| = ${result.deltaE.toExponential(2)} Ha`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
-    expect(result.deltaE).toBeLessThan(1e-7);
 
+    // Artifact first, so a failing run still leaves evidence with status "fail".
     await writeSwarmArtifact(
       pages[0]!,
       { molecule: "naphthalene", formula: "C10H8", basis: "cc-pVDZ", nTabs: N_WORKERS_TOTAL, innerPool: INNER_POOL },
-      { ...result, energy: result.swEnergy, iter: result.swIter, converged: result.deltaE < 1e-7 },
+      { ...result, energy: result.swEnergy, iter: result.swIter,
+        converged: result.swConverged && result.refConverged },
     );
+
+    expect(result.swConverged, "swarm SCF must actually converge").toBe(true);
+    expect(result.refConverged, "reference SCF must actually converge").toBe(true);
+    expect(result.deltaE).toBeLessThan(1e-7);
 
     await ctx.close();
   });

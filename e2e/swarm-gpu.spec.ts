@@ -54,7 +54,7 @@ test.describe("Swarm × GPU — distributed GPU-accelerated single-points", () =
       ]);
       const w = window as unknown as { __ran: number };
       w.__ran = 0;
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[sg] ${s}`); };
+      const log = (s: string): void => { console.log(`[sg] ${s}`); };
       const reg = attachSwarmRuntime(new BroadcastChannelTransport("test-gpu-swarm"));
       reg.registerKernel(CHEM_ENERGY_KIND, async (tile: unknown) => { w.__ran++; return runChemEnergyTile(tile as never); });
       const out = await swarmMap(reg, CHEM_ENERGY_KIND, tiles as never[], { claimTimeoutMs: 400 }) as { label: string; energy: number; engine: string; dfMethod: string; converged: boolean }[];
@@ -121,7 +121,7 @@ test.describe("Swarm × GPU — distributed GPU-accelerated single-points", () =
       ]);
       const w = window as unknown as { __ran2: number };
       w.__ran2 = 0;
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[sgr] ${s}`); };
+      const log = (s: string): void => { console.log(`[sgr] ${s}`); };
       const reg = attachSwarmRuntime(new BroadcastChannelTransport("test-gpu-radical"));
       reg.registerKernel(CHEM_ENERGY_KIND, async (tile: unknown) => { w.__ran2++; return runChemEnergyTile(tile as never); });
       const out = await swarmMap(reg, CHEM_ENERGY_KIND, tiles as never[], { claimTimeoutMs: 400 }) as { label: string; energy: number; engine: string; dfMethod: string; converged: boolean; scf: string }[];

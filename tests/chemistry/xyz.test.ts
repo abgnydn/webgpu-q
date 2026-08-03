@@ -59,11 +59,28 @@ H₂
   });
 
   test("Unsupported element throws clearly", () => {
+    // Boron: genuinely absent from the AtomSymbol union and from the basis
+    // tables. This test previously used He, which IS a supported AtomSymbol with
+    // basis data and a molecule in molecules.ts — it was asserting a bug.
     const text = `1
-helium not supported in current AtomSymbol union
-He 0 0 0
+boron not supported in current AtomSymbol union
+B 0 0 0
 `;
     expect(() => parseXYZ(text)).toThrow(/not supported/);
+  });
+
+  test("He round-trips: it is a real AtomSymbol the library ships a molecule for", () => {
+    const text = `1
+helium atom
+He 0.00000000 0.00000000 0.00000000
+`;
+    const { atoms } = parseXYZ(text);
+    expect(atoms).toHaveLength(1);
+    expect(atoms[0]!.symbol).toBe("He");
+    // Atomic-number form must resolve too (Z=2 was missing from SYMBOL_BY_Z).
+    expect(parseXYZ("1\nby Z\n2 0 0 0\n").atoms[0]!.symbol).toBe("He");
+    // toXYZ → parseXYZ is an identity for a molecule this library provides.
+    expect(parseXYZ(toXYZ(atoms)).atoms[0]!.symbol).toBe("He");
   });
 
   test("Too few atom lines throws", () => {

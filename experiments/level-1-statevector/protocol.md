@@ -93,7 +93,7 @@ summary index with status for each E1–E4 row.
 ```
 npm run dev          # then open /experiments/index.html
 # OR
-npm run experiments  # headless build + serve the experiments bundle
+npm run dev          # then open /experiments/index.html
 ```
 
 Click "Run E1–E4" in the panel. Each artifact is offered as a JSON download

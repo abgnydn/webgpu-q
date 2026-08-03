@@ -85,10 +85,8 @@ test.describe("Swarm scaling — speedup vs number of tabs", () => {
       else expect(rank).toEqual(baseRank);                  // ranking stable regardless of #tabs
       rows.push({ tabs: N, wallMs, speedup: wall1 / wallMs, shares: shares.map((s) => s.length) });
     }
-
-    console.log(`\n[swarm-scaling] ${tiles.length} molecules, HF/cc-pVDZ, warmed:`);
-    for (const r of rows) {
-      console.log(`  ${r.tabs} tab${r.tabs > 1 ? "s" : " "}: wall ${String(Math.round(r.wallMs)).padStart(6)}ms  speedup ${r.speedup.toFixed(2)}x  (efficiency ${(100 * r.speedup / r.tabs).toFixed(0)}%)  shares=[${r.shares.join(",")}]`);
+console.log(`\n[swarm-scaling] ${tiles.length} molecules, HF/cc-pVDZ, warmed:`);
+    for (const r of rows) { console.log(`  ${r.tabs} tab${r.tabs > 1 ? "s" : " "}: wall ${String(Math.round(r.wallMs)).padStart(6)}ms  speedup ${r.speedup.toFixed(2)}x  (efficiency ${(100 * r.speedup / r.tabs).toFixed(0)}%)  shares=[${r.shares.join(",")}]`);
     }
     console.log("");
 

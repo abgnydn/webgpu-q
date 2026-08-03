@@ -232,8 +232,7 @@ test.describe(`Swarm hexacene HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, 
       };
     }, { nTabs: N_TABS, INNER_POOL });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Swarm HF SCF — hexacene C₂₆H₁₆ STO-3G across ${N_TABS} tabs × ${INNER_POOL} inner`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`n_orb = ${result.n}    n_aux = ${result.nAux}`);
@@ -249,7 +248,7 @@ test.describe(`Swarm hexacene HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, 
     console.log(`Trajectory:  first → ${result.firstFive.map((e: number) => e.toFixed(2)).join(", ")}`);
     console.log(`             last  → ${result.lastFive.map((e: number) => e.toFixed(6)).join(", ")}`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     // Hexacene (6 rings) sits past the multireference wall: linear
     // acenes develop growing polyradical (open-shell singlet) character

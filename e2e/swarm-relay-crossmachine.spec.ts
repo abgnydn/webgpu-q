@@ -25,7 +25,7 @@ test.describe("Cross-machine swarm coordination via free relay (2 separate VMs)"
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const result = await page.evaluate(async ({ role, topic, broker }) => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[relay] ${s}`); };
+      const log = (s: string): void => { console.log(`[relay] ${s}`); };
       // Load mqtt.js (browser build) from CDN.
       await new Promise<void>((resolve, reject) => {
         const s = document.createElement("script");
@@ -87,8 +87,7 @@ test.describe("Cross-machine swarm coordination via free relay (2 separate VMs)"
         });
       });
     }, { role: ROLE, topic: TOPIC, broker: BROKER });
-
-    console.log(`\n[relay-crossmachine ${ROLE}] result:`, JSON.stringify(result), "\n");
+console.log(`\n[relay-crossmachine ${ROLE}] result:`, JSON.stringify(result), "\n");
     expect(result.ok, `stage=${result.stage} ${result.error ?? ""}`).toBe(true);
   });
 });

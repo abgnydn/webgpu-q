@@ -38,7 +38,7 @@ test.describe("Cross-machine WebRTC connectivity (2 separate VMs)", () => {
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const result = await page.evaluate(async ({ role, self, peerA, ice }) => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[rtc] ${s}`); };
+      const log = (s: string): void => { console.log(`[rtc] ${s}`); };
       const { WebRTCTransport } = await import("/src/parallel/swarm/webrtc-transport.ts" as string);
 
       const t = new WebRTCTransport({ id: self, iceServers: ice });
@@ -93,8 +93,7 @@ test.describe("Cross-machine WebRTC connectivity (2 separate VMs)", () => {
         setTimeout(() => { clearInterval(dial); resolve({ ok: false, stage: "connect", error: "no DataChannel in 180s" }); }, 180000);
       });
     }, { role: ROLE, self: SELF, peerA: PEER_A, ice: ICE });
-
-    console.log(`\n[cross-machine ${ROLE}] result:`, JSON.stringify(result), "\n");
+console.log(`\n[cross-machine ${ROLE}] result:`, JSON.stringify(result), "\n");
     expect(result.ok, `stage=${result.stage} ${result.error ?? ""}`).toBe(true);
   });
 });

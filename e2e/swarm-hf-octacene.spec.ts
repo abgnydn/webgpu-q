@@ -246,8 +246,7 @@ test.describe(`Swarm octacene HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, 
       };
     }, { nTabs: N_TABS, INNER_POOL });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Swarm HF SCF — octacene C₃₄H₂₀ STO-3G across ${N_TABS} tabs × ${INNER_POOL} inner`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`atoms = ${result.nC} C + ${result.nH} H`);
@@ -264,7 +263,7 @@ test.describe(`Swarm octacene HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, 
     console.log(`Trajectory:  first → ${result.firstFive.map((e: number) => e.toFixed(2)).join(", ")}`);
     console.log(`             last  → ${result.lastFive.map((e: number) => e.toFixed(6)).join(", ")}`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     // Octacene (8 rings) is the deepest into the polyradical regime of
     // the whole ladder — RHF convergence here is not physically reliable.

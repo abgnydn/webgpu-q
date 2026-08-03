@@ -114,22 +114,19 @@ test.describe(`Swarm C₆₀ HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, (
       }));
       const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(ATOMS as never, "sto-3g");
 
-      // eslint-disable-next-line no-console
-      console.log(`[m] C₆₀ n=${shells.length} basis functions, n_electrons=${nElectrons}`);
+       console.log(`[m] C₆₀ n=${shells.length} basis functions, n_electrons=${nElectrons}`);
 
       const tInt0 = performance.now();
       const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true, skipOAO: true });
       const integMs = performance.now() - tInt0;
-      // eslint-disable-next-line no-console
-      console.log(`[m] integrals: ${(integMs / 1000).toFixed(2)} s`);
+       console.log(`[m] integrals: ${(integMs / 1000).toFixed(2)} s`);
 
       const auxShells = generateAutoAux(shells, 1);
       const tDF0 = performance.now();
       const df = await buildAuxBasisDFCholesky(shells, auxShells, 1e-8);
       const dfMs = performance.now() - tDF0;
       const n = df.n, nAux = df.nAux, B = df.B;
-      // eslint-disable-next-line no-console
-      console.log(`[m] DF: n=${n}, n_aux=${nAux}, B=${(B.byteLength / 1e6).toFixed(0)} MB, in ${(dfMs / 1000).toFixed(2)} s`);
+       console.log(`[m] DF: n=${n}, n_aux=${nAux}, B=${(B.byteLength / 1e6).toFixed(0)} MB, in ${(dfMs / 1000).toFixed(2)} s`);
 
       // Partition by P.
       const step = Math.ceil(nAux / nTabs);
@@ -177,8 +174,7 @@ test.describe(`Swarm C₆₀ HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, (
       (df as { B: Float64Array }).B = new Float64Array(0);
       await Promise.all(ackPromises);
       await preloadJK_DF_Workers(n, masterSlice.nAuxLocal, INNER_POOL);
-      // eslint-disable-next-line no-console
-      console.log(`[m] B distributed; master holds ${(masterSlice.B.byteLength / 1e6).toFixed(0)} MB slice`);
+       console.log(`[m] B distributed; master holds ${(masterSlice.B.byteLength / 1e6).toFixed(0)} MB slice`);
 
       let iterCount = 0;
       const customJKBuilder = async (D: Float64Array): Promise<{ J: Float64Array; K: Float64Array }> => {
@@ -222,9 +218,7 @@ test.describe(`Swarm C₆₀ HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, (
         customJKBuilder,
         profileCallback: (iter: number, ms: Record<string, number>) => {
           lastIter = iter;
-          if (iter <= 5 || iter % 5 === 0) {
-            // eslint-disable-next-line no-console
-            console.log(`[m] iter ${iter}: ${(ms.total ?? 0).toFixed(0)} ms (jk=${(ms.jk ?? 0).toFixed(0)})`);
+          if (iter <= 5 || iter % 5 === 0) { console.log(`[m] iter ${iter}: ${(ms.total ?? 0).toFixed(0)} ms (jk=${(ms.jk ?? 0).toFixed(0)})`);
           }
         },
       });
@@ -242,8 +236,7 @@ test.describe(`Swarm C₆₀ HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, (
       };
     }, { nTabs: N_TABS, INNER_POOL });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Swarm HF SCF — C₆₀ buckminsterfullerene STO-3G across ${N_TABS} tabs × ${INNER_POOL} inner`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`n_orb = ${result.n}    n_aux = ${result.nAux}`);
@@ -259,7 +252,7 @@ test.describe(`Swarm C₆₀ HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, (
     console.log(`Trajectory:  first → ${result.firstFive.map((e: number) => e.toFixed(2)).join(", ")}`);
     console.log(`             last  → ${result.lastFive.map((e: number) => e.toFixed(6)).join(", ")}`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(Number.isFinite(result.energy)).toBe(true);
     expect(result.converged).toBe(true);

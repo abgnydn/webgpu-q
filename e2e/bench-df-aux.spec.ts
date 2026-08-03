@@ -145,8 +145,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
       };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Aux-basis DF Phase 1 — H₂ cc-pVDZ (n=${r.n})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`3-index V tensor: ${r.nElements} entries built in ${r.t3Ms.toFixed(1)} ms`);
@@ -160,7 +159,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
     console.log(`Sample M[0,0]:          ${r.sampleM00.toExponential(4)}`);
     console.log(`Direct ERI[0,0,0,0]:    ${r.sampleERI_0000.toExponential(4)}`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.maxVAsym).toBeLessThan(1e-10);
     expect(r.maxMAsym).toBeLessThan(1e-10);
@@ -221,8 +220,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
       return { n, nAux: df.nAux, dfMs, maxAbs, maxRel, rms };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Aux-basis DF — H₂ cc-pVDZ ERI reconstruction (n=${r.n}, n_aux=${r.nAux})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`B-tensor build time:       ${r.dfMs.toFixed(1)} ms`);
@@ -230,7 +228,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
     console.log(`max relative error:        ${r.maxRel.toExponential(2)}`);
     console.log(`RMS error:                 ${r.rms.toExponential(2)} Ha`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     // With aux == orbital basis, reconstruction error is bounded by
     // the orthogonal-complement projection (basis-set incompleteness).
@@ -298,8 +296,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
       };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Aux-basis DF HF energy — H₂ cc-pVDZ (orbital n=${r.n})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Direct ERI HF:             E = ${r.eDirect.toFixed(9)} Ha   iter=${r.iDirect}`);
@@ -310,7 +307,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
     console.log(`  HF:                      E = ${r.eDFAug.toFixed(9)} Ha   iter=${r.iDFAug}  cnv=${r.cDFAug}`);
     console.log(`  energy error vs direct:  ${(r.eDFAug - r.eDirect).toExponential(2)} Ha`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(Number.isFinite(r.eDF)).toBe(true);
     expect(Number.isFinite(r.eDFAug)).toBe(true);
@@ -377,8 +374,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
       };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Aux-basis DF HF — H₂O cc-pVDZ (orbital n=${r.n})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Direct ERI HF:                E = ${r.eDirect.toFixed(8)} Ha`);
@@ -393,7 +389,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
     console.log(`  HF:                         E = ${r.eDFAug.toFixed(8)} Ha   iter=${r.iDFAug}  cnv=${r.cDFAug}`);
     console.log(`  energy error vs direct:     ${(r.eDFAug - r.eDirect).toExponential(2)} Ha`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(Number.isFinite(r.eDF)).toBe(true);
     expect(Number.isFinite(r.eDFAug)).toBe(true);
@@ -449,8 +445,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
       };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`H₂O STO-3G orbital + cc-pVDZ aux (n_orb=${r.nOrb}, n_aux=${r.nAux})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Direct HF (STO-3G):           E = ${r.eDirect.toFixed(9)} Ha`);
@@ -459,7 +454,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
     console.log(`Iterations:                    ${r.iDF}`);
     console.log(`Converged:                     ${r.cDF}`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(Number.isFinite(r.eDF)).toBe(true);
   });
@@ -519,20 +514,18 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
       return { n: integrals.n, eDirect: hfDirect.energy, results };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Auto-aux DF HF — H₂O cc-pVDZ (orbital n=${r.n})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Direct ERI HF:  E = ${r.eDirect.toFixed(8)} Ha`);
     console.log();
-    for (const x of r.results) {
-      console.log(`auto-aux extraL=${x.extraL}, n_aux=${String(x.nAux).padStart(3)}, ` +
+    for (const x of r.results) { console.log(`auto-aux extraL=${x.extraL}, n_aux=${String(x.nAux).padStart(3)}, ` +
                   `build=${x.buildMs.toFixed(0).padStart(5)} ms: ` +
                   `E=${x.energy.toFixed(8)} Ha  iter=${x.iter}  cnv=${x.cnv}  ` +
                   `error=${x.error.toExponential(2)} Ha`);
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.results.every((x) => Number.isFinite(x.energy))).toBe(true);
   });
@@ -582,8 +575,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
       return { eDirect, results };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`H₂O extraL=2 — eigendecomp regularization sweep`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Direct ERI HF: E = ${r.eDirect.toFixed(8)} Ha`);
@@ -595,7 +587,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
                   `err=${err.toExponential(2)} Ha`);
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.results.some((x) => Math.abs(x.e - r.eDirect) < 1e-3 && x.cnv)).toBe(true);
   });
@@ -665,8 +657,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
       };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Auto-aux DF — ethane cc-pVDZ (n=${r.n}, n_aux=${r.nAux})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Direct path:`);
@@ -684,7 +675,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
     console.log();
     console.log(`Speedup (Direct → DF):  ${((r.directEriMs + r.directHFms) / (r.dfBuildMs + r.dfHFms)).toFixed(2)}×`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(Number.isFinite(r.eDF)).toBe(true);
   });
@@ -749,8 +740,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
 
     if (r.skipped) { test.skip(); return; }
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Aux-DF B-tensor build — ethane cc-pVDZ (n_orb=${r.nOrb}, n_aux=${r.nAux})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Single-thread (V via main):  ${(r.syncMs / 1000).toFixed(2)} s`);
@@ -758,7 +748,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
     console.log(`Speedup:                     ${(r.syncMs / r.parMs).toFixed(2)}×`);
     console.log(`max |B_sync - B_parallel|:   ${r.maxAbs.toExponential(2)}`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.maxAbs).toBeLessThan(1e-10);
   });
@@ -818,8 +808,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
 
     if (r.skipped) { test.skip(); return; }
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Aux-DF B-tensor build — benzene cc-pVDZ (n_orb=${r.nOrb}, n_aux=${r.nAux})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Single-thread:  ${(r.syncMs / 1000).toFixed(2)} s`);
@@ -827,7 +816,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
     console.log(`Speedup:        ${(r.syncMs / r.parMs).toFixed(2)}×`);
     console.log(`max |B_sync - B_parallel|: ${r.maxAbs.toExponential(2)}`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.maxAbs).toBeLessThan(1e-10);
   });
@@ -902,8 +891,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
     if (r.skipped) { test.skip(); return; }
 
     const totalMs = r.integMs + r.dfMs + r.hfMs;
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Benzene cc-pVDZ HF SCF end-to-end with aux-DF`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`n_orb=${r.n}  n_aux=${r.nAux} (kept ${r.nKept})`);
@@ -918,7 +906,7 @@ test.describe("aux-basis DF Phase 1 (correctness)", () => {
     console.log(`Energy error vs WASM-direct reference: ${(r.energy - directE).toExponential(2)} Ha`);
     console.log(`Speedup vs WASM-direct (16.8 s):      ${(16800 / totalMs).toFixed(2)}×`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(Number.isFinite(r.energy)).toBe(true);
     expect(r.converged).toBe(true);

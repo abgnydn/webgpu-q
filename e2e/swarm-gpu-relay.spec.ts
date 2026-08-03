@@ -66,7 +66,7 @@ test.describe("Swarm × GPU over a cross-machine relay", () => {
       const { swarmMap } = await import("/src/parallel/swarm/swarm-map.ts" as string);
       const w = window as unknown as { __reg: unknown; __ran: number };
       const { CHEM_ENERGY_KIND } = await import("/src/swarm/chemistry-kernel.ts" as string);
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[sgr] ${s}`); };
+      const log = (s: string): void => { console.log(`[sgr] ${s}`); };
       const out = await swarmMap(w.__reg as never, CHEM_ENERGY_KIND, tiles as never[], { claimTimeoutMs: 3000 }) as { label: string; energy: number; engine: string; dfMethod: string; converged: boolean }[];
       for (const r of out) log(`${r.label}: ${r.energy.toFixed(5)} [${r.dfMethod}/${r.engine}] conv=${r.converged}`);
       return { results: out, masterRan: w.__ran };

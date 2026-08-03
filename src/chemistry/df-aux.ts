@@ -477,9 +477,17 @@ export async function buildAuxBasisDF(
   // with f64x2 SIMD on the inner P loop — ~5× over the TS version.
   const B = mod.form_b_tensor(n, nAux, V, eig.vectors, invSqrtLam);
 
+  // nAux (NOT nKept) is the correct report: form_b_tensor emits B at the full
+  // nAux stride and regularizes by zeroing λ⁻¹⸍², so dropped modes are present
+  // as exact-zero columns. Reporting nKept here told buildJK_DF to stride by a
+  // narrower width than B actually has, misaligning every read: on H₂O/STO-3G a
+  // single dropped mode (reg 1e-4, 65 of 66 kept) took max|ΔJ| from 3.2e-4 Ha to
+  // 5.0 Ha. Contrast buildAuxBasisDFStreaming, which physically compacts B to
+  // nKept and therefore correctly reports nKept.
   return {
     B,
-    nAux: nKept,
+    nAux,
+    nKeptModes: nKept,
     threshold: metricRegularization,
     n,
   };
@@ -919,6 +927,7 @@ export async function buildAuxBasisDFParallel(
   // Full B = V · U · diag(λ⁻¹⸍²) · Uᵀ matmul via Rust+WASM with
   // f64x2 SIMD on the inner P-loop. ~5× over the TS version at
   // benzene n_aux=400.
+  // Full nAux stride, not nKept — same contract as buildAuxBasisDF above.
   const B = mod.form_b_tensor(n, nAux, V, eig.vectors, invSqrtLam);
-  return { B, nAux: nKept, threshold: metricRegularization, n };
+  return { B, nAux, nKeptModes: nKept, threshold: metricRegularization, n };
 }

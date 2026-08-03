@@ -18,7 +18,7 @@ Updated 2026-05.
 |---|---|---:|---|---|
 | H₂ STO-3G analytical | FCI cross-check | 1 | ✅ shipped (E20–E33) | bedrock validation |
 | LiH / BeH₂ / H₂O / CH₄ STO-3G | mini-molecule ladder | 4 | ✅ shipped | HF → MP2 → CCSD → (T) → EOM |
-| H₂O cc-pVDZ | headline single point | 1 | ✅ shipped (E31, E32) | CCSD(T) GPU 39.3× |
+| H₂O cc-pVDZ | headline single point | 1 | ✅ shipped (E31, E32) | CCSD(T) GPU 13.8× median (28.4× p10) |
 | TFIM N = 128 (browser) | many-body L2 | 1 | ✅ shipped (E18) | matches Pfeuty |
 | Heisenberg N = 128 | many-body L2 | 1 | ✅ shipped (E19) | matches Bethe |
 | **GMTKN55** (thermochem + kinetics + noncov) | DFT benchmark | 1505 | 🛣️ Tier 3 queued | the universal DFT bar |
@@ -91,12 +91,15 @@ Reviewer's #1 question. **Infrastructure is now in place**:
 - `scripts/run-pyscf-reference.py` runs the PySCF side with **matching
   JSON schema** so the two can be merged offline.
 - `e2e/wallclock-vs-pyscf.spec.ts` runs E34 in headless WebGPU
-  Chromium on every CI pass.
+  Chromium. Run it locally — no workflow names this spec, and hosted
+  runners have no WebGPU adapter, so this row has no automated
+  regression gate. (Some non-GPU swarm specs *do* run on PRs via
+  `swarm-benches.yml`; this is not one of them.)
 
 **To complete the comparison** (once PySCF env is available):
 
 ```bash
-# webgpu-q side (runs in CI automatically):
+# webgpu-q side (local only — not run by CI):
 npm run test:e2e -- wallclock-vs-pyscf
 
 # PySCF side (run locally / on a server with Python):

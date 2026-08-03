@@ -98,8 +98,7 @@ test.describe("WASM JK build", () => {
       return s[Math.floor(s.length / 2)]!;
     };
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`JK build per-iter wall time — ethane cc-pVDZ (n=${r.n}), 5 trials`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`TS-parallel=8:   median ${median(r.tsMs).toFixed(1).padStart(7)} ms   trials [${r.tsMs.map((x) => x.toFixed(0)).join(", ")}] ms`);
@@ -107,7 +106,7 @@ test.describe("WASM JK build", () => {
     console.log(`speedup: ${(median(r.tsMs) / median(r.wasmMs)).toFixed(2)}×`);
     console.log(`max |G_TS - G_WASM|: ${r.maxDelta.toExponential(2)} Ha`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.maxDelta).toBeLessThan(1e-10);
   });
@@ -220,8 +219,7 @@ test.describe("WASM JK build", () => {
       return s[Math.floor(s.length / 2)]!;
     };
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`JK build per-iter wall time — benzene cc-pVDZ (n=${r.n})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`TS-parallel=8:   median ${(median(r.tsMs) / 1000).toFixed(2).padStart(7)} s   trials [${r.tsMs.map((x) => x.toFixed(0)).join(", ")}] ms`);
@@ -234,7 +232,7 @@ test.describe("WASM JK build", () => {
     console.log(`  ERI build: ${(r.eriMs / 1000).toFixed(2)} s`);
     console.log(`  total cold-shell → converged: ${((r.eriMs + r.fullHFms) / 1000).toFixed(2)} s`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(r.maxDelta).toBeLessThan(1e-10);
     expect(Math.abs(r.energy - (-230.72273482))).toBeLessThan(1e-6);

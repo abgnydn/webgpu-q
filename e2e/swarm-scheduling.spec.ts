@@ -94,8 +94,7 @@ test.describe("Swarm scheduling — LPT vs FIFO on an uneven library", () => {
       log(`FIFO ${Math.round(fifo)}ms  LPT ${Math.round(lpt)}ms  speedup ${(fifo / lpt).toFixed(2)}x`);
       return { fifo, lpt, eFifo, eLpt };
     }, { lib: LIBRARY, ch: CH });
-
-    console.log(`\n[swarm-scheduling] FIFO ${Math.round(out.fifo)}ms → LPT ${Math.round(out.lpt)}ms  (${(out.fifo / out.lpt).toFixed(2)}× )\n`);
+console.log(`\n[swarm-scheduling] FIFO ${Math.round(out.fifo)}ms → LPT ${Math.round(out.lpt)}ms  (${(out.fifo / out.lpt).toFixed(2)}× )\n`);
 
     // Correctness is the hard gate: LPT must return the SAME set of energies.
     expect(out.eLpt.length).toBe(out.eFifo.length);

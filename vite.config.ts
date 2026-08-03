@@ -4,7 +4,12 @@ import { resolve } from "node:path";
 
 function gitSha(): string {
   try {
-    return execSync("git rev-parse --short=12 HEAD", { encoding: "utf-8" }).trim();
+    const sha = execSync("git rev-parse --short=12 HEAD", { encoding: "utf-8" }).trim();
+    // A clean SHA on a dirty tree is a provenance lie: every artifact produced by
+    // a locally-modified build would claim to come from an unmodified commit that
+    // anyone else checking out that SHA cannot reproduce. Mark it.
+    const dirty = execSync("git status --porcelain", { encoding: "utf-8" }).trim() !== "";
+    return dirty ? `${sha}-dirty` : sha;
   } catch {
     return "dev-unknown";
   }
@@ -42,6 +47,20 @@ export default defineConfig({
   server: {
     port: 5175,
     host: true,
+    watch: {
+      // Playwright's outputDir is ./e2e/.artifacts (playwright.config.ts), i.e.
+      // INSIDE the Vite root. Without this, every trace/video/screenshot the
+      // runner writes is seen by the dev-server watcher and triggers an HMR
+      // page reload — of the page currently under test. Observed live: reload
+      // events firing inside timed benchmark cells, which is how a benchmark
+      // silently becomes noise, and a hung spec becomes a mystery. These paths
+      // are gitignored but that does not affect the watcher.
+      ignored: [
+        "**/e2e/.artifacts/**",
+        "**/test-results/**",
+        "**/playwright-report/**",
+      ],
+    },
     // Mirror vercel.json's COOP/COEP headers so SharedArrayBuffer +
     // crossOriginIsolated are available in dev (required for Web Worker
     // parallel HF buildG). Without these, runRHFSCFAsync silently falls

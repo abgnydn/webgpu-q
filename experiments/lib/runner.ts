@@ -104,6 +104,13 @@ export interface ArtifactMeta {
   readonly seed: string;            // seed name from seeds.ts
   readonly warmup: number;
   readonly trials: number;
+  /** Required whenever `warmup`/`trials` deviate from the 5+20 protocol, i.e.
+   *  whenever a reader would otherwise assume the standard timing discipline.
+   *  State what was actually done and what precision it buys. Without this, a
+   *  `warmup: 0, trials: 1` artifact is indistinguishable from a rigorous one
+   *  unless the reader inspects those two numbers — which is how E34's
+   *  single-shot speedups came to be quoted as headline figures. */
+  readonly timingNote?: string;
 }
 
 export interface Artifact<Row = Record<string, unknown>> {

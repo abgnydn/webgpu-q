@@ -6,9 +6,26 @@
 // heaviest-first so the heavy tile starts at t=0. These tests pin (a) the makespan
 // model and (b) that reordering the PULL QUEUE never reorders the RESULTS.
 
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 import type { SwarmTransport, SwarmMessage, SwarmListener, PeerId } from "../../src/parallel/swarm/transport.js";
 import { attachSwarmRuntime, swarmMap, simulateGreedyMakespan } from "../../src/parallel/swarm/swarm-map.js";
+
+// KernelRegistry.dispose() stops a 1 s hello-broadcast interval and closes the
+// transport; its own docstring says "always call this". No test did, so every
+// attachSwarmRuntime here leaked a live timer for the whole run — which is also
+// why vitest.config.ts's "no stray async handlers" justification for
+// dangerouslyIgnoreUnhandledErrors was not actually true. Track and dispose.
+const liveRuntimes: { dispose(): void }[] = [];
+function attachTracked(transport: Parameters<typeof attachSwarmRuntime>[0]) {
+  const reg = attachSwarmRuntime(transport);
+  liveRuntimes.push(reg);
+  return reg;
+}
+afterEach(() => {
+  while (liveRuntimes.length > 0) {
+    try { liveRuntimes.pop()!.dispose(); } catch { /* already closed */ }
+  }
+});
 
 class FakeBus {
   private readonly tabs: { id: PeerId; listeners: Set<SwarmListener> }[] = [];
@@ -71,8 +88,8 @@ describe("simulateGreedyMakespan — greedy-pull makespan model", () => {
 describe("swarmMap costFn (LPT) — reorders the queue, NOT the results", () => {
   test("results stay index-correct under cost-aware scheduling", async () => {
     const bus = new FakeBus();
-    const mReg = attachSwarmRuntime(bus.newTransport("m"));
-    const wReg = attachSwarmRuntime(bus.newTransport("w"));
+    const mReg = attachTracked(bus.newTransport("m"));
+    const wReg = attachTracked(bus.newTransport("w"));
     mReg.registerKernel<number, number>("sq", (t) => t * t);
     wReg.registerKernel<number, number>("sq", (t) => t * t);
     await new Promise((r) => setTimeout(r, 50));

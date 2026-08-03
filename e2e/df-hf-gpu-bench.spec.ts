@@ -18,7 +18,7 @@ test.describe("Fully-GPU DF-HF — whole-loop speed vs WASM", () => {
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const r = await page.evaluate(async () => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[bench] ${s}`); };
+      const log = (s: string): void => { console.log(`[bench] ${s}`); };
       const [
         { moleculeToShellsNuclei }, { computeMolecularIntegrals }, { runRHFSCF, runRHFSCFAsync },
         { generateAutoAux, buildAuxBasisDFStreaming }, { buildDFAuto }, { makeGpuDFJK },
@@ -67,8 +67,7 @@ test.describe("Fully-GPU DF-HF — whole-loop speed vs WASM", () => {
           `GPU loop ${(gpuMs / 1000).toFixed(2)}s (${eGPU.energy.toFixed(6)}, ${eGPU.iter}it) → ${ratio.toFixed(2)}x`);
       return { ratio, dE: Math.abs(eGPU.energy - eWASM.energy), path: auto.path, gpuConverged: eGPU.converged };
     });
-
-    console.log(`\n[df-hf-gpu-bench] ${JSON.stringify(r)}\n`);
+console.log(`\n[df-hf-gpu-bench] ${JSON.stringify(r)}\n`);
     // Correctness gates (always). The ratio is reported, not asserted — the
     // build-side GPU win is established; the loop-side number on small n is
     // characterization (per-iter JK readback can lose to the WASM pool).

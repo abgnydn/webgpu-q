@@ -14,7 +14,7 @@ test.describe("runMP2Auto — RHF-MP2 with size-gated exact/DF", () => {
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const r = await page.evaluate(async () => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[mp2] ${s}`); };
+      const log = (s: string): void => { console.log(`[mp2] ${s}`); };
       const [{ moleculeToShellsNuclei }, { runMP2Auto }] = await Promise.all([
         import("/src/chemistry/atoms.ts" as string),
         import("/src/chemistry/rhf-auto.ts" as string),
@@ -38,8 +38,7 @@ test.describe("runMP2Auto — RHF-MP2 with size-gated exact/DF", () => {
         eriExact: exact.integrals.eri_AO.length, eriDF: dfW.integrals.eri_AO.length,
       };
     });
-
-    console.log(`\n[mp2-auto] ${JSON.stringify(r)}\n`);
+console.log(`\n[mp2-auto] ${JSON.stringify(r)}\n`);
     const CHEM = 1.594e-3;
     expect(r.exactProv.method).toBe("exact-eri");
     expect(r.dfWProv).toMatchObject({ method: "density-fitting", engine: "wasm" });
@@ -60,7 +59,7 @@ test.describe("runMP2Auto — RHF-MP2 with size-gated exact/DF", () => {
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const r = await page.evaluate(async () => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[ump2] ${s}`); };
+      const log = (s: string): void => { console.log(`[ump2] ${s}`); };
       const [{ moleculeToShellsNuclei }, { runUMP2Auto }] = await Promise.all([
         import("/src/chemistry/atoms.ts" as string),
         import("/src/chemistry/rhf-auto.ts" as string),
@@ -84,8 +83,7 @@ test.describe("runMP2Auto — RHF-MP2 with size-gated exact/DF", () => {
         eriDF: dfW.integrals.eri_AO.length,
       };
     });
-
-    console.log(`\n[ump2-auto] ${JSON.stringify(r)}\n`);
+console.log(`\n[ump2-auto] ${JSON.stringify(r)}\n`);
     const CHEM = 1.594e-3;
     expect(r.exactM).toBe("exact-eri");
     expect(r.dfWEng).toBe("wasm");

@@ -13,7 +13,7 @@ test.describe("Landing page", () => {
     await expect(hyperscope).toBeVisible();
     const molecule = page.locator('a[href="/molecule.html"]').first();
     await expect(molecule).toBeVisible();
-    const experiments = page.locator('a[href="/experiments/"]').first();
+    const experiments = page.locator('a[href="/experiments/index.html"]').first();
     await expect(experiments).toBeVisible();
     const demo = page.locator('a[href="/demo.html"]').first();
     await expect(demo).toBeVisible();

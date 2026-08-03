@@ -132,20 +132,18 @@ test.describe("JK_DF: partition by aux index P", () => {
       return { n, nAux, refMaxJ, refMaxK, results };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`P-partition correctness — benzene cc-pVDZ (n=${r.n}, n_aux=${r.nAux})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Reference ‖J‖_max = ${r.refMaxJ.toFixed(4)}, ‖K‖_max = ${r.refMaxK.toFixed(4)}`);
     console.log(`partitions | max|ΔJ|       max|ΔK|       relJ        relK`);
     console.log(`-----------+--------------+--------------+------------+------------`);
-    for (const row of r.results) {
-      console.log(
+    for (const row of r.results) { console.log(
         `   ${String(row.k).padStart(7)} | ${row.maxJ.toExponential(2).padStart(12)} | ${row.maxK.toExponential(2).padStart(12)} | ${row.relMaxJ.toExponential(2).padStart(10)} | ${row.relMaxK.toExponential(2).padStart(10)}`,
       );
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     // All partition sums should match the reference to f64 precision
     // (the math is linear-in-P, only FP accumulator reorder noise).

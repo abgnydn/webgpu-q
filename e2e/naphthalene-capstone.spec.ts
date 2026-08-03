@@ -47,7 +47,7 @@ test.describe("Capstone — naphthalene cc-pVDZ HF in a tab (exact ERI infeasibl
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const r = await page.evaluate(async (atoms: { symbol: string; pos: number[] }[]) => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[cap] ${s}`); };
+      const log = (s: string): void => { console.log(`[cap] ${s}`); };
       const [{ moleculeToShellsNuclei }, { runRHFAuto }] = await Promise.all([
         import("/src/chemistry/atoms.ts" as string),
         import("/src/chemistry/rhf-auto.ts" as string),
@@ -69,8 +69,7 @@ test.describe("Capstone — naphthalene cc-pVDZ HF in a tab (exact ERI infeasibl
         converged: res.hf.converged, iters: res.hf.iter, eriLen: res.integrals.eri_AO.length, sec,
       };
     }, NAPHTHALENE);
-
-    console.log(`\n[naphthalene-capstone] ${JSON.stringify(r)}\n`);
+console.log(`\n[naphthalene-capstone] ${JSON.stringify(r)}\n`);
     expect(r.n).toBeGreaterThan(150);             // genuinely large
     expect(r.eriGB).toBeGreaterThan(4);           // exact ERI is multi-GB → tab-infeasible
     expect(r.prov.method).toBe("density-fitting"); // auto-gate chose DF

@@ -11,7 +11,7 @@ async function run(page: import("@playwright/test").Page, c: Case): Promise<{
   ok: boolean; error?: string; n?: number; nAux?: number; maxL?: number; maxRel?: number; maxMag?: number;
 }> {
   return await page.evaluate(async (cfg: Case) => {
-    const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[gpu3idx] ${s}`); };
+    const log = (s: string): void => { console.log(`[gpu3idx] ${s}`); };
     const [
       { moleculeToShellsNuclei },
       { generateAutoAux, buildV3idxCPU },

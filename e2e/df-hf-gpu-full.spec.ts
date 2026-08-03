@@ -13,7 +13,7 @@ test.describe("Fully-GPU DF-HF SCF", () => {
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const r = await page.evaluate(async () => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[fullgpu] ${s}`); };
+      const log = (s: string): void => { console.log(`[fullgpu] ${s}`); };
       const [
         { moleculeToShellsNuclei }, { computeMolecularIntegrals }, { runRHFSCF, runRHFSCFAsync },
         { generateAutoAux, buildAuxBasisDFStreaming }, { buildDFAuto }, { makeGpuDFJK },
@@ -57,8 +57,7 @@ test.describe("Fully-GPU DF-HF SCF", () => {
       log(`benzene: DF path=${auto.path}, fully-GPU HF ${sw.energy.toFixed(8)} (${iters} iters, ${(ms / 1000).toFixed(1)}s), WASM HF ${eWASM.toFixed(8)}, |ΔE|=${Math.abs(sw.energy - eWASM).toExponential(2)}`);
       return { path: auto.path, converged: sw.converged, dE: Math.abs(sw.energy - eWASM) };
     });
-
-    console.log(`\n[fully-gpu-hf] ${JSON.stringify(r)}\n`);
+console.log(`\n[fully-gpu-hf] ${JSON.stringify(r)}\n`);
     expect(r.converged).toBe(true);     // converges at f32-appropriate tolerances
     expect(r.path).toBe("gpu");         // d-regime → GPU integrals
     // The meaningful bar: fully-GPU HF is correct to chemical accuracy. (f32 JK +

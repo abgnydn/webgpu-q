@@ -11,7 +11,7 @@ test.describe("buildDFAuto — GPU/WASM path selection", () => {
     await page.goto("/molecule.html", { waitUntil: "domcontentloaded" });
 
     const r = await page.evaluate(async () => {
-      const log = (s: string): void => { /* eslint-disable-next-line no-console */ console.log(`[auto] ${s}`); };
+      const log = (s: string): void => { console.log(`[auto] ${s}`); };
       const [
         { moleculeToShellsNuclei }, { computeMolecularIntegrals }, { runRHFSCF },
         { generateAutoAux, buildAuxBasisDFStreaming }, { buildDFAuto },
@@ -39,8 +39,7 @@ test.describe("buildDFAuto — GPU/WASM path selection", () => {
       log(`benzene: auto HF ${eAuto.toFixed(8)}, wasm HF ${eWASM.toFixed(8)}, |ΔE|=${Math.abs(eAuto - eWASM).toExponential(2)}`);
       return { path: auto.path, dE: Math.abs(eAuto - eWASM), gpuMs, wasmMs };
     });
-
-    console.log(`\n[auto benzene] ${JSON.stringify(r)}\n`);
+console.log(`\n[auto benzene] ${JSON.stringify(r)}\n`);
     expect(r.path).toBe("gpu");          // d-regime, n=120 → GPU
     expect(r.dE).toBeLessThan(1e-3);     // same HF energy as WASM
   });

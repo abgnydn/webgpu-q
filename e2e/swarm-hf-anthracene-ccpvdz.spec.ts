@@ -111,8 +111,7 @@ test.describe(`Swarm anthracene cc-pVDZ HF SCF — ${N_TABS}-tab × ${INNER_POOL
       const { shells, nuclei, nElectrons } =
         moleculeToShellsNuclei(ATOMS as never, "cc-pvdz");
 
-      // eslint-disable-next-line no-console
-      console.log(`[m] anthracene cc-pVDZ n=${shells.length}, building DF B (memory peak ~1.6 GB)...`);
+       console.log(`[m] anthracene cc-pVDZ n=${shells.length}, building DF B (memory peak ~1.6 GB)...`);
 
       const tInt0 = performance.now();
       const integrals = computeMolecularIntegrals(shells, nuclei, { skipERI: true, skipOAO: true });
@@ -123,8 +122,7 @@ test.describe(`Swarm anthracene cc-pVDZ HF SCF — ${N_TABS}-tab × ${INNER_POOL
       const df = await buildAuxBasisDFCholesky(shells, auxShells, 1e-8);
       const dfMs = performance.now() - tDF0;
       const n = df.n, nAux = df.nAux, B = df.B;
-      // eslint-disable-next-line no-console
-      console.log(`[m] DF: n=${n}, n_aux=${nAux}, B=${(B.byteLength / 1e6).toFixed(0)} MB in ${(dfMs / 1000).toFixed(2)} s`);
+       console.log(`[m] DF: n=${n}, n_aux=${nAux}, B=${(B.byteLength / 1e6).toFixed(0)} MB in ${(dfMs / 1000).toFixed(2)} s`);
 
       // Partition by P
       const step = Math.ceil(nAux / nTabs);
@@ -172,8 +170,7 @@ test.describe(`Swarm anthracene cc-pVDZ HF SCF — ${N_TABS}-tab × ${INNER_POOL
       (df as { B: Float64Array }).B = new Float64Array(0);
       await Promise.all(ackPromises);
       await preloadJK_DF_Workers(n, masterSlice.nAuxLocal, INNER_POOL);
-      // eslint-disable-next-line no-console
-      console.log(`[m] B distributed; master holds ${(masterSlice.B.byteLength / 1e6).toFixed(0)} MB slice`);
+       console.log(`[m] B distributed; master holds ${(masterSlice.B.byteLength / 1e6).toFixed(0)} MB slice`);
 
       let iterCount = 0;
       const customJKBuilder = async (D: Float64Array): Promise<{ J: Float64Array; K: Float64Array }> => {
@@ -229,8 +226,7 @@ test.describe(`Swarm anthracene cc-pVDZ HF SCF — ${N_TABS}-tab × ${INNER_POOL
       };
     }, { nTabs: N_TABS, INNER_POOL });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Swarm HF SCF — anthracene C₁₄H₁₀ cc-pVDZ across ${N_TABS} tabs × ${INNER_POOL} inner`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`n_orb = ${result.n}    n_aux = ${result.nAux}`);
@@ -249,15 +245,13 @@ test.describe(`Swarm anthracene cc-pVDZ HF SCF — ${N_TABS}-tab × ${INNER_POOL
     const head = hist.slice(0, Math.min(5, hist.length));
     const tail = hist.length > 10 ? hist.slice(-5) : hist.slice(5);
     for (let i = 0; i < head.length; i++) console.log(`  iter ${(i + 1).toString().padStart(3)}: ${head[i]!.toFixed(6)} Ha`);
-    if (tail.length > 0 && tail !== head) {
-      console.log(`  ...`);
+    if (tail.length > 0 && tail !== head) { console.log(`  ...`);
       const startIdx = hist.length - tail.length;
-      for (let i = 0; i < tail.length; i++) {
-        console.log(`  iter ${(startIdx + i + 1).toString().padStart(3)}: ${tail[i]!.toFixed(6)} Ha`);
+      for (let i = 0; i < tail.length; i++) { console.log(`  iter ${(startIdx + i + 1).toString().padStart(3)}: ${tail[i]!.toFixed(6)} Ha`);
       }
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     expect(Number.isFinite(result.energy)).toBe(true);
     expect(result.converged).toBe(true);

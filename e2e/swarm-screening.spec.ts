@@ -117,8 +117,7 @@ test.describe("Swarm screening — rank a molecule library by HOMO–LUMO gap", 
         maxGapDiff, n: tiles.length,
       };
     }, tilesFor(LIBRARY));
-
-    console.log(`\n[swarm-screening] ${out.n} molecules, single ${Math.round(out.singleMs)}ms → two-tab ${Math.round(out.distMs)}ms (${out.speedup.toFixed(2)}x indicative), other tab ran ${out.otherRan}\n`);
+console.log(`\n[swarm-screening] ${out.n} molecules, single ${Math.round(out.singleMs)}ms → two-tab ${Math.round(out.distMs)}ms (${out.speedup.toFixed(2)}x indicative), other tab ran ${out.otherRan}\n`);
 
     // This spec validates distributed RANKING CORRECTNESS, not speedup (timing is
     // indicative — see swarm-scaling for the warmed, balanced curve).

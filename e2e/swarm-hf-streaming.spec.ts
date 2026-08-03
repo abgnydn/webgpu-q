@@ -63,8 +63,7 @@ test.describe("Streaming swarm HF SCF (each tab self-builds its slice)", () => {
       const n = slice.n;
       const w = window as unknown as { __sw: { n: number; nAux: number; B: Float64Array } };
       w.__sw = { n, nAux: slice.nAux, B: slice.B };
-      // eslint-disable-next-line no-console
-      console.log(`[w] self-built slice: modes=${slice.nAux}, B=${(slice.B.byteLength / 1e6).toFixed(1)} MB, peakV=${(slice.peakVFloats * 8 / 1e6).toFixed(1)} MB`);
+       console.log(`[w] self-built slice: modes=${slice.nAux}, B=${(slice.B.byteLength / 1e6).toFixed(1)} MB, peakV=${(slice.peakVFloats * 8 / 1e6).toFixed(1)} MB`);
 
       const ch = new BroadcastChannel("swarm-hf-streaming");
       ch.addEventListener("message", (ev) => {
@@ -116,14 +115,12 @@ test.describe("Streaming swarm HF SCF (each tab self-builds its slice)", () => {
         useDIIS: true, energyTol: 1e-6, densityTol: 1e-5, maxIter: 40, useDF: fullB,
       });
       const refMs = performance.now() - tRef0;
-      // eslint-disable-next-line no-console
-      console.log(`[m] single-tab streaming ref: ${refMs.toFixed(0)} ms, E=${refHF.energy.toFixed(8)}, full B=${(fullBytes / 1e6).toFixed(1)} MB`);
+       console.log(`[m] single-tab streaming ref: ${refMs.toFixed(0)} ms, E=${refHF.energy.toFixed(8)}, full B=${(fullBytes / 1e6).toFixed(1)} MB`);
 
       // Master's own slice (tab 0).
       const mSlice = await buildAuxBasisDFStreaming(shells, aux, 1e-10, { partition: { tab: 0, of: nTabs } });
       const n = mSlice.n;
-      // eslint-disable-next-line no-console
-      console.log(`[m] self-built slice: modes=${mSlice.nAux}, B=${(mSlice.B.byteLength / 1e6).toFixed(1)} MB, peakV=${(mSlice.peakVFloats * 8 / 1e6).toFixed(1)} MB`);
+       console.log(`[m] self-built slice: modes=${mSlice.nAux}, B=${(mSlice.B.byteLength / 1e6).toFixed(1)} MB, peakV=${(mSlice.peakVFloats * 8 / 1e6).toFixed(1)} MB`);
 
       const ch = new BroadcastChannel("swarm-hf-streaming");
       // Wait until the worker has built its slice and is listening.
@@ -158,8 +155,7 @@ test.describe("Streaming swarm HF SCF (each tab self-builds its slice)", () => {
         useDIIS: true, energyTol: 1e-6, densityTol: 1e-5, maxIter: 40, parallel: 1, customJKBuilder,
       });
       const swMs = performance.now() - tSw0;
-      // eslint-disable-next-line no-console
-      console.log(`[m] streaming swarm SCF: ${swMs.toFixed(0)} ms, E=${swHF.energy.toFixed(8)}, iter=${swHF.iter}`);
+       console.log(`[m] streaming swarm SCF: ${swMs.toFixed(0)} ms, E=${swHF.energy.toFixed(8)}, iter=${swHF.iter}`);
 
       ch.postMessage({ type: "shutdown" });
       ch.close();
@@ -174,8 +170,7 @@ test.describe("Streaming swarm HF SCF (each tab self-builds its slice)", () => {
       };
     }, N_TABS);
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Streaming swarm HF — benzene cc-pVDZ, ${N_TABS} tabs, self-built slices`);
     console.log(`  n=${result.n}, full modes=${result.fullModes}`);
     console.log(`  full B (single tab)     : ${(result.fullBBytes / 1e6).toFixed(1)} MB`);
@@ -185,7 +180,7 @@ test.describe("Streaming swarm HF SCF (each tab self-builds its slice)", () => {
     console.log(`  reference E = ${result.refEnergy.toFixed(8)} Ha`);
     console.log(`  swarm     E = ${result.swEnergy.toFixed(8)} Ha   |ΔE| = ${result.deltaE.toExponential(2)}`);
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
     // Partition identity: swarm == single-tab streaming, to convergence.
     expect(result.deltaE).toBeLessThan(1e-7);

@@ -216,12 +216,26 @@
         -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
         border: none; padding: 0; font-weight: 700;
       }
+          .sitenav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
+        font-size: 12px; padding: 10px 14px 0; }
+      .sitenav a { color: var(--muted, #7a8294); text-decoration: none; }
+      .sitenav a:hover, .sitenav a:focus-visible { color: var(--accent, #6ea8ff); }
+      .sitenav .here { color: var(--text, #e6e9f0); font-weight: 650; }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
   </head>
   <body>
+    <nav class="sitenav" aria-label="webgpu-q pages">
+      <a href="/index.html">engine</a>
+      <a href="/learn.html">learn</a>
+      <a href="/molecule.html">molecule</a>
+      <a href="/screening.html">screen</a>
+      <a href="/swarm.html">swarm</a>
+      <span class="here">hyperscope</span>
+      <a href="/experiments/index.html">experiments</a>
+    </nav>
     <div class="stage">
       <div class="pane left">
         <canvas id="cL"></canvas>
@@ -248,27 +262,27 @@
       </small>
 
       <div class="row">
-        <label><span>Bond length R</span><span class="v" id="bondLabel">0.741 Å</span></label>
+        <label for="bond"><span>Bond length R</span><span class="v" id="bondLabel">0.741 Å</span></label>
         <input id="bond" type="range" min="0.4" max="3.0" step="0.005" value="0.7414" />
       </div>
 
       <div class="group-title">cursor r₀ (conditioning point)</div>
       <div class="row">
-        <label><span>x</span><span class="v" id="r0x-label">0.00 Bohr</span></label>
+        <label for="r0x"><span>x</span><span class="v" id="r0x-label">0.00 Bohr</span></label>
         <input id="r0x" type="range" min="-2" max="2" step="0.05" value="0" />
       </div>
       <div class="row">
-        <label><span>y</span><span class="v" id="r0y-label">0.00 Bohr</span></label>
+        <label for="r0y"><span>y</span><span class="v" id="r0y-label">0.00 Bohr</span></label>
         <input id="r0y" type="range" min="-2" max="2" step="0.05" value="0" />
       </div>
       <div class="row">
-        <label><span>z (along bond)</span><span class="v" id="r0z-label">−0.70 Bohr</span></label>
+        <label for="r0z"><span>z (along bond)</span><span class="v" id="r0z-label">−0.70 Bohr</span></label>
         <input id="r0z" type="range" min="-3" max="3" step="0.05" value="-0.70" />
       </div>
 
       <div class="group-title green">bottom pane — quantum chain</div>
       <div class="row">
-        <label><span>model</span></label>
+        <label for="model"><span>model</span></label>
         <select id="model" style="width:100%; background:var(--panel); color:var(--text); border:1px solid var(--border); padding:6px; border-radius:6px; font:inherit;">
           <option value="brickwall">brick-wall random circuit</option>
           <option value="tfim">TFIM ground state — slide h across phase transition</option>
@@ -278,23 +292,23 @@
         </select>
       </div>
       <div class="row">
-        <label><span>qubits N</span><span class="v" id="nLabel">12</span></label>
+        <label for="nq"><span>qubits N</span><span class="v" id="nLabel">12</span></label>
         <input id="nq" type="range" min="4" max="20" step="1" value="12" />
       </div>
       <div class="row" id="depthRow">
-        <label><span>depth D</span><span class="v" id="dLabel">8</span></label>
+        <label for="depth"><span>depth D</span><span class="v" id="dLabel">8</span></label>
         <input id="depth" type="range" min="1" max="20" step="1" value="8" />
       </div>
       <div class="row" id="hRow" style="display:none;">
-        <label><span>field h / J</span><span class="v" id="hLabel">1.00</span></label>
+        <label for="hField"><span>field h / J</span><span class="v" id="hLabel">1.00</span></label>
         <input id="hField" type="range" min="0" max="2.5" step="0.02" value="1.0" />
       </div>
       <div class="row" id="gammaRow" style="display:none;">
-        <label><span>measurement rate γ</span><span class="v" id="gammaLabel">0.20</span></label>
+        <label for="gamma"><span>measurement rate γ</span><span class="v" id="gammaLabel">0.20</span></label>
         <input id="gamma" type="range" min="0" max="2" step="0.02" value="0.2" />
       </div>
       <div class="row">
-        <label><span>time t</span><span class="v" id="tLabel">0 / 0</span></label>
+        <label for="time"><span>time t</span><span class="v" id="tLabel">0 / 0</span></label>
         <input id="time" type="range" min="0" max="1" step="1" value="0" />
       </div>
       <div class="row" style="display:flex; gap:8px;">

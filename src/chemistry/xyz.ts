@@ -20,7 +20,7 @@
 // Limitations:
 //   - Single-frame only. Multi-frame trajectory XYZ (concatenated)
 //     would need explicit frame splitting; queued.
-//   - Element set restricted to AtomSymbol union (H, Li, Be, C, N,
+//   - Element set restricted to the AtomSymbol union (H, He, Li, Be, C, N,
 //     O, F). Throws for unsupported elements with a clear message.
 //   - Comment line preserved as opt return; no parsing of charge /
 //     multiplicity / properties (those vary too much across codes).
@@ -28,10 +28,13 @@
 
 import { type Atom, type AtomSymbol } from "./atoms.js";
 
+// He included: it is a member of AtomSymbol, carries basis data in atoms.ts, and
+// molecules.ts ships a He molecule — omitting it here made toXYZ → parseXYZ fail
+// to round-trip a molecule this library provides.
 const SYMBOL_BY_Z: Record<number, AtomSymbol> = {
-  1: "H", 3: "Li", 4: "Be", 6: "C", 7: "N", 8: "O", 9: "F",
+  1: "H", 2: "He", 3: "Li", 4: "Be", 6: "C", 7: "N", 8: "O", 9: "F",
 };
-const SUPPORTED_SYMBOLS = new Set<AtomSymbol>(["H", "Li", "Be", "C", "N", "O", "F"]);
+const SUPPORTED_SYMBOLS = new Set<AtomSymbol>(["H", "He", "Li", "Be", "C", "N", "O", "F"]);
 
 export interface XYZParseResult {
   readonly atoms: Atom[];
@@ -165,14 +168,14 @@ function resolveSymbol(token: string, lineNo: number): AtomSymbol {
   if (Number.isInteger(Z) && Z > 0) {
     const sym = SYMBOL_BY_Z[Z];
     if (!sym) {
-      throw new Error(`parseXYZ: line ${lineNo} atomic number ${Z} is not supported (supported: H, Li, Be, C, N, O, F)`);
+      throw new Error(`parseXYZ: line ${lineNo} atomic number ${Z} is not supported (supported: H, He, Li, Be, C, N, O, F)`);
     }
     return sym;
   }
   // Otherwise treat as symbol — case-normalize and validate.
   const upper = token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
   if (!SUPPORTED_SYMBOLS.has(upper as AtomSymbol)) {
-    throw new Error(`parseXYZ: line ${lineNo} element "${token}" not supported (supported: H, Li, Be, C, N, O, F)`);
+    throw new Error(`parseXYZ: line ${lineNo} element "${token}" not supported (supported: H, He, Li, Be, C, N, O, F)`);
   }
   return upper as AtomSymbol;
 }

@@ -46,15 +46,13 @@ test.describe("Full distributed HF SCF across tabs", () => {
       const ch = new BroadcastChannel("swarm-hf-test");
       const w = window as unknown as { __swarmHF: { n: number; nAuxLocal: number; B: Float64Array } | null };
       w.__swarmHF = null;
-      // eslint-disable-next-line no-console
-      console.log("[w] listener ready");
+       console.log("[w] listener ready");
 
       ch.addEventListener("message", (ev) => {
         const msg = ev.data as { type: string; n?: number; nAuxLocal?: number; B?: Float64Array; D?: Float64Array };
         if (msg.type === "B-slice" && msg.B && typeof msg.n === "number" && typeof msg.nAuxLocal === "number") {
           w.__swarmHF = { n: msg.n, nAuxLocal: msg.nAuxLocal, B: msg.B };
-          // eslint-disable-next-line no-console
-          console.log(`[w] B-slice stored: ${(msg.B.byteLength / 1e6).toFixed(1)} MB, n_aux_local=${msg.nAuxLocal}`);
+           console.log(`[w] B-slice stored: ${(msg.B.byteLength / 1e6).toFixed(1)} MB, n_aux_local=${msg.nAuxLocal}`);
           ch.postMessage({ type: "B-slice-ack" });
         } else if (msg.type === "jk" && msg.D && w.__swarmHF) {
           const { n, nAuxLocal, B } = w.__swarmHF;
@@ -114,8 +112,7 @@ test.describe("Full distributed HF SCF across tabs", () => {
         useDIIS: true, energyTol: 1e-6, densityTol: 1e-5, maxIter: 40, useDF: df,
       });
       const refMs = performance.now() - tRef0;
-      // eslint-disable-next-line no-console
-      console.log(`[m] reference HF SCF: ${refMs.toFixed(0)} ms, E = ${refHF.energy.toFixed(8)}, iter=${refHF.iter}`);
+       console.log(`[m] reference HF SCF: ${refMs.toFixed(0)} ms, E = ${refHF.energy.toFixed(8)}, iter=${refHF.iter}`);
 
       // Partition by P.
       const pMid = Math.floor(nAux / 2);
@@ -151,8 +148,7 @@ test.describe("Full distributed HF SCF across tabs", () => {
         ch.postMessage({ type: "B-slice", n, nAuxLocal: workerSlice.nAuxLocal, B: workerSlice.B });
         setTimeout(() => { ch.removeEventListener("message", handler); reject(new Error("worker ack timeout")); }, 30000);
       });
-      // eslint-disable-next-line no-console
-      console.log("[m] worker slice acked");
+       console.log("[m] worker slice acked");
 
       // Distributed JK builder: master + worker each compute partial,
       // master sums.
@@ -205,8 +201,7 @@ test.describe("Full distributed HF SCF across tabs", () => {
         customJKBuilder,
       });
       const swMs = performance.now() - tSw0;
-      // eslint-disable-next-line no-console
-      console.log(`[m] swarm HF SCF: ${swMs.toFixed(0)} ms, E = ${swHF.energy.toFixed(8)}, iter=${swHF.iter}`);
+       console.log(`[m] swarm HF SCF: ${swMs.toFixed(0)} ms, E = ${swHF.energy.toFixed(8)}, iter=${swHF.iter}`);
 
       ch.postMessage({ type: "shutdown" });
       ch.close();
@@ -215,13 +210,16 @@ test.describe("Full distributed HF SCF across tabs", () => {
         n, nAux,
         refEnergy: refHF.energy, refIter: refHF.iter, refMs,
         swEnergy: swHF.energy, swIter: swHF.iter, swMs,
+        // Real SCF convergence flags, not "agreed with the reference". The
+        // artifact's passBar is "converged === true", so it must carry the
+        // actual SCF state — see the assertion note at the artifact write.
+        swConverged: swHF.converged, refConverged: refHF.converged,
         deltaE: Math.abs(swHF.energy - refHF.energy),
         iterDiag,
       };
     });
 
-    /* eslint-disable no-console */
-    console.log(`\n══════════════════════════════════════════════════════════`);
+     console.log(`\n══════════════════════════════════════════════════════════`);
     console.log(`Swarm HF SCF — benzene cc-pVDZ across 2 tabs (n=${result.n}, n_aux=${result.nAux})`);
     console.log(`══════════════════════════════════════════════════════════`);
     console.log(`Reference (1-tab):  ${result.refMs.toFixed(0).padStart(6)} ms   iter=${result.refIter}   E = ${result.refEnergy.toFixed(8)} Ha`);
@@ -230,22 +228,33 @@ test.describe("Full distributed HF SCF across tabs", () => {
     console.log();
     console.log(`Per-iter diag (first 10):`);
     console.log(`iter | ms  | ‖D‖_max  | ‖J‖_max     | ‖K‖_max     | NaN?`);
-    for (const d of result.iterDiag.slice(0, 10)) {
-      console.log(
+    for (const d of result.iterDiag.slice(0, 10)) { console.log(
         ` ${String(d.iter).padStart(3)} | ${d.ms.toFixed(0).padStart(3)} | ` +
         `${d.maxD.toExponential(2)} | ${d.maxJ.toExponential(3)} | ${d.maxK.toExponential(3)} | ${d.anyNaN ? "YES" : "no"}`,
       );
     }
     console.log(`══════════════════════════════════════════════════════════\n`);
-    /* eslint-enable no-console */
+     
 
-    expect(result.deltaE).toBeLessThan(1e-7);  // energies match to convergence tolerance
-
+    // Write the artifact BEFORE asserting, so a failing run still produces
+    // evidence with status "fail" — this repo's honest-negative rule. Previously
+    // the expect() ran first and `converged` was derived from the same deltaE the
+    // expect had just guaranteed, making the field a hardcoded true that no run
+    // could ever falsify against passBar "converged === true".
     await writeSwarmArtifact(
       master,
       { molecule: "benzene", formula: "C6H6", basis: "cc-pVDZ", nTabs: 2, innerPool: 1 },
-      { ...result, energy: result.swEnergy, iter: result.swIter, converged: result.deltaE < 1e-7 },
+      {
+        ...result,
+        energy: result.swEnergy,
+        iter: result.swIter,
+        converged: result.swConverged && result.refConverged,
+      },
     );
+
+    expect(result.swConverged, "swarm SCF must actually converge").toBe(true);
+    expect(result.refConverged, "reference SCF must actually converge").toBe(true);
+    expect(result.deltaE).toBeLessThan(1e-7);  // energies match to convergence tolerance
 
     await ctx.close();
   });

@@ -14,7 +14,12 @@ import { optimizeGeometry } from "../../src/chemistry/geometry.js";
 import type { Atom } from "../../src/chemistry/atoms.js";
 
 describe("First hyperpolarizability — H₂O HF/STO-3G", () => {
-  test("β tensor is finite, no NaN, vector invariant in a sensible range", { timeout: 30000 }, () => {
+  // Per-test timeout raised to match vitest.config.ts's global 360 s. The old
+  // value (30000 ms) was tight enough to false-red under ordinary background
+  // load — measured on an idle M2 Pro this cell takes ~12 s, but under a
+  // loaded machine it took 56 s and timed out with correct chemistry,
+  // which is exactly the landmine the global ceiling was raised to remove.
+  test("β tensor is finite, no NaN, vector invariant in a sensible range", { timeout: 360_000 }, () => {
     const half = (104.52 / 2) * Math.PI / 180;
     const x = 0.9572 * Math.sin(half);
     const z = 0.9572 * Math.cos(half);
@@ -39,7 +44,7 @@ describe("First hyperpolarizability — H₂O HF/STO-3G", () => {
 });
 
 describe("Centrosymmetry forces β = 0 — H₂", () => {
-  test("H₂ has all β_ijk ≈ 0 (D∞h is centrosymmetric)", { timeout: 30000 }, () => {
+  test("H₂ has all β_ijk ≈ 0 (D∞h is centrosymmetric)", { timeout: 360_000 }, () => {
     const start: Atom[] = [
       { symbol: "H", pos: [0, 0, -0.37] },
       { symbol: "H", pos: [0, 0,  0.37] },
@@ -59,7 +64,7 @@ describe("Centrosymmetry forces β = 0 — H₂", () => {
 });
 
 describe("Kleinman symmetry of β tensor", () => {
-  test("Post-symmetrization the tensor is invariant under index permutation", { timeout: 30000 }, () => {
+  test("Post-symmetrization the tensor is invariant under index permutation", { timeout: 360_000 }, () => {
     const half = (104.52 / 2) * Math.PI / 180;
     const x = 0.9572 * Math.sin(half);
     const z = 0.9572 * Math.cos(half);
