@@ -530,13 +530,31 @@ n ≥ 60 the JK build dominates and speedup approaches the
   | H₂O cc-pVDZ | 2 (add L+2)         | 311 |  −55 Ha     | 101 | ✗ |
 
   extraL=1 hits chemical accuracy (1.6 mHa = 1 kcal/mol) on H₂O.
-  extraL=2 catastrophic failure (−55 Ha, doesn't converge) at L=4
-  reveals an untested g-function code path in the 3-index kernel.
-  Likely a normalization or recurrence bug at L ≥ 4 — the existing
-  4-index path doesn't exercise g because cc-pVDZ orbital tops at
-  d. Phase 2 should: (a) add a focused L=4 unit test against
-  closed-form, (b) fix whatever's wrong, (c) re-run extraL=2 and
-  expect sub-µHa accuracy.
+
+  > **RETRACTED 2026-08-03.** The extraL=2 row above, and the g-function
+  > diagnosis that followed it, were artifacts of a `DFResult` indexing bug —
+  > NOT a kernel defect. `buildAuxBasisDF` emitted `B` at the full `nAux`
+  > stride but reported `nAux: nKept`, so whenever the metric threshold
+  > dropped even one mode, every `buildJK_DF` read was misaligned. extraL=2
+  > drops 4 of 315 modes on H₂O, so the sweep was corrupted at every point.
+  >
+  > Re-measured after the fix (same geometry, same code path, Node):
+  >
+  > | reg | kept / 315 | E (Ha) | iter | err vs direct ERI |
+  > |---|---:|---:|---:|---:|
+  > | 1e-12 | 313 | −75.645081 | 14 | 1.49e-6 Ha |
+  > | 1e-10 | 311 | −75.645081 | 14 | 1.43e-6 Ha |
+  > | 1e-8  | 305 | −75.645081 | 14 | 1.47e-6 Ha |
+  > | 1e-6  | 297 | −75.645081 | 14 | 1.52e-6 Ha |
+  > | 1e-4  | 271 | −75.645072 | 14 | 1.07e-5 Ha |
+  > | 1e-2  | 202 | −75.644929 | 14 | 1.54e-4 Ha |
+  >
+  > extraL=2 converges everywhere and is ~100× MORE accurate than extraL=1
+  > (1.5 µHa vs 0.11 mHa), degrading monotonically with the threshold exactly
+  > as theory predicts. There is no evidence of an L=4 / g-function bug: the
+  > proposed "(a) add a focused L=4 unit test, (b) fix whatever's wrong" work
+  > item was chasing a bug that does not exist. The real defect was one word
+  > in a return statement.
 
   **For production**: `useDF: generateAutoAux(shells, 1)`-built
   DFResult through `runRHFSCFAsync` is viable today for any cc-pVDZ
@@ -626,29 +644,43 @@ n ≥ 60 the JK build dominates and speedup approaches the
     Energy:                          −188000 Ha  (vs −230.72 ref)
 
   The B-tensor build is fast (beats direct) but its CONTENT is
-  corrupted. Same issue we diagnosed at H₂O extraL=2: auto-aux
-  with extraL=1 on benzene's 6 carbons + 6 hydrogens produces near-
-  duplicate aux exponents across atoms; eigendecomp drops critical
-  modes; M⁻¹⸍² is wrong; B is wrong; HF SCF blows up.
+  corrupted.
 
-  H₂O extraL=1 works at 0.11 mHa because it has only 1 heavy atom
-  + 2 H. Ethane (2 C + 6 H) also works at 0.4 mHa. Benzene's 6 C
-  cross-coupling at the same exponents is what fails.
-
-  Phase 3 (the only real fix): load Weigend's cc-pVDZ-jkfit aux data
-  tables for H, C, N, O. These are purpose-built to span orbital
-  products with minimal redundancy. Until that's done, auto-aux is
-  a research demo for ≤ 2-heavy-atom systems.
+  > **RETRACTED 2026-08-03 — same root cause as the H₂O extraL=2 retraction
+  > above.** The mechanism recorded here (near-duplicate aux exponents →
+  > eigendecomp drops critical modes → M⁻¹⸍² wrong → B wrong) was the symptom
+  > read as the cause. `M⁻¹⸍²` and `B` were correct all along; `buildAuxBasisDF`
+  > merely reported `nKept` as `B`'s stride while building at full `nAux` width,
+  > so `buildJK_DF` indexed misaligned memory whenever any mode was dropped.
+  > Benzene drops 4 of 678.
+  >
+  > Re-measured after the fix (benzene cc-pVDZ, extraL=1, reg 1e-10, Node):
+  > **E = −230.722726 Ha, converged in 11 iterations**, 2.6e-5 Ha from the
+  > Cholesky reference — against the −188 000 Ha non-convergence recorded above.
+  >
+  > Consequences: the conclusion that "auto-aux is a research demo for
+  > ≤ 2-heavy-atom systems" is false (benzene has 6 heavy atoms and works), and
+  > loading Weigend cc-pVDZ-jkfit tables is NOT required to fix this. Those
+  > tables may still be worth having for their own sake — purpose-built aux sets
+  > are smaller for the same accuracy — but they were being proposed as the cure
+  > for a bug that lived somewhere else entirely.
 
   **Update 2026-05-28 — pivoted Cholesky fixes it without jkfit data**:
   `buildAuxBasisDFCholesky` replaces eigendecomp + threshold
   regularization with pivoted incomplete Cholesky of M. Naturally
   stops at the effective rank without spurious-mode dropping.
 
-  | system | aux-in | eigendecomp result | Cholesky result |
-  |---|---:|---|---|
-  | H₂O cc-pVDZ extraL=2 | 315 | −142 Ha NOT converged | **−75.6451 Ha, 1.47 μHa** |
-  | benzene cc-pVDZ extraL=1 | 678 | −188 000 Ha NOT converged | **−230.7227 Ha, 49 μHa** |
+  | system | aux-in | eigendecomp (2026-05) | Cholesky | eigendecomp (post-fix, 2026-08) |
+  |---|---:|---|---|---|
+  | H₂O cc-pVDZ extraL=2 | 315 | −142 Ha NOT converged | −75.6451 Ha, 1.47 μHa | **−75.645081 Ha, 1.47 μHa** |
+  | benzene cc-pVDZ extraL=1 | 678 | −188 000 Ha NOT converged | −230.7227 Ha, 49 μHa | **−230.722726 Ha, 26 μHa** |
+
+  The last column is the retraction: pivoted Cholesky did not "fix" a broken
+  eigendecomp, it merely sidestepped an indexing bug by producing a physically
+  compacted `B` whose reported width happened to match its real stride. Both
+  paths agree once the stride contract is honoured. Cholesky remains useful —
+  it stops at the effective rank without a threshold to tune — but it is not
+  load-bearing for correctness.
 
   Benzene cc-pVDZ end-to-end aux-DF HF via Cholesky:
     Integrals (skipERI + skipOAO):    0.6 s

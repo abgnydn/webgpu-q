@@ -125,8 +125,18 @@ export async function runRHFAuto(
 async function buildDFForRegime(
   shells: readonly CGShell[], fast: boolean,
 ): Promise<{ df: DFResult; provenance: RHFAutoProvenance }> {
-  // extraL=1 aux (the cc-pVDZ sweet spot — adds f-aux for chemistry-grade
-  // accuracy; extraL=2 over-completes and breaks the metric orthogonalization).
+  // extraL=1 aux (adds f-aux for chemistry-grade accuracy at modest cost).
+  //
+  // The old justification — "extraL=2 over-completes and breaks the metric
+  // orthogonalization" — was RETRACTED 2026-08-03: that breakage was the
+  // DFResult stride bug, not the metric. Re-measured on H₂O cc-pVDZ, extraL=2
+  // converges at every regularization and is ~100x MORE accurate than extraL=1
+  // (1.5 µHa vs 0.11 mHa). See LIMITATIONS.md.
+  //
+  // extraL=1 is kept as the default on COST grounds, which is a real trade and
+  // not a correctness claim: 138 vs 315 aux functions on H₂O means the B-tensor
+  // and the whole DF build grow ~2.3x for accuracy already far inside chemical
+  // accuracy. Revisit if a caller needs sub-µHa DF.
   const aux = generateAutoAux(shells, 1);
   const n = shells.length;
 
