@@ -37,3 +37,7 @@ coverage/
 
 # Throwaway benchmark/measurement scratch tests (never committed; deleted after use)
 **/_zzz-*.test.ts
+.env*
+
+# airlock local index (not part of this repo)
+.airlock/
