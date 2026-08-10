@@ -144,12 +144,18 @@ export const STO3G_O_2P = {
 
 // ── Hydrogen cc-pVDZ ─────────────────────────────────────────
 // 2 s-shells (one contracted, one uncontracted) + 1 p-shell.
+// Corrected 2026-08-10 against pyscf.gto.basis.load("cc-pvdz", "H").
+// The exponents carried extra non-canonical digits (13.0107010 /
+// 1.9622572 / 0.4445298 / 0.1219496) against Dunning's published
+// 13.01 / 1.962 / 0.4446 / 0.122. Coefficients were already correct.
+// Small (~2-5 uHa) but hydrogen is in nearly every validation molecule,
+// so it put a permanent floor under every cc-pVDZ vs-PySCF comparison.
 export const CCPVDZ_H_1S = {
-  alpha: [13.0107010, 1.9622572, 0.4445298] as const,
+  alpha: [13.0100000, 1.9620000, 0.4446000] as const,
   c: [0.0196850, 0.1379770, 0.4781480] as const,
 };
 export const CCPVDZ_H_2S = {
-  alpha: [0.1219496] as const,
+  alpha: [0.1220000] as const,
   c: [1.0] as const,
 };
 export const CCPVDZ_H_2P = {
@@ -175,11 +181,13 @@ export const CCPVDZ_HE_2P = {
 
 // ── Helium aug-cc-pVDZ diffuse ───────────────────────────────
 // One diffuse s + one diffuse p (EMSL).
+// Corrected 2026-08-10 against pyscf.gto.basis.load("aug-cc-pvdz", "He")
+// — was 0.0713 / 0.3300.
 export const AUG_CCPVDZ_HE_DIFFUSE_S = {
-  alpha: [0.0713000] as const, c: [1.0] as const,
+  alpha: [0.0725500] as const, c: [1.0] as const,
 };
 export const AUG_CCPVDZ_HE_DIFFUSE_P = {
-  alpha: [0.3300000] as const, c: [1.0] as const,
+  alpha: [0.2473000] as const, c: [1.0] as const,
 };
 
 // ── Oxygen cc-pVDZ ────────────────────────────────────────────
@@ -250,12 +258,14 @@ export const AUG_CCPVDZ_H_DIFFUSE_P = {
   alpha: [0.1410000] as const,
   c: [1.0] as const,
 };
+// Corrected 2026-08-10 against pyscf.gto.basis.load("aug-cc-pvdz", "O")
+// — was 0.0845800 / 0.0856000. The d exponent was already correct.
 export const AUG_CCPVDZ_O_DIFFUSE_S = {
-  alpha: [0.0845800] as const,
+  alpha: [0.0789600] as const,
   c: [1.0] as const,
 };
 export const AUG_CCPVDZ_O_DIFFUSE_P = {
-  alpha: [0.0856000] as const,
+  alpha: [0.0685600] as const,
   c: [1.0] as const,
 };
 export const AUG_CCPVDZ_O_DIFFUSE_D = {
@@ -266,21 +276,28 @@ export const AUG_CCPVDZ_O_DIFFUSE_D = {
 // aug-cc-pVDZ diffuse functions for Li, Be, C, N, F.
 // One diffuse primitive per angular momentum class (s, p, d).
 // EMSL Basis Set Exchange, retrieved 2026-05-18.
-export const AUG_CCPVDZ_LI_DIFFUSE_S = { alpha: [0.0072930] as const, c: [1.0] as const };
-export const AUG_CCPVDZ_LI_DIFFUSE_P = { alpha: [0.0074000] as const, c: [1.0] as const };
-export const AUG_CCPVDZ_LI_DIFFUSE_D = { alpha: [0.0950000] as const, c: [1.0] as const };
-export const AUG_CCPVDZ_BE_DIFFUSE_S = { alpha: [0.0207000] as const, c: [1.0] as const };
-export const AUG_CCPVDZ_BE_DIFFUSE_P = { alpha: [0.0142000] as const, c: [1.0] as const };
-export const AUG_CCPVDZ_BE_DIFFUSE_D = { alpha: [0.0722000] as const, c: [1.0] as const };
+// Corrected 2026-08-10 against pyscf.gto.basis.load("aug-cc-pvdz", ...).
+// Of the eight elements, only H and C were right; He/Li/Be/N/O/F all
+// carried wrong diffuse exponents. Previous values, for the record:
+//   Li  S 0.0072930  P 0.0074000  D 0.0950000
+//   Be  S 0.0207000  P 0.0142000  D 0.0722000
+//   N   S 0.0576000  P 0.0491000  (D was correct)
+//   F   S 0.1076000  P 0.0832000  D 0.5000000
+export const AUG_CCPVDZ_LI_DIFFUSE_S = { alpha: [0.0086400] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_LI_DIFFUSE_P = { alpha: [0.0057900] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_LI_DIFFUSE_D = { alpha: [0.0725000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_BE_DIFFUSE_S = { alpha: [0.0187700] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_BE_DIFFUSE_P = { alpha: [0.0085000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_BE_DIFFUSE_D = { alpha: [0.0740000] as const, c: [1.0] as const };
 export const AUG_CCPVDZ_C_DIFFUSE_S  = { alpha: [0.0469000] as const, c: [1.0] as const };
 export const AUG_CCPVDZ_C_DIFFUSE_P  = { alpha: [0.0404100] as const, c: [1.0] as const };
 export const AUG_CCPVDZ_C_DIFFUSE_D  = { alpha: [0.1510000] as const, c: [1.0] as const };
-export const AUG_CCPVDZ_N_DIFFUSE_S  = { alpha: [0.0576000] as const, c: [1.0] as const };
-export const AUG_CCPVDZ_N_DIFFUSE_P  = { alpha: [0.0491000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_N_DIFFUSE_S  = { alpha: [0.0612400] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_N_DIFFUSE_P  = { alpha: [0.0561100] as const, c: [1.0] as const };
 export const AUG_CCPVDZ_N_DIFFUSE_D  = { alpha: [0.2300000] as const, c: [1.0] as const };
-export const AUG_CCPVDZ_F_DIFFUSE_S  = { alpha: [0.1076000] as const, c: [1.0] as const };
-export const AUG_CCPVDZ_F_DIFFUSE_P  = { alpha: [0.0832000] as const, c: [1.0] as const };
-export const AUG_CCPVDZ_F_DIFFUSE_D  = { alpha: [0.5000000] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_F_DIFFUSE_S  = { alpha: [0.0986300] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_F_DIFFUSE_P  = { alpha: [0.0850200] as const, c: [1.0] as const };
+export const AUG_CCPVDZ_F_DIFFUSE_D  = { alpha: [0.4640000] as const, c: [1.0] as const };
 
 /** STO-3G 2s contraction for lithium — the *s component* of the L-shell.
  *  Coefficients can be negative to produce the 2s radial node and to
@@ -332,13 +349,18 @@ export const CCPVDZ_LI_2S = {
     -0.048902, -0.096009, -0.136380, 0.575102,
   ] as const,
 };
+// Corrected 2026-08-10 against pyscf.gto.basis.load("cc-pvdz", "Li").
+// The uncontracted s exponent read 0.0285000 (digit transposition of
+// 0.02805) and the 2p contraction coefficients were wholly wrong —
+// together worth 1.29 mHa on LiH, which is 2.6x the repo's own
+// <= 0.5 mHa HF-vs-PySCF gate. See tests/chemistry/elements/.
 export const CCPVDZ_LI_2S_P = {
-  alpha: [0.0285000] as const,
+  alpha: [0.0280500] as const,
   c: [1.0] as const,
 };
 export const CCPVDZ_LI_2P = {
   alpha: [1.5340, 0.2749, 0.073620] as const,
-  c: [0.022270, 0.111705, 0.240315] as const,
+  c: [0.022784, 0.139107, 0.500375] as const,
 };
 export const CCPVDZ_LI_2P_P = {
   alpha: [0.024030] as const,
@@ -356,9 +378,12 @@ export const CCPVDZ_BE_1S = {
     2940.0000, 441.2000, 100.5000, 28.4300,
     9.1690, 3.1960, 1.1590, 0.1811,
   ] as const,
+  // Corrected 2026-08-10 against pyscf.gto.basis.load("cc-pvdz", "Be"):
+  // the tail was transcribed at reduced precision (0.4514 vs 0.451469,
+  // 0.2950 vs 0.295074, 0.012580 vs 0.012587).
   c: [
-    0.000680, 0.005236, 0.026600, 0.099990,
-    0.269700, 0.451400, 0.295000, 0.012580,
+    0.000680, 0.005236, 0.026606, 0.099993,
+    0.269702, 0.451469, 0.295074, 0.012587,
   ] as const,
 };
 export const CCPVDZ_BE_2S = {
@@ -366,9 +391,13 @@ export const CCPVDZ_BE_2S = {
     2940.0000, 441.2000, 100.5000, 28.4300,
     9.1690, 3.1960, 1.1590, 0.1811,
   ] as const,
+  // Corrected 2026-08-10 against PySCF. Elements 4-8 were not merely
+  // rounded but substantively different (-0.05403 vs -0.05328,
+  // -0.1133 vs -0.120723, -0.1462 vs -0.133435, 0.5392 vs 0.530767),
+  // i.e. sourced from a different/incorrect table.
   c: [
-    -0.000123, -0.000966, -0.004831, -0.019330,
-    -0.054030, -0.113300, -0.146200, 0.539200,
+    -0.000123, -0.000966, -0.004831, -0.019314,
+    -0.053280, -0.120723, -0.133435, 0.530767,
   ] as const,
 };
 export const CCPVDZ_BE_2S_P = {
@@ -377,7 +406,9 @@ export const CCPVDZ_BE_2S_P = {
 };
 export const CCPVDZ_BE_2P = {
   alpha: [3.6190, 0.7110, 0.1951] as const,
-  c: [0.029110, 0.169650, 0.487810] as const,
+  // Corrected 2026-08-10 against PySCF (was 0.169650 / 0.487810 — the
+  // last coefficient was off by 5%).
+  c: [0.029111, 0.169365, 0.513458] as const,
 };
 export const CCPVDZ_BE_2P_P = {
   alpha: [0.060180] as const,
@@ -434,9 +465,10 @@ export const CCPVDZ_N_1S = {
     9046.0000, 1357.0000, 309.3000, 87.7300,
     28.5600, 10.2100, 3.8380, 0.7466,
   ] as const,
+  // Corrected 2026-08-10 against PySCF (was 0.278722 / 0.448581).
   c: [
     0.000700, 0.005389, 0.027406, 0.103207,
-    0.278722, 0.448581, 0.278238, 0.015440,
+    0.278723, 0.448540, 0.278238, 0.015440,
   ] as const,
 };
 export const CCPVDZ_N_2S = {
