@@ -246,6 +246,8 @@ const COVALENT_RADIUS_ANGSTROM: Readonly<Record<string, number>> = {
   H:  0.32, He: 0.46,
   Li: 1.33, Be: 1.02, B:  0.85,
   C:  0.75, N:  0.71, O:  0.63, F:  0.64, Ne: 0.67,
+  Na: 1.55, Mg: 1.39, Al: 1.26,
+  Si: 1.16, P:  1.11, S:  1.03, Cl: 0.99, Ar: 0.96,
 };
 
 export interface Bond {
@@ -263,6 +265,10 @@ const ATOMIC_MASS: Readonly<Record<string, number>> = {
   C: 12.0,            N: 14.0030740048,
   O: 15.99491461956,  F: 18.998403163,
   Ne: 19.9924401762,
+  Na: 22.989769282,   Mg: 23.985041697,
+  Al: 26.98153853,    Si: 27.97692653465,
+  P: 30.97376199842,  S: 31.9720711744,
+  Cl: 34.968852682,   Ar: 39.9623831237,
 };
 
 /** Total mass of a molecule in amu. */

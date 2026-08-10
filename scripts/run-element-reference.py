@@ -69,6 +69,23 @@ MOLECULES = {
     "O":  ("H2O",  [("O", (0.0, 0.0, 0.0))] +
                    [("H", p) for p in bent(0.9572, 104.52)]),
     "F":  ("HF",   [("F", (0.0, 0.0, 0.0)), ("H", (0.0, 0.0, 0.9168))]),
+    # Third row. Hydrides wherever one exists, so two-center integrals
+    # are actually exercised; bare atoms only for the noble gas.
+    "Na": ("NaH",  [("Na", (0.0, 0.0, 0.0)), ("H", (0.0, 0.0, 1.8874))]),
+    "Mg": ("MgH2", [("Mg", (0.0, 0.0, 0.0)),
+                    ("H", (0.0, 0.0, 1.7297)), ("H", (0.0, 0.0, -1.7297))]),
+    "Al": ("AlH3", [("Al", (0.0, 0.0, 0.0))] +
+                   [("H", (1.5840 * math.cos(math.radians(90 + 120 * k)),
+                           1.5840 * math.sin(math.radians(90 + 120 * k)), 0.0))
+                    for k in range(3)]),
+    "Si": ("SiH4", [("Si", (0.0, 0.0, 0.0))] +
+                   [("H", p) for p in tetrahedral(1.4798)]),
+    "P":  ("PH3",  [("P", (0.0, 0.0, 0.0))] +
+                   [("H", p) for p in pyramidal(1.4200, 93.5)]),
+    "S":  ("H2S",  [("S", (0.0, 0.0, 0.0))] +
+                   [("H", p) for p in bent(1.3356, 92.11)]),
+    "Cl": ("HCl",  [("Cl", (0.0, 0.0, 0.0)), ("H", (0.0, 0.0, 1.2746))]),
+    "Ar": ("Ar",   [("Ar", (0.0, 0.0, 0.0))]),
 }
 
 BASES = ["sto-3g", "cc-pvdz", "aug-cc-pvdz"]

@@ -12,8 +12,10 @@ describe("Periodic table", () => {
     expect(PERIODIC_TABLE.F.atomicNumber).toBe(9);
     expect(PERIODIC_TABLE.B.atomicNumber).toBe(5);
     expect(PERIODIC_TABLE.Ne.atomicNumber).toBe(10);
-    // H, He, Li, Be, B, C, N, O, F, Ne — periods 1-2 complete.
-    expect(Object.keys(PERIODIC_TABLE).length).toBe(10);
+    expect(PERIODIC_TABLE.Na.atomicNumber).toBe(11);
+    expect(PERIODIC_TABLE.Ar.atomicNumber).toBe(18);
+    // H…Ne plus Na, Mg, Al, Si, P, S, Cl, Ar — periods 1-3 complete.
+    expect(Object.keys(PERIODIC_TABLE).length).toBe(18);
   });
 
   test("Pauling electronegativity ordering: H < C < N < O < F", () => {
