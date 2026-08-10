@@ -43,24 +43,40 @@ reviewer or chemist would discover anyway.
 
 ### Basis-set atom coverage
 
+**Periods 1–3 complete as of 2026-08-10: H through Ar (Z = 1–18).**
+
 | basis | atoms wired |
 |---|---|
-| STO-3G | H, Li, Be, C, N, O, F |
-| 6-31G* | H, C, N, O (spot-checked) |
-| **cc-pVDZ** | **H, Li, Be, C, N, O, F** (full first-row coverage — Tier 3 shipped 2026-05) |
-| aug-cc-pVDZ | **H, Li, Be, C, N, O, F** (diffuse tables for full first row wired 2026-05) |
+| **STO-3G** | **H–Ar** (all 18) |
+| **cc-pVDZ** | **H–Ar** (all 18) |
+| **aug-cc-pVDZ** | **H–Ar** (all 18) |
 
-LiH / BeH₂ / CH₄ / NH₃ / HF now first-class cc-pVDZ targets.
-Verified by `tests/chemistry/ccpvdz-firstrow.test.ts` — each
-molecule's cc-pVDZ HF energy converges and lies variationally
-below its STO-3G counterpart. Tolerance is ~10 mHa vs PySCF 2.13.0
-reference values (loose, because the test is verifying basis
-wiring not SCF precision; the existing H₂O cc-pVDZ tests cover
-the precision case to 35 µHa).
+Nothing beyond Z = 18. No transition metals, no fourth row.
+**6-31G\* is NOT implemented** — `BasisName` is exactly
+`"sto-3g" | "cc-pvdz" | "aug-cc-pvdz"` and the string "6-31g" appears
+nowhere in `src/`. (An earlier revision of this table claimed 6-31G*
+was "wired, spot-checked" for H/C/N/O. That was never true.)
 
-Aug-cc-pVDZ diffuse functions for Li, Be, C, N, F → ~30 minutes
-each from the same EMSL source, queued as a follow-up if needed
-for anions or excited-state work on those systems.
+Every (element × basis) cell is validated against PySCF by
+`tests/chemistry/elements/reference-agreement.test.ts`: 18 elements ×
+3 bases × both d-conventions, one real molecule each (hydrides
+wherever one exists, so two-center integrals are actually exercised),
+**bar 0.1 mHa**. `tests/chemistry/elements/pyscf-reference.json` holds
+the committed reference table; regenerate it with
+`scripts/run-element-reference.py`.
+
+The d-convention matters from Na onward as well as across Li–Ne: our
+Cartesian path must be compared against PySCF with `mol.cart = True`
+and our spherical path against PySCF's default, or a ~0.34 mHa phantom
+error appears on every element carrying d functions. STO-3G has no d
+functions below Z = 19, so it is convention-free throughout.
+
+Superseded caveat, kept for provenance: this section previously
+described `ccpvdz-firstrow.test.ts` as the verification, at "~10 mHa"
+tolerance. That test's real slack was 116–170 mHa, and it did not
+detect that the Li and Be cc-pVDZ tables were wrong by up to 1.29 mHa
+(fixed 2026-08-10). Precision claims here now rest on the element
+agreement test, not on it.
 
 ---
 
