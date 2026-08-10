@@ -19,11 +19,13 @@ import { runMP2 } from "../chemistry/mp2.js";
 import { runCCSD } from "../chemistry/ccsd.js";
 import { runCCSDT } from "../chemistry/ccsd-t.js";
 import { fciState } from "../viz/h2-fci-state.js";
+import { sn2Point, SN2_EXTRA_ELECTRONS, HARTREE_TO_KCAL } from "./sn2-geometry.js";
 
 export type LabRequest =
   | { kind: "dissociation"; seq: number }
   | { kind: "basis"; seq: number }
-  | { kind: "ladder"; basis: BasisName; seq: number };
+  | { kind: "ladder"; basis: BasisName; seq: number }
+  | { kind: "sn2"; seq: number };
 
 export type LabReply =
   | { kind: "row"; seq: number; lab: string; row: Record<string, number | string | boolean> }
@@ -131,11 +133,40 @@ function labLadder(basis: BasisName, seq: number) {
   post({ kind: "done", seq, lab: "ladder", seconds: (performance.now() - t0) / 1000 });
 }
 
+// ── Lab 4: the SN2 reaction coordinate ───────────────────────
+// Cl⁻ + CH₃Cl → ClCH₃ + Cl⁻. Chlorine is the element that was missing;
+// this is the calculation the period-3 expansion was for.
+function labSN2(seq: number) {
+  const t0 = performance.now();
+  const pts: { s: number; e: number }[] = [];
+  for (let i = -10; i <= 10; i += 2) {
+    const s = i / 10;
+    const { atoms, r1, r2, phiDeg } = sn2Point(s);
+    const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(atoms, "sto-3g");
+    const integrals = computeMolecularIntegrals(shells, nuclei);
+    const hf = runRHFSCF(integrals, nElectrons + SN2_EXTRA_ELECTRONS, {
+      useDIIS: true, maxIter: 400, energyTol: 1e-11, densityTol: 1e-9,
+    });
+    if (!hf.converged) throw new Error(`SCF did not converge at s = ${s}`);
+    pts.push({ s, e: hf.energy });
+    const lo = Math.min(...pts.map((p) => p.e));
+    post({
+      kind: "row", seq, lab: "sn2",
+      row: {
+        s, r1, r2, phiDeg, energy: hf.energy,
+        relKcal: (hf.energy - lo) * HARTREE_TO_KCAL,
+      },
+    });
+  }
+  post({ kind: "done", seq, lab: "sn2", seconds: (performance.now() - t0) / 1000 });
+}
+
 self.addEventListener("message", (ev: MessageEvent<LabRequest>) => {
   const req = ev.data;
   try {
     if (req.kind === "dissociation") labDissociation(req.seq);
     else if (req.kind === "basis") labBasis(req.seq);
+    else if (req.kind === "sn2") labSN2(req.seq);
     else labLadder(req.basis, req.seq);
   } catch (e) {
     post({

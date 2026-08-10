@@ -5,18 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#22d3ee" />
-    <title>Three comp-chem labs, run in your tab · webgpu-q</title>
-    <meta name="description" content="Bond dissociation, basis-set convergence, and the correlation ladder — the three standard undergraduate computational chemistry labs, computed live in a browser tab. No install, no Python environment, no cluster account." />
+    <title>Four comp-chem labs, run in your tab · webgpu-q</title>
+    <meta name="description" content="Bond dissociation, basis-set convergence, the correlation ladder, and an SN2 reaction barrier — standard undergraduate computational chemistry labs, computed live in a browser tab. No install, no Python environment, no cluster account." />
     <link rel="canonical" href="https://webgpu-q.vercel.app/labs.html" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="webgpu-q" />
-    <meta property="og:title" content="Three comp-chem labs, run in your tab · webgpu-q" />
-    <meta property="og:description" content="Dissociation, basis convergence, correlation ladder — real SCF/MP2/CCSD/CCSD(T), computed live in the browser. Nothing precomputed." />
+    <meta property="og:title" content="Four comp-chem labs, run in your tab · webgpu-q" />
+    <meta property="og:description" content="Dissociation, basis convergence, correlation ladder, SN2 barrier — real SCF/MP2/CCSD/CCSD(T), computed live in the browser. Nothing precomputed." />
     <meta property="og:url" content="https://webgpu-q.vercel.app/labs.html" />
     <meta property="og:image" content="https://webgpu-q.vercel.app/og-image.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Three comp-chem labs, run in your tab · webgpu-q" />
-    <meta name="twitter:description" content="The three standard undergrad comp-chem labs, computed live in a browser tab. Zero install." />
+    <meta name="twitter:title" content="Four comp-chem labs, run in your tab · webgpu-q" />
+    <meta name="twitter:description" content="Four standard undergrad comp-chem labs, computed live in a browser tab. Zero install." />
     <meta name="twitter:image" content="https://webgpu-q.vercel.app/og-image.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
@@ -88,7 +88,7 @@
         <a href="/experiments/index.html">experiments</a>
       </nav>
 
-      <h1>Three labs, <span>computed in this tab</span></h1>
+      <h1>Four labs, <span>computed in this tab</span></h1>
       <p class="lede">
         The standard opening sequence of any computational chemistry course.
         Nothing on this page is precomputed — pressing Run starts a real SCF,
@@ -154,6 +154,23 @@
         </div>
         <div class="tablewrap"><table><thead id="ladder-head"></thead><tbody id="ladder-body"></tbody></table></div>
         <div class="note" id="ladder-note"></div>
+      </section>
+
+      <section class="lab">
+        <h2>Lab 4 · An actual reaction mechanism</h2>
+        <p class="q">Cl⁻ attacks CH₃Cl and knocks the other chloride off. How big is the barrier, and can a cheap basis get it right?</p>
+        <p>
+          The identity SN2 reaction — the mechanism every introductory organic
+          course teaches. One chloride comes in, the other leaves, and the
+          methyl group turns inside out on the way through. Watch the umbrella
+          angle: 90° is planar, and that is the transition state.
+        </p>
+        <div class="runrow">
+          <button class="act" id="sn2-run">Run</button>
+          <span class="status" id="sn2-status">11 points along the reaction coordinate, ~20 s</span>
+        </div>
+        <div class="tablewrap"><table><thead id="sn2-head"></thead><tbody id="sn2-body"></tbody></table></div>
+        <div class="note" id="sn2-note"></div>
       </section>
 
       <footer>

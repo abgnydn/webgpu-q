@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// labs/main.ts — three standard undergraduate computational
+// labs/main.ts — four standard undergraduate computational
 // chemistry labs, each computed live in the tab.
 //
 // Nothing here is precomputed or hard-coded: pressing Run starts a
@@ -196,5 +196,46 @@ wire(
       <p class="caveat">CCSD(T) is the reference for the percentages, not the
       exact answer. It is the best number this ladder produces; the true
       correlation energy in this basis is slightly larger still.</p>`;
+  },
+);
+
+// ── Lab 4 ────────────────────────────────────────────────────
+wire(
+  "sn2",
+  () => ({ kind: "sn2" }),
+  ["s", "C···Cl in (Å)", "C···Cl out (Å)", "umbrella (°)", "E (Ha)", "ΔE (kcal/mol)"],
+  (r) => [
+    num(r["s"], 1),
+    num(r["r1"], 3),
+    num(r["r2"], 3),
+    num(r["phiDeg"], 1),
+    num(r["energy"], 6),
+    num(r["relKcal"], 2),
+  ],
+  (rows) => {
+    const ts = rows.find((r) => Math.abs(Number(r["s"])) < 1e-9);
+    const end = rows.find((r) => Math.abs(Number(r["s"]) + 1) < 1e-9);
+    if (!ts || !end) return "";
+    const barrier = Number(ts["relKcal"]);
+    return `
+      <p><b>You just computed an SN2 barrier.</b> The peak sits at s = 0,
+      where the two C···Cl distances are equal and the umbrella angle is
+      exactly 90° — the methyl group is planar. That is the transition
+      state, and passing through it is the Walden inversion: the carbon
+      turns inside out like an umbrella in wind.</p>
+      <p><b>Now the part worth arguing about.</b> This barrier came out at
+      ${num(barrier, 1)} kcal/mol. The literature value for this reaction is
+      about 13 kcal/mol. Same geometry in cc-pVDZ gives 14.6 — so the
+      minimal basis is wrong by more than a factor of two, in the direction
+      that would make you predict the reaction is far slower than it is.</p>
+      <p>That is the honest lesson: the shape is right, the number is not.
+      A minimal basis is enough to see a mechanism and nowhere near enough
+      to predict a rate.</p>
+      <p class="caveat">Two further caveats stated up front. The path is a
+      straight-line interpolation between reactant and transition state,
+      not an optimized reaction path — a real study would locate the
+      saddle point and verify it has exactly one imaginary frequency. And
+      anions genuinely need diffuse functions, which neither STO-3G nor
+      cc-pVDZ has; aug-cc-pVDZ would be the honest choice.</p>`;
   },
 );
