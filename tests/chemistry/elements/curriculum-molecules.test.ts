@@ -21,10 +21,6 @@ import { moleculeToShellsNuclei, type Atom } from "../../../src/chemistry/atoms.
 import { runRHFSCF } from "../../../src/chemistry/hf-scf.js";
 
 const D = Math.PI / 180;
-const tet = (b: number) => {
-  const a = b / Math.sqrt(3);
-  return [[a, a, a], [a, -a, -a], [-a, a, -a], [-a, -a, a]] as const;
-};
 
 function ch3cl(): Atom[] {
   const th = 108.0 * D, ch = 1.087;
