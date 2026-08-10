@@ -264,10 +264,20 @@ function beckeStep(mu: number): number {
 const BECKE_XI: Partial<Record<AtomSymbol, number>> = {
   H:  0.5,    // tighter than the default (Becke recommends ξ_H = 0.35;
               // 0.5 is a compromise that handles diatomic H₂ better)
-  He: 0.35,   // Bragg-Slater radius for He
+  // Corrected 2026-08-10 against pyscf.dft.radi.BRAGG_RADII (the same
+  // table Becke's scheme is defined on). He was labelled "Bragg-Slater
+  // radius for He" but carried 0.35 against the tabulated 1.40; C, N and
+  // O had all been filled with 0.65 where the real values differ.
+  // Noble gases are anomalously large in this parameterization — that is
+  // the table, not a typo.
+  He: 1.40,   // was 0.35
   Li: 1.45,
   Be: 1.05,
-  C:  0.65,
+  B:  0.85,
+  C:  0.70,   // was 0.65
   N:  0.65,
-  O:  0.65,
+  O:  0.60,   // was 0.65
+  F:  0.50,   // was MISSING → silently fell back to 1.0, misplacing the
+              // radial quadrature points for every fluorine DFT grid
+  Ne: 1.50,
 };
