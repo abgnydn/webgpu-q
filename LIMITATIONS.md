@@ -102,6 +102,25 @@ will silently truncate large dispatches.
 - **TDA-DFT / DFT-gradient with spherical-d** — refuses with a clear
   error today; proper fix is Cartesian → spherical transform on grid
   values. Documented.
+- **Wrong-basin SCF at PAH scale — converges to a confidently wrong
+  answer.** This is the most dangerous failure mode in the list, because
+  it does not announce itself: `converged: true`, a clean stationary
+  point, and a plausible-looking number. On anthracene (C₁₄H₁₀, cc-pVDZ,
+  n = 246) the damping recipe (`damping=0.2`, `diisStartIter=8`) that
+  rescues the default-DIIS +5352 Ha divergence lands instead at
+  **E ≈ −880 Ha, against a literature HF/cc-pVDZ value of ~−537 Ha**.
+  Being *more negative* than the true ground state is the tell: the
+  damped warm-up steers the density into a non-physical orbital
+  occupation that is variationally lower within the SCF ansatz but is
+  not the ground-state singlet. The architecture and the convergence
+  machinery work end-to-end; **basin selection** is the open problem.
+  Real fixes are MOM (maximum overlap method) to preserve orbital
+  ordering across iterations, SOSCF for second-order convergence to the
+  nearest stationary point, or a SAD initial guess. Until one of those
+  lands, treat any large-PAH SCF energy from this code as unvalidated
+  regardless of the `converged` flag — and note that no automatic check
+  currently catches this, since the energy is finite, the SCF is
+  converged, and only an external reference reveals the error.
 
 ---
 
