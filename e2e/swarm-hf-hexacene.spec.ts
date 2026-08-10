@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { assertHydrocarbonEnergySane } from "./lib/energy-gate.js";
 
 // Hexacene C₂₆H₁₆ STO-3G via 4-tab swarm. 6 linearly fused benzene
 // rings, 146 basis functions. Extends naphthalene (2) → anthracene (3)
@@ -7,6 +8,7 @@ import { test, expect } from "@playwright/test";
 
 const N_TABS = 4;
 const INNER_POOL = 2;
+const N_CARBON = 26;
 
 test.use({ trace: "off" });   // generous timeouts elsewhere; trace fixture would clip
 
@@ -263,9 +265,14 @@ test.describe(`Swarm hexacene HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, 
     // own gate; the honest statement is "RHF convergence is method-limited
     // here." UHF/multireference (or NOCI/spin-projection) is the real fix,
     // tracked separately.
+    //
+    // NOT A VALIDATED ENERGY. RHF has no meaningful reference value for
+    // hexacene, so the strongest honest claim is the size-extensive sanity band
+    // in e2e/lib/energy-gate.ts. The bound here used to be -2000 < E < -500 —
+    // ±750 Ha of slack, wide enough that an anthracene-style wrong-basin
+    // collapse (-62.9 Ha/C → -1635 Ha here) would have been certified green.
     expect(Number.isFinite(result.energy)).toBe(true);
-    expect(result.energy).toBeLessThan(-500);
-    expect(result.energy).toBeGreaterThan(-2000);
+    assertHydrocarbonEnergySane(result.energy, N_CARBON);
 
     await ctx.close();
   });

@@ -46,6 +46,39 @@ jobs:
       # Chromium with GPU virtualization, which the default Ubuntu runners
       # don't expose. Run locally with `npm run test:e2e` (~1.5 min on M2 Pro).
 
+  basis-digits:
+    name: basis digits vs PySCF
+    runs-on: ubuntu-latest
+    # The only gate that checks the basis-set DIGITS at the source
+    # (src/chemistry/integrals.ts) instead of checking an energy that happens to
+    # land close. Every (element × basis) cell the repo ships is compared against
+    # pyscf.gto.basis.load; intentional deviations (Li STO-3G is s-only) are an
+    # explicit, exponent-matched allowlist in the script, so a bad digit in the
+    # same cell still fails.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install PySCF
+        run: python3 -m pip install --upgrade pip pyscf
+
+      - name: Basis constants vs pyscf.gto.basis.load
+        run: npm run check:basis
+
   build:
     name: build
     runs-on: ubuntu-latest

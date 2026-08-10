@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { assertHydrocarbonEnergySane } from "./lib/energy-gate.js";
 
 // Heptacene C₃₀H₁₈ STO-3G via 4-tab swarm. 7 linearly fused benzene
 // rings, 168 basis functions. The biradical-character borderline:
@@ -12,6 +13,7 @@ import { test, expect } from "@playwright/test";
 
 const N_TABS = 4;
 const INNER_POOL = 2;
+const N_CARBON = 30;
 
 test.use({ trace: "off" });
 
@@ -249,9 +251,15 @@ test.describe(`Swarm heptacene HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`,
     // gate (and octacene converging while heptacene doesn't shows the
     // tuning is luck, not signal). UHF / spin-projected reference is the
     // method-side fix, tracked separately.
+    //
+    // NOT A VALIDATED ENERGY — and with converged=false it is the last iterate
+    // of an oscillating SCF, i.e. a diagnostic rather than a value. The honest
+    // bound is the size-extensive sanity band in e2e/lib/energy-gate.ts. The
+    // old bound was -3000 < E < -100: for C₃₀H₁₈ that spans -3.3 to -100 Ha per
+    // carbon against a real ≈ -37.8, so essentially any finite negative number
+    // passed — including an anthracene-style wrong-basin collapse.
     expect(Number.isFinite(result.energy)).toBe(true);
-    expect(result.energy).toBeLessThan(-100);
-    expect(result.energy).toBeGreaterThan(-3000);
+    assertHydrocarbonEnergySane(result.energy, N_CARBON);
 
     await ctx.close();
   });

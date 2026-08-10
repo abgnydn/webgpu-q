@@ -11,6 +11,13 @@ shells (exponents + coefficients) exported by src/chemistry/integrals.ts
 against pyscf.gto.basis.load. Structural match => the generator can be
 trusted for S, P, Cl.
 
+It is now also a standing CI gate (`npm run check:basis`, job `basis-digits`
+in .github/workflows/ci.yml): it is the only artifact that checks the basis
+DIGITS at the source, rather than checking an energy that happens to come out
+close. Every element in `BasisName`'s coverage is compared, and a constant
+that no rule classifies is a failure — otherwise a newly-added element could
+be silently exempt from the gate.
+
 Usage:
     npx --yes tsx scripts/dump-basis-constants.ts > /tmp/ours.json
     uv run python scripts/check-basis-vs-pyscf.py /tmp/ours.json
@@ -27,8 +34,30 @@ BASIS_PREFIXES = [
     ("CCPVDZ_", "cc-pvdz"),
     ("STO3G_", "sto-3g"),
 ]
-ELEMENTS = ["H", "HE", "LI", "BE", "C", "N", "O", "F"]
+# Periods 1-3, H through Ar — the full coverage claimed in LIMITATIONS.md §1.
+# `classify` matches the longest element token first, so CL/AL/AR/NA/NE/MG/SI
+# can't be shadowed by C/A/N/M/S.
+ELEMENTS = [
+    "H", "HE", "LI", "BE", "B", "C", "N", "O", "F", "NE",
+    "NA", "MG", "AL", "SI", "P", "S", "CL", "AR",
+]
 TOL = 1e-7
+
+# (basis, element) cells where webgpu-q DELIBERATELY differs from the standard
+# table. Excused only when the diff is EXACTLY the documented one — the expected
+# extra/missing shells are matched by exponent, so a bad digit anywhere else in
+# the same cell still fails the gate.
+ALLOWED_DEVIATIONS = {
+    # webgpu-q's STO-3G Li is s-only (1s + 2s); standard STO-3G Li also carries
+    # a 2p L-shell. Intentional, and mirrored on the reference side by
+    # LI_S_ONLY_STO3G_PYSCF in scripts/run-pyscf-reference.py so LiH cells stay
+    # apples-to-apples.
+    ("sto-3g", "Li"): {
+        "reason": "s-only Li (no 2p L-shell) — see scripts/run-pyscf-reference.py",
+        "ours_only": (),
+        "pyscf_only": ((0.6362897, 0.1478601, 0.0480887),),
+    },
+}
 
 
 def classify(name):
@@ -64,6 +93,18 @@ def close(x, y):
     return len(x) == len(y) and all(abs(a - b) <= TOL * max(1.0, abs(a)) for a, b in zip(x, y))
 
 
+def deviation_is_allowed(basis, el, ours_only, theirs_only):
+    """True iff this cell's diff is exactly the documented intentional one."""
+    allowed = ALLOWED_DEVIATIONS.get((basis, el))
+    if allowed is None:
+        return None
+    def same(got, want):
+        return len(got) == len(want) and all(close(a, w) for (a, _), w in zip(got, want))
+    if same(ours_only, allowed["ours_only"]) and same(theirs_only, allowed["pyscf_only"]):
+        return allowed["reason"]
+    return None
+
+
 def match(ours, theirs):
     """Greedy multiset match. Returns (matched, ours_only, theirs_only)."""
     remaining = list(theirs)
@@ -92,10 +133,15 @@ def main():
             continue
         by_key[key].append((name, tuple(val["alpha"]), tuple(val["c"])))
 
-    if unclassified:
-        print(f"note: {len(unclassified)} constant(s) not classified: {unclassified}\n")
-
     failures = 0
+    # An unclassified constant is a HOLE in the gate, not a note: it means a
+    # shell exported by integrals.ts is compared against nothing at all.
+    if unclassified:
+        print(f"FAIL {len(unclassified)} constant(s) not classified — add the element to "
+              f"ELEMENTS (or the prefix to BASIS_PREFIXES): {unclassified}\n")
+        failures += 1
+
+    excused = 0
     for basis in ("sto-3g", "cc-pvdz", "aug-cc-pvdz"):
         for el in [e.capitalize() for e in ELEMENTS]:
             if basis == "aug-cc-pvdz":
@@ -115,10 +161,14 @@ def main():
                 continue
             matched, ours_only, theirs_only = match(ours, theirs)
             ok = not ours_only and not theirs_only
-            status = "OK  " if ok else "FAIL"
-            print(f"{status} {basis:12s} {el:2s}  matched {len(matched):2d}/{len(ours):2d}"
-                  f"  ours_only={len(ours_only)} pyscf_only={len(theirs_only)}")
-            if not ok:
+            reason = None if ok else deviation_is_allowed(basis, el, ours_only, theirs_only)
+            status = "OK  " if ok else ("KNOWN" if reason else "FAIL")
+            print(f"{status:5s}{basis:12s} {el:2s}  matched {len(matched):2d}/{len(ours):2d}"
+                  f"  ours_only={len(ours_only)} pyscf_only={len(theirs_only)}"
+                  + (f"  — intentional: {reason}" if reason else ""))
+            if reason:
+                excused += 1
+            elif not ok:
                 failures += 1
                 for a, c in ours_only:
                     print(f"       ours only : alpha={a}\n                   c={c}")
@@ -126,7 +176,8 @@ def main():
                     print(f"       pyscf only: alpha={a}\n                   c={c}")
 
     print()
-    print("GATE 0.2:", "PASS — PySCF reproduces our tables" if failures == 0
+    print("GATE 0.2:", f"PASS — PySCF reproduces our tables ({excused} intentional deviation(s) excused)"
+          if failures == 0
           else f"FAIL — {failures} (basis, element) cell(s) disagree")
     return 1 if failures else 0
 
