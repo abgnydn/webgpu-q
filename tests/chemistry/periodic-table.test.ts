@@ -10,7 +10,10 @@ describe("Periodic table", () => {
     expect(PERIODIC_TABLE.H.atomicNumber).toBe(1);
     expect(PERIODIC_TABLE.He.atomicNumber).toBe(2);
     expect(PERIODIC_TABLE.F.atomicNumber).toBe(9);
-    expect(Object.keys(PERIODIC_TABLE).length).toBe(8);   // H, He, Li, Be, C, N, O, F
+    expect(PERIODIC_TABLE.B.atomicNumber).toBe(5);
+    expect(PERIODIC_TABLE.Ne.atomicNumber).toBe(10);
+    // H, He, Li, Be, B, C, N, O, F, Ne — periods 1-2 complete.
+    expect(Object.keys(PERIODIC_TABLE).length).toBe(10);
   });
 
   test("Pauling electronegativity ordering: H < C < N < O < F", () => {
@@ -22,8 +25,13 @@ describe("Periodic table", () => {
     expect(en("F")).toBe(3.98);   // Pauling reference value
   });
 
-  test("Helium has null electronegativity (noble gas)", () => {
+  test("Noble gases have null electronegativity (no Pauling value)", () => {
     expect(PERIODIC_TABLE.He.electronegativity).toBeNull();
+    expect(PERIODIC_TABLE.Ne.electronegativity).toBeNull();
+    expect(PERIODIC_TABLE.Ne.family).toBe("noble");
+    // Boron does have one, and it sits between Be (1.57) and C (2.55).
+    expect(PERIODIC_TABLE.B.electronegativity).toBe(2.04);
+    expect(PERIODIC_TABLE.B.group).toBe(13);
   });
 
   test("Period / group classifications match standard PT", () => {

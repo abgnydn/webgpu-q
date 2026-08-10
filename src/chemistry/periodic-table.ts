@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 // periodic-table.ts — atomic property database for the elements
-// supported by webgpu-q (H, He, Li, Be, C, N, O, F).
+// supported by webgpu-q (H, He, Li, Be, B, C, N, O, F, Ne).
 //
 // Data sources:
 //   - Atomic number, isotope mass: NIST 2024.
@@ -58,6 +58,12 @@ export const PERIODIC_TABLE: Readonly<Record<AtomSymbol, ElementProperties>> = {
     covalentRadius: 1.02, vdwRadius: 1.53,
     period: 2, group: 2, family: "alkaline-earth",
   },
+  B: {
+    symbol: "B", name: "Boron", atomicNumber: 5,
+    mass: 11.00930536, electronegativity: 2.04,
+    covalentRadius: 0.85, vdwRadius: 1.92,
+    period: 2, group: 13, family: "main",
+  },
   C: {
     symbol: "C", name: "Carbon", atomicNumber: 6,
     mass: 12.0, electronegativity: 2.55,
@@ -81,6 +87,12 @@ export const PERIODIC_TABLE: Readonly<Record<AtomSymbol, ElementProperties>> = {
     mass: 18.998403163, electronegativity: 3.98,
     covalentRadius: 0.64, vdwRadius: 1.47,
     period: 2, group: 17, family: "halogen",
+  },
+  Ne: {
+    symbol: "Ne", name: "Neon", atomicNumber: 10,
+    mass: 19.9924401762, electronegativity: null,
+    covalentRadius: 0.67, vdwRadius: 1.54,
+    period: 2, group: 18, family: "noble",
   },
 };
 

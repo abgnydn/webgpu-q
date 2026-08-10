@@ -244,8 +244,8 @@ export function dihedralAngle(
  *  single-bond detection in organic chemistry. */
 const COVALENT_RADIUS_ANGSTROM: Readonly<Record<string, number>> = {
   H:  0.32, He: 0.46,
-  Li: 1.33, Be: 1.02,
-  C:  0.75, N:  0.71, O:  0.63, F:  0.64,
+  Li: 1.33, Be: 1.02, B:  0.85,
+  C:  0.75, N:  0.71, O:  0.63, F:  0.64, Ne: 0.67,
 };
 
 export interface Bond {
@@ -259,8 +259,10 @@ export interface Bond {
 const ATOMIC_MASS: Readonly<Record<string, number>> = {
   H:  1.00782503207, He: 4.002603254,
   Li: 7.0160034366,  Be: 9.012183065,
+  B: 11.00930536,
   C: 12.0,            N: 14.0030740048,
   O: 15.99491461956,  F: 18.998403163,
+  Ne: 19.9924401762,
 };
 
 /** Total mass of a molecule in amu. */

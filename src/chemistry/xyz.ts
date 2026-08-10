@@ -32,9 +32,12 @@ import { type Atom, type AtomSymbol } from "./atoms.js";
 // molecules.ts ships a He molecule — omitting it here made toXYZ → parseXYZ fail
 // to round-trip a molecule this library provides.
 const SYMBOL_BY_Z: Record<number, AtomSymbol> = {
-  1: "H", 2: "He", 3: "Li", 4: "Be", 6: "C", 7: "N", 8: "O", 9: "F",
+  1: "H", 2: "He", 3: "Li", 4: "Be", 5: "B",
+  6: "C", 7: "N", 8: "O", 9: "F", 10: "Ne",
 };
-const SUPPORTED_SYMBOLS = new Set<AtomSymbol>(["H", "He", "Li", "Be", "C", "N", "O", "F"]);
+const SUPPORTED_SYMBOLS = new Set<AtomSymbol>([
+  "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne",
+]);
 
 export interface XYZParseResult {
   readonly atoms: Atom[];
@@ -168,14 +171,14 @@ function resolveSymbol(token: string, lineNo: number): AtomSymbol {
   if (Number.isInteger(Z) && Z > 0) {
     const sym = SYMBOL_BY_Z[Z];
     if (!sym) {
-      throw new Error(`parseXYZ: line ${lineNo} atomic number ${Z} is not supported (supported: H, He, Li, Be, C, N, O, F)`);
+      throw new Error(`parseXYZ: line ${lineNo} atomic number ${Z} is not supported (supported: H, He, Li, Be, B, C, N, O, F, Ne)`);
     }
     return sym;
   }
   // Otherwise treat as symbol — case-normalize and validate.
   const upper = token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
   if (!SUPPORTED_SYMBOLS.has(upper as AtomSymbol)) {
-    throw new Error(`parseXYZ: line ${lineNo} element "${token}" not supported (supported: H, He, Li, Be, C, N, O, F)`);
+    throw new Error(`parseXYZ: line ${lineNo} element "${token}" not supported (supported: H, He, Li, Be, B, C, N, O, F, Ne)`);
   }
   return upper as AtomSymbol;
 }

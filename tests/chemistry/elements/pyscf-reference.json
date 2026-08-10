@@ -650,6 +650,264 @@
       "nao": 43
     },
     {
+      "element": "B",
+      "molecule": "BH3",
+      "basis": "sto-3g",
+      "convention": "spherical",
+      "atoms": [
+        {
+          "symbol": "B",
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            7.286648454926751e-17,
+            1.19,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            -1.0305702305034818,
+            -0.5950000000000001,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            1.0305702305034816,
+            -0.5950000000000005,
+            0.0
+          ]
+        }
+      ],
+      "ok": true,
+      "E_HF": -26.068995721346088,
+      "nao": 8
+    },
+    {
+      "element": "B",
+      "molecule": "BH3",
+      "basis": "sto-3g",
+      "convention": "cartesian",
+      "atoms": [
+        {
+          "symbol": "B",
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            7.286648454926751e-17,
+            1.19,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            -1.0305702305034818,
+            -0.5950000000000001,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            1.0305702305034816,
+            -0.5950000000000005,
+            0.0
+          ]
+        }
+      ],
+      "ok": true,
+      "E_HF": -26.068995721346088,
+      "nao": 8
+    },
+    {
+      "element": "B",
+      "molecule": "BH3",
+      "basis": "cc-pvdz",
+      "convention": "spherical",
+      "atoms": [
+        {
+          "symbol": "B",
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            7.286648454926751e-17,
+            1.19,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            -1.0305702305034818,
+            -0.5950000000000001,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            1.0305702305034816,
+            -0.5950000000000005,
+            0.0
+          ]
+        }
+      ],
+      "ok": true,
+      "E_HF": -26.390705581257425,
+      "nao": 29
+    },
+    {
+      "element": "B",
+      "molecule": "BH3",
+      "basis": "cc-pvdz",
+      "convention": "cartesian",
+      "atoms": [
+        {
+          "symbol": "B",
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            7.286648454926751e-17,
+            1.19,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            -1.0305702305034818,
+            -0.5950000000000001,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            1.0305702305034816,
+            -0.5950000000000005,
+            0.0
+          ]
+        }
+      ],
+      "ok": true,
+      "E_HF": -26.390775048122233,
+      "nao": 30
+    },
+    {
+      "element": "B",
+      "molecule": "BH3",
+      "basis": "aug-cc-pvdz",
+      "convention": "spherical",
+      "atoms": [
+        {
+          "symbol": "B",
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            7.286648454926751e-17,
+            1.19,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            -1.0305702305034818,
+            -0.5950000000000001,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            1.0305702305034816,
+            -0.5950000000000005,
+            0.0
+          ]
+        }
+      ],
+      "ok": true,
+      "E_HF": -26.39125449199123,
+      "nao": 50
+    },
+    {
+      "element": "B",
+      "molecule": "BH3",
+      "basis": "aug-cc-pvdz",
+      "convention": "cartesian",
+      "atoms": [
+        {
+          "symbol": "B",
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            7.286648454926751e-17,
+            1.19,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            -1.0305702305034818,
+            -0.5950000000000001,
+            0.0
+          ]
+        },
+        {
+          "symbol": "H",
+          "pos": [
+            1.0305702305034816,
+            -0.5950000000000005,
+            0.0
+          ]
+        }
+      ],
+      "ok": true,
+      "E_HF": -26.39130784288754,
+      "nao": 52
+    },
+    {
       "element": "C",
       "molecule": "CH4",
       "basis": "sto-3g",
@@ -954,6 +1212,120 @@
       "ok": true,
       "E_HF": -40.19966503955351,
       "nao": 61
+    },
+    {
+      "element": "Ne",
+      "molecule": "Ne",
+      "basis": "sto-3g",
+      "convention": "spherical",
+      "atoms": [
+        {
+          "symbol": "Ne",
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "ok": true,
+      "E_HF": -126.60452499680486,
+      "nao": 5
+    },
+    {
+      "element": "Ne",
+      "molecule": "Ne",
+      "basis": "sto-3g",
+      "convention": "cartesian",
+      "atoms": [
+        {
+          "symbol": "Ne",
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "ok": true,
+      "E_HF": -126.60452499680486,
+      "nao": 5
+    },
+    {
+      "element": "Ne",
+      "molecule": "Ne",
+      "basis": "cc-pvdz",
+      "convention": "spherical",
+      "atoms": [
+        {
+          "symbol": "Ne",
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "ok": true,
+      "E_HF": -128.48877555174084,
+      "nao": 14
+    },
+    {
+      "element": "Ne",
+      "molecule": "Ne",
+      "basis": "cc-pvdz",
+      "convention": "cartesian",
+      "atoms": [
+        {
+          "symbol": "Ne",
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "ok": true,
+      "E_HF": -128.48886617203775,
+      "nao": 15
+    },
+    {
+      "element": "Ne",
+      "molecule": "Ne",
+      "basis": "aug-cc-pvdz",
+      "convention": "spherical",
+      "atoms": [
+        {
+          "symbol": "Ne",
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "ok": true,
+      "E_HF": -128.49634973054086,
+      "nao": 23
+    },
+    {
+      "element": "Ne",
+      "molecule": "Ne",
+      "basis": "aug-cc-pvdz",
+      "convention": "cartesian",
+      "atoms": [
+        {
+          "symbol": "Ne",
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "ok": true,
+      "E_HF": -128.49713422832133,
+      "nao": 25
     },
     {
       "element": "N",

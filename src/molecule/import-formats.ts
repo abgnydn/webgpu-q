@@ -4,11 +4,11 @@
 
 import type { Atom, AtomSymbol } from "../chemistry/atoms.js";
 
-// The chemistry stack currently supports first-row + Li/Be (see
+// The chemistry stack currently supports periods 1-2 complete (see
 // src/chemistry/atoms.ts → AtomSymbol). Imports outside this set are
 // rejected with a clear error.
 const SUPPORTED_SYMBOLS = new Set<string>([
-  "H", "He", "Li", "Be", "C", "N", "O", "F",
+  "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne",
 ]);
 
 export interface ParseResult {

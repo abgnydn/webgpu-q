@@ -56,10 +56,12 @@ const ATOMIC_MASS: Readonly<Record<AtomSymbol, number>> = {
   He: 4.002603254,
   Li: 7.0160034366,
   Be: 9.012183065,
+  B:  11.00930536,
   C:  12.0,
   N:  14.0030740048,
   O:  15.99491461956,
   F:  18.998403163,
+  Ne: 19.9924401762,
 };
 
 export type EnergyMethod = "hf" | FunctionalKind;

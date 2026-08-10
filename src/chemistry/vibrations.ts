@@ -47,17 +47,19 @@ const HA_BOHR2_AMU_TO_CM_INV = 5140.4865;
 const E2_PER_AMU_TO_KM_PER_MOL = 974.864;
 
 /** Atomic masses for the supported elements. Isotope-pure values
- *  (^1H, ^7Li, ^9Be, ^12C, ^14N, ^16O) — the standard choice for
- *  theoretical reference frequencies. */
+ *  (^1H, ^7Li, ^9Be, ^11B, ^12C, ^14N, ^16O, ^20Ne) — the standard
+ *  choice for theoretical reference frequencies. */
 const ATOMIC_MASS: Readonly<Record<AtomSymbol, number>> = {
   H:  1.00782503207,
   He: 4.002603254,
   Li: 7.0160034366,
   Be: 9.012183065,
+  B:  11.00930536,
   C:  12.0,
   N:  14.0030740048,
   O:  15.99491461956,
   F:  18.998403163,
+  Ne: 19.9924401762,
 };
 
 export type EnergyMethod = "hf" | FunctionalKind;

@@ -10,6 +10,14 @@ import {
   STO3G_H_1S, STO3G_HE_1S,
   STO3G_LI_1S, STO3G_LI_2S,
   STO3G_BE_1S, STO3G_BE_2S, STO3G_BE_2P,
+  STO3G_B_1S, STO3G_B_2S, STO3G_B_2P,
+  STO3G_NE_1S, STO3G_NE_2S, STO3G_NE_2P,
+  CCPVDZ_B_1S, CCPVDZ_B_2S, CCPVDZ_B_2S_P,
+  CCPVDZ_B_2P, CCPVDZ_B_2P_P, CCPVDZ_B_3D,
+  CCPVDZ_NE_1S, CCPVDZ_NE_2S, CCPVDZ_NE_2S_P,
+  CCPVDZ_NE_2P, CCPVDZ_NE_2P_P, CCPVDZ_NE_3D,
+  AUG_CCPVDZ_B_DIFFUSE_S, AUG_CCPVDZ_B_DIFFUSE_P, AUG_CCPVDZ_B_DIFFUSE_D,
+  AUG_CCPVDZ_NE_DIFFUSE_S, AUG_CCPVDZ_NE_DIFFUSE_P, AUG_CCPVDZ_NE_DIFFUSE_D,
   STO3G_C_1S, STO3G_C_2S, STO3G_C_2P,
   STO3G_N_1S, STO3G_N_2S, STO3G_N_2P,
   STO3G_O_1S, STO3G_O_2S, STO3G_O_2P,
@@ -40,7 +48,8 @@ import {
 import { type CGShell, makeCGShell } from "./integrals-cg.js";
 import { type Nucleus } from "./cg-molecular.js";
 
-export type AtomSymbol = "H" | "He" | "Li" | "Be" | "C" | "N" | "O" | "F";
+export type AtomSymbol =
+  | "H" | "He" | "Li" | "Be" | "B" | "C" | "N" | "O" | "F" | "Ne";
 export type BasisName = "sto-3g" | "cc-pvdz" | "aug-cc-pvdz";
 
 const ANGSTROM_TO_BOHR = 1 / 0.529177210903;
@@ -60,12 +69,12 @@ export interface Atom {
 
 /** Atomic number for each supported atom. */
 export const Z_FOR: Readonly<Record<AtomSymbol, number>> = {
-  H: 1, He: 2, Li: 3, Be: 4, C: 6, N: 7, O: 8, F: 9,
+  H: 1, He: 2, Li: 3, Be: 4, B: 5, C: 6, N: 7, O: 8, F: 9, Ne: 10,
 };
 
 /** Number of electrons in the neutral atom. */
 export const N_ELECTRONS_FOR: Readonly<Record<AtomSymbol, number>> = {
-  H: 1, He: 2, Li: 3, Be: 4, C: 6, N: 7, O: 8, F: 9,
+  H: 1, He: 2, Li: 3, Be: 4, B: 5, C: 6, N: 7, O: 8, F: 9, Ne: 10,
 };
 
 /**
@@ -79,7 +88,7 @@ export const N_ELECTRONS_FOR: Readonly<Record<AtomSymbol, number>> = {
  * comparative calculation cares about).
  */
 export const FROZEN_CORE_FOR: Readonly<Record<AtomSymbol, number>> = {
-  H: 0, He: 0, Li: 1, Be: 1, C: 1, N: 1, O: 1, F: 1,
+  H: 0, He: 0, Li: 1, Be: 1, B: 1, C: 1, N: 1, O: 1, F: 1, Ne: 1,
 };
 
 /** Default frozen-core count for a molecule (sum of per-atom 1s cores). */
@@ -132,6 +141,14 @@ export function atomShells(
         makeCGShell(STO3G_BE_2P, pos_bohr, [0, 1, 0], "Be:2p_y"),
         makeCGShell(STO3G_BE_2P, pos_bohr, [0, 0, 1], "Be:2p_z"),
       ];
+    case "B":
+      return [
+        makeCGShell(STO3G_B_1S, pos_bohr, [0, 0, 0], "B:1s"),
+        makeCGShell(STO3G_B_2S, pos_bohr, [0, 0, 0], "B:2s"),
+        makeCGShell(STO3G_B_2P, pos_bohr, [1, 0, 0], "B:2p_x"),
+        makeCGShell(STO3G_B_2P, pos_bohr, [0, 1, 0], "B:2p_y"),
+        makeCGShell(STO3G_B_2P, pos_bohr, [0, 0, 1], "B:2p_z"),
+      ];
     case "C":
       return [
         makeCGShell(STO3G_C_1S, pos_bohr, [0, 0, 0], "C:1s"),
@@ -163,6 +180,14 @@ export function atomShells(
         makeCGShell(STO3G_F_2P, pos_bohr, [1, 0, 0], "F:2p_x"),
         makeCGShell(STO3G_F_2P, pos_bohr, [0, 1, 0], "F:2p_y"),
         makeCGShell(STO3G_F_2P, pos_bohr, [0, 0, 1], "F:2p_z"),
+      ];
+    case "Ne":
+      return [
+        makeCGShell(STO3G_NE_1S, pos_bohr, [0, 0, 0], "Ne:1s"),
+        makeCGShell(STO3G_NE_2S, pos_bohr, [0, 0, 0], "Ne:2s"),
+        makeCGShell(STO3G_NE_2P, pos_bohr, [1, 0, 0], "Ne:2p_x"),
+        makeCGShell(STO3G_NE_2P, pos_bohr, [0, 1, 0], "Ne:2p_y"),
+        makeCGShell(STO3G_NE_2P, pos_bohr, [0, 0, 1], "Ne:2p_z"),
       ];
   }
 }
@@ -208,10 +233,12 @@ function atomShellsCcPvdz(symbol: AtomSymbol, pos: readonly [number, number, num
       ];
     case "Li": return heavyShells("Li", CCPVDZ_LI_1S, CCPVDZ_LI_2S, CCPVDZ_LI_2S_P, CCPVDZ_LI_2P, CCPVDZ_LI_2P_P, CCPVDZ_LI_3D);
     case "Be": return heavyShells("Be", CCPVDZ_BE_1S, CCPVDZ_BE_2S, CCPVDZ_BE_2S_P, CCPVDZ_BE_2P, CCPVDZ_BE_2P_P, CCPVDZ_BE_3D);
+    case "B":  return heavyShells("B",  CCPVDZ_B_1S,  CCPVDZ_B_2S,  CCPVDZ_B_2S_P,  CCPVDZ_B_2P,  CCPVDZ_B_2P_P,  CCPVDZ_B_3D);
     case "C":  return heavyShells("C",  CCPVDZ_C_1S,  CCPVDZ_C_2S,  CCPVDZ_C_2S_P,  CCPVDZ_C_2P,  CCPVDZ_C_2P_P,  CCPVDZ_C_3D);
     case "N":  return heavyShells("N",  CCPVDZ_N_1S,  CCPVDZ_N_2S,  CCPVDZ_N_2S_P,  CCPVDZ_N_2P,  CCPVDZ_N_2P_P,  CCPVDZ_N_3D);
     case "O":  return heavyShells("O",  CCPVDZ_O_1S,  CCPVDZ_O_2S,  CCPVDZ_O_2S_P,  CCPVDZ_O_2P,  CCPVDZ_O_2P_P,  CCPVDZ_O_3D);
     case "F":  return heavyShells("F",  CCPVDZ_F_1S,  CCPVDZ_F_2S,  CCPVDZ_F_2S_P,  CCPVDZ_F_2P,  CCPVDZ_F_2P_P,  CCPVDZ_F_3D);
+    case "Ne": return heavyShells("Ne", CCPVDZ_NE_1S, CCPVDZ_NE_2S, CCPVDZ_NE_2S_P, CCPVDZ_NE_2P, CCPVDZ_NE_2P_P, CCPVDZ_NE_3D);
     case "He":
       return [
         makeCGShell(CCPVDZ_HE_1S, pos, [0, 0, 0], "He:1s"),
@@ -254,10 +281,12 @@ function atomShellsAugDiffuse(symbol: AtomSymbol, pos: readonly [number, number,
       ];
     case "Li": return heavyDiffuse("Li", AUG_CCPVDZ_LI_DIFFUSE_S, AUG_CCPVDZ_LI_DIFFUSE_P, AUG_CCPVDZ_LI_DIFFUSE_D);
     case "Be": return heavyDiffuse("Be", AUG_CCPVDZ_BE_DIFFUSE_S, AUG_CCPVDZ_BE_DIFFUSE_P, AUG_CCPVDZ_BE_DIFFUSE_D);
+    case "B":  return heavyDiffuse("B",  AUG_CCPVDZ_B_DIFFUSE_S,  AUG_CCPVDZ_B_DIFFUSE_P,  AUG_CCPVDZ_B_DIFFUSE_D);
     case "C":  return heavyDiffuse("C",  AUG_CCPVDZ_C_DIFFUSE_S,  AUG_CCPVDZ_C_DIFFUSE_P,  AUG_CCPVDZ_C_DIFFUSE_D);
     case "N":  return heavyDiffuse("N",  AUG_CCPVDZ_N_DIFFUSE_S,  AUG_CCPVDZ_N_DIFFUSE_P,  AUG_CCPVDZ_N_DIFFUSE_D);
     case "O":  return heavyDiffuse("O",  AUG_CCPVDZ_O_DIFFUSE_S,  AUG_CCPVDZ_O_DIFFUSE_P,  AUG_CCPVDZ_O_DIFFUSE_D);
     case "F":  return heavyDiffuse("F",  AUG_CCPVDZ_F_DIFFUSE_S,  AUG_CCPVDZ_F_DIFFUSE_P,  AUG_CCPVDZ_F_DIFFUSE_D);
+    case "Ne": return heavyDiffuse("Ne", AUG_CCPVDZ_NE_DIFFUSE_S, AUG_CCPVDZ_NE_DIFFUSE_P, AUG_CCPVDZ_NE_DIFFUSE_D);
     case "He":
       return [
         makeCGShell(AUG_CCPVDZ_HE_DIFFUSE_S, pos, [0, 0, 0], "He:aug-s"),

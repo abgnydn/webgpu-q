@@ -43,10 +43,12 @@ const C6_J_NM6_PER_MOL: Readonly<Record<AtomSymbol, number>> = {
   He: 0.08,
   Li: 1.61,
   Be: 1.61,
+  B:  3.13,
   C:  1.75,
   N:  1.23,
   O:  0.70,
   F:  0.75,
+  Ne: 0.63,
 };
 
 /** Grimme 2006 Table I: per-element R_R van-der-Waals radius in Å. */
@@ -55,10 +57,12 @@ const R_R_ANGSTROM: Readonly<Record<AtomSymbol, number>> = {
   He: 1.012,
   Li: 0.825,
   Be: 1.408,
+  B:  1.485,
   C:  1.452,
   N:  1.397,
   O:  1.342,
   F:  1.287,
+  Ne: 1.243,
 };
 
 /** Per-element C6 in Hartree·Bohr^6 (atomic units). */
@@ -67,10 +71,12 @@ const C6_AU: Readonly<Record<AtomSymbol, number>> = {
   He: C6_J_NM6_PER_MOL.He * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
   Li: C6_J_NM6_PER_MOL.Li * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
   Be: C6_J_NM6_PER_MOL.Be * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
+  B:  C6_J_NM6_PER_MOL.B  * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
   C:  C6_J_NM6_PER_MOL.C  * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
   N:  C6_J_NM6_PER_MOL.N  * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
   O:  C6_J_NM6_PER_MOL.O  * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
   F:  C6_J_NM6_PER_MOL.F  * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
+  Ne: C6_J_NM6_PER_MOL.Ne * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
 };
 
 /** Per-element R_R in Bohr. */
@@ -79,10 +85,12 @@ const R_R_BOHR: Readonly<Record<AtomSymbol, number>> = {
   He: R_R_ANGSTROM.He * ANGSTROM_TO_BOHR,
   Li: R_R_ANGSTROM.Li * ANGSTROM_TO_BOHR,
   Be: R_R_ANGSTROM.Be * ANGSTROM_TO_BOHR,
+  B:  R_R_ANGSTROM.B  * ANGSTROM_TO_BOHR,
   C:  R_R_ANGSTROM.C  * ANGSTROM_TO_BOHR,
   N:  R_R_ANGSTROM.N  * ANGSTROM_TO_BOHR,
   O:  R_R_ANGSTROM.O  * ANGSTROM_TO_BOHR,
   F:  R_R_ANGSTROM.F  * ANGSTROM_TO_BOHR,
+  Ne: R_R_ANGSTROM.Ne * ANGSTROM_TO_BOHR,
 };
 
 /** Damping steepness — universal in D2. */
