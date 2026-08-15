@@ -265,7 +265,7 @@ const eom = runEOMCCSD(runCCSD(hf, integrals), integrals, hf);
 <h3 align="center">Companion projects</h3>
 
 [kernelfusion.dev](https://kernelfusion.dev) (umbrella · kernel fusion) ·
-[gpubench.dev](https://gpubench.dev) (WebGPU bench, 592+ devices) ·
+[gpubench.dev](https://gpubench.dev) (WebGPU bench, 794 runs) ·
 [webgpudna.com](https://webgpudna.com) (Geant4-DNA in the browser) ·
 [zerotvm.com](https://zerotvm.com) (Phi-3 in the browser) ·
 [neuropulse.live](https://neuropulse.live) (live transformer activations) ·
