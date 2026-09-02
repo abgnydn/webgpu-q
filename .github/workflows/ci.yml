@@ -46,6 +46,38 @@ jobs:
       # Chromium with GPU virtualization, which the default Ubuntu runners
       # don't expose. Run locally with `npm run test:e2e` (~1.5 min on M2 Pro).
 
+  gradient-ccpvdz:
+    name: cc-pVDZ gradient vs FD
+    runs-on: ubuntu-latest
+    # Split out of the main test job on 2026-09-02. These three cells
+    # (Cl/HCl cart+sph, S/H2S cart) each run a full central-FD sweep at
+    # cc-pVDZ: 2x3N SCF solves. Measured 109 s / 110 s / 204 s on an M2 Pro;
+    # on this runner all three blew the 340 s per-test cap, failing CI on
+    # numbers that were correct (run 31357193244).
+    #
+    # The alternative was a bigger timeout on a job already running 39
+    # minutes. This keeps the assertions and the 1.5e-6 bar byte-identical
+    # while moving the long pole onto a parallel job, so total PR wall
+    # clock goes DOWN. tests/chemistry/elements/gradient-agreement.test.ts
+    # gates them on SLOW_TESTS, which nothing else sets.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: cc-pVDZ analytic gradient vs central FD
+        env:
+          SLOW_TESTS: "1"
+        run: npx vitest run tests/chemistry/elements/gradient-agreement.test.ts
+
   basis-digits:
     name: basis digits vs PySCF
     runs-on: ubuntu-latest
