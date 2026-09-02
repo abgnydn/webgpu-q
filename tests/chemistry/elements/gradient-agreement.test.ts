@@ -211,13 +211,18 @@ describe.runIf(RUN_SLOW)("New elements: analytical HF gradient vs central FD (cc
   // is deliberately small because each cell costs a full FD sweep: 2×3N
   // cc-pVDZ SCF solves (12 for HCl, 18 for H₂S) plus the analytic gradient.
   //
-  // Measured wall clock, M2 Pro: Cl cart 109 s, Cl sph 110 s, S cart 204 s.
-  // On a GitHub ubuntu-latest runner all three exceeded the 340 s per-test
-  // cap and failed CI on this branch (run 31357193244) — so the runner is
-  // at least ~3x slower here, and S/H₂S plausibly ~600 s. The numbers
-  // themselves were never in question: every cell passes the 1.5e-6 bar.
-  // Hence the SLOW_TESTS gate plus a parallel job, rather than a bigger
-  // timeout on an already 39-minute job.
+  // Measured wall clock — M2 Pro, then ubuntu-latest running these ALONE
+  // (run 33591322156):
+  //   Cl cart 109 s → 284 s    Cl sph 110 s → 286 s    S cart 204 s → 517 s
+  // so the runner is ~2.6x slower, and only S/H₂S exceeds the old 340 s cap
+  // on cost alone. The other two blew it on run 31357193244 because they
+  // shared a 2-core runner with the rest of the suite: vitest runs 4 files
+  // in parallel, so a 284 s cell stretches past 340 s under contention.
+  // That is why isolation, not just a larger number, is the fix — a bigger
+  // timeout on the main job would leave them contending and flaky.
+  //
+  // The numbers themselves were never in question: every cell passes the
+  // 1.5e-6 bar, on CI as well as locally.
   //
   // Measured max |analytic − FD| at h = 1e-4:
   //   Cl/HCl  cart (n=24) 9.72e-7   sph (n=23) 9.89e-7
@@ -240,8 +245,8 @@ describe.runIf(RUN_SLOW)("New elements: analytical HF gradient vs central FD (cc
         `${element}/${row.molecule} ${tag} worst flat-component ${index}: ` +
         `analytic=${an[index]?.toExponential(6)} fd=${fd[index]?.toExponential(6)}`,
       ).toBeLessThan(FD_BAR);
-      // 900 s: ~2.5x the measured 360 s CI cost. Generous because these run
-      // alone in their own job, where a slow cell delays nothing else.
+      // 900 s: 1.7x the measured 517 s worst cell (S/H₂S) on ubuntu-latest.
+      // Generous because these run alone, where a slow cell delays nothing.
     }, 900_000);
   }
 });

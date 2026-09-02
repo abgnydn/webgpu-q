@@ -51,9 +51,12 @@ jobs:
     runs-on: ubuntu-latest
     # Split out of the main test job on 2026-09-02. These three cells
     # (Cl/HCl cart+sph, S/H2S cart) each run a full central-FD sweep at
-    # cc-pVDZ: 2x3N SCF solves. Measured 109 s / 110 s / 204 s on an M2 Pro;
-    # on this runner all three blew the 340 s per-test cap, failing CI on
-    # numbers that were correct (run 31357193244).
+    # cc-pVDZ: 2x3N SCF solves. Measured 109 / 110 / 204 s on an M2 Pro and
+    # 284 / 286 / 517 s here running alone. On the main job all three blew
+    # the 340 s per-test cap and failed CI on numbers that were correct
+    # (run 31357193244) -- only S/H2S is intrinsically over it; the other
+    # two stretched past only because vitest runs 4 files in parallel on a
+    # 2-core runner. Isolation, not a larger timeout, is what fixes that.
     #
     # The alternative was a bigger timeout on a job already running 39
     # minutes. This keeps the assertions and the 1.5e-6 bar byte-identical
