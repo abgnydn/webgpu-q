@@ -76,10 +76,13 @@ functions below Z = 19, so it is convention-free throughout.
 
 Superseded caveat, kept for provenance: this section previously
 described `ccpvdz-firstrow.test.ts` as the verification, at "~10 mHa"
-tolerance. That test's real slack was 116–170 mHa, and it did not
-detect that the Li and Be cc-pVDZ tables were wrong by up to 1.29 mHa
-(fixed 2026-08-10). Precision claims here now rest on the element
-agreement test, not on it.
+tolerance. That test's real windows were 200–300 mHa wide, and it did
+not detect that the Li and Be cc-pVDZ tables were wrong by up to 1.29
+mHa (fixed 2026-08-10). Precision claims here now rest on the element
+agreement test, not on it. (This paragraph previously said "116–170
+mHa", which is the ONE-SIDED distance from the reference to the nearer
+edge — a half-width read as a width. Corrected 2026-09-02, together
+with the same error in ccpvdz-firstrow.test.ts's header.)
 
 ---
 
