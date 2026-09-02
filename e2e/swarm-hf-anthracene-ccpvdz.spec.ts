@@ -280,14 +280,15 @@ test.describe.serial(`Swarm anthracene cc-pVDZ HF SCF — ${N_TABS}-tab × ${INN
     // in the documented-negative test below — and it currently is not.
     expect(Number.isFinite(result.energy)).toBe(true);
     expect(result.converged).toBe(true);
-    expect(result.energy, "SCF diverged to a positive energy").toBeLessThan(0);
+    expect(result.energy, "SCF diverged to a positive energy").toBeLessThan(-100);
     // Divergence guard, NOT a physics claim. main asserted -1500 < E < -100 on
-    // this path; splitting the spec moved the tight two-sided bound into the
-    // test.fail() body below, which Playwright REQUIRES to fail and which
-    // therefore bounds nothing on a green run. Without this line a regression
-    // from the observed ~-880 Ha to -3000 Ha would pass, where it would have
-    // failed before the split. The band is deliberately wide: the physics is
-    // known-wrong here (LIMITATIONS.md §3) and is asserted below, so all this
+    // this path. 080bfcf DELETED both bounds (it did not move them -- the
+    // test.fail() body below carries different, tighter assertions) and left
+    // only E < 0, so a regression to -50 Ha or to -3000 Ha would both have
+    // passed where they failed before. da282ab restored the lower bound; this
+    // restores the upper one, putting the original band back verbatim.
+    // The band is deliberately wide: the physics is known-wrong here
+    // (LIMITATIONS.md §3) and is asserted in the test.fail() body, so all this
     // rules out is a run that has left the plausible magnitude entirely.
     expect(result.energy, "energy left the plausible magnitude band").toBeGreaterThan(-1500);
 
