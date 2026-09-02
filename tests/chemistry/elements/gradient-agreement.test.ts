@@ -68,7 +68,12 @@
 // erf → 0 and the ratio blows up on a vanishing absolute error). It is the same floor that makes the run
 // plan's Level-A bar of 1e-9 Ha unreachable. Replacing erfApprox with an
 // f64-accurate erf is the one change that would let every FD-based gradient
-// gate in this repo — HF, DFT and CPHF alike — be tightened below 1e-6.
+// HF finite-difference gate in this repo be tightened below 1e-6. It would NOT
+// move the DFT one: dft-gradient.test.ts sits at 1e-3 Ha/Bohr, four orders
+// above the erf floor, because we do not yet differentiate the Becke partition
+// weights with respect to nuclear positions. An earlier revision of this
+// comment said "HF, DFT and CPHF alike", which credits erf for a gate the
+// missing weight derivative actually controls.
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { computeMolecularIntegrals } from "../../../src/chemistry/cg-molecular.js";
@@ -230,7 +235,7 @@ describe.runIf(RUN_SLOW)("New elements: analytical HF gradient vs central FD (cc
   //   Cl cart 109 s → 284 s    Cl sph 110 s → 286 s    S cart 204 s → 517 s
   // so the runner is ~2.6x slower, and only S/H₂S exceeds the old 340 s cap
   // on cost alone. The other two blew it on run 31357193244 because they
-  // shared a 2-core runner with the rest of the suite: vitest runs 4 files
+  // shared a 4-core runner with the rest of the suite: vitest runs 4 files
   // in parallel, so a 284 s cell stretches past 340 s under contention.
   // That is why isolation, not just a larger number, is the fix — a bigger
   // timeout on the main job would leave them contending and flaky.

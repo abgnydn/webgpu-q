@@ -11,6 +11,15 @@
 
 import type { LabReply, LabRequest } from "./lab-worker.js";
 import { SN2_CCPVDZ_BARRIER_KCAL, SN2_LITERATURE_BARRIER_KCAL } from "./sn2-geometry.js";
+
+/**
+ * Chemical accuracy, mHa (1 kcal/mol). Lab 3 quotes the correlation energy as
+ * a multiple of it; that multiple is COMPUTED, because the previous prose
+ * hardcoded "over a hundred times" while STO-3G — the lab's default basis —
+ * gives 49.4 mHa, i.e. 31x. It only reached 100x on the cc-pVDZ option, so the
+ * page contradicted the number it printed one clause earlier.
+ */
+const CHEMICAL_ACCURACY_MHA = 1.594;
 import type { BasisName } from "../chemistry/atoms.js";
 
 type Row = Record<string, number | string | boolean>;
@@ -191,9 +200,11 @@ wire(
       gets to ${num(ccsd["pct"], 1)}%. The perturbative triples supply the
       last ${num(100 - Number(ccsd["pct"]), 1)}%.</p>
       <p>Total correlation energy here is ${num(t["corrMHa"], 1)} mHa. For
-      scale, chemical accuracy is 1.594 mHa — so the correlation you are
-      recovering is over a hundred times larger than the accuracy you need,
-      which is why you cannot simply ignore it.</p>
+      scale, chemical accuracy is ${CHEMICAL_ACCURACY_MHA} mHa — so the
+      correlation you are recovering is
+      ${Math.round(Math.abs(Number(t["corrMHa"])) / CHEMICAL_ACCURACY_MHA)}×
+      larger than the accuracy you need, which is why you cannot simply
+      ignore it.</p>
       <p class="caveat">CCSD(T) is the reference for the percentages, not the
       exact answer. It is the best number this ladder produces; the true
       correlation energy in this basis is slightly larger still.</p>`;
