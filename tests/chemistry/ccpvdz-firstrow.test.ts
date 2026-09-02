@@ -15,12 +15,18 @@
 //
 // HISTORY — why bar 1 exists. This file used to claim "verified vs
 // PySCF" with "loose (10 mHa)" tolerances while actually asserting
-// windows 116-170 mHa wide against 2-decimal literals (e.g. LiH
-// "≈ -7.98" checked as -8.10 < E < -7.85). A 116 mHa window cannot
-// see a wrong basis table: the Li/Be cc-pVDZ tables were in fact
-// wrong by up to 1.29 mHa and this suite passed throughout. The
-// window is now the same 0.01 mHa class of bar the rest of the
-// chemistry suite uses.
+// windows 200-300 mHa wide against 2-decimal literals: LiH 250
+// ("≈ -7.98" checked as -8.10 < E < -7.85), BeH₂ 300, CH₄ 200,
+// NH₃ 200, HF 300. A 250 mHa window cannot see a wrong basis table:
+// the Li/Be cc-pVDZ tables were in fact wrong by up to 1.29 mHa and
+// this suite passed throughout. The window is now the same 0.01 mHa
+// class of bar the rest of the chemistry suite uses.
+//
+// (This comment previously said "116-170 mHa wide" while printing an
+// example spanning 250 mHa. 116 mHa is the ONE-SIDED distance from the
+// LiH reference -7.983651 to the lower edge -8.10 — a half-width read
+// as a width. Corrected 2026-09-02; the widths above are differences of
+// the literals on lines 57-58, 73-74, 92-93, 118-119 and 133-134.)
 //
 // References are READ (never retyped) from the committed fixture
 //   tests/chemistry/elements/pyscf-reference.json

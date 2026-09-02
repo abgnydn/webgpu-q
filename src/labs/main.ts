@@ -10,6 +10,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import type { LabReply, LabRequest } from "./lab-worker.js";
+import { SN2_CCPVDZ_BARRIER_KCAL, SN2_LITERATURE_BARRIER_KCAL } from "./sn2-geometry.js";
 import type { BasisName } from "../chemistry/atoms.js";
 
 type Row = Record<string, number | string | boolean>;
@@ -225,9 +226,11 @@ wire(
       turns inside out like an umbrella in wind.</p>
       <p><b>Now the part worth arguing about.</b> This barrier came out at
       ${num(barrier, 1)} kcal/mol. The literature value for this reaction is
-      about 13 kcal/mol. Same geometry in cc-pVDZ gives 14.6 — so the
-      minimal basis is wrong by more than a factor of two, in the direction
-      that would make you predict the reaction is far slower than it is.</p>
+      about ${SN2_LITERATURE_BARRIER_KCAL} kcal/mol measured from the
+      ion–dipole complex, which is where s = −1 sits. Same geometry in
+      cc-pVDZ gives ${SN2_CCPVDZ_BARRIER_KCAL} — so the minimal basis is
+      wrong by more than a factor of two, in the direction that would make
+      you predict the reaction is far slower than it is.</p>
       <p>That is the honest lesson: the shape is right, the number is not.
       A minimal basis is enough to see a mechanism and nowhere near enough
       to predict a rate.</p>

@@ -19,7 +19,10 @@ import { describe, expect, test } from "vitest";
 import { computeMolecularIntegrals } from "../../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei } from "../../../src/chemistry/atoms.js";
 import { runRHFSCF } from "../../../src/chemistry/hf-scf.js";
-import { sn2Point, SN2_EXTRA_ELECTRONS, HARTREE_TO_KCAL } from "../../../src/labs/sn2-geometry.js";
+import {
+  sn2Point, SN2_EXTRA_ELECTRONS, HARTREE_TO_KCAL,
+  SN2_CCPVDZ_BARRIER_KCAL, SN2_LITERATURE_BARRIER_KCAL,
+} from "../../../src/labs/sn2-geometry.js";
 
 // Geometry comes from src/labs/sn2-geometry.ts — the SAME module the labs
 // page uses, so the page and this validation cannot describe different
@@ -61,8 +64,8 @@ describe("SN2: Cl⁻ + CH₃Cl identity reaction", () => {
 
   test("minimal basis overestimates the barrier by more than 2×", () => {
     // The teaching point, and the reason a methods course does not stop at
-    // STO-3G. Literature for this reaction is ~13 kcal/mol relative to the
-    // ion-dipole complex.
+    // STO-3G. Literature is SN2_LITERATURE_BARRIER_KCAL relative to the
+    // ion-dipole complex — see that constant for why the qualifier matters.
     const barrier = (basis: "sto-3g" | "cc-pvdz") => {
       const end = sn2Energy(-1, basis);
       const ts = sn2Energy(0, basis);
@@ -73,8 +76,11 @@ describe("SN2: Cl⁻ + CH₃Cl identity reaction", () => {
     const ccpvdz = barrier("cc-pvdz");
     expect(sto3g).toBeGreaterThan(32);
     expect(sto3g).toBeLessThan(35);
-    expect(ccpvdz).toBeGreaterThan(13.5);
-    expect(ccpvdz).toBeLessThan(15.5);
+    // Pins the exact number the labs page quotes in its prose. The page
+    // computes STO-3G only, so without this assertion its cc-pVDZ claim
+    // would be an unchecked literal — which is how it originally shipped.
+    expect(Math.abs(ccpvdz - SN2_CCPVDZ_BARRIER_KCAL)).toBeLessThan(1.0);
+    expect(SN2_LITERATURE_BARRIER_KCAL).toBeLessThan(ccpvdz);
     expect(sto3g / ccpvdz).toBeGreaterThan(2);
   }, 900_000);
 });

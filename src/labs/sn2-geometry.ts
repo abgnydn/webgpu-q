@@ -20,6 +20,32 @@ const D = (R_LONG - R_SHORT) / 2;
 
 export const HARTREE_TO_KCAL = 627.5095;
 
+/**
+ * Barrier along THIS interpolated path at RHF/cc-pVDZ, kcal/mol, measured
+ * relative to s = −1.
+ *
+ * The labs page quotes this in prose and sn2-profile.test.ts pins it to
+ * ±1.0 kcal/mol against a live computation, so both read this constant
+ * rather than each carrying a copy. It was previously hardcoded in the
+ * page's interpretation text while the worker computed STO-3G only — the
+ * page asserted a number nothing on the page had calculated.
+ */
+export const SN2_CCPVDZ_BARRIER_KCAL = 14.6;
+
+/**
+ * Literature gas-phase barrier for Cl⁻ + CH₃Cl, kcal/mol, RELATIVE TO THE
+ * ION–DIPOLE COMPLEX.
+ *
+ * The qualifier is load-bearing, not decoration: measured from separated
+ * reactants the barrier is near zero, because forming the complex releases
+ * more than the barrier costs. sn2Point(-1) places the incoming chloride at
+ * R_LONG = 3.20 Å — inside the ion–dipole well — so s = −1 is comparable to
+ * this number and not to the separated-reactant one. Dropping the qualifier
+ * invites a reader who knows the gas-phase value to conclude the lab is
+ * broken.
+ */
+export const SN2_LITERATURE_BARRIER_KCAL = 13;
+
 export interface SN2Point {
   readonly atoms: Atom[];
   /** C···Cl distance to the incoming chloride, Å. */

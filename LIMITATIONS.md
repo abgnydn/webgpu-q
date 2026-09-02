@@ -15,7 +15,6 @@ reviewer or chemist would discover anyway.
 | basis | system | NSO | wall time | notes |
 |---|---|---|---|---|
 | STO-3G | H₂, LiH, BeH₂, H₂O, CH₄ | ≤ 18 | sub-second | full pipeline incl. CCSD(T) + EOM |
-| 6-31G* | H₂O, BeH₂ | ≤ 28 | seconds | spot-checked |
 | cc-pVDZ | H₂O | 48 | 5.05 s (GPU CCSD(T)) | headline case |
 | aug-cc-pVDZ | H₂O | 64 | minutes | diffuse functions wired |
 
@@ -54,8 +53,12 @@ reviewer or chemist would discover anyway.
 Nothing beyond Z = 18. No transition metals, no fourth row.
 **6-31G\* is NOT implemented** — `BasisName` is exactly
 `"sto-3g" | "cc-pvdz" | "aug-cc-pvdz"` and the string "6-31g" appears
-nowhere in `src/`. (An earlier revision of this table claimed 6-31G*
-was "wired, spot-checked" for H/C/N/O. That was never true.)
+nowhere in `src/`. (Earlier revisions of this file claimed 6-31G* twice:
+"wired, spot-checked" for H/C/N/O in the coverage table, and a
+"6-31G* | H₂O, BeH₂ | ≤ 28 | seconds | spot-checked" row in §1's
+"Tested and confirmed working" table above. Neither was ever true. The
+second outlived the first by one commit — removing a false claim from
+one table is not the same as grepping the file for it.)
 
 Every (element × basis) cell is validated against PySCF by
 `tests/chemistry/elements/reference-agreement.test.ts`: 18 elements ×
