@@ -69,7 +69,7 @@ Rank by *closes an open bug* > *unblocks a benchmark* > *codebase health*:
    to exactly the audience that checks.
 
 2. **Basis-set primitives** ← EMSL JSON dump. Currently LiH, BeH₂, H₂O,
-   NH₃, CH₄ work at STO-3G; cc-pVDZ is wired for H, He, Li, Be, C, N, O, F
+   NH₃, CH₄ work at STO-3G; cc-pVDZ is wired for H–Ar, all 18 elements
    (this line previously said "blocked for everything except H, O", which went
    stale once the basis tables were completed — and that stale belief was also
    hardcoded into E34's element gate, silently dropping 10 artifact rows).

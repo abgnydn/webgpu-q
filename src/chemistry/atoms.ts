@@ -326,7 +326,7 @@ export function atomShells(
   }
 }
 
-/** cc-pVDZ shells. H + first-row (Li, Be, C, N, O, F). */
+/** cc-pVDZ shells. H–Ar, all 18 (row 3 via `heavyShellsRow3`). */
 function atomShellsCcPvdz(symbol: AtomSymbol, pos: readonly [number, number, number]): CGShell[] {
   /** Build the 14-function cc-pVDZ heavy-atom shell stack
    *  (3s + 2p + 1d → 1+1+1+3+3+6 = 15 Cartesian d functions actually).
@@ -428,7 +428,7 @@ function atomShellsCcPvdz(symbol: AtomSymbol, pos: readonly [number, number, num
 /**
  * Augmentation-only shells for aug-cc-pVDZ — one diffuse function per
  * angular momentum class (s, p, d), appended to the existing cc-pVDZ
- * shell list. H + first-row coverage (H, Li, Be, C, N, O, F).
+ * shell list. H–Ar coverage, all 18 elements.
  */
 function atomShellsAugDiffuse(symbol: AtomSymbol, pos: readonly [number, number, number]): CGShell[] {
   type ShellData = { readonly alpha: readonly number[]; readonly c: readonly number[] };
