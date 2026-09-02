@@ -9,7 +9,7 @@
 // ── What bar is achievable, and why it is not 1e-6 ──────────────────
 //
 // The run plan proposed |analytic − FD| ≤ 1e-6 Ha/Bohr at h = 1e-4 Bohr.
-// Measured (M2 Pro, STO-3G, SCF energyTol 1e-13 / densityTol 1e-12):
+// Measured (M2 Max, STO-3G, SCF energyTol 1e-13 / densityTol 1e-12):
 //
 //   B/BH₃ 1.25e-7  Na/NaH 2.88e-7  Mg/MgH₂ 3.63e-7  Al/AlH₃ 3.00e-7
 //   Si/SiH₄ 4.42e-7  P/PH₃ 1.245e-6  S/H₂S 2.57e-7  Cl/HCl 2.30e-7
@@ -225,7 +225,7 @@ describe.runIf(RUN_SLOW)("New elements: analytical HF gradient vs central FD (cc
   // is deliberately small because each cell costs a full FD sweep: 2×3N
   // cc-pVDZ SCF solves (12 for HCl, 18 for H₂S) plus the analytic gradient.
   //
-  // Measured wall clock — M2 Pro, then ubuntu-latest running these ALONE
+  // Measured wall clock — M2 Max, then ubuntu-latest running these ALONE
   // (run 33591322156):
   //   Cl cart 109 s → 284 s    Cl sph 110 s → 286 s    S cart 204 s → 517 s
   // so the runner is ~2.6x slower, and only S/H₂S exceeds the old 340 s cap

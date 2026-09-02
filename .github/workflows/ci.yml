@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     # Split out of the main test job on 2026-09-02. These three cells
     # (Cl/HCl cart+sph, S/H2S cart) each run a full central-FD sweep at
-    # cc-pVDZ: 2x3N SCF solves. Measured 109 / 110 / 204 s on an M2 Pro and
+    # cc-pVDZ: 2x3N SCF solves. Measured 109 / 110 / 204 s on an M2 Max and
     # 284 / 286 / 517 s here running alone. On the main job all three blew
     # the 340 s per-test cap and failed CI on numbers that were correct
     # (run 31357193244) -- only S/H2S is intrinsically over it; the other
