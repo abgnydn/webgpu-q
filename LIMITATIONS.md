@@ -50,6 +50,25 @@ reviewer or chemist would discover anyway.
 | **cc-pVDZ** | **H–Ar** (all 18) |
 | **aug-cc-pVDZ** | **H–Ar** (all 18) |
 
+**One deliberate deviation from the standard tables: STO-3G lithium is s-only
+here (1s + 2s).** Standard STO-3G Li also carries a 2p L-shell, so webgpu-q's
+STO-3G Li spans a smaller space and gives a higher energy — LiH comes out at
+−7.804244 Ha against stock STO-3G's −7.862027 Ha, a 57.8 mHa difference that is
+basis, not error.
+
+Nothing is hidden by this. `scripts/check-basis-vs-pyscf.py` carries it as the
+single entry in `ALLOWED_DEVIATIONS`, exponent-matched, so a *wrong digit* in
+the same cell still fails the gate; and `scripts/run-element-reference.py`
+mirrors it via `LI_S_ONLY_STO3G` when generating the PySCF reference, so every
+STO-3G LiH number in this repo is validated apples-to-apples against a matched
+non-standard basis rather than against stock STO-3G.
+
+Why it is s-only: nobody has typed the 2p L-shell. It is not a design decision
+and there is no numerical obstacle — adding the shell and regenerating the
+affected fixture rows would remove the deviation. Until then, treat any STO-3G
+lithium result from this engine as not comparable with a stock-STO-3G result
+from anywhere else.
+
 Nothing beyond Z = 18. No transition metals, no fourth row.
 **6-31G\* is NOT implemented** — `BasisName` is exactly
 `"sto-3g" | "cc-pvdz" | "aug-cc-pvdz"` and the string "6-31g" appears

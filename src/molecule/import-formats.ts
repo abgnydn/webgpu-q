@@ -151,7 +151,7 @@ function parseMOL(text: string): ParseResult {
  * It is actively dangerous anywhere else: the truncation is silent and
  * yields a real-but-wrong element. "Fe" → "F" imports iron as fluorine.
  * The hazard scales with the supported single-letter set, which this
- * repo has grown from {H,B,C,N,O,F} to {H,B,C,N,O,F,P,S} — so "Pd"/"Pt"
+ * repo has grown from {H,C,N,O,F} to {H,B,C,N,O,F,P,S} — so "Pd"/"Pt"
  * → P and "Sc"/"Se"/"Sn"/"Sr" → S all became newly wrong. ("Na" → N was
  * already wrong before that.) Hence: opt-in, not default.
  */

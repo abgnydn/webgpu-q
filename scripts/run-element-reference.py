@@ -90,9 +90,11 @@ MOLECULES = {
 
 BASES = ["sto-3g", "cc-pvdz", "aug-cc-pvdz"]
 
-# webgpu-q uses an s-only STO-3G for lithium (documented; see
-# scripts/run-pyscf-reference.py). Feed PySCF the matching basis so the
-# comparison stays apples-to-apples.
+# webgpu-q uses an s-only STO-3G for lithium. Rationale and the exact energy
+# difference are in LIMITATIONS.md, section 1, "Basis-set atom coverage" --
+# this comment used to point at scripts/run-pyscf-reference.py, which only
+# restates the fact. Feed PySCF the matching basis so the comparison stays
+# apples-to-apples.
 LI_S_ONLY_STO3G = """
 Li    S
      16.1195750              0.15432897
