@@ -22,7 +22,8 @@ wrong integrals together but cannot separate them.
 
 Level A's 1e-9 Ha bar is also unreachable as specified. `boys0` in
 `integrals-cg.ts` uses the Abramowitz–Stegun 7.1.26 rational fit for
-erf, with a measured worst-case relative error of **2.66e-7** (the code
+erf, whose max ABSOLUTE error is **1.394e-7** at x = 0.045, measured against
+mpmath at 40 dps over x ∈ [1e-6, 8] (the code
 admits ~1.5e-7 at `integrals-cg.ts:195`). Row 3 makes it worse: Ar's
 STO-3G 1s exponent is 674.45 against carbon's 71.62, pushing more
 core-core pairs onto the approximate branch. A real Level A needs either
@@ -43,12 +44,18 @@ Wrong basis data would show up in HF, so this is not blind — but
 and only uses H2O/CH4, where 1 is correct — so it passes and will keep
 passing while the row-3 path stays uncovered.
 
-Known interaction: `rhf-auto.ts:452` throws for `nFrozenCore > 0` on the
+Known interaction: `rhf-auto.ts:450` throws (in `runUMP2Auto`) for `nFrozenCore > 0` on the
 exact-ERI UMP2 path. Any caller that inherits 5 from `defaultFrozenCore`
 on a small row-3 molecule will hit that throw. Not triggered by anything
 currently in the suite.
 
 ### 1.4 Gradients were not hardened (Phase 2 not started)
+
+> **SUPERSEDED 2026-09-02.** Phase 2 landed in `acf7b05`:
+> `tests/chemistry/elements/gradient-agreement.test.ts` covers all ten new
+> elements against central FD at 1.5e-6 Ha/Bohr, plus translational
+> invariance at 1e-12. The rest of this section is kept as the record of
+> what was true when the report was written.
 
 No analytic-vs-finite-difference check was run for any new element.
 
@@ -123,7 +130,7 @@ See commit messages for full detail. Summary:
 
 1. Phase 2 — gradient hardening (analytic vs FD) for the 10 new elements.
 2. Correlated-method references (MP2/CCSD/CCSD(T)) per element.
-3. A row-3 frozen-core test, plus resolving the `rhf-auto.ts:452` throw.
+3. A row-3 frozen-core test, plus resolving the `rhf-auto.ts:450` throw.
 4. The loose-assertion cleanup, starting with
    `e2e/swarm-hf-anthracene-ccpvdz.spec.ts`, whose `(-1500, -100)` window
    certifies a documented-wrong -880 Ha result as green.

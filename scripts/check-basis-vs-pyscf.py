@@ -50,10 +50,10 @@ TOL = 1e-7
 ALLOWED_DEVIATIONS = {
     # webgpu-q's STO-3G Li is s-only (1s + 2s); standard STO-3G Li also carries
     # a 2p L-shell. Intentional, and mirrored on the reference side by
-    # LI_S_ONLY_STO3G_PYSCF in scripts/run-pyscf-reference.py so LiH cells stay
+    # LI_S_ONLY_STO3G in scripts/run-element-reference.py so LiH cells stay
     # apples-to-apples.
     ("sto-3g", "Li"): {
-        "reason": "s-only Li (no 2p L-shell) — see scripts/run-pyscf-reference.py",
+        "reason": "s-only Li (no 2p L-shell) — see scripts/run-element-reference.py",
         "ours_only": (),
         "pyscf_only": ((0.6362897, 0.1478601, 0.0480887),),
     },

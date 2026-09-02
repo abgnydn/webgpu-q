@@ -36,6 +36,13 @@ export const SN2_CCPVDZ_BARRIER_KCAL = 14.6;
  * Literature gas-phase barrier for Cl⁻ + CH₃Cl, kcal/mol, RELATIVE TO THE
  * ION–DIPOLE COMPLEX.
  *
+ * This is a round approximate value, not a citation, and NOT an RHF number —
+ * the experimental/high-level estimates it stands for are correlated results.
+ * So our RHF/cc-pVDZ 14.6 landing near it is not a validation of anything;
+ * treat the closeness as coincidence. What the labs page uses it for is the
+ * order-of-magnitude contrast against STO-3G's 33, which is the real teaching
+ * point. Anyone tightening this into a claim needs a real reference first.
+ *
  * The qualifier is load-bearing, not decoration: measured from separated
  * reactants the barrier is near zero, because forming the complex releases
  * more than the barrier costs. sn2Point(-1) places the incoming chloride at
@@ -48,9 +55,14 @@ export const SN2_LITERATURE_BARRIER_KCAL = 13;
 
 export interface SN2Point {
   readonly atoms: Atom[];
-  /** C···Cl distance to the incoming chloride, Å. */
+  /**
+   * C···Cl distance to the LEAVING chloride, Å. Runs 1.785 → 3.20 as s goes
+   * −1 → +1: it starts bonded and departs. (These two labels were swapped in
+   * an earlier revision — r1 was documented as the incoming one, which is the
+   * opposite of what the arithmetic does.)
+   */
   readonly r1: number;
-  /** C···Cl distance to the leaving chloride, Å. */
+  /** C···Cl distance to the INCOMING chloride, Å. Runs 3.20 → 1.785. */
   readonly r2: number;
   /** H–C–z umbrella angle in degrees; 90° is planar (the transition state). */
   readonly phiDeg: number;
