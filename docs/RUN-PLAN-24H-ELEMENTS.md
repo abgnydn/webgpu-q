@@ -1,6 +1,8 @@
 # 24h autonomous run plan — break the periodic-table wall
 
-**Status:** proposed, not started
+**Status:** executed 2026-08-10 → 2026-09-02 on `feat/periodic-table-expansion` (PR #36).
+Outcome in `docs/RUN-REPORT-2026-08-10.md`, which is itself stale on gradients —
+Phase 2 landed after it was written.
 **Branch:** `feat/periodic-table-expansion` (create from `main`)
 **Written:** 2026-08-10
 
@@ -42,7 +44,7 @@ Do **not** do any of these, even if they look tempting mid-run:
    losing the good ones. Trailer:
    `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
 4. **Serialize test runs.** Do not run vitest suites concurrently with
-   PySCF sweeps. The machine is a 16 GB M2 Pro; saturating it produces
+   PySCF sweeps. The machine is a 32 GB M2 Max; saturating it produces
    timeout flakes that look exactly like real failures and will send the
    run chasing phantoms.
 5. **Never widen a tolerance to make a test pass.** If a bar cannot be
