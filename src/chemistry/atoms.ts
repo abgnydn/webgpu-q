@@ -150,7 +150,7 @@ export function defaultFrozenCore(atoms: readonly Atom[]): number {
  *   H → [1s, 2s, 2p_x, 2p_y, 2p_z]            (5 funcs)
  *   O → [1s, 2s, 2s', 2p, 2p', 3d_xx, 3d_yy,
  *        3d_zz, 3d_xy, 3d_xz, 3d_yz]          (14 funcs)
- *   (Other atoms not yet covered for cc-pVDZ.)
+ *   (Same pattern for every element H-Ar; see cc-pVDZ tables in integrals.ts.)
  */
 export function atomShells(
   symbol: AtomSymbol,

@@ -53,6 +53,21 @@ function ourEnergy(row: RefRow): { energy: number; n: number; converged: boolean
 }
 
 describe("Element coverage: RHF vs PySCF, convention-matched", () => {
+  // The fixture is the trust root for every per-element number in this repo,
+  // and the loop below emits ZERO tests for a row that is missing or not ok.
+  // Without this assertion a regenerated fixture that quietly dropped elements
+  // would go green with fewer cells -- the identical failure mode to
+  // check-basis-vs-pyscf.py covering only 8 of 18 elements when it was first
+  // wired, which is what this whole branch exists to stop repeating.
+  test("fixture is complete: 18 elements x 3 bases x 2 conventions, all ok", () => {
+    const EXPECTED_ELEMENTS = 18, EXPECTED_BASES = 3, EXPECTED_CONVENTIONS = 2;
+    expect(fixture.rows.length).toBe(EXPECTED_ELEMENTS * EXPECTED_BASES * EXPECTED_CONVENTIONS);
+    expect(fixture.rows.every((r) => r.ok)).toBe(true);
+    expect(new Set(fixture.rows.map((r) => r.element)).size).toBe(EXPECTED_ELEMENTS);
+    expect(new Set(fixture.rows.map((r) => r.basis)).size).toBe(EXPECTED_BASES);
+    expect(new Set(fixture.rows.map((r) => r.convention)).size).toBe(EXPECTED_CONVENTIONS);
+  });
+
   for (const row of fixture.rows) {
     if (!row.ok) continue;
     const label = `${row.element} · ${row.molecule} · ${row.basis} · ${row.convention}`;
