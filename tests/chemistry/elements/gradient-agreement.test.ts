@@ -31,10 +31,18 @@
 //     help and there is no round-off blow-up to hide behind.
 //   • Cross-checked against PySCF's own analytic RHF gradient at the
 //     same geometries and basis, our analytic gradient is within
-//     4.8e-7 Ha/Bohr for every element (P/PH₃: 2.56e-7), whereas the
-//     central FD of OUR energy is within only 1.5e-6 (P/PH₃: 1.50e-6).
-//     The analytic gradient is ~6× closer to truth than the reference
-//     it is being measured against.
+//     4.8e-7 Ha/Bohr for each of the TEN NEW elements (worst: S/H₂S
+//     4.77e-7; P/PH₃ 2.56e-7), whereas the central FD of OUR energy is
+//     within only 1.5e-6 (P/PH₃: 1.50e-6). The analytic gradient is ~6×
+//     closer to truth than the reference it is being measured against.
+//
+//     The "ten new elements" scope is load-bearing, not decoration: this
+//     comparison is meaningless for Li, because webgpu-q's STO-3G Li is
+//     s-only (1s+2s) while PySCF's carries a 2p L-shell — a deliberate
+//     deviation, allowlisted in scripts/check-basis-vs-pyscf.py. Against
+//     a different basis the Li gradient difference is ~1e-2, not 1e-7.
+//     An earlier revision of this comment said "for every element",
+//     which is false for exactly that reason.
 //   • Root cause: our SCF energy carries an integral-precision error of
 //     1e-7–8e-7 Ha relative to PySCF at these geometries. Differentiating
 //     the energy differentiates that error too, giving a ~1e-6 Ha/Bohr
@@ -50,8 +58,14 @@
 //
 // That 1e-7–8e-7 Ha energy error almost certainly has a name: `boys0` in
 // integrals-cg.ts evaluates erf with the Abramowitz–Stegun 7.1.26 rational
-// fit, whose measured worst-case relative error is 2.66e-7 (the file admits
-// ~1.5e-7 at integrals-cg.ts:195). It is the same floor that makes the run
+// fit. Its error, measured against mpmath at 40 dps over x ∈ [1e-6, 8]:
+// max ABSOLUTE 1.394e-7 (at x = 0.045), which is the bound that matters
+// here and matches the ~1.5e-7 the file already states at
+// integrals-cg.ts:195. An earlier revision of this comment called
+// 2.66e-7 the "worst-case relative error"; it is neither worst-case nor
+// the meaningful bound — 2.66e-7 is the relative error at exactly
+// x = 0.5, while the true max relative error is 8.9e-4 as x → 0 (where
+// erf → 0 and the ratio blows up on a vanishing absolute error). It is the same floor that makes the run
 // plan's Level-A bar of 1e-9 Ha unreachable. Replacing erfApprox with an
 // f64-accurate erf is the one change that would let every FD-based gradient
 // gate in this repo — HF, DFT and CPHF alike — be tightened below 1e-6.
