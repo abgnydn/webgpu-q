@@ -10,8 +10,8 @@
 // That is enough to show the barrier and the Walden inversion; it is not
 // a substitute for an optimized transition state.
 //
-// System is an ANION: 43 electrons from the neutral atoms, +1 for the
-// charge = 44, closed shell.
+// System is an ANION: 43 electrons from the neutral atoms, +1 for the −1
+// charge = 44 electrons, closed shell.
 //
 // References below are PySCF 2.13.1, mol.charge = -1, mol.cart = True,
 // conv_tol 1e-11, at the identical geometries this file constructs.
