@@ -1,9 +1,14 @@
 // Per-element RHF agreement against a committed PySCF reference table.
 //
 // This is the permanent verifier for element coverage: every supported
-// element is exercised in a real molecule (hydrides, not bare atoms, so
-// two-center integrals actually run) across every supported basis, under
-// BOTH d-conventions.
+// element is exercised across every supported basis, under BOTH
+// d-conventions.
+//
+// Fifteen of the eighteen run in a hydride, so two-center integrals
+// involving that element are exercised. He, Ne and Ar have no hydride and
+// run as ISOLATED ATOMS -- their six cells exercise one-center integrals
+// only. An earlier revision of this comment claimed "hydrides, not bare
+// atoms" for all eighteen, which is exactly wrong for those three.
 //
 // Convention pairing (Gate 0.1, docs/RUN-PLAN-24H-ELEMENTS.md):
 //   PySCF spherical (default, 5d)  <-> computeMolecularIntegrals(..., {spherical:true})
