@@ -1,0 +1,52 @@
+# GPU smoke test — informational only.
+#
+# GitHub-hosted runners have no real GPU adapter. This job forces SwiftShader
+# software rendering via LIBGL_ALWAYS_SOFTWARE=1 so we get *some* WebGPU
+# coverage in CI, but SwiftShader is flaky/slow and its numbers are not
+# representative of real hardware. It is intentionally `continue-on-error:
+# true` and must NOT gate merges. Real performance/correctness numbers still
+# require local M2 Pro (or other native GPU) runs as documented in the
+# research protocols.
+name: gpu-smoke
+
+on:
+  pull_request:
+    paths:
+      - "src/shaders/**"
+      - "src/quantum.ts"
+      - "src/fusion*.ts"
+      - "experiments/level-3-fusion/**"
+      - "playwright.config.ts"
+      - ".github/workflows/gpu-smoke.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/shaders/**"
+      - "src/quantum.ts"
+      - "src/fusion*.ts"
+      - "experiments/level-3-fusion/**"
+      - "playwright.config.ts"
+      - ".github/workflows/gpu-smoke.yml"
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 15
+    env:
+      LIBGL_ALWAYS_SOFTWARE: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - run: npx playwright test e2e/landing-smoke.spec.ts --project=chromium-webgpu
