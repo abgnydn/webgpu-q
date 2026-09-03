@@ -50,9 +50,9 @@ concurrency:
 
 jobs:
   swarm-quick:
-    name: Swarm quick (benzene 2-tab + naphthalene 4-tab + JK partition proofs)
+    name: Swarm quick (benzene 2-tab + naphthalene 4-tab + JK partition proofs + screening + MP2 reduction)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -71,6 +71,8 @@ jobs:
             e2e/swarm-hf-distributed.spec.ts \
             e2e/swarm-hf-naphthalene.spec.ts \
             e2e/swarm-scheduling.spec.ts \
+            e2e/swarm-screening.spec.ts \
+            e2e/swarm-mp2-distributed.spec.ts \
             --reporter=list
       - name: Upload swarm result artifacts
         if: always()
