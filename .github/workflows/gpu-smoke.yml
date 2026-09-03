@@ -39,6 +39,22 @@ jobs:
       - name: Run landing smoke
         run: npx playwright test e2e/landing-smoke.spec.ts --reporter=line
 
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-smoke
+          path: e2e/.report
+          if-no-files-found: warn
+
+      - name: Upload landing screenshot
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: landing-screenshot
+          path: e2e/.artifacts/landing.png
+          if-no-files-found: warn
+
   # Deterministic shader validation — complements the runtime SwiftShader smoke
   # by catching WGSL syntax / semantic errors before any browser is launched.
   shader-compile:

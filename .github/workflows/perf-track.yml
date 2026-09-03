@@ -1,4 +1,5 @@
-# Tracking-only weekly perf run. Never gates merges; see BENCH.md rule (a).
+# Tracking-only weekly perf run against the slow-suite cells in bench/baseline.json.
+# Never gates merges; see BENCH.md rule (a).
 name: perf-track
 on:
   schedule:
@@ -8,6 +9,7 @@ on:
 jobs:
   perf-track:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -15,7 +17,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: npm run test:fast -- --reporter=json > /tmp/vitest-perf.json
+      - run: npm run test:slow -- --reporter=json > /tmp/vitest-perf.json
       - run: node bench/check-perf.mjs /tmp/vitest-perf.json
       - uses: actions/upload-artifact@v4
         if: always()

@@ -54,6 +54,14 @@ jobs:
           ROOM: wgqhf2-${{ github.run_id }}
         run: npx playwright test e2e/swarm-hf-relay-crossmachine.spec.ts --reporter=list
 
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-hf-n2-${{ matrix.idx }}
+          path: e2e/.report
+          if-no-files-found: warn
+
   hf-n4:
     name: HF N=4 (node ${{ matrix.idx }})
     runs-on: ubuntu-latest
@@ -74,6 +82,14 @@ jobs:
           NTOTAL: "4"
           ROOM: wgqhf4-${{ github.run_id }}
         run: npx playwright test e2e/swarm-hf-relay-crossmachine.spec.ts --reporter=list
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-hf-n4-${{ matrix.idx }}
+          path: e2e/.report
+          if-no-files-found: warn
 
   # Cross-machine GPU-DF BATCH: swarmMap distributes independent chem single-points
   # (force DF + fast) across VMs through the broker — distinct from the distributed
@@ -99,3 +115,11 @@ jobs:
           NTOTAL: "2"
           ROOM: wgqgpu2-${{ github.run_id }}
         run: npx playwright test e2e/swarm-gpu-relay-crossmachine.spec.ts --reporter=list
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-gpu-batch-n2-${{ matrix.idx }}
+          path: e2e/.report
+          if-no-files-found: warn
