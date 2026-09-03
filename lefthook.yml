@@ -1,0 +1,13 @@
+# lefthook.yml — fast local git hooks for webgpu-q
+# Full test suite remains in CI; hooks are intentionally lightweight.
+
+pre-commit:
+  commands:
+    eslint:
+      glob: "{src,tests,experiments,e2e}/**/*.ts"
+      run: npx eslint --no-warn-ignored {staged_files}
+
+pre-push:
+  commands:
+    typecheck:
+      run: npx tsc --noEmit

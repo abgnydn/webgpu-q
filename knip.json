@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/**/main.ts",
+    "experiments/runner.ts",
+    "experiments/gpu-mps/main.ts",
+    "src/main.ts"
+  ],
+  "project": [
+    "src/**/*.ts",
+    "experiments/**/*.ts",
+    "e2e/**/*.ts",
+    "tests/**/*.ts"
+  ]
+}
