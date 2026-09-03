@@ -9,13 +9,34 @@ benchmark additions, and honest negative results are all welcome.
 git clone https://github.com/abgnydn/webgpu-q
 cd webgpu-q
 npm install
-npm run test         # vitest unit/integration · CI green
-npm run typecheck    # tsc --noEmit, strict + noUncheckedIndexedAccess
-npm run lint         # ESLint flat config
-npm run test:e2e     # Playwright headless WebGPU
+npm run test:fast   # PR gate: fast subset (~32s wall, 131 files)
+npm run test:slow   # nightly: 9 heavy files incl PHASE_E5-gated cc-pVDZ
+npm run typecheck   # tsc --noEmit, strict + noUncheckedIndexedAccess
+npm run lint        # ESLint flat config
+npm run test:e2e    # local only: Playwright headless WebGPU (needs GPU Chromium)
 ```
 
-Before you commit, all four of the above MUST pass. CI enforces it.
+PRs are gated by `npm run test:fast`, `npm run typecheck`, and `npm run lint`
+running in parallel CI jobs. `npm run test:e2e` requires a local WebGPU-capable
+Chromium and is **not** run in CI (`ci.yml` skips it; a CPU-only swarm subset
+runs via `swarm-benches.yml`).
+
+## Local hooks
+
+`npm install` runs `prepare` → `lefthook install`, which wires lightweight
+local git hooks. Pre-commit runs ESLint on staged `{src,tests,experiments,e2e}`
+TypeScript files; pre-push runs `tsc --noEmit`. The full suite stays in CI by
+design. If hooks are missing, run `npx lefthook install`.
+
+## CI layout
+
+The PR gate runs `lint`, `typecheck`, and `test-vitest` (`npm run test:fast`)
+in parallel; `build` waits on all three. The slow suite (`test-slow`) runs on
+Sunday 07:00 UTC and on manual dispatch. Informational jobs include `knip`, a
+SwiftShader landing smoke, a `naga` WGSL shader-compile gate, and the weekly
+`perf-track` run. CPU-only multi-tab swarm specs live in
+`.github/workflows/swarm-benches.yml` under the `swarm-quick` job and trigger on
+PR/push when swarm-relevant paths change.
 
 ## What's most valuable
 
@@ -97,7 +118,7 @@ don't pretend it isn't.
 
 ## Pull request checklist
 
-- [ ] All four scripts pass: `test`, `typecheck`, `lint`, `test:e2e`
+- [ ] PR gate passes: `test:fast`, `typecheck`, `lint` (and `test:e2e` locally if you have WebGPU Chromium)
 - [ ] If the change touches numbers in any SVG hero / scorecard /
       validation matrix, update `public/readme-*.svg` and the
       "Key numbers" SoT table in `README.md`.

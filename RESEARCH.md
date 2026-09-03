@@ -53,24 +53,26 @@ Every level below decomposes that thesis into falsifiable experiments.
 | # | Level | Thesis fragment | Experiments |
 |---|-------|-----------------|-------------|
 | 1 | Statevector | "a full-featured simulator runs in a browser tab and hits bandwidth-bound perf" | E1–E4 |
-| 2 | MPS | "70+ qubits for low-entanglement circuits, bounded by χ" | E5–E7 |
-| 3 | Kernel fusion | "dispatch ceiling collapses; gates/sec scales with memory, not driver calls" | E8–E10 |
-| 4 | WebRTC swarm | "distributed statevector or MPS bonds across peers with ≤ 30 ms hops" | E11–E13 |
-| 5 | Hardware cross-verify | "Heron r2 / Nighthawk agree with our simulator on shots/bitstrings within χ²" | E14–E15 |
-| 6 | Chemistry → webgpu-dna | "VQE H₂ ground state agrees with FCI; cross-sections agree with Geant4" | E16–E17 |
+| 2 | MPS | "70+ qubits for low-entanglement circuits, bounded by χ" | E5–E7, E18, E19 |
+| 3 | Kernel fusion | "dispatch ceiling collapses; gates/sec scales with memory, not driver calls" | E8–E13 |
+| 4 | WebRTC swarm | "distributed statevector or MPS bonds across peers with ≤ 30 ms hops" | Phase D steps 1–7 (src/parallel/swarm/) |
+| 5 | Hardware cross-verify | "Heron r2 / Nighthawk agree with our simulator on shots/bitstrings within χ²" | E14–E15 (protocol-only) |
+| 6 | Chemistry → webgpu-dna | "VQE H₂ ground state agrees with FCI; cross-sections agree with Geant4" | E16, E17, E20, E21, E32–E35 (chemistry stack) |
 
 Each level has its own `protocol.md` under `experiments/level-N-<slug>/`.
 
 ## Status
 
+> Live status; the historical per-level protocols are preserved below.
+
 | Level | Status | Notes |
 |-------|--------|-------|
-| 1 — Statevector | **In progress.** E1 passing, E2–E4 scaffolded. | Piece one is real: 24 qubits, 51 GB/s, F ≥ 1 − 10⁻⁶ on Bell / GHZ / QFT. |
-| 2 — MPS | Protocol only. | Awaits `src/mps.ts`. |
-| 3 — Fusion | Protocol only. | Awaits fused-gate-chain shader. |
-| 4 — Swarm | Protocol only. | Awaits WebRTC coordination layer. |
+| 1 — Statevector | **Shipped.** E1–E4 green. | 24 qubits, 51 GB/s, F ≥ 1 − 10⁻⁶ on Bell / GHZ / QFT. |
+| 2 — MPS | **Shipped.** E5–E7 + E18/E19 (N = 128 browser). | ITensor cross-check N = 8 to f64; Pfeuty/Bethe limits. |
+| 3 — Fusion | **Shipped.** E8–E13; Tier C 4.22× headline. | Tier D plateau 3.78× is the documented honest negative. |
+| 4 — Swarm | **Shipped.** Phase D steps 1–7. | BroadcastChannel + WebRTC + greedy-pull scheduler in `src/parallel/swarm/`. |
 | 5 — Hardware | Protocol only. | Awaits IBM Quantum token + qiskit-runtime submission script. |
-| 6 — Chemistry | Protocol only. | Cross-link to `webgpu-dna`. |
+| 6 — Chemistry | **Shipped.** Full chemistry stack. | HF/DFT/MP2/CCSD/CCSD(T)/EOM + properties. |
 
 ## References
 
