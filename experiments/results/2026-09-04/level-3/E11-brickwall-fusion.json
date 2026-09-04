@@ -1,0 +1,103 @@
+{
+  "meta": {
+    "protocol": "E11-brickwall-fusion",
+    "hypothesis": "Brick-wall layer fusion (3 dispatches per pair per layer → 1 dense 4×4 dispatch) delivers ≥ 2× speedup vs unfused brick-wall at N ≥ 14, while staying within F ≥ 1 − 1e-5 of the unfused statevector.",
+    "passBar": "best (median over warmup+trials) speedup ≥ 2.0× AND worst F ≥ 1 − 1e-5",
+    "seed": "E4_OVERHEAD (xor E11)",
+    "warmup": 3,
+    "trials": 5
+  },
+  "env": {
+    "gitSha": "57455a94e577",
+    "timestamp": "2026-09-04T09:44:30.921Z",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.15 Safari/537.36",
+    "platform": "Win32",
+    "adapter": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "limits": {
+      "maxBufferSize": 4294967292,
+      "maxStorageBufferBindingSize": 4294967292,
+      "maxComputeWorkgroupsPerDimension": 65535,
+      "maxComputeInvocationsPerWorkgroup": 256,
+      "maxComputeWorkgroupStorageSize": 32768
+    },
+    "hardwareConcurrency": 12,
+    "devicePixelRatio": 1
+  },
+  "rows": [
+    {
+      "nQubits": 12,
+      "depth": 20,
+      "unfusedSec": 0.037625,
+      "fusedSec": 0.01607499998807907,
+      "speedup": 2.3405909815180106,
+      "fidelity": 1.000000978793092,
+      "unfusedNoisy": false,
+      "fusedNoisy": true
+    },
+    {
+      "nQubits": 12,
+      "depth": 80,
+      "unfusedSec": 0.11600499999523163,
+      "fusedSec": 0.04571000003814697,
+      "speedup": 2.5378472959619436,
+      "fidelity": 1.0000019604516128,
+      "unfusedNoisy": false,
+      "fusedNoisy": false
+    },
+    {
+      "nQubits": 16,
+      "depth": 20,
+      "unfusedSec": 0.04366500002145767,
+      "fusedSec": 0.02034999996423721,
+      "speedup": 2.1457002505254987,
+      "fidelity": 1.0000006534903505,
+      "unfusedNoisy": false,
+      "fusedNoisy": true
+    },
+    {
+      "nQubits": 16,
+      "depth": 80,
+      "unfusedSec": 0.16054000002145768,
+      "fusedSec": 0.06557499998807907,
+      "speedup": 2.4481890972267233,
+      "fidelity": 1.0000001611078624,
+      "unfusedNoisy": false,
+      "fusedNoisy": false
+    },
+    {
+      "nQubits": 20,
+      "depth": 20,
+      "unfusedSec": 0.06774500000476837,
+      "fusedSec": 0.03543000000715256,
+      "speedup": 1.9120801578067204,
+      "fidelity": 1.0000005587389844,
+      "unfusedNoisy": false,
+      "fusedNoisy": false
+    },
+    {
+      "nQubits": 20,
+      "depth": 80,
+      "unfusedSec": 0.24473500001430512,
+      "fusedSec": 0.09670000004768371,
+      "speedup": 2.530868664877186,
+      "fidelity": 1.0000031080864988,
+      "unfusedNoisy": false,
+      "fusedNoisy": false
+    }
+  ],
+  "status": "pass",
+  "diagnosis": "Best speedup 2.54× at N=12 D=80. Worst F=1.0000000 (≥ 0.99999).",
+  "summary": {
+    "bestSpeedup": 2.5378472959619436,
+    "bestSpeedupAt": {
+      "nQubits": 12,
+      "depth": 80
+    },
+    "worstFidelity": 1
+  }
+}

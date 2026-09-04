@@ -7,6 +7,9 @@ on:
     branches: [main]
   # Allow manual runs from the Actions tab.
   workflow_dispatch:
+  # Nightly slow suite — the measured heavy cells that dominate wall time.
+  schedule:
+    - cron: "0 7 * * 0"  # 07:00 UTC every Sunday
 
 permissions:
   contents: read
@@ -77,8 +80,41 @@ jobs:
       # Chromium with GPU virtualization, which the default Ubuntu runners
       # don't expose. Run locally with `npm run test:e2e` (~1.5 min on M2 Pro).
 
-      - name: Unit tests
-        run: npm run test
+      - name: Unit tests (fast subset)
+        run: npm run test:fast
+
+  test-slow:
+    # Nightly-only slow suite. These files were measured to dominate the full
+    # `npm run test` wall time; running them here keeps the PR path fast while
+    # still gating the heavy chemistry/MPS cells at least weekly.
+    #
+    # Measured slow list (Vitest basic reporter, M2 Pro, single run):
+    #   tests/chemistry/dft-gradient.test.ts            ~92 s
+    #   tests/chemistry/df-streaming-accuracy.test.ts   ~91 s
+    #   tests/chemistry/ccpvdz-spherical.test.ts        ~80 s
+    #   tests/chemistry/aug-ccpvdz-firstrow.test.ts     ~57 s
+    #   tests/manybody/dmrg-pfeuty-bethe.test.ts        ~52 s
+    #   tests/chemistry/aug-ccpvdz.test.ts              ~39 s
+    #   tests/chemistry/vibrations.test.ts              ~39 s
+    #   tests/chemistry/frozen-core-audit.test.ts       ~31 s
+    name: test-slow
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests (slow subset)
+        run: npm run test:slow
 
   knip:
     name: knip (informational)
