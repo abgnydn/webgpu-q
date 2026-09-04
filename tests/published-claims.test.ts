@@ -83,7 +83,7 @@ describe("published claims — CI scope must be described truthfully", () => {
     ).toBe(false);
   });
 
-  for (const file of ["README.md", "RESEARCH_STANDARDS.md", "BENCHMARKS.md", "paper/main.tex"]) {
+  for (const file of ["README.md", "CONTRIBUTING.md", "RESEARCH_STANDARDS.md", "BENCHMARKS.md", "paper/main.tex"]) {
     const body = read(file);
     if (body === "") continue;
     for (const claim of FALSE_CI_CLAIMS) {
@@ -92,6 +92,12 @@ describe("published claims — CI scope must be described truthfully", () => {
       });
     }
   }
+
+  test("CONTRIBUTING.md describes the PR gate truthfully", () => {
+    const body = read("CONTRIBUTING.md");
+    expect(body).toContain("test:fast");
+    expect(body).not.toContain("all four of the above MUST pass. CI enforces it");
+  });
 });
 
 describe("shipped HTML — no bare directory URLs", () => {

@@ -335,9 +335,10 @@ From `RESEARCH.md`. Every experiment enforces them.
 npm install
 npm run dev          # Vite dev server, http://localhost:5175
                      # experiments live at http://localhost:5175/experiments/
-npm run test         # Vitest, ~2 min / 143 files / 876 assertions (the
-                     # many-second cc-pVDZ CCSD(T)/DFT cells dominate now;
-                     # the old "~500 ms" predates the chemistry ladder)
+npm run test:fast    # Vitest PR gate, ~32 s
+                     # (fast subset excludes the heavy chemistry/MPS cells)
+npm run test:slow    # Nightly-only: 9 heavy files incl cc-pVDZ / DFT gradients
+npm run test         # Full Vitest suite = test:fast + test:slow (~140 files)
 npm run test:watch   # TDD loop
 npm run typecheck    # tsc --noEmit (strict, noUncheckedIndexedAccess on)
 npm run lint         # ESLint flat config, src/ tests/ experiments/ e2e/

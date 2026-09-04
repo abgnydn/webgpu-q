@@ -128,7 +128,8 @@ The honest takeaway: we win on no-startup + small systems; we lose badly at prod
 git clone https://github.com/abgnydn/webgpu-q && cd webgpu-q
 npm install
 npm run dev          # http://localhost:5175  ·  /screening.html  ·  /molecule.html  ·  /experiments/
-npm run test         # vitest · CI green        npm run typecheck   # tsc strict
+npm run test:fast    # vitest PR gate (~32s)   npm run test:slow   # nightly heavy subset
+npm run typecheck    # tsc strict
 ```
 
 ```ts

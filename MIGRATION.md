@@ -43,7 +43,8 @@ Status legend: 🟢 ported · 🟡 ported in flight · 🔴 hand-derived (curren
 | `cis-tda.ts` / `tddft.ts` | PySCF `pyscf/tdscf/*.py` | Apache 2.0 | 🔴 | spin-pol functionals hand-derived |
 | `dft.ts` functionals | libxc | MPL 2.0 / LGPL | 🔴 | currently hand-coded LDA/B88/LYP etc. |
 | DFT angular grids | Lebedev tables | public domain | ⚫ | tables hand-typed |
-| `hf-gradient.ts` + `dft-gradient.ts` analytical ∇ | PySCF `pyscf/grad/*.py` | Apache 2.0 | 🔴 | Pulay 1969 hand-derived |
+| `hf-gradient.ts` HF analytical ∇ | PySCF `pyscf/grad/rhf.py` | Apache 2.0 | 🔴 | Pulay 1969 hand-derived |
+| `dft-gradient.ts` DFT analytical ∇ | PySCF `pyscf/grad/rks.py` | Apache 2.0 | 🔴 | Pulay 1969 hand-derived |
 | `vibrations.ts` Hessian + thermo | PySCF `pyscf/hessian/*.py` | Apache 2.0 | 🔴 | H₂O matches NIST entropy |
 | `eom-ccsd-bruteforce-lih.test.ts` | none (we built it) | MIT | 🟢 | regression verifier for the port |
 | `properties.ts` dipole, α, β | PySCF `pyscf/prop/*.py` | Apache 2.0 | 🔴 | finite-field hand-derived |

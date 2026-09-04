@@ -35,6 +35,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --port 4173",
+    "prepare": "lefthook install || true",
     "test": "vitest run",
     "test:fast": "vitest run --exclude tests/chemistry/dft-gradient.test.ts --exclude tests/chemistry/df-streaming-accuracy.test.ts --exclude tests/chemistry/ccpvdz-spherical.test.ts --exclude tests/chemistry/aug-ccpvdz-firstrow.test.ts --exclude tests/manybody/dmrg-pfeuty-bethe.test.ts --exclude tests/chemistry/aug-ccpvdz.test.ts --exclude tests/chemistry/vibrations.test.ts --exclude tests/chemistry/frozen-core-audit.test.ts --exclude tests/chemistry/ccsd-t.test.ts",
     "test:slow": "vitest run tests/chemistry/dft-gradient.test.ts tests/chemistry/df-streaming-accuracy.test.ts tests/chemistry/ccpvdz-spherical.test.ts tests/chemistry/aug-ccpvdz-firstrow.test.ts tests/manybody/dmrg-pfeuty-bethe.test.ts tests/chemistry/aug-ccpvdz.test.ts tests/chemistry/vibrations.test.ts tests/chemistry/frozen-core-audit.test.ts tests/chemistry/ccsd-t.test.ts",
