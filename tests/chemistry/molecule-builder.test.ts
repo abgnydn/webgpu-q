@@ -2,7 +2,7 @@
 // regression check for the generic molecule-builder.ts pipeline.
 // Methane (CH₄) FCI is ALSO supported by the same code, but the
 // 43758-dim Hsec materializes a 15 GB matrix — left out of unit
-// tests on purpose (run via tools/run-phase-c-v4.ts on demand).
+// tests on purpose (archived: archive/tools-run-phase/run-phase-c-v4.ts).
 import { describe, expect, test } from "vitest";
 import { buildMoleculeFCI } from "../../src/chemistry/molecule-builder.js";
 
