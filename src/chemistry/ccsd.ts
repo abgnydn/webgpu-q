@@ -371,8 +371,7 @@ export function ccsdIterate(
   const W_abef_buf = new Float64Array(NVIRT * NVIRT * NVIRT * NVIRT);
 
   for (iter = 1; iter <= maxIter; iter++) {
-    const tau_t = makeTau(T1, T2, NOCC, NVIRT, 0.5);
-    const tau   = makeTau(T1, T2, NOCC, NVIRT, 1.0);
+    const { tau_t, tau } = makeTauPair(T1, T2, NOCC, NVIRT);
 
     const F_ae = makeF_ae(T1, eps, eri, tau_t, NOCC, NVIRT, NSO);
     const F_mi = makeF_mi(T1, eps, eri, tau_t, NOCC, NVIRT, NSO);
@@ -569,6 +568,33 @@ export function makeTau(T1: Float64Array, T2: Float64Array,
     }
   }
   return out;
+}
+
+/** Both τ variants in a single pass over T2 (half the loop overhead and
+ *  one fewer full-tensor traversal than two makeTau calls). Per-element
+ *  flop order is identical to the separate calls (d is the shared
+ *  subexpression both alphas multiply), so output is bit-identical. */
+export function makeTauPair(T1: Float64Array, T2: Float64Array,
+                     NOCC: number, NVIRT: number): { tau_t: Float64Array; tau: Float64Array } {
+  const tau_t = new Float64Array(T2.length);
+  const tau = new Float64Array(T2.length);
+  for (let i = 0; i < NOCC; i++) {
+    for (let j = 0; j < NOCC; j++) {
+      for (let a = 0; a < NVIRT; a++) {
+        for (let b = 0; b < NVIRT; b++) {
+          const idx = ((i * NOCC + j) * NVIRT + a) * NVIRT + b;
+          const tia = T1[i * NVIRT + a]!;
+          const tjb = T1[j * NVIRT + b]!;
+          const tib = T1[i * NVIRT + b]!;
+          const tja = T1[j * NVIRT + a]!;
+          const d = tia * tjb - tib * tja;
+          tau_t[idx] = T2[idx]! + 0.5 * d;
+          tau[idx] = T2[idx]! + d;
+        }
+      }
+    }
+  }
+  return { tau_t, tau };
 }
 
 // ─────────────────────────────────────────────────────────────
