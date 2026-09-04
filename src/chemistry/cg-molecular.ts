@@ -22,6 +22,7 @@
 
 import { type CGShell, S_cg, T_cg, V_cg, ERI_cg } from "./integrals-cg.js";
 import { eigsymmetric } from "../manybody/dense-eig.js";
+import { SCHWARZ_SCREEN_TOL } from "./numerical-tolerances.js";
 
 export interface Nucleus {
   readonly Z: number;
@@ -133,7 +134,7 @@ export function computeMolecularIntegrals(
     // Return placeholder eri_AO (empty) — caller must use DF path.
     eri_AO = new Float64Array(0);
   } else {
-  const SCHWARZ_TOL = opts.schwarzTol ?? 1e-10;
+  const SCHWARZ_TOL = opts.schwarzTol ?? SCHWARZ_SCREEN_TOL;
   const Q = new Float64Array(n * n);
   for (let mu = 0; mu < n; mu++) {
     for (let nu = mu; nu < n; nu++) {

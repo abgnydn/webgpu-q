@@ -1,6 +1,7 @@
 import type { CGShell } from "./integrals-cg.js";
 import type { DFResult } from "./df.js";
 import { eigsymmetric } from "../manybody/dense-eig.js";
+import { DF_CHOLESKY_TOL } from "./numerical-tolerances.js";
 import { loadWasm, packShells } from "./df-aux.js";
 
 /** CPU (f64 WASM) 2-index DF metric M[P,Q] = (P|Q), row-major n_aux × n_aux.
@@ -34,7 +35,7 @@ export async function buildV3idxCPU(
  *  to run HF end-to-end on GPU-computed integrals. */
 export async function buildBFromV(
   orbShells: readonly CGShell[], auxShells: readonly CGShell[],
-  V: Float64Array, metricRegularization = 1e-10,
+  V: Float64Array, metricRegularization = DF_CHOLESKY_TOL,
 ): Promise<DFResult> {
   const n = orbShells.length;
   const nAux = auxShells.length;
@@ -55,7 +56,7 @@ export async function buildBFromV(
 export async function buildBFromVBlocks(
   orbShells: readonly CGShell[], auxShells: readonly CGShell[],
   getBlock: (mu0: number, mu1: number) => Float64Array,
-  metricRegularization = 1e-10,
+  metricRegularization = DF_CHOLESKY_TOL,
 ): Promise<DFResult> {
   const mod = await loadWasm();
   const aux = packShells(auxShells);

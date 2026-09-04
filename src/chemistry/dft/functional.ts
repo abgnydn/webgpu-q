@@ -23,6 +23,8 @@
 // limits are well-defined).
 // ─────────────────────────────────────────────────────────────
 
+import { FD_REL_STEP, FD_STEP_FLOOR } from "../numerical-tolerances.js";
+
 const EPS_RHO = 1e-15;
 
 /** Slater (Dirac) exchange. Pure power law in ρ — no correlation. */
@@ -480,7 +482,7 @@ export function evalXC(
  * point. Returns a fresh Float64Array of length nGrid.
  *
  * Numerical derivative: f_xc ≈ (v_ρ(ρ + h) − v_ρ(ρ − h)) / (2h)
- * with h = max(ρ · 1e-5, 1e-9) — the same step size that worked
+ * with h = max(ρ · 1e-5, FD_STEP_FLOOR) — the same step size that worked
  * for the LYP self-test. Outside the EPS_RHO clip, f_xc is set
  * to 0 (the LDA potential is itself zero there).
  */
@@ -496,7 +498,7 @@ export function evalXCKernelLDA(rho: Float64Array): Float64Array {
   for (let p = 0; p < n; p++) {
     const r = rho[p]!;
     if (r < EPS_RHO) { hArr[p] = 0; rhoPlus[p] = r; rhoMinus[p] = r; continue; }
-    const h = Math.max(r * 1e-5, 1e-9);
+    const h = Math.max(r * FD_REL_STEP, FD_STEP_FLOOR);
     hArr[p] = h;
     rhoPlus[p]  = r + h;
     rhoMinus[p] = Math.max(r - h, EPS_RHO);
@@ -569,7 +571,7 @@ export function evalXCKernel(
   for (let p = 0; p < n; p++) {
     const r = rho[p]!;
     if (r < EPS_RHO) { hRho[p] = 0; rhoPert[p] = r; continue; }
-    const h = Math.max(r * 1e-5, 1e-9);
+    const h = Math.max(r * FD_REL_STEP, FD_STEP_FLOOR);
     hRho[p] = h;
     rhoPert[p] = r + h;
   }
@@ -598,7 +600,7 @@ export function evalXCKernel(
       const r = rho[p]!;
       if (r < EPS_RHO) { hGam[p] = 0; gamPert[p] = gamma[p]!; continue; }
       const g = gamma[p]!;
-      const h = Math.max(g * 1e-5, 1e-9);
+      const h = Math.max(g * FD_REL_STEP, FD_STEP_FLOOR);
       hGam[p] = h;
       gamPert[p] = g + h;
     }

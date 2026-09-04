@@ -5,6 +5,7 @@ import { sabAvailable } from "../parallel/worker-pool.js";
 import { getSharedWorkerPool } from "../parallel/worker-pool-shared.js";
 import { buildAuxBasisDF } from "./df-aux-cholesky.js";
 import { loadWasm, packShells } from "./df-aux.js";
+import { DF_CHOLESKY_TOL } from "./numerical-tolerances.js";
 
 /** Parallel variant of `buildAuxBasisDF` — the 3-index V tensor build
  *  is partitioned across N workers via the shared worker pool. The
@@ -16,7 +17,7 @@ export async function buildAuxBasisDFParallel(
   orbitalShells: readonly CGShell[],
   auxShells?: readonly CGShell[],
   poolSize = 0,
-  metricRegularization = 1e-10,
+  metricRegularization = DF_CHOLESKY_TOL,
 ): Promise<DFResult> {
   if (!sabAvailable()) {
     return buildAuxBasisDF(orbitalShells, auxShells, metricRegularization);

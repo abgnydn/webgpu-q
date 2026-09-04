@@ -12,6 +12,8 @@
 import type { CGShell } from "./integrals-cg.js";
 import type { DFResult } from "./df.js";
 import { buildBFromV, buildBFromVBlocks, buildAuxBasisDFStreaming, buildV3idxCPU } from "./df-aux.js";
+import { getWebGPU } from "../gpu-device.js";
+import { DF_CHOLESKY_TOL } from "./numerical-tolerances.js";
 
 const METRIC_WGSL = /* wgsl */ `
 const PI: f32 = 3.141592653589793;
@@ -174,6 +176,8 @@ export async function buildMetric2idxGPU(auxShells: readonly CGShell[]): Promise
       throw new Error("buildMetric2idxGPU: angular momentum > 2 (d) not yet supported");
     }
   }
+  const gpu = getWebGPU().gpu;
+  if (!gpu) throw new Error("WebGPU unavailable");
   const nAux = auxShells.length;
   const centers = new Float32Array(nAux * 3);
   const primOff = new Uint32Array(nAux);
@@ -199,8 +203,6 @@ export async function buildMetric2idxGPU(auxShells: readonly CGShell[]): Promise
     }
   }
 
-  const gpu = (navigator as unknown as { gpu?: GPU }).gpu;
-  if (!gpu) throw new Error("WebGPU unavailable");
   const adapter = await gpu.requestAdapter();
   if (!adapter) throw new Error("no WebGPU adapter");
   const device = await adapter.requestDevice({
@@ -542,7 +544,7 @@ export async function buildV3idxGPU(
   const orb = pack(orbShells); const aux = pack(auxShells);
   const n = orbShells.length; const nAux = auxShells.length;
 
-  const gpu = (navigator as unknown as { gpu?: GPU }).gpu;
+  const gpu = getWebGPU().gpu;
   if (!gpu) throw new Error("WebGPU unavailable");
   const adapter = await gpu.requestAdapter();
   if (!adapter) throw new Error("no WebGPU adapter");
@@ -623,7 +625,7 @@ export async function buildV3idxGPU_sOnly(
   const orb = pack(orbShells); const aux = pack(auxShells);
   const n = orbShells.length; const nAux = auxShells.length;
 
-  const gpu = (navigator as unknown as { gpu?: GPU }).gpu;
+  const gpu = getWebGPU().gpu;
   if (!gpu) throw new Error("WebGPU unavailable");
   const adapter = await gpu.requestAdapter();
   if (!adapter) throw new Error("no WebGPU adapter");
@@ -773,12 +775,12 @@ export interface DFAutoOpts {
 export async function buildDFAuto(
   orbShells: readonly CGShell[], auxShells: readonly CGShell[], opts: DFAutoOpts = {},
 ): Promise<{ df: DFResult; path: "gpu" | "wasm" }> {
-  const reg = opts.metricRegularization ?? 1e-10;
+  const reg = opts.metricRegularization ?? DF_CHOLESKY_TOL;
   const all = [...orbShells, ...auxShells];
   const maxL = Math.max(0, ...all.map((s) => s.angular[0] + s.angular[1] + s.angular[2]));
   const hasD = maxL >= 2;
   const n = orbShells.length;
-  const gpuAvailable = !!(navigator as unknown as { gpu?: unknown }).gpu;
+  const gpuAvailable = !!getWebGPU().gpu;
   const wantGPU = opts.gpu ?? (hasD && n >= (opts.gpuMinN ?? 60));
   if (wantGPU && gpuAvailable && maxL <= 2) {
     try {

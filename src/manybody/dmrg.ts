@@ -24,6 +24,7 @@
 import { type Hamiltonian1D, buildDense } from "./hamiltonian.js";
 import { eigsymmetric } from "./dense-eig.js";
 import { MPS } from "../mps.js";
+import { LANCZOS_TOL } from "./lanczos.js";
 import { type ComplexMatrix, svd, zeros } from "../linalg.js";
 import { type MPO } from "./mpo.js";
 import {
@@ -361,7 +362,7 @@ export function dmrgGroundState(M: MPO, opts: DmrgOpts): DmrgResult {
   const maxSweeps = opts.maxSweeps ?? 16;
   const tol = opts.tol ?? 1e-8;
   const lanczosMax = opts.lanczosMax ?? 60;
-  const lanczosTol = opts.lanczosTol ?? 1e-10;
+  const lanczosTol = opts.lanczosTol ?? LANCZOS_TOL;
   const seed = opts.seed ?? 0xDEAD_BEEF;
 
   const W = mpoToReal(M);

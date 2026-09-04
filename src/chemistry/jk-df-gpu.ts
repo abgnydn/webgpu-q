@@ -17,6 +17,7 @@
 // gap would need double-single (df64) emulation on the products, not the sum.
 
 import type { DFResult } from "./df.js";
+import { getWebGPU } from "../gpu-device.js";
 
 const WGSL = /* wgsl */ `
 struct P2 { n: u32, n_aux: u32 };
@@ -80,7 +81,7 @@ export interface GpuDFJK {
 export async function makeGpuDFJK(df: DFResult): Promise<GpuDFJK> {
   const { B, nAux, n } = df;
   const N = n * n;
-  const gpu = (navigator as unknown as { gpu?: GPU }).gpu;
+  const gpu = getWebGPU().gpu;
   if (!gpu) throw new Error("WebGPU unavailable");
   const adapter = await gpu.requestAdapter();
   if (!adapter) throw new Error("no WebGPU adapter");

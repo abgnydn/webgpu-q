@@ -34,6 +34,8 @@
 // closed-shell path.
 // ─────────────────────────────────────────────────────────────
 
+import { FD_REL_STEP, FD_STEP_FLOOR } from "../numerical-tolerances.js";
+
 const EPS_RHO = 1e-15;
 
 // ── Slater exchange spin-polarized prefactors ──────────────
@@ -446,8 +448,8 @@ export function addLYPC_spin(
     // ρ-derivatives: central FD on the full energy density.
     // Step h ~ ρ_σ · 1e-5; rare boundary case ρ_σ tiny is handled
     // via lypCoefficients returning zero at sub-EPS_RHO.
-    const huu = Math.max(ru * 1e-5, 1e-9);
-    const hdd = Math.max(rd * 1e-5, 1e-9);
+    const huu = Math.max(ru * FD_REL_STEP, FD_STEP_FLOOR);
+    const hdd = Math.max(rd * FD_REL_STEP, FD_STEP_FLOOR);
     const fUp_p = lypEpsPerVolume(ru + huu, rd, gUU, gUD, gDD);
     const fUp_m = lypEpsPerVolume(Math.max(ru - huu, EPS_RHO), rd, gUU, gUD, gDD);
     const fDn_p = lypEpsPerVolume(ru, rd + hdd, gUU, gUD, gDD);
@@ -645,7 +647,7 @@ function addSlaterScaleAdjust(
 //   f_↑↑ ≈ (v_↑(ρ/2 + h, ρ/2)   − v_↑(ρ/2 − h, ρ/2))   / (2h)
 //   f_↑↓ ≈ (v_↑(ρ/2,   ρ/2 + h) − v_↑(ρ/2,   ρ/2 − h)) / (2h)
 //
-// Step h = max(ρ · 1e-5, 1e-9) — same scale as the singlet kernel.
+// Step h = max(ρ · 1e-5, FD_STEP_FLOOR) — same scale as the singlet kernel.
 // Cost: 4 evalXC_LSDA calls (vs 2 for the singlet kernel). Trivial.
 // ─────────────────────────────────────────────────────────────
 
@@ -735,7 +737,7 @@ export function evalXCKernelGGA_triplet(
     quart[p] = gamma[p]! / 4;
     // Step size: scale to the local density / gradient magnitude.
     const r = rho[p]!;
-    stepArr[p] = r > EPS_RHO ? Math.max(r * 1e-5, 1e-9) : 0;
+    stepArr[p] = r > EPS_RHO ? Math.max(r * FD_REL_STEP, FD_STEP_FLOOR) : 0;
   }
 
   // Allocate scratch for the spin-polarized evaluator.
@@ -826,7 +828,7 @@ export function evalXCKernelGGA_triplet(
   const gStep = new Float64Array(n);
   for (let p = 0; p < n; p++) {
     const g = quart[p]!;
-    gStep[p] = g > EPS_RHO ? Math.max(g * 1e-5, 1e-9) : 0;
+    gStep[p] = g > EPS_RHO ? Math.max(g * FD_REL_STEP, FD_STEP_FLOOR) : 0;
   }
   reset();
   for (let p = 0; p < n; p++) {
@@ -901,7 +903,7 @@ export function evalXCKernelLDA_triplet(rho: Float64Array): Float64Array {
     const r = rho[p]!;
     if (r < 2 * EPS_RHO) { hArr[p] = 0; continue; }
     const half = r / 2;
-    const h = Math.max(half * 1e-5, 1e-9);
+    const h = Math.max(half * FD_REL_STEP, FD_STEP_FLOOR);
     hArr[p] = h;
     rhoUp_p[p] = half + h;   rhoUp_m[p] = Math.max(half - h, EPS_RHO);
     rhoDn_p[p] = half + h;   rhoDn_m[p] = Math.max(half - h, EPS_RHO);

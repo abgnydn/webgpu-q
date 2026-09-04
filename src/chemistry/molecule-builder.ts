@@ -18,7 +18,7 @@ import { type Atom, moleculeToShellsNuclei } from "./atoms.js";
 import { computeMolecularIntegrals, type MolecularIntegrals } from "./cg-molecular.js";
 import { buildSectorH, type SectorH } from "./sector-builder.js";
 import { buildSparseSectorH, sparseMatvec, type SparseSectorH } from "./sector-matvec.js";
-import { lanczosGroundState } from "../manybody/lanczos.js";
+import { lanczosGroundState, LANCZOS_TOL } from "../manybody/lanczos.js";
 
 export interface MoleculeData {
   readonly atoms: readonly Atom[];
@@ -84,7 +84,7 @@ export function buildMoleculeFCI(atoms: readonly Atom[], opts: BuildMoleculeOpts
       };
       const x0 = new Float64Array(k);
       for (let i = 0; i < k; i++) x0[i] = 1;
-      const r = lanczosGroundState(matvec, x0, { maxIter: o.maxIter ?? 120, tol: o.tol ?? 1e-10 });
+      const r = lanczosGroundState(matvec, x0, { maxIter: o.maxIter ?? 120, tol: o.tol ?? LANCZOS_TOL });
       return { energy: r.energy, iter: r.iter };
     };
     return { atoms, nElectrons, nSpatial, nQubits: 2 * nSpatial, integrals, storage, sector, fci };
@@ -96,7 +96,7 @@ export function buildMoleculeFCI(atoms: readonly Atom[], opts: BuildMoleculeOpts
     const matvec = (x: Float64Array, out: Float64Array) => sparseMatvec(sparseSector, x, out);
     const x0 = new Float64Array(sparseSector.k);
     for (let i = 0; i < sparseSector.k; i++) x0[i] = 1;
-    const r = lanczosGroundState(matvec, x0, { maxIter: o.maxIter ?? 200, tol: o.tol ?? 1e-10 });
+    const r = lanczosGroundState(matvec, x0, { maxIter: o.maxIter ?? 200, tol: o.tol ?? LANCZOS_TOL });
     return { energy: r.energy, iter: r.iter };
   };
   return { atoms, nElectrons, nSpatial, nQubits: 2 * nSpatial, integrals, storage, sparseSector, fci };

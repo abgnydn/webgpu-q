@@ -24,6 +24,9 @@
 // typically ≤ 30 iterations for N ≤ 20.
 // ─────────────────────────────────────────────────────────────
 
+/** Default Lanczos ground-state solver convergence tolerance. */
+export const LANCZOS_TOL = 1e-10;
+
 export interface LanczosResult {
   /** Smallest eigenvalue of A. */
   energy: number;
@@ -150,7 +153,7 @@ export function lanczosGroundState(
 ): LanczosResult {
   const dim = x0.length;
   const maxIter = Math.min(opts.maxIter ?? 60, dim);
-  const tol = opts.tol ?? 1e-10;
+  const tol = opts.tol ?? LANCZOS_TOL;
 
   // Krylov basis V[0..k-1], each row a vector of length dim.
   // Stored as a flat (maxIter × dim) Float64Array, row-major.
