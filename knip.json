@@ -2,13 +2,21 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": [
     "src/**/main.ts",
+    "src/landing/page-fx*.ts",
+    "src/chemistry/parallel-eri.ts",
+    "src/chemistry/jk-df-gpu.ts",
+    "src/parallel/swarm/relay-transport.ts",
     "experiments/runner.ts",
-    "experiments/gpu-mps/main.ts"
+    "experiments/gpu-mps/main.ts",
+    "experiments/**/*.ts",
+    "tests/**/*.test.ts",
+    "e2e/**/*.spec.ts"
   ],
   "project": [
     "src/**/*.ts",
     "experiments/**/*.ts",
     "e2e/**/*.ts",
     "tests/**/*.ts"
-  ]
+  ],
+  "ignoreBinaries": ["lefthook"]
 }

@@ -32,41 +32,6 @@ const C_X = -0.75 * Math.pow(3 / Math.PI, 1 / 3);          // ≈ −0.7385588
 const VX_PREFACTOR = -Math.pow(3 / Math.PI, 1 / 3);        // ≈ −0.9847450
 const C_RS = Math.pow(3 / (4 * Math.PI), 1 / 3);            // r_s = C_RS · ρ^(−1/3)
 
-/**
- * Evaluate ε_xc(ρ) and v_xc(ρ) at every grid point.
- * Closed-shell LDA: Slater exchange + VWN5 correlation.
- *
- * @param rho     ρ(r_p), nGrid floats.
- * @param epsXc   out: ε_xc(ρ_p), nGrid floats. Energy DENSITY per
- *                 unit ρ — total E_xc = ∫ ε_xc · ρ dr = Σ w_p ε_xc[p] ρ[p].
- * @param vXc     out: v_xc(ρ_p), nGrid floats. Used as F_μν += Σ w_p
- *                 v_xc[p] · φ_μ(r_p) φ_ν(r_p).
- */
-export function evalLDA(
-  rho: Float64Array,
-  epsXc: Float64Array,
-  vXc: Float64Array,
-): void {
-  const n = rho.length;
-  for (let p = 0; p < n; p++) {
-    const r = rho[p]!;
-    if (r < EPS_RHO) {
-      epsXc[p] = 0;
-      vXc[p]   = 0;
-      continue;
-    }
-    const r13 = Math.cbrt(r);
-    // Exchange ─────────────────────────────────────────────────
-    const eX = C_X * r13;
-    const vX = VX_PREFACTOR * r13;
-    // Correlation (VWN5) ───────────────────────────────────────
-    const rs = C_RS / r13;
-    const { ec, vc } = vwn5(rs);
-    epsXc[p] = eX + ec;
-    vXc[p]   = vX + vc;
-  }
-}
-
 // ── VWN5 correlation kernel ─────────────────────────────────
 // Closed-shell paramagnetic limit only; spin polarization is
 // trivially zero everywhere for closed-shell SCF.
