@@ -1,0 +1,24 @@
+# Tracking-only weekly perf run. Never gates merges; see BENCH.md rule (a).
+name: perf-track
+on:
+  schedule:
+    - cron: '0 8 * * 0'
+  workflow_dispatch:
+
+jobs:
+  perf-track:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run test:fast -- --reporter=json > /tmp/vitest-perf.json
+      - run: node bench/check-perf.mjs /tmp/vitest-perf.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-report
+          path: /tmp/vitest-perf.json

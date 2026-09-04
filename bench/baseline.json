@@ -1,0 +1,19 @@
+{
+  "meta": {
+    "machine": "Apple M2 Pro (single sample, provisional, NOT a gate)",
+    "date": "2026-09-04",
+    "samples": 1,
+    "source": "vitest basic reporter, full-suite run"
+  },
+  "files": {
+    "tests/chemistry/dft-gradient.test.ts": { "seconds": 92 },
+    "tests/chemistry/df-streaming-accuracy.test.ts": { "seconds": 91 },
+    "tests/chemistry/ccpvdz-spherical.test.ts": { "seconds": 80 },
+    "tests/chemistry/aug-ccpvdz-firstrow.test.ts": { "seconds": 57 },
+    "tests/manybody/dmrg-pfeuty-bethe.test.ts": { "seconds": 52 },
+    "tests/chemistry/aug-ccpvdz.test.ts": { "seconds": 39 },
+    "tests/chemistry/vibrations.test.ts": { "seconds": 39 },
+    "tests/chemistry/frozen-core-audit.test.ts": { "seconds": 31 }
+  },
+  "fastSubset": { "files": 132, "tests": 900, "wallSeconds": 32 }
+}
