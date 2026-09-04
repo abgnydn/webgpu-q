@@ -4,7 +4,8 @@ test.describe("Landing page", () => {
   test("renders, links work, screenshot saved", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/webgpu-q/);
-    await expect(page.locator("h1")).toContainText("Quantum chemistry");
+    // \s* because the headline uses <br/> ("quantum<br/>chemistry" has no space in textContent).
+    await expect(page.locator("h1")).toContainText(/quantum\s*chemistry/i);
     // Screenshot full page so we can eyeball it.
     await page.screenshot({ path: "e2e/.artifacts/landing.png", fullPage: true });
 
