@@ -1,3 +1,9 @@
+// BENCH-ONLY PAGE — outside the formal research harness.
+//
+// This page uses raw performance.now() without timedRun, does not emit
+// Artifact-shaped JSON, has no protocol.md, and its numbers are
+// indicative / not publishable.
+//
 // ─────────────────────────────────────────────────────────────
 // GPU MPS bench — Phase 1A: validate GPU complex matmul vs CPU
 // across a range of matrix sizes and print a table of:

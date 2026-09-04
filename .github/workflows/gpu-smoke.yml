@@ -50,12 +50,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Cargo
-        uses: taiki-e/cache-action@v1
+      # No cache step: repo root holds no Cargo workspace (wasm-eri/ and
+      # wasm-gemm/ are independent crates), so cache-key inference fails.
+      # cargo install naga-cli takes ~2 min uncached; acceptable for this job.
 
       - name: Install naga-cli
         run: cargo install naga-cli --locked

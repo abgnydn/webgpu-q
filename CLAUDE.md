@@ -335,12 +335,12 @@ From `RESEARCH.md`. Every experiment enforces them.
 npm install
 npm run dev          # Vite dev server, http://localhost:5175
                      # experiments live at http://localhost:5175/experiments/
-npm run test         # Vitest, ~2 min / 136 files / 876 assertions (the
+npm run test         # Vitest, ~2 min / 143 files / 876 assertions (the
                      # many-second cc-pVDZ CCSD(T)/DFT cells dominate now;
                      # the old "~500 ms" predates the chemistry ladder)
 npm run test:watch   # TDD loop
 npm run typecheck    # tsc --noEmit (strict, noUncheckedIndexedAccess on)
-npm run lint         # ESLint flat config, src/ tests/ experiments/
+npm run lint         # ESLint flat config, src/ tests/ experiments/ e2e/
 npm run build        # → dist/
 npm run test:e2e     # Playwright, all 4 levels headless (~1.4 min on M2 Pro).
                      # Saves JSON artifacts to experiments/results/<date>/level-N/.
