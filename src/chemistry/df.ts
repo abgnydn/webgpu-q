@@ -243,6 +243,11 @@ export function buildJK_DF(
 
   // X[P, μ, σ] = Σ_λ B[μλ, P] · D[λ, σ]
   // Layout X as X[P * n² + μ * n + σ].
+  // NOTE on loop order (do not "fix" without a multi-size benchmark):
+  // interchanging the inner loops to make B reads sequential turns X into
+  // a read-modify-write swept n times (nAux·n² elements × n passes ≈ 10 GB
+  // at benzene scale, past LLC), trading B-stride traffic for X thrashing
+  // with a size-dependent sign flip. A real win needs P-blocking + tuning.
   const X = new Float64Array(nAux * N);
   for (let P = 0; P < nAux; P++) {
     for (let mu = 0; mu < n; mu++) {
