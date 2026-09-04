@@ -55,11 +55,12 @@ Shape (locked; don't add top-level keys without updating the runner):
 ```json
 {
   "meta":     { "protocol": "...", "hypothesis": "...", "passBar": "...",
-                "seed": "named-seed-id", "warmup": 5, "trials": 20 },
+                "seed": "named-seed-id", "warmup": 5, "trials": 20,
+                "timingNote": "standard 5+20 harness (omit only when disclosed)" },
   "env":      { "gitSha": "...", "userAgent": "...", "adapter": {...},
                 "limits": {...}, "timestamp": "2026-05-14T..." },
   "rows":     [ { /* per-cell measurements */ } ],
-  "status":   "pass" | "fail" | "noisy" | "partial",
+  "status":   "pass" | "fail" | "noisy",
   "diagnosis": "first-failing-cell + smoking-gun explanation"
 }
 ```
@@ -82,11 +83,11 @@ such field. Stated here as the target, not as something webgpu-q meets.
   until pass.**
 - **`noisy`** — `std/median > 0.1` on any cell. Informational, not
   pass/fail.
-- **`partial`** — some cells pass, others don't; explicit `N of M`
-  count in the diagnosis.
-- **`honest negative`** — failures that are evidence. The two sister
-  documents (`LIMITATIONS.md` for webgpu-q, `PHYSICS_DIAGNOSIS.md` for
-  webgpu-dna) cite the artifact and the rejected hypothesis.
+- **`honest negative`** — not a status value; it is a `fail`-status
+  artifact with a `diagnosis` that names the rejected hypothesis.
+  The two sister documents (`LIMITATIONS.md` for webgpu-q,
+  `PHYSICS_DIAGNOSIS.md` for webgpu-dna) cite the artifact and the
+  finding.
 
 Honest negatives become the project's evidence base. They are not
 bugs to fix; they are findings.
@@ -246,10 +247,17 @@ peer-reviewed source is:
 
 Examples carried at the time of writing:
 
-- webgpu-q: stage-32c diagonal patches in `eom-ccsd.ts` σ_1 / σ_2
+- ~~webgpu-q: stage-32c diagonal patches in `eom-ccsd.ts` σ_1 / σ_2
   (+0.5·E_corr·R_1, −E_corr·R_2). Necessary for H₂ FCI exactness
   and net-positive on multi-electron triplets; queued for the
-  PySCF port.
+  PySCF port.~~ **Removed 2026-05-21 (EE) and 2026-06-16 (EA).**
+  σ_1 and σ_2 replaced by direct PySCF `eom_gccsd` ports onto shared
+  dressed intermediates (`buildEOMIntermediates`). Verifiers:
+  `tests/chemistry/eom-ccsd-bruteforce-lih.test.ts`,
+  `tests/chemistry/ip-eom-ccsd-bruteforce-lih.test.ts`,
+  `tests/chemistry/ea-eom-ccsd-bruteforce-lih.test.ts` — max
+  element-wise diff vs explicit H̄ projection on LiH (NSO=6,
+  T̂² ≠ 0) is ~5×10⁻¹³ Ha.
 - webgpu-dna: `SIGMA_EXC_SCALE = 0.5` and `RECOMB_BOOST = 2.0` in
   `helpers.wgsl`. Empirical joint fix improves chem6 agreement;
   `RECOMB_BOOST` has been publicly refuted as having no physical
@@ -357,22 +365,27 @@ Patch releases (doc-only, refactor, etc.) skip the Zenodo step.
 
 - TypeScript `strict` + `noUncheckedIndexedAccess`. No exceptions.
 - ESLint clean — 0 errors. Warnings tracked, ideally 0.
-- CI green. Every PR runs unit + typecheck + lint + build (`ci.yml`).
-  Playwright coverage in CI is **partial, and split by whether a spec needs
-  a GPU**:
-  - `ci.yml` runs **no** Playwright at all.
-  - `swarm-benches.yml` runs a small subset of swarm specs on PRs, but only
-    when the PR touches swarm paths. Those work in CI because they need
-    `BroadcastChannel`/`SharedArrayBuffer`, not an adapter.
-  - Every **WebGPU-dependent** spec runs nowhere in CI: hosted runners expose
-    no adapter, so they cannot execute there. They run locally
+- CI green. PR gate (`ci.yml`) runs lint, typecheck, unit tests
+  (`npm run test:fast`), and build in parallel; `build` needs the
+  other three. Slow measured cells run nightly / on dispatch via
+  `test:slow` (`ci.yml` schedule). `knip` is informational and may
+  fail without blocking.
+  GPU-specific coverage is split by what a spec actually needs:
+  - `gpu-smoke.yml` runs a SwiftShader landing smoke (non-gating,
+    `continue-on-error`) and a gating `naga` WGSL shader-compile
+    check on every PR.
+  - `perf-track.yml` runs weekly, tracking-only, and never gates.
+  - `swarm-benches.yml` runs CPU-only swarm specs on PRs when swarm
+    paths change (`swarm-quick`: benzene 2-tab, naphthalene 4-tab,
+    JK partition proofs, screening, MP2 reduction). These use
+    `BroadcastChannel`/`SharedArrayBuffer`, not a GPU adapter.
+  - Every WebGPU-dependent Playwright spec runs nowhere in CI:
+    hosted runners expose no adapter. They run locally
     (`npm run test:e2e`).
 
-  Consequence, stated plainly rather than papered over: every GPU-dependent
-  number — the WGSL (T) kernel, the fusion tiers, GPU statevector, GPU-DF —
-  has **no automated regression gate** and is reproduced by hand on the
-  author's machine. Do not describe the e2e suite as CI-gated without naming
-  which half you mean.
+  Consequence, stated plainly rather than papered over: the GPU-number
+  specs (not the SwiftShader landing smoke) still gate nowhere and are
+  reproduced locally.
 - Each method has paired test coverage by **intent**, not by
   metric:
   - **Analytical** (FCI / Bethe / Pfeuty / ICRU) where it exists.
@@ -408,5 +421,16 @@ The discipline is the product.
 
 ---
 
-*Last revised: 2026-05-14. Canonical document; siblings are
-mirrors of this one. Edit either and propagate.*
+## Enforcement pointers
+
+These principles are machine-checked where possible by
+[publishing-estate](https://github.com/abgnydn/publishing-estate):
+mirror-sync via its `copies` class and CI truths via `check-ci`.
+Production discipline lives in this repo; dissemination enforcement
+lives there.
+
+---
+
+*Last revised: 2026-09-04. Canonical document; siblings are
+mirrors of this one. Edit either and propagate. Enforcement
+pointer: see note above.*
