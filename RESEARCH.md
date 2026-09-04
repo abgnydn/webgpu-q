@@ -63,14 +63,16 @@ Each level has its own `protocol.md` under `experiments/level-N-<slug>/`.
 
 ## Status
 
+**ORIGINAL PROTOCOL — status below superseded; see CLAUDE.md Current state for live status.**
+
 | Level | Status | Notes |
 |-------|--------|-------|
-| 1 — Statevector | **In progress.** E1 passing, E2–E4 scaffolded. | Piece one is real: 24 qubits, 51 GB/s, F ≥ 1 − 10⁻⁶ on Bell / GHZ / QFT. |
-| 2 — MPS | Protocol only. | Awaits `src/mps.ts`. |
-| 3 — Fusion | Protocol only. | Awaits fused-gate-chain shader. |
-| 4 — Swarm | Protocol only. | Awaits WebRTC coordination layer. |
+| 1 — Statevector | **Shipped.** E1–E4 green. | Fidelity pass bar met; bandwidth-bound numbers committed. |
+| 2 — MPS | **Shipped.** E5–E7 + E18/E19. | TFIM / Heisenberg N = 128 in browser, χ = 32; ITensor cross-check at N = 8 to f64. |
+| 3 — Fusion | **Shipped.** E8–E13. | Tier C headline **4.22×**; Tier D plateau documented as honest negative. |
+| 4 — Swarm | **Shipped.** E11–E13. | `BroadcastChannelTransport` same-tab, `WebRTCTransport` cross-machine via PeerJS, greedy-pull scheduler; see `src/parallel/swarm/`. |
 | 5 — Hardware | Protocol only. | Awaits IBM Quantum token + qiskit-runtime submission script. |
-| 6 — Chemistry | Protocol only. | Cross-link to `webgpu-dna`. |
+| 6 — Chemistry | **Shipped.** E16, E20–E31+. | Full stack: HF → MP2 → FCI → CCSD → CCSD(T) → EOM-CCSD → DFT (LDA/GGA/hybrid) → DF → analytical gradients → vibrational analysis. |
 
 ## References
 
