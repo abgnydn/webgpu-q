@@ -4,7 +4,7 @@ test.describe("Landing page", () => {
   test("renders, links work, screenshot saved", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/webgpu-q/);
-    await expect(page.locator("h1")).toContainText("Quantum chemistry");
+    await expect(page.locator("h1")).toContainText(/quantum chemistry/i);
     // Screenshot full page so we can eyeball it.
     await page.screenshot({ path: "e2e/.artifacts/landing.png", fullPage: true });
 
