@@ -62,7 +62,7 @@ extrapolation. Likely needs cc-pVTZ minimum + extrapolation.
 66 noncovalent dimers (H-bond, dispersion, mixed), each at 8 distances.
 S66x8 is the gold standard for noncovalent benchmarking. Tests
 counterpoise + DFT-D / MP2 / CCSD(T).
-**Blocker:** needs counterpoise (BSSE) correction wired — Tier 3.
+**Blocker:** counterpoise shipped at `src/chemistry/counterpoise.ts`; now blocked on cc-pVTZ basis data.
 
 ### HEAT-345 (Tajti et al.)
 31 small molecules with sub-0.1 kcal/mol atomization references.

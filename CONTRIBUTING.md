@@ -15,7 +15,7 @@ npm run lint         # ESLint flat config
 npm run test:e2e     # Playwright headless WebGPU
 ```
 
-Before you commit, all four of the above MUST pass. CI enforces it.
+Before you commit, `test`, `typecheck`, and `lint` MUST pass. CI enforces those three. `test:e2e` requires a local WebGPU-capable Chromium and is intentionally NOT gated in CI (see `.github/workflows/ci.yml:45-47`).
 
 ## What's most valuable
 
@@ -97,7 +97,7 @@ don't pretend it isn't.
 
 ## Pull request checklist
 
-- [ ] All four scripts pass: `test`, `typecheck`, `lint`, `test:e2e`
+- [ ] `test`, `typecheck`, and `lint` pass in CI; `test:e2e` passes locally with a WebGPU-capable Chromium
 - [ ] If the change touches numbers in any SVG hero / scorecard /
       validation matrix, update `public/readme-*.svg` and the
       "Key numbers" SoT table in `README.md`.

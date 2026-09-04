@@ -24,6 +24,7 @@ import { captureEnv } from "../lib/env.js";
 import { timedRun } from "../lib/runner.js";
 import { SEEDS, mulberry32 } from "../lib/seeds.js";
 import type { Artifact, ArtifactMeta } from "../lib/runner.js";
+import { stateMetrics, passed, FIDELITY_PASS_BAR } from "../lib/fidelity.js";
 
 export interface E12Row {
   readonly nQubits: number;
@@ -94,17 +95,6 @@ async function readState(c: QuantumCircuit): Promise<Float32Array> {
   return c.amplitudes();
 }
 
-function fidelityF32(a: Float32Array, b: Float32Array): number {
-  let re = 0, im = 0;
-  for (let i = 0; i < a.length; i += 2) {
-    const ar = a[i]!, ai = a[i + 1]!;
-    const br = b[i]!, bi = b[i + 1]!;
-    re += ar * br + ai * bi;
-    im += ar * bi - ai * br;
-  }
-  return re * re + im * im;
-}
-
 export async function runE12(
   opts: {
     trials?: number;
@@ -124,6 +114,7 @@ export async function runE12(
   const env = await captureEnv(device, adapter);
 
   const rows: E12Row[] = [];
+  let allPassed = true;
 
   for (const n of Ns) {
     if (n < 3) continue;
@@ -146,7 +137,9 @@ export async function runE12(
         for (const l of layers) applyFusedLayer(cFused, l);
         const fusedState = await readState(cFused);
 
-        const F = fidelityF32(refState, fusedState);
+        const m = stateMetrics(refState, fusedState);
+        const F = m.fidelity;
+        allPassed = allPassed && passed(m);
 
         const { stats: unS } = await timedRun(device, () => {
           cUnfused.reset();
@@ -175,7 +168,7 @@ export async function runE12(
           `[E12] N=${n} D=${D} tiles=${tilesPerLayer}: ` +
           `unfused=${(unS.median * 1000).toFixed(2)} ms, ` +
           `fused=${(fuS.median * 1000).toFixed(2)} ms, ` +
-          `speedup=${speedup.toFixed(2)}× F=${F.toFixed(7)} ` +
+          `speedup=${speedup.toFixed(2)}× F=${F.toFixed(7)} |ψ|²=${m.normTest.toFixed(7)} ` +
           `${unS.noisy || fuS.noisy ? "[NOISY]" : ""}`,
         );
       }
@@ -185,7 +178,6 @@ export async function runE12(
     }
   }
 
-  const FIDELITY_PASS = 1 - 1e-5;
   const SPEEDUP_PASS = 3.0;
 
   const worstF = rows.length > 0 ? rows.reduce((a, r) => Math.min(a, r.fidelity), 1) : 0;
@@ -194,7 +186,7 @@ export async function runE12(
     : null;
 
   const noisyFrac = rows.filter((r) => r.unfusedNoisy || r.fusedNoisy).length / Math.max(1, rows.length);
-  const correctnessOk = rows.length > 0 && worstF >= FIDELITY_PASS;
+  const correctnessOk = rows.length > 0 && worstF >= FIDELITY_PASS_BAR && allPassed;
   const speedupOk = !!best && best.speedup >= SPEEDUP_PASS;
   const noisyBlocker = noisyFrac > 0.5;
 
@@ -225,10 +217,10 @@ export async function runE12(
   const diagnosis = rows.length === 0
     ? "No cells ran (every N < 3?)."
     : !correctnessOk
-      ? `Correctness FAIL: worst F=${worstF.toFixed(7)} < ${FIDELITY_PASS}.`
+      ? `Correctness FAIL: worst F=${worstF.toFixed(7)} < ${FIDELITY_PASS_BAR}.`
       : status === "pass" && best
         ? `Best speedup ${best.speedup.toFixed(2)}× at N=${best.nQubits} D=${best.depth}. ` +
-          `Worst F=${worstF.toFixed(7)} (≥ ${FIDELITY_PASS}).`
+          `Worst F=${worstF.toFixed(7)} (≥ ${FIDELITY_PASS_BAR}).`
         : status === "noisy"
           ? `Correctness OK (worst F=${worstF.toFixed(7)}) but timing too noisy.`
           : `Correctness OK (worst F=${worstF.toFixed(7)}) but best speedup ${best?.speedup.toFixed(2) ?? "n/a"}× < ${SPEEDUP_PASS}.`;
