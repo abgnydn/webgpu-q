@@ -365,6 +365,11 @@ export function ccsdIterate(
   // below tol before declaring convergence, and surface the final value.
   let residualNorm = Infinity;
 
+  // Reused W_abef scratch (NVIRT⁴ f64): makeW_abef overwrites every element
+  // each iteration, so one buffer serves all iters instead of allocating
+  // per-iter. Same flops, same order — bit-identical output, less GC.
+  const W_abef_buf = new Float64Array(NVIRT * NVIRT * NVIRT * NVIRT);
+
   for (iter = 1; iter <= maxIter; iter++) {
     const tau_t = makeTau(T1, T2, NOCC, NVIRT, 0.5);
     const tau   = makeTau(T1, T2, NOCC, NVIRT, 1.0);
@@ -374,7 +379,7 @@ export function ccsdIterate(
     const F_me = makeF_me(T1, eri, NOCC, NVIRT, NSO);
 
     const W_mnij = makeW_mnij(T1, tau, eri, NOCC, NVIRT, NSO);
-    const W_abef = makeW_abef(T1, tau, eri, NOCC, NVIRT, NSO);
+    const W_abef = makeW_abef(T1, tau, eri, NOCC, NVIRT, NSO, W_abef_buf);
     const W_mbej = makeW_mbej(T1, T2, eri, NOCC, NVIRT, NSO);
 
     const r1 = makeRHS_T1(T1, T2, F_ae, F_mi, F_me, eri, NOCC, NVIRT, NSO);
@@ -714,8 +719,15 @@ export function makeW_mnij(T1: Float64Array, tau: Float64Array, eri: Float64Arra
 }
 
 export function makeW_abef(T1: Float64Array, tau: Float64Array, eri: Float64Array,
-                    NOCC: number, NVIRT: number, NSO: number): Float64Array {
-  const W = new Float64Array(NVIRT * NVIRT * NVIRT * NVIRT);
+                    NOCC: number, NVIRT: number, NSO: number, out?: Float64Array): Float64Array {
+  const n4 = NVIRT * NVIRT * NVIRT * NVIRT;
+  const W = out ?? new Float64Array(n4);
+  if (out !== undefined) {
+    if (out.length !== n4) throw new Error(`makeW_abef: out.length=${out.length} ≠ NVIRT⁴=${n4}`);
+    // Reuse-safety invariant: every element is unconditionally overwritten
+    // below; fill guards against future edits that might skip cells.
+    out.fill(0);
+  }
   for (let a = 0; a < NVIRT; a++) {
     const A = a + NOCC;
     for (let b = 0; b < NVIRT; b++) {
