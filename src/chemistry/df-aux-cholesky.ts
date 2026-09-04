@@ -2,6 +2,7 @@ import type { CGShell } from "./integrals-cg.js";
 import type { DFResult } from "./df.js";
 import { eigsymmetric } from "../manybody/dense-eig.js";
 import { loadWasm, packShells } from "./df-aux.js";
+import { DF_CHOLESKY_TOL } from "./numerical-tolerances.js";
 
 /** Pivoted incomplete Cholesky of a PSD n × n matrix M, returning
  *  L such that M ≈ L · L^T with rank ≤ n. L has shape n × r where
@@ -121,7 +122,7 @@ export function formBFromCholesky(
 export async function buildAuxBasisDF(
   orbitalShells: readonly CGShell[],
   auxShells?: readonly CGShell[],
-  metricRegularization = 1e-10,
+  metricRegularization = DF_CHOLESKY_TOL,
 ): Promise<DFResult> {
   const mod = await loadWasm();
   const orb = packShells(orbitalShells);

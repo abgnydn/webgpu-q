@@ -2,6 +2,7 @@ import type { CGShell } from "./integrals-cg.js";
 import type { DFResult } from "./df.js";
 import { eigsymmetric } from "../manybody/dense-eig.js";
 import { loadWasm, packShells } from "./df-aux.js";
+import { DF_CHOLESKY_TOL } from "./numerical-tolerances.js";
 
 /** Result of {@link buildAuxBasisDFStreaming}: a DF tensor plus the peak number
  *  of f64 V-tensor elements held at once during the build. For the streaming
@@ -38,7 +39,7 @@ export interface StreamingDFResult extends DFResult {
 export async function buildAuxBasisDFStreaming(
   orbitalShells: readonly CGShell[],
   auxShells?: readonly CGShell[],
-  metricRegularization = 1e-10,
+  metricRegularization = DF_CHOLESKY_TOL,
   opts: {
     modeStart?: number;
     modeEnd?: number;
@@ -170,7 +171,7 @@ export async function buildAuxBasisDFStreamingCooperative(
   orbitalShells: readonly CGShell[],
   auxShells: readonly CGShell[] | undefined,
   nTabs: number,
-  metricRegularization = 1e-10,
+  metricRegularization = DF_CHOLESKY_TOL,
   muBlock = 8,
 ): Promise<CooperativeDFResult> {
   const mod = await loadWasm();

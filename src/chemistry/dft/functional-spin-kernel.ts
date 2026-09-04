@@ -22,6 +22,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { evalXC_LSDA } from "./functional-spin.js";
+import { FD_REL_STEP, FD_STEP_FLOOR } from "../numerical-tolerances.js";
 
 const EPS_RHO = 1e-15;
 
@@ -50,8 +51,8 @@ export function evalXCKernelLSDA_spin(
   const hUp = new Float64Array(n);
   const hDn = new Float64Array(n);
   for (let p = 0; p < n; p++) {
-    hUp[p] = Math.max(rhoUp[p]! * 1e-5, 1e-9);
-    hDn[p] = Math.max(rhoDn[p]! * 1e-5, 1e-9);
+    hUp[p] = Math.max(rhoUp[p]! * FD_REL_STEP, FD_STEP_FLOOR);
+    hDn[p] = Math.max(rhoDn[p]! * FD_REL_STEP, FD_STEP_FLOOR);
   }
 
   // Scratch arrays for ρ_↑ ± h_↑.

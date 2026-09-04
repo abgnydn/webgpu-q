@@ -8,6 +8,7 @@
 // callers explicitly opt in via `buildERIWasm()`.
 
 import type { CGShell } from "./integrals-cg.js";
+import { SCHWARZ_SCREEN_TOL } from "./numerical-tolerances.js";
 
 interface WasmEriModule {
   default(): Promise<unknown>;
@@ -102,7 +103,7 @@ function packShells(shells: readonly CGShell[]): {
  */
 export async function buildERIWasm(
   shells: readonly CGShell[],
-  schwarzTol = 1e-10,
+  schwarzTol = SCHWARZ_SCREEN_TOL,
 ): Promise<Float64Array> {
   const mod = await loadWasm();
   const n = shells.length;

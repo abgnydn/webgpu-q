@@ -30,6 +30,7 @@ import {
 } from "./density.js";
 import { evalXC, hfExchangeMixOf, type FunctionalKind } from "./functional.js";
 import type { AtomSymbol } from "../atoms.js";
+import { SCF_RESIDUAL_TOL } from "../numerical-tolerances.js";
 
 export interface RKSResult {
   /** Total DFT energy (Hartree), including V_nn. */
@@ -124,7 +125,7 @@ export function runRKSDFT(
   const hfMix = hfExchangeMixOf(functional);
   const maxIter = opts.maxIter ?? 100;
   const eTol = opts.energyTol ?? 1e-7;
-  const rTol = opts.residualTol ?? 1e-5;
+  const rTol = opts.residualTol ?? SCF_RESIDUAL_TOL;
   const useDIIS = opts.useDIIS ?? true;
   const diisMaxHistory = opts.diisHistory ?? 8;
   const damping = opts.damping ?? 0.5;

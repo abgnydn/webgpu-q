@@ -37,9 +37,10 @@ import {
   dS_cg_dA, dT_cg_dA, dV_cg_dA, dERI_cg_dX,
 } from "./integrals-cg.js";
 import type { MolecularIntegrals, Nucleus } from "./cg-molecular.js";
+import { SCHWARZ_SCREEN_TOL } from "./numerical-tolerances.js";
 
 /** Schwarz screening tolerance — same as `cg-molecular.ts`. */
-const SCHWARZ_TOL = 1e-10;
+const SCHWARZ_TOL = SCHWARZ_SCREEN_TOL;
 
 export interface HFGradientInputs {
   /** Same shells / nuclei used to build the SCF integrals. */

@@ -13,6 +13,7 @@ import { ERI_cg, type CGShell } from "./integrals-cg.js";
 import { sabAvailable, toSAB } from "../parallel/worker-pool.js";
 import { getSharedWorkerPool, disposeAllSharedPools } from "../parallel/worker-pool-shared.js";
 import { schwarzQTableWasm } from "./wasm-eri.js";
+import { SCHWARZ_SCREEN_TOL } from "./numerical-tolerances.js";
 
 // Pool spawning is now shared across all parallel chemistry kernels
 // (ERI build, JK build, …). See ../parallel/worker-pool-shared.ts.
@@ -153,7 +154,7 @@ function packShells(shells: readonly CGShell[]): {
 export async function buildERIWasmParallel(
   shells: readonly CGShell[],
   n: number,
-  schwarzTol = 1e-10,
+  schwarzTol = SCHWARZ_SCREEN_TOL,
   poolSize = 0,
 ): Promise<Float64Array> {
   if (!sabAvailable()) {

@@ -34,6 +34,7 @@ import { runMP2, mp2EnergyDF } from "./mp2.js";
 import { runUMP2, mp2EnergyUDF } from "./ump2.js";
 import { type FunctionalKind } from "./dft/functional.js";
 import { type AtomSymbol } from "./atoms.js";
+import { getWebGPU } from "../gpu-device.js";
 
 export interface RHFAutoOpts {
   /** Largest n that still uses the exact 4-index ERI. Above it → DF. Default 80. */
@@ -147,7 +148,7 @@ async function buildDFForRegime(
   const mergeOps = n * n * aux.length;
   const hybridWins = mergeOps < 12_000_000;
   const wantGPU = fast && hybridWins && hasDFunctions(shells) &&
-    !!(navigator as unknown as { gpu?: unknown }).gpu;
+    !!getWebGPU().gpu;
 
   if (wantGPU) {
     // Chemistry-grade despite the f32 GPU columns: only the s/p/d-aux V is f32
