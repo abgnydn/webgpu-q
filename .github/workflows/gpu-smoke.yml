@@ -52,8 +52,9 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Cargo
-        uses: Swatinem/rust-cache@v2
+      # No cache step: repo root holds no Cargo workspace (wasm-eri/ and
+      # wasm-gemm/ are independent crates), so cache-key inference fails.
+      # cargo install naga-cli takes ~2 min uncached; acceptable for this job.
 
       - name: Install naga-cli
         run: cargo install naga-cli --locked
