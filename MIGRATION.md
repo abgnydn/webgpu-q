@@ -4,7 +4,7 @@
 the chemistry methods. Methods are textbook and have peer-reviewed
 reference implementations (PySCF, Psi4, ORCA, libxc, ITensor). For
 those modules, **a careful port from the reference is more reliable
-and faster than re-deriving from papers**. The November 2026 E35
+and faster than re-deriving from papers**. The May 2026 E35
 EOM-CCSD finding (multi-eV gap vs PySCF on closed-shell singlets)
 made this explicit: we were re-deriving Stanton-Bartlett σ-equations
 and our hand-derived version has bugs that take weeks to find. PySCF's
@@ -43,8 +43,8 @@ Status legend: 🟢 ported · 🟡 ported in flight · 🔴 hand-derived (curren
 | `cis-tda.ts` / `tddft.ts` | PySCF `pyscf/tdscf/*.py` | Apache 2.0 | 🔴 | spin-pol functionals hand-derived |
 | `dft.ts` functionals | libxc | MPL 2.0 / LGPL | 🔴 | currently hand-coded LDA/B88/LYP etc. |
 | DFT angular grids | Lebedev tables | public domain | ⚫ | tables hand-typed |
-| `gradients.ts` HF/DFT analytical ∇ | PySCF `pyscf/grad/*.py` | Apache 2.0 | 🔴 | Pulay 1969 hand-derived |
-| `vibrational.ts` Hessian + thermo | PySCF `pyscf/hessian/*.py` | Apache 2.0 | 🔴 | H₂O matches NIST entropy |
+| `hf-gradient.ts` + `dft-gradient.ts` analytical ∇ | PySCF `pyscf/grad/*.py` | Apache 2.0 | 🔴 | Pulay 1969 hand-derived |
+| `vibrations.ts` Hessian + thermo | PySCF `pyscf/hessian/*.py` | Apache 2.0 | 🔴 | H₂O matches NIST entropy |
 | `eom-ccsd-bruteforce-lih.test.ts` | none (we built it) | MIT | 🟢 | regression verifier for the port |
 | `properties.ts` dipole, α, β | PySCF `pyscf/prop/*.py` | Apache 2.0 | 🔴 | finite-field hand-derived |
 | Basis-set primitives | EMSL Basis Set Exchange | CC-BY 4.0 | ⚫ | 5 atoms wired; full JSON port unblocks Thiel |
