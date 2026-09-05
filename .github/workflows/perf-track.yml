@@ -17,7 +17,9 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: npm run test:slow -- --reporter=json > /tmp/vitest-perf.json
+      # --silent: npm's `> pkg@ver script` banners would corrupt the JSON capture
+      # (observed 2026-09-05: check-perf hard-failed on the banner, correctly).
+      - run: npm --silent run test:slow -- --reporter=json > /tmp/vitest-perf.json
       - run: node bench/check-perf.mjs /tmp/vitest-perf.json
       - uses: actions/upload-artifact@v4
         if: always()
