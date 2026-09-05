@@ -156,6 +156,7 @@ describe.skipIf(process.env.PHASE_E5_CCPVDZ !== "1")(
       expect(ccsdt.totalEnergy).toBeLessThan(PYSCF_CCSDT);  // we're below (Cartesian d)
       expect(Math.abs(ccsdt.totalEnergy - PYSCF_CCSDT)).toBeLessThan(5e-3);
       expect(ccsdt.tripleCorrection).toBeLessThan(0);
-    }, 300_000);
+    // 600 s: measured 362 s on 4-core CI runners (M2 ≈ 95 s). Numbers, not code.
+    }, 600_000);
   },
 );
