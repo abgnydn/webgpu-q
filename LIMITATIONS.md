@@ -15,7 +15,6 @@ reviewer or chemist would discover anyway.
 | basis | system | NSO | wall time | notes |
 |---|---|---|---|---|
 | STO-3G | H₂, LiH, BeH₂, H₂O, CH₄ | ≤ 18 | sub-second | full pipeline incl. CCSD(T) + EOM |
-| 6-31G* | H₂O, BeH₂ | ≤ 28 | seconds | spot-checked |
 | cc-pVDZ | H₂O | 48 | 5.05 s (GPU CCSD(T)) | headline case |
 | aug-cc-pVDZ | H₂O | 64 | minutes | diffuse functions wired |
 
@@ -43,24 +42,66 @@ reviewer or chemist would discover anyway.
 
 ### Basis-set atom coverage
 
+**Periods 1–3 complete as of 2026-08-10: H through Ar (Z = 1–18).**
+
 | basis | atoms wired |
 |---|---|
-| STO-3G | H, Li, Be, C, N, O, F |
-| 6-31G* | H, C, N, O (spot-checked) |
-| **cc-pVDZ** | **H, Li, Be, C, N, O, F** (full first-row coverage — Tier 3 shipped 2026-05) |
-| aug-cc-pVDZ | **H, Li, Be, C, N, O, F** (diffuse tables for full first row wired 2026-05) |
+| **STO-3G** | **H–Ar** (all 18) |
+| **cc-pVDZ** | **H–Ar** (all 18) |
+| **aug-cc-pVDZ** | **H–Ar** (all 18) |
 
-LiH / BeH₂ / CH₄ / NH₃ / HF now first-class cc-pVDZ targets.
-Verified by `tests/chemistry/ccpvdz-firstrow.test.ts` — each
-molecule's cc-pVDZ HF energy converges and lies variationally
-below its STO-3G counterpart. Tolerance is ~10 mHa vs PySCF 2.13.0
-reference values (loose, because the test is verifying basis
-wiring not SCF precision; the existing H₂O cc-pVDZ tests cover
-the precision case to 35 µHa).
+**One deliberate deviation from the standard tables: STO-3G lithium is s-only
+here (1s + 2s).** Standard STO-3G Li also carries a 2p L-shell, so webgpu-q's
+STO-3G Li spans a smaller space and gives a higher energy — LiH comes out at
+−7.804244 Ha against stock STO-3G's −7.862027 Ha, a 57.8 mHa difference that is
+basis, not error.
 
-Aug-cc-pVDZ diffuse functions for Li, Be, C, N, F → ~30 minutes
-each from the same EMSL source, queued as a follow-up if needed
-for anions or excited-state work on those systems.
+Nothing is hidden by this. `scripts/check-basis-vs-pyscf.py` carries it as the
+single entry in `ALLOWED_DEVIATIONS`, exponent-matched, so a *wrong digit* in
+the same cell still fails the gate; and `scripts/run-element-reference.py`
+mirrors it via `LI_S_ONLY_STO3G` when generating the PySCF reference, so every
+STO-3G LiH number in this repo is validated apples-to-apples against a matched
+non-standard basis rather than against stock STO-3G.
+
+Why it is s-only: nobody has typed the 2p L-shell. It is not a design decision
+and there is no numerical obstacle — adding the shell and regenerating the
+affected fixture rows would remove the deviation. Until then, treat any STO-3G
+lithium result from this engine as not comparable with a stock-STO-3G result
+from anywhere else.
+
+Nothing beyond Z = 18. No transition metals, no fourth row.
+**6-31G\* is NOT implemented** — `BasisName` is exactly
+`"sto-3g" | "cc-pvdz" | "aug-cc-pvdz"` and the string "6-31g" appears
+nowhere in `src/`. (Earlier revisions of this file claimed 6-31G* twice:
+"wired, spot-checked" for H/C/N/O in the coverage table, and a
+"6-31G* | H₂O, BeH₂ | ≤ 28 | seconds | spot-checked" row in §1's
+"Tested and confirmed working" table above. Neither was ever true. The
+second outlived the first by one commit — removing a false claim from
+one table is not the same as grepping the file for it.)
+
+Every (element × basis) cell is validated against PySCF by
+`tests/chemistry/elements/reference-agreement.test.ts`: 18 elements ×
+3 bases × both d-conventions, one real molecule each (hydrides
+wherever one exists, so two-center integrals are actually exercised),
+**bar 0.1 mHa**. `tests/chemistry/elements/pyscf-reference.json` holds
+the committed reference table; regenerate it with
+`scripts/run-element-reference.py`.
+
+The d-convention matters from Na onward as well as across Li–Ne: our
+Cartesian path must be compared against PySCF with `mol.cart = True`
+and our spherical path against PySCF's default, or a ~0.34 mHa phantom
+error appears on every element carrying d functions. STO-3G has no d
+functions below Z = 19, so it is convention-free throughout.
+
+Superseded caveat, kept for provenance: this section previously
+described `ccpvdz-firstrow.test.ts` as the verification, at "~10 mHa"
+tolerance. That test's real windows were 200–300 mHa wide, and it did
+not detect that the Li and Be cc-pVDZ tables were wrong by up to 1.29
+mHa (fixed 2026-08-10). Precision claims here now rest on the element
+agreement test, not on it. (This paragraph previously said "116–170
+mHa", which is the ONE-SIDED distance from the reference to the nearer
+edge — a half-width read as a width. Corrected 2026-09-02, together
+with the same error in ccpvdz-firstrow.test.ts's header.)
 
 ---
 
@@ -102,6 +143,25 @@ will silently truncate large dispatches.
 - **TDA-DFT / DFT-gradient with spherical-d** — refuses with a clear
   error today; proper fix is Cartesian → spherical transform on grid
   values. Documented.
+- **Wrong-basin SCF at PAH scale — converges to a confidently wrong
+  answer.** This is the most dangerous failure mode in the list, because
+  it does not announce itself: `converged: true`, a clean stationary
+  point, and a plausible-looking number. On anthracene (C₁₄H₁₀, cc-pVDZ,
+  n = 246) the damping recipe (`damping=0.2`, `diisStartIter=8`) that
+  rescues the default-DIIS +5352 Ha divergence lands instead at
+  **E ≈ −880 Ha, against a literature HF/cc-pVDZ value of ~−537 Ha**.
+  Being *more negative* than the true ground state is the tell: the
+  damped warm-up steers the density into a non-physical orbital
+  occupation that is variationally lower within the SCF ansatz but is
+  not the ground-state singlet. The architecture and the convergence
+  machinery work end-to-end; **basin selection** is the open problem.
+  Real fixes are MOM (maximum overlap method) to preserve orbital
+  ordering across iterations, SOSCF for second-order convergence to the
+  nearest stationary point, or a SAD initial guess. Until one of those
+  lands, treat any large-PAH SCF energy from this code as unvalidated
+  regardless of the `converged` flag — and note that no automatic check
+  currently catches this, since the energy is finite, the SCF is
+  converged, and only an external reference reveals the error.
 
 ---
 
@@ -135,7 +195,7 @@ will silently truncate large dispatches.
 | ccData / QC-Schema compatibility | **Shipped 2026-05 (QCSchema)** — `toQCSchemaClosedShell` and `toQCSchemaOpenShell` in `src/chemistry/qcschema.ts`. Emit a `qcschema_output` v1 AtomicResult JSON with the standard `molecule` / `model` / `properties` / `return_result` / `success` / `extras` layout. Properties block includes `scf_total_energy`, `nuclear_repulsion_energy`, `scf_correlation_energy` (+ method-tagged `mp2_correlation_energy` / `ccsd_correlation_energy` when applicable), `calcinfo_*` (natom / nbasis / nmo / nalpha / nbeta), `molecular_multiplicity` (open-shell), `scf_s_squared` (open-shell). Validated by 4/4 tests covering closed-shell HF / CCSD method tag / open-shell H atom UHF / extras preservation. Consumable by QCEngine, QCFractal, QCArchive, cclib, ASE workflows. cclib parser support follows separately. | shipped ✓ (QCSchema) |
 | FAIR / Zenodo DOIs per release | Citations point at GitHub tag, not DOI | Tier 3 — set up CI workflow |
 | Aux-basis density fitting | **Shipped 2026-06** — `buildAuxBasisDFStreaming` (f64 WASM, the recommended default) builds the 3-index V[μν,P] and 2-index metric directly and streams μ-block by μ-block, never materializing the 4-index ERI; naphthalene cc-pVDZ HF runs in a tab. Surfaced through `runRHFAuto` / `runRKSAuto` / `runUHFAuto` / `runUKSAuto` / `runMP2Auto` / `runUMP2Auto` (size-gated exact/DF with provenance). A WGSL s/p/d 3-index + 2-index GPU build also exists but is experimental (WebGPU has no f64). DF-vs-exact validated sub-mHa up to where the exact ERI still fits a tab (H₂O→CH₂O→C₂H₄); PAH-scale is feasibility-demonstrated, not precision-validated. | shipped ✓ |
-| DFT dispersion correction | **Shipped 2026-05 (D2)** — `dispersionD2(atoms, opts)` in `src/chemistry/dispersion-d2.ts`. Grimme JCC 2006 atomic-pairwise C6/R⁶ with Fermi damping and functional-specific s6 (BLYP=1.20, B3LYP5=1.05, B3VWN5=1.05, BVWN5=1.20, LDA=1.05 default). Tabulated C6 and R_R for H, He, Li, Be, C, N, O, F. Atomic-units throughout. O(n_atoms²) cost — microseconds for typical molecules. Validated on He-He, H₂-H₂ pair, C-C pair, CH₄, ghost-atom cases. 8/8 tests green. D3 (Grimme 2010, atom-environment-dependent C8/C9) is a follow-up. Gradients ∂E_disp/∂R_A are mechanical extension; queued. | shipped ✓ (D2) |
+| DFT dispersion correction | **Shipped 2026-05 (D2)** — `dispersionD2(atoms, opts)` in `src/chemistry/dispersion-d2.ts`. Grimme JCC 2006 atomic-pairwise C6/R⁶ with Fermi damping and functional-specific s6 (BLYP=1.20, B3LYP5=1.05, B3VWN5=1.05, BVWN5=1.20, LDA=1.05 default). Tabulated C6 and R_R for H–Ar, all 18 elements (the 10 row-3 and B/Ne values were hand-entered and are NOT covered by the `basis-digits` CI gate, which checks basis exponents only; `dispersion-d2.test.ts` exercises H, He and C). Atomic-units throughout. O(n_atoms²) cost — microseconds for typical molecules. Validated on He-He, H₂-H₂ pair, C-C pair, CH₄, ghost-atom cases. 8/8 tests green. D3 (Grimme 2010, atom-environment-dependent C8/C9) is a follow-up. Gradients ∂E_disp/∂R_A are mechanical extension; queued. | shipped ✓ (D2) |
 | Davidson / Krylov eigensolver | **Shipped 2026-05**. Block Davidson (`src/manybody/davidson.ts`) wired into EE/IP/EA-EOM-CCSD (commits 6b9a96f, a35baeb) and now also CIS / TDA (this commit) behind `useDavidson: true`. Dense + Davidson agree on k roots to ≤ 1e-6 Ha across all paths. Unblocks large-basis CIS/TDDFT + bigger EOM-CCSD systems. | shipped ✓ |
 | Multi-node parallel | **All three steps verified e2e 2026-05-26.** (1) Same-origin multi-tab via BroadcastChannel — `e2e/swarm.spec.ts`. (2) Cross-machine WebRTC pairing via peerjs.com broker with the chem-energy H₂ bond-scan kernel — `e2e/swarm-webrtc.spec.ts` (two isolated browser contexts simulate two machines; finds equilibrium r ≈ 0.73 Å over WebRTC DataChannel in ~6 s). (3) BroadcastChannel-isolation check passes (contexts can't see each other via BC). Open hardening: self-hosted PeerServer (replaces peerjs.com dependency), TURN-server fallback for symmetric-NAT corporate networks. | shipped ✓ |
 | Periodic boundary conditions | No solids, no surfaces | Tier 4 |

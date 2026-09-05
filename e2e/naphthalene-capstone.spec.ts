@@ -75,7 +75,14 @@ console.log(`\n[naphthalene-capstone] ${JSON.stringify(r)}\n`);
     expect(r.prov.method).toBe("density-fitting"); // auto-gate chose DF
     expect(r.eriLen).toBe(0);                      // the 8 GB ERI was never built
     expect(r.converged).toBe(true);               // and it actually converged
-    // Sane physical RHF/cc-pVDZ energy for naphthalene (~ -383 Ha at this geom).
+    // SANITY WINDOW, NOT A VALIDATED ENERGY. Naphthalene RHF/cc-pVDZ is ≈ -383
+    // Ha at this geometry, and ±3 Ha is ~1900× chemical accuracy (1.594 mHa) —
+    // it is here to catch wrong-basin collapse and broken integrals, nothing
+    // finer. PAH-scale DF-HF is feasibility-demonstrated, NOT precision-
+    // validated: DF-vs-exact chemical accuracy is only checked up the ladder
+    // where the exact 4-index ERI still fits a tab (e2e/df-accuracy-ladder,
+    // n ≤ 50). See LIMITATIONS.md. Unlike the acene specs this window IS tight
+    // enough to reject the -880-Ha-style wrong basin, so it is left as-is.
     expect(r.energy).toBeLessThan(-380);
     expect(r.energy).toBeGreaterThan(-386);
   });

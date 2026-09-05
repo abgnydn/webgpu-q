@@ -397,7 +397,7 @@
     </g>
 
     <g transform="translate(0 1484)">
-      <text x="40" y="22" font-weight="600">STO-3G · 6-31G* · cc-pVDZ · aug-cc-pVDZ</text>
+      <text x="40" y="22" font-weight="600">STO-3G · cc-pVDZ · aug-cc-pVDZ</text>
       <circle cx="510" cy="17" r="7" fill="#22d3ee"/>
       <circle cx="630" cy="17" r="7" fill="#94a3b8"/>
       <circle cx="750" cy="17" r="7" fill="#94a3b8"/>

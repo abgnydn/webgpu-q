@@ -5,7 +5,7 @@
 //
 // All coordinates in Å. Geometries taken from CCCBDB / NIST
 // chemistry webbook unless noted. Element coverage matches
-// `AtomSymbol`: H, He, Li, Be, C, N, O, F.
+// `AtomSymbol`: H-Ar, all 18 (periods 1-3 complete).
 // ─────────────────────────────────────────────────────────────
 
 import type { Atom } from "./atoms.js";

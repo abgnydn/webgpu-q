@@ -185,7 +185,7 @@ const eom = runEOMCCSD(runCCSD(hf, integrals), integrals, hf);
 
 | basis / many-body | notes |
 |---|---|
-| STO-3G · 6-31G* · cc-pVDZ · aug-cc-pVDZ | first + second period; spherical-d; f/g/h |
+| STO-3G · cc-pVDZ · aug-cc-pVDZ | H–Ar, periods 1–3 complete; spherical-d; f/g/h |
 | statevector · MPS · DMRG | GPU f32 (F ≥ 0.999999); Jacobi SVD + canonical TEBD; Lanczos + MPO |
 | kernel fusion | 4.22× (Tier C, 8×8 cascade); Tier D 3.78× plateau = documented honest negative |
 

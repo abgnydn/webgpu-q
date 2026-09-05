@@ -72,7 +72,12 @@ test.describe("Swarm × GPU — distributed GPU-accelerated single-points", () =
       expect(r.converged).toBe(true);
       expect(r.dfMethod).toBe("density-fitting");
       expect(r.engine).toBe("gpu+wasm");          // hybrid GPU path on every tile
-      expect(r.energy).toBeLessThan(-108);        // N2 cc-pVDZ HF ≈ -108.95 Ha
+      // SANITY WINDOW, NOT A VALIDATED ENERGY. N2 cc-pVDZ HF ≈ -108.95 Ha, and
+      // the ~±1 Ha here is ~600× chemical accuracy — it has to be loose because
+      // one window covers six different bond lengths (1.05-1.30 Å) along the
+      // curve. It rejects wrong-basin collapse and broken integrals, not method
+      // error; DF-vs-exact accuracy is validated in e2e/df-accuracy-ladder.
+      expect(r.energy).toBeLessThan(-108);
       expect(r.energy).toBeGreaterThan(-110);
     }
     // The batch was actually split across the two tabs (not all run on master).

@@ -7,8 +7,9 @@
 //   3. Capture ratio: MP2 captures ≥ 50% of the HF→FCI correlation
 //      gap for every molecule. This is the canonical empirical
 //      property of MP2 on closed-shell systems near equilibrium.
-//   4. Cross-check H₂O against the published PySCF STO-3G MP2
-//      number to ~1 mHa (geometry/precision tolerance).
+//   4. Cross-check H₂O against the full-precision PySCF STO-3G MP2
+//      number committed at experiments/results/2026-07-06/level-6/
+//      E34-pyscf.json, to ≤ 0.001 mHa.
 import { describe, expect, test } from "vitest";
 import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
 import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
@@ -152,16 +153,21 @@ describe("MP2 — variational and capture properties", () => {
 });
 
 describe("MP2 — published-PySCF cross-check on H₂O", () => {
-  test("H₂O MP2/STO-3G total energy matches PySCF to ≤ 2 mHa", () => {
-    // PySCF H₂O/STO-3G MP2 at R_OH=0.9572, ∠=104.52°: ~ -74.998 to -74.999.
-    // Tolerance covers small geometry / convention spread.
+  test("H₂O MP2/STO-3G total energy matches PySCF to ≤ 0.001 mHa", () => {
+    // Full-precision PySCF 2.13.0 MP2/STO-3G at R_OH=0.9572, ∠=104.52°,
+    // committed in this repo at
+    //   experiments/results/2026-07-06/level-6/E34-pyscf.json
+    //   row {molecule:"H₂O", basis:"sto-3g", method:"MP2"}
+    // The old literal -74.999 ± 2 mHa was 0.58 mHa wrong and ~8700×
+    // looser than what this code path actually achieves.
+    const PYSCF_H2O_MP2 = -74.99842042839526;
     const m = MOLECULES.find((x) => x.name === "H2O")!;
     const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(m.atoms);
     const integrals = computeMolecularIntegrals(shells, nuclei);
     const hf = runRHFSCF(integrals, nElectrons, { maxIter: 500, damping: 0.3 });
     const mp2 = runMP2(hf, integrals);
-    const PYSCF_H2O_MP2 = -74.999;
-    expect(Math.abs(mp2.totalEnergy - PYSCF_H2O_MP2)).toBeLessThan(2e-3);
+    // Measured |Δ| = 2.3e-4 mHa (2.3e-7 Ha); bar ~4× above it.
+    expect(Math.abs((mp2.totalEnergy - PYSCF_H2O_MP2) * 1000)).toBeLessThan(0.001);
   });
 });
 

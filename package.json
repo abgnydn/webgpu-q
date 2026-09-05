@@ -44,6 +44,7 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
+    "check:basis": "npx --yes tsx scripts/dump-basis-constants.ts > /tmp/webgpu-q-basis.json && python3 scripts/check-basis-vs-pyscf.py /tmp/webgpu-q-basis.json",
     "benchmarks:render": "npx --yes tsx benchmarks/render.ts"
   },
   "devDependencies": {

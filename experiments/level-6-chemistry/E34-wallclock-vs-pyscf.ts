@@ -28,7 +28,7 @@
 import { initGPU } from "../../src/quantum.js";
 import { captureEnv } from "../lib/env.js";
 import { computeMolecularIntegrals } from "../../src/chemistry/cg-molecular.js";
-import { moleculeToShellsNuclei, type Atom } from "../../src/chemistry/atoms.js";
+import { moleculeToShellsNuclei, Z_FOR, type Atom } from "../../src/chemistry/atoms.js";
 import { runRHFSCF } from "../../src/chemistry/hf-scf.js";
 import { runMP2 } from "../../src/chemistry/mp2.js";
 import { runCCSD } from "../../src/chemistry/ccsd.js";
@@ -125,12 +125,15 @@ export async function runE34(): Promise<Artifact<E34Row>> {
     for (const basis of BASES) {
       const label = `${mol.name}/${basis}`;
 
-      // cc-pVDZ is wired for H, He, Li, Be, C, N, O and F (see the cc-pvdz
-      // branch of atoms.ts). This gate used to skip anything that was not H or
-      // O — a belief that went stale once the basis tables were completed — and
-      // silently dropped 10 rows (LiH and BeH₂ cc-pVDZ × 5 methods) from the
-      // artifact behind the README's headline comparison table.
-      const CCPVDZ_ELEMENTS = new Set(["H", "He", "Li", "Be", "C", "N", "O", "F"]);
+      // cc-pVDZ coverage is DERIVED from Z_FOR, never listed here. This gate
+      // has now gone stale twice from a hardcoded list: first when it skipped
+      // anything that was not H or O, silently dropping 10 rows (LiH and BeH₂
+      // cc-pVDZ × 5 methods) from the artifact behind the README's headline
+      // comparison table; then again when it was replaced by an 8-element list
+      // that the periods-1-3 expansion left behind, which would have dropped
+      // every B, Ne and Na–Ar row the same way. Deriving it means the next
+      // element to land is covered without anyone remembering this file.
+      const CCPVDZ_ELEMENTS = new Set(Object.keys(Z_FOR));
       const symbols = new Set(mol.atoms.map((a) => a.symbol));
       const ccPvdzMissing = basis === "cc-pvdz"
         && [...symbols].some((s) => !CCPVDZ_ELEMENTS.has(s));
@@ -139,7 +142,7 @@ export async function runE34(): Promise<Artifact<E34Row>> {
           rows.push({
             molecule: mol.name, basis, method,
             seconds: 0, energy_Ha: NaN, success: true,
-            notes: "skipped — cc-pVDZ basis only wired for H and O (see LIMITATIONS.md)",
+            notes: "skipped — element outside the supported set (see LIMITATIONS.md)",
           });
         }
         continue;

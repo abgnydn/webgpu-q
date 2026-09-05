@@ -52,12 +52,13 @@ const ATOM_COLOR: Record<string, string> = {
   P:  "#ffb56e",
   S:  "#fbbf24",
   Cl: "#34d399",
+  Ar: "#a78bfa",     // noble — same hue as Ne, matching the group-inherits-colour pattern
 };
 
 const ATOM_RADIUS: Record<string, number> = {
   H: 6, He: 6,
   Li: 10, Be: 9, B: 9, C: 9, N: 9, O: 9, F: 9, Ne: 9,
-  Na: 12, Mg: 12, Al: 12, Si: 12, P: 12, S: 12, Cl: 11,
+  Na: 12, Mg: 12, Al: 12, Si: 12, P: 12, S: 12, Cl: 11, Ar: 11,
 };
 
 export function moleculeGraph2D(

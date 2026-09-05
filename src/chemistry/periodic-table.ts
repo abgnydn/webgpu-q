@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // periodic-table.ts — atomic property database for the elements
-// supported by webgpu-q (H, He, Li, Be, C, N, O, F).
+// supported by webgpu-q (H, He, Li, Be, B, C, N, O, F, Ne,
+// Na, Mg, Al, Si, P, S, Cl, Ar) — periods 1-3 complete.
 //
 // Data sources:
 //   - Atomic number, isotope mass: NIST 2024.
@@ -58,6 +59,12 @@ export const PERIODIC_TABLE: Readonly<Record<AtomSymbol, ElementProperties>> = {
     covalentRadius: 1.02, vdwRadius: 1.53,
     period: 2, group: 2, family: "alkaline-earth",
   },
+  B: {
+    symbol: "B", name: "Boron", atomicNumber: 5,
+    mass: 11.00930536, electronegativity: 2.04,
+    covalentRadius: 0.85, vdwRadius: 1.92,
+    period: 2, group: 13, family: "main",
+  },
   C: {
     symbol: "C", name: "Carbon", atomicNumber: 6,
     mass: 12.0, electronegativity: 2.55,
@@ -81,6 +88,60 @@ export const PERIODIC_TABLE: Readonly<Record<AtomSymbol, ElementProperties>> = {
     mass: 18.998403163, electronegativity: 3.98,
     covalentRadius: 0.64, vdwRadius: 1.47,
     period: 2, group: 17, family: "halogen",
+  },
+  Ne: {
+    symbol: "Ne", name: "Neon", atomicNumber: 10,
+    mass: 19.9924401762, electronegativity: null,
+    covalentRadius: 0.67, vdwRadius: 1.54,
+    period: 2, group: 18, family: "noble",
+  },
+  Na: {
+    symbol: "Na", name: "Sodium", atomicNumber: 11,
+    mass: 22.989769282, electronegativity: 0.93,
+    covalentRadius: 1.55, vdwRadius: 2.27,
+    period: 3, group: 1, family: "alkali",
+  },
+  Mg: {
+    symbol: "Mg", name: "Magnesium", atomicNumber: 12,
+    mass: 23.985041697, electronegativity: 1.31,
+    covalentRadius: 1.39, vdwRadius: 1.73,
+    period: 3, group: 2, family: "alkaline-earth",
+  },
+  Al: {
+    symbol: "Al", name: "Aluminium", atomicNumber: 13,
+    mass: 26.98153853, electronegativity: 1.61,
+    covalentRadius: 1.26, vdwRadius: 1.84,
+    period: 3, group: 13, family: "main",
+  },
+  Si: {
+    symbol: "Si", name: "Silicon", atomicNumber: 14,
+    mass: 27.97692653465, electronegativity: 1.90,
+    covalentRadius: 1.16, vdwRadius: 2.10,
+    period: 3, group: 14, family: "main",
+  },
+  P: {
+    symbol: "P", name: "Phosphorus", atomicNumber: 15,
+    mass: 30.97376199842, electronegativity: 2.19,
+    covalentRadius: 1.11, vdwRadius: 1.80,
+    period: 3, group: 15, family: "main",
+  },
+  S: {
+    symbol: "S", name: "Sulfur", atomicNumber: 16,
+    mass: 31.9720711744, electronegativity: 2.58,
+    covalentRadius: 1.03, vdwRadius: 1.80,
+    period: 3, group: 16, family: "main",
+  },
+  Cl: {
+    symbol: "Cl", name: "Chlorine", atomicNumber: 17,
+    mass: 34.968852682, electronegativity: 3.16,
+    covalentRadius: 0.99, vdwRadius: 1.75,
+    period: 3, group: 17, family: "halogen",
+  },
+  Ar: {
+    symbol: "Ar", name: "Argon", atomicNumber: 18,
+    mass: 39.9623831237, electronegativity: null,
+    covalentRadius: 0.96, vdwRadius: 1.88,
+    period: 3, group: 18, family: "noble",
   },
 };
 

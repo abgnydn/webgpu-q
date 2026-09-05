@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { assertHydrocarbonEnergySane } from "./lib/energy-gate.js";
 
 // Anthracene C₁₄H₁₀ cc-pVDZ — the bigger basis variant that failed
 // with default DIIS (E went to +5352 Ha) and with plain damping
@@ -17,11 +18,26 @@ import { test, expect } from "@playwright/test";
 
 const N_TABS = 4;
 const INNER_POOL = 2;
+const N_CARBON = 14;
+
+// Literature-scale anthracene HF/cc-pVDZ. Cross-checks against this repo's own
+// ladder (benzene/cc-pVDZ ≈ -38.45 Ha/C, naphthalene ≈ -38.34 Ha/C ⟹ C₁₄ ≈ -537).
+// The tolerance is sanity-scale, not chemical accuracy — the geometry here is
+// idealised (regular hexagons, 1.40 Å) so a literature-digit comparison isn't
+// available anyway. Even at 5 Ha of slack the run below misses by 343 Ha.
+const LIT_HF_CCPVDZ = -537.0;
+const LIT_TOL_HA = 5.0;
+
+// Captured by the architecture test, re-asserted by the documented-negative
+// physics test below. Serial describe: ONE 20-minute SCF, two separate claims —
+// the architecture claim is allowed to be green, the physics claim is not.
+// (playwright.config.ts: workers: 1, fullyParallel: false.)
+let observedEnergy: number | undefined;
 
 test.use({ trace: "off" });   // 10-min trace fixture cap would clip this — must be top-level, not inside describe
 
-test.describe(`Swarm anthracene cc-pVDZ HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, () => {
-  test("anthracene cc-pVDZ — delayed DIIS recipe", async ({ browser }) => {
+test.describe.serial(`Swarm anthracene cc-pVDZ HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, () => {
+  test("architecture — delayed-DIIS recipe reaches SCF convergence without divergence", async ({ browser }) => {
     test.setTimeout(20 * 60 * 1000);
 
     const ctx = await browser.newContext();
@@ -253,25 +269,59 @@ test.describe(`Swarm anthracene cc-pVDZ HF SCF — ${N_TABS}-tab × ${INNER_POOL
     console.log(`══════════════════════════════════════════════════════════\n`);
      
 
+    observedEnergy = result.energy;
+
+    // ── ARCHITECTURE ONLY. This test makes NO claim about the energy. ──
+    // What it proves: the 4-tab × 2-inner swarm runs a cc-pVDZ SCF end to end
+    // and the delayed-DIIS recipe (damping 0.2 + diisStartIter 8) reaches a
+    // stationary point instead of the +5352 Ha divergence that default DIIS
+    // produced, or the +801 Ha iter-5 jump that plain damping produced.
+    // Whether the stationary point is the RIGHT one is asserted separately,
+    // in the documented-negative test below — and it currently is not.
     expect(Number.isFinite(result.energy)).toBe(true);
     expect(result.converged).toBe(true);
-    // The delayed-DIIS recipe converges anthracene cc-pVDZ — that's
-    // the architectural fix this test validates. The 4-tab × 2-inner
-    // swarm + diisStartIter combo successfully reaches a stationary
-    // point without the +5352 Ha divergence seen on default DIIS.
-    //
-    // NOTE: the resulting energy (~-880 Ha in CI's first green run)
-    // is more negative than the real anthracene HF/cc-pVDZ value of
-    // ~-537 Ha. That's almost certainly a "wrong-basin" SCF solution
-    // — the damped warm-up plus approximate linear geometry steers
-    // the SCF into a non-physical orbital occupation that's lower in
-    // energy but doesn't correspond to the true ground-state singlet.
-    // Fixing it needs MOM (maximum overlap method), SOSCF, or a SAD
-    // initial guess. Tracked separately; for now this test just
-    // proves convergence-without-divergence at cc-pVDZ.
-    expect(result.energy).toBeLessThan(-100);
-    expect(result.energy).toBeGreaterThan(-1500);
+    expect(result.energy, "SCF diverged to a positive energy").toBeLessThan(-100);
+    // Divergence guard, NOT a physics claim. main asserted -1500 < E < -100 on
+    // this path. 080bfcf DELETED both bounds (it did not move them -- the
+    // test.fail() body below carries different, tighter assertions) and left
+    // only E < 0, so a regression to -50 Ha or to -3000 Ha would both have
+    // passed where they failed before. da282ab restored the lower bound; this
+    // restores the upper one, putting the original band back verbatim.
+    // The band is deliberately wide: the physics is known-wrong here
+    // (LIMITATIONS.md §3) and is asserted in the test.fail() body, so all this
+    // rules out is a run that has left the plausible magnitude entirely.
+    expect(result.energy, "energy left the plausible magnitude band").toBeGreaterThan(-1500);
 
     await ctx.close();
+  });
+
+  // ── DOCUMENTED NEGATIVE — this test is REQUIRED to fail. ───────────────────
+  // The run above converges to ≈ -880 Ha; anthracene HF/cc-pVDZ is ≈ -537 Ha.
+  // That is a 343 Ha error reported with `converged: true` and a finite,
+  // plausible-looking number — the most dangerous failure mode in the repo,
+  // LIMITATIONS.md §3. Until 2026-08 it was certified GREEN by an assertion
+  // window of `-1500 < E < -100`.
+  //
+  // Cause: the damped warm-up plus the idealised planar geometry steers the SCF
+  // into a non-physical orbital occupation that is variationally lower but is
+  // not the ground-state singlet. Fixing it needs MOM (maximum overlap method),
+  // SOSCF, or a SAD initial guess.
+  //
+  // test.fail() means Playwright REQUIRES this to fail. If someone fixes the
+  // SCF, this test starts passing, Playwright reports "expected to fail but
+  // passed", and CI goes red until the annotation is removed. The wrong-basin
+  // result can therefore never again be silently sold as a validated energy.
+  test("physics — energy vs literature anthracene HF/cc-pVDZ ≈ -537 Ha [EXPECTED FAILURE: wrong-basin SCF, LIMITATIONS.md §3]", () => {
+    test.fail();
+
+    expect(observedEnergy, "architecture test must run first (serial describe)").toBeDefined();
+    const E = observedEnergy ?? Number.NaN;
+
+    // Fails first, and loudly: ≈ -880 Ha is -62.9 Ha/C, far past the floor.
+    assertHydrocarbonEnergySane(E, N_CARBON);
+    expect(
+      Math.abs(E - LIT_HF_CCPVDZ),
+      `E = ${E.toFixed(3)} Ha vs literature ${LIT_HF_CCPVDZ} Ha`,
+    ).toBeLessThan(LIT_TOL_HA);
   });
 });
