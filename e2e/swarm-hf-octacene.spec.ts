@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { assertHydrocarbonEnergySane } from "./lib/energy-gate.js";
 
 // Octacene C₃₄H₂₀ STO-3G via 4-tab swarm. 8 linearly fused benzene
 // rings, 190 basis functions. Past heptacene the acene becomes
@@ -9,6 +10,7 @@ import { test, expect } from "@playwright/test";
 
 const N_TABS = 4;
 const INNER_POOL = 2;
+const N_CARBON = 34;
 
 test.use({ trace: "off" });
 
@@ -274,9 +276,14 @@ test.describe(`Swarm octacene HF SCF — ${N_TABS}-tab × ${INNER_POOL}-inner`, 
     // full SCF to completion, finite physically-ranged energy) and treat
     // RHF convergence as method-limited, consistent with hexacene/
     // heptacene. Multireference/UHF reference is the real fix.
+    //
+    // NOT A VALIDATED ENERGY — deepest into the polyradical regime of the whole
+    // ladder, so there is no RHF reference value to compare against. The honest
+    // bound is the size-extensive sanity band in e2e/lib/energy-gate.ts. The old
+    // bound was -3000 < E < -100: for C₃₄H₂₀ that permitted anything from -2.9
+    // to -88 Ha per carbon against a real ≈ -37.8, i.e. it certified nothing.
     expect(Number.isFinite(result.energy)).toBe(true);
-    expect(result.energy).toBeLessThan(-100);
-    expect(result.energy).toBeGreaterThan(-3000);
+    assertHydrocarbonEnergySane(result.energy, N_CARBON);
 
     await ctx.close();
   });

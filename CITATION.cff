@@ -3,10 +3,10 @@ message: "If you use webgpu-q in academic work, please cite as below."
 type: software
 title: "webgpu-q: Browser-native quantum chemistry and many-body simulation via WebGPU"
 authors:
-  - family-names: Günaydın
-    given-names: Ahmet Barış
+  - family-names: Gunaydin
+    given-names: Ahmet Baris
     email: hi@barisgunaydin.com
-    affiliation: Independent researcher
+    affiliation: Independent Researcher
 doi: 10.5281/zenodo.20494382
 repository-code: "https://github.com/abgnydn/webgpu-q"
 url: "https://webgpu-q.vercel.app"
@@ -53,8 +53,10 @@ preferred-citation:
   type: software
   title: "webgpu-q v0.12.0"
   authors:
-    - family-names: Günaydın
-      given-names: Ahmet Barış
+    - family-names: Gunaydin
+      given-names: Ahmet Baris
+      email: hi@barisgunaydin.com
+      affiliation: Independent Researcher
   year: 2026
   version: 0.12.0
   doi: 10.5281/zenodo.20494382

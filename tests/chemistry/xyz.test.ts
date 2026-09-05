@@ -59,14 +59,39 @@ H₂
   });
 
   test("Unsupported element throws clearly", () => {
-    // Boron: genuinely absent from the AtomSymbol union and from the basis
-    // tables. This test previously used He, which IS a supported AtomSymbol with
-    // basis data and a molecule in molecules.ts — it was asserting a bug.
+    // Krypton: genuinely absent from the AtomSymbol union and from the basis
+    // tables. This test previously used He (a supported AtomSymbol all along),
+    // then B — which became supported when periods 1-2 were completed. Kr is
+    // period 4, far outside anything the basis tables cover.
     const text = `1
-boron not supported in current AtomSymbol union
-B 0 0 0
+krypton not supported in current AtomSymbol union
+Kr 0 0 0
 `;
     expect(() => parseXYZ(text)).toThrow(/not supported/);
+  });
+
+  test("Boron round-trips: symbol, Z=5, and toXYZ identity", () => {
+    const text = `1
+boron atom
+B 0.00000000 0.00000000 0.00000000
+`;
+    const { atoms } = parseXYZ(text);
+    expect(atoms).toHaveLength(1);
+    expect(atoms[0]!.symbol).toBe("B");
+    expect(parseXYZ("1\nby Z\n5 0 0 0\n").atoms[0]!.symbol).toBe("B");
+    expect(parseXYZ(toXYZ(atoms)).atoms[0]!.symbol).toBe("B");
+  });
+
+  test("Neon round-trips: symbol, Z=10, and toXYZ identity", () => {
+    const text = `1
+neon atom
+Ne 0.00000000 0.00000000 0.00000000
+`;
+    const { atoms } = parseXYZ(text);
+    expect(atoms).toHaveLength(1);
+    expect(atoms[0]!.symbol).toBe("Ne");
+    expect(parseXYZ("1\nby Z\n10 0 0 0\n").atoms[0]!.symbol).toBe("Ne");
+    expect(parseXYZ(toXYZ(atoms)).atoms[0]!.symbol).toBe("Ne");
   });
 
   test("He round-trips: it is a real AtomSymbol the library ships a molecule for", () => {

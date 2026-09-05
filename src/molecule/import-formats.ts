@@ -4,11 +4,12 @@
 
 import type { Atom, AtomSymbol } from "../chemistry/atoms.js";
 
-// The chemistry stack currently supports first-row + Li/Be (see
+// The chemistry stack currently supports periods 1-3 complete (see
 // src/chemistry/atoms.ts → AtomSymbol). Imports outside this set are
 // rejected with a clear error.
 const SUPPORTED_SYMBOLS = new Set<string>([
-  "H", "He", "Li", "Be", "C", "N", "O", "F",
+  "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne",
+  "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar",
 ]);
 
 export interface ParseResult {
@@ -83,17 +84,22 @@ function parsePDB(text: string): ParseResult {
     if (line.length < 54) continue;
     // Element column 77-78 (PDB v3.30); 1-indexed 77,78 = 0-indexed 76,77.
     let symRaw = line.slice(76, 78).trim();
+    // The element column is authoritative; the atom-name column is a
+    // guess ("CA" = alpha-carbon, not calcium) and is the only place the
+    // one-character truncation in canonicalSymbol may be applied.
+    let fromAtomName = false;
     if (!symRaw) {
       // Fall back to first 1-2 alpha chars of atom name (cols 13-16).
       const name = line.slice(12, 16).trim();
       symRaw = name.replace(/[^A-Za-z]/g, "").slice(0, 2);
+      fromAtomName = true;
     }
     if (!symRaw) continue;
     const x = parseFloat(line.slice(30, 38));
     const y = parseFloat(line.slice(38, 46));
     const z = parseFloat(line.slice(46, 54));
     if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
-    atoms.push({ symbol: canonicalSymbol(symRaw), pos: [x, y, z] });
+    atoms.push({ symbol: canonicalSymbol(symRaw, fromAtomName), pos: [x, y, z] });
   }
   if (atoms.length === 0) {
     throw new Error("PDB: no ATOM / HETATM records found");
@@ -135,15 +141,30 @@ function parseMOL(text: string): ParseResult {
 }
 
 // ── Symbol normalization ───────────────────────────────────────
-function canonicalSymbol(raw: string): AtomSymbol {
+/**
+ * Normalize a raw token to a supported element symbol.
+ *
+ * `allowNameFallback` truncates a two-character token to one character
+ * when the pair isn't a supported symbol. That is ONLY correct for PDB
+ * *atom names* (cols 13-16), where "CA" means alpha-carbon, not calcium.
+ *
+ * It is actively dangerous anywhere else: the truncation is silent and
+ * yields a real-but-wrong element. "Fe" → "F" imports iron as fluorine.
+ * The hazard scales with the supported single-letter set, which this
+ * repo has grown from {H,C,N,O,F} to {H,B,C,N,O,F,P,S} — so "Pd"/"Pt"
+ * → P and "Sc"/"Se"/"Sn"/"Sr" → S all became newly wrong. ("Na" → N was
+ * already wrong before that.) Hence: opt-in, not default.
+ */
+function canonicalSymbol(raw: string, allowNameFallback = false): AtomSymbol {
   // "C" → "C", "ca" → "Ca", "12C" → "C", "Cα" → "C".
   const clean = raw.replace(/[^A-Za-z]/g, "");
   if (!clean) throw new Error(`Unrecognized atom symbol "${raw}"`);
   const norm = clean.slice(0, 1).toUpperCase() + clean.slice(1, 2).toLowerCase();
-  // Try the 2-char form first; if not in the supported set, fall back to 1-char.
   if (SUPPORTED_SYMBOLS.has(norm)) return norm as AtomSymbol;
-  const single = clean.slice(0, 1).toUpperCase();
-  if (SUPPORTED_SYMBOLS.has(single)) return single as AtomSymbol;
+  if (allowNameFallback) {
+    const single = clean.slice(0, 1).toUpperCase();
+    if (SUPPORTED_SYMBOLS.has(single)) return single as AtomSymbol;
+  }
   throw new Error(`Unsupported atom symbol "${raw}" (parsed "${norm}"). ` +
     `Supported: ${Array.from(SUPPORTED_SYMBOLS).join(", ")}`);
 }

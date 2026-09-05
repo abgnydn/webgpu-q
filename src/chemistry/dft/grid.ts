@@ -255,19 +255,43 @@ function beckeStep(mu: number): number {
   return 0.5 * (1 - p3);
 }
 
-// ── Per-atom Becke radial scaling (bohr) ────────────────────
+// ── Per-atom Becke radial scaling (angstrom) ────────────────
 //
-// ξ_A is roughly the Bragg-Slater radius of atom A in Bohr; it
+// ξ_A is the Bragg-Slater radius of atom A in ANGSTROM (the
+// header previously said Bohr; every tabulated value is and always
+// was the Angstrom number — C is 0.70, not 1.32); it
 // sets the "natural distance" at which the radial mapping puts
 // half its quadrature points. Values from Becke (1988) /
 // Treutler-Ahlrichs (1995). Atoms not listed default to 1.0.
 const BECKE_XI: Partial<Record<AtomSymbol, number>> = {
   H:  0.5,    // tighter than the default (Becke recommends ξ_H = 0.35;
               // 0.5 is a compromise that handles diatomic H₂ better)
-  He: 0.35,   // Bragg-Slater radius for He
+  // Corrected 2026-08-10 against pyscf.dft.radi.BRAGG_RADII (the same
+  // table Becke's scheme is defined on). He was labelled "Bragg-Slater
+  // radius for He" but carried 0.35 against the tabulated 1.40; C, N and
+  // O had all been filled with 0.65 where the real values differ.
+  // Noble gases are anomalously large in this parameterization — that is
+  // the table, not a typo.
+  He: 1.40,   // was 0.35
   Li: 1.45,
   Be: 1.05,
-  C:  0.65,
+  B:  0.85,
+  C:  0.70,   // was 0.65
   N:  0.65,
-  O:  0.65,
+  O:  0.60,   // was 0.65
+  F:  0.50,   // was MISSING → silently fell back to 1.0, misplacing the
+              // radial quadrature points for every fluorine DFT grid
+  Ne: 1.50,
+  // Row 3, same source (pyscf.dft.radi.BRAGG_RADII, converted with
+  // pyscf.data.nist.BOHR). P / S / Cl all land on exactly 1.00 in that
+  // table — not a copy-paste slip. Na and Ar tie at 1.80 for the same
+  // reason the row-2 noble gases are large here.
+  Na: 1.80,
+  Mg: 1.50,
+  Al: 1.25,
+  Si: 1.10,
+  P:  1.00,
+  S:  1.00,
+  Cl: 1.00,
+  Ar: 1.80,
 };

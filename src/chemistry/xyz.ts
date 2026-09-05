@@ -20,8 +20,9 @@
 // Limitations:
 //   - Single-frame only. Multi-frame trajectory XYZ (concatenated)
 //     would need explicit frame splitting; queued.
-//   - Element set restricted to the AtomSymbol union (H, He, Li, Be, C, N,
-//     O, F). Throws for unsupported elements with a clear message.
+//   - Element set restricted to the AtomSymbol union: H through Ar
+//     (Z = 1-18), complete. Throws for anything heavier with a clear
+//     message naming the supported range.
 //   - Comment line preserved as opt return; no parsing of charge /
 //     multiplicity / properties (those vary too much across codes).
 // ─────────────────────────────────────────────────────────────
@@ -32,9 +33,15 @@ import { type Atom, type AtomSymbol } from "./atoms.js";
 // molecules.ts ships a He molecule — omitting it here made toXYZ → parseXYZ fail
 // to round-trip a molecule this library provides.
 const SYMBOL_BY_Z: Record<number, AtomSymbol> = {
-  1: "H", 2: "He", 3: "Li", 4: "Be", 6: "C", 7: "N", 8: "O", 9: "F",
+  1: "H", 2: "He", 3: "Li", 4: "Be", 5: "B",
+  6: "C", 7: "N", 8: "O", 9: "F", 10: "Ne",
+  11: "Na", 12: "Mg", 13: "Al", 14: "Si",
+  15: "P", 16: "S", 17: "Cl", 18: "Ar",
 };
-const SUPPORTED_SYMBOLS = new Set<AtomSymbol>(["H", "He", "Li", "Be", "C", "N", "O", "F"]);
+const SUPPORTED_SYMBOLS = new Set<AtomSymbol>([
+  "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne",
+  "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar",
+]);
 
 export interface XYZParseResult {
   readonly atoms: Atom[];
@@ -168,14 +175,14 @@ function resolveSymbol(token: string, lineNo: number): AtomSymbol {
   if (Number.isInteger(Z) && Z > 0) {
     const sym = SYMBOL_BY_Z[Z];
     if (!sym) {
-      throw new Error(`parseXYZ: line ${lineNo} atomic number ${Z} is not supported (supported: H, He, Li, Be, C, N, O, F)`);
+      throw new Error(`parseXYZ: line ${lineNo} atomic number ${Z} is not supported (supported: H through Ar, Z = 1-18)`);
     }
     return sym;
   }
   // Otherwise treat as symbol — case-normalize and validate.
   const upper = token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
   if (!SUPPORTED_SYMBOLS.has(upper as AtomSymbol)) {
-    throw new Error(`parseXYZ: line ${lineNo} element "${token}" not supported (supported: H, He, Li, Be, C, N, O, F)`);
+    throw new Error(`parseXYZ: line ${lineNo} element "${token}" not supported (supported: H through Ar, Z = 1-18)`);
   }
   return upper as AtomSymbol;
 }

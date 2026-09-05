@@ -128,13 +128,19 @@ describe("CCSD — variational ordering and capture across molecule set", () => 
 });
 
 describe("CCSD — published PySCF cross-check", () => {
-  // PySCF CCSD/STO-3G at standard geometries:
-  //   H₂   R = 0.7414: −1.137270 (= FCI)
-  //   H₂O  R = 0.9572, ∠=104.52°: ~ −75.0117 (FCI − ~0.7 mHa for missing T,
-  //         within published spread of −75.0117 to −75.0124)
-  //   LiH  R = 1.595:  ~ −7.84249
-  //   BeH₂ R = 1.34:   ~ −15.5947
-  test("H₂O CCSD/STO-3G total within 1.5 mHa of −75.0117", () => {
+  // Full-precision PySCF 2.13.0 CCSD/STO-3G (SCF 1e-10, CCSD 1e-10),
+  // committed in this repo at
+  //   experiments/results/2026-07-06/level-6/E34-pyscf.json
+  // rows {molecule, basis:"sto-3g", method:"CCSD"}:
+  //   H₂   R = 0.7414            −1.1372701746789946 (= FCI)
+  //   LiH  R = 1.595             −7.843394245683683
+  //   BeH₂ R = 1.34             −15.594456282046844
+  //   H₂O  R = 0.9572, ∠=104.52° −75.01228678295575
+  // The old literal here was −75.0117 ± 1.5 mHa: 0.59 mHa wrong and
+  // 2500× looser than what this code path actually achieves.
+  const E_CCSD_H2O_STO3G = -75.01228678295575;
+
+  test("H₂O CCSD/STO-3G total within 0.001 mHa of PySCF", () => {
     const m = MOLECULES.find((x) => x.name === "H2O")!;
     const { shells, nuclei, nElectrons } = moleculeToShellsNuclei(m.atoms);
     const integrals = computeMolecularIntegrals(shells, nuclei);
@@ -142,7 +148,8 @@ describe("CCSD — published PySCF cross-check", () => {
       maxIter: 500, damping: 0.3, energyTol: 1e-10, densityTol: 1e-8,
     });
     const ccsd = runCCSD(hf, integrals, { maxIter: 200, tol: 1e-9 });
-    expect(Math.abs(ccsd.totalEnergy - (-75.0117))).toBeLessThan(1.5e-3);
+    // Measured |Δ| = 1.6e-4 mHa (1.6e-7 Ha); bar ~6× above it.
+    expect(Math.abs((ccsd.totalEnergy - E_CCSD_H2O_STO3G) * 1000)).toBeLessThan(0.001);
   }, 60_000);
 });
 

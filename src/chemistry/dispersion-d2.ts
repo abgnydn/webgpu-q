@@ -43,10 +43,20 @@ const C6_J_NM6_PER_MOL: Readonly<Record<AtomSymbol, number>> = {
   He: 0.08,
   Li: 1.61,
   Be: 1.61,
+  B:  3.13,
   C:  1.75,
   N:  1.23,
   O:  0.70,
   F:  0.75,
+  Ne: 0.63,
+  Na: 5.71,
+  Mg: 5.71,
+  Al: 10.79,
+  Si: 9.23,
+  P:  7.84,
+  S:  5.57,
+  Cl: 5.07,
+  Ar: 4.61,
 };
 
 /** Grimme 2006 Table I: per-element R_R van-der-Waals radius in Å. */
@@ -55,10 +65,20 @@ const R_R_ANGSTROM: Readonly<Record<AtomSymbol, number>> = {
   He: 1.012,
   Li: 0.825,
   Be: 1.408,
+  B:  1.485,
   C:  1.452,
   N:  1.397,
   O:  1.342,
   F:  1.287,
+  Ne: 1.243,
+  Na: 1.144,
+  Mg: 1.364,
+  Al: 1.639,
+  Si: 1.716,
+  P:  1.705,
+  S:  1.683,
+  Cl: 1.639,
+  Ar: 1.595,
 };
 
 /** Per-element C6 in Hartree·Bohr^6 (atomic units). */
@@ -67,10 +87,20 @@ const C6_AU: Readonly<Record<AtomSymbol, number>> = {
   He: C6_J_NM6_PER_MOL.He * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
   Li: C6_J_NM6_PER_MOL.Li * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
   Be: C6_J_NM6_PER_MOL.Be * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
+  B:  C6_J_NM6_PER_MOL.B  * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
   C:  C6_J_NM6_PER_MOL.C  * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
   N:  C6_J_NM6_PER_MOL.N  * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
   O:  C6_J_NM6_PER_MOL.O  * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
   F:  C6_J_NM6_PER_MOL.F  * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
+  Ne: C6_J_NM6_PER_MOL.Ne * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
+  Na: C6_J_NM6_PER_MOL.Na * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
+  Mg: C6_J_NM6_PER_MOL.Mg * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
+  Al: C6_J_NM6_PER_MOL.Al * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
+  Si: C6_J_NM6_PER_MOL.Si * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
+  P:  C6_J_NM6_PER_MOL.P  * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
+  S:  C6_J_NM6_PER_MOL.S  * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
+  Cl: C6_J_NM6_PER_MOL.Cl * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
+  Ar: C6_J_NM6_PER_MOL.Ar * J_NM6_PER_MOL_TO_HARTREE_BOHR6,
 };
 
 /** Per-element R_R in Bohr. */
@@ -79,10 +109,20 @@ const R_R_BOHR: Readonly<Record<AtomSymbol, number>> = {
   He: R_R_ANGSTROM.He * ANGSTROM_TO_BOHR,
   Li: R_R_ANGSTROM.Li * ANGSTROM_TO_BOHR,
   Be: R_R_ANGSTROM.Be * ANGSTROM_TO_BOHR,
+  B:  R_R_ANGSTROM.B  * ANGSTROM_TO_BOHR,
   C:  R_R_ANGSTROM.C  * ANGSTROM_TO_BOHR,
   N:  R_R_ANGSTROM.N  * ANGSTROM_TO_BOHR,
   O:  R_R_ANGSTROM.O  * ANGSTROM_TO_BOHR,
   F:  R_R_ANGSTROM.F  * ANGSTROM_TO_BOHR,
+  Ne: R_R_ANGSTROM.Ne * ANGSTROM_TO_BOHR,
+  Na: R_R_ANGSTROM.Na * ANGSTROM_TO_BOHR,
+  Mg: R_R_ANGSTROM.Mg * ANGSTROM_TO_BOHR,
+  Al: R_R_ANGSTROM.Al * ANGSTROM_TO_BOHR,
+  Si: R_R_ANGSTROM.Si * ANGSTROM_TO_BOHR,
+  P:  R_R_ANGSTROM.P  * ANGSTROM_TO_BOHR,
+  S:  R_R_ANGSTROM.S  * ANGSTROM_TO_BOHR,
+  Cl: R_R_ANGSTROM.Cl * ANGSTROM_TO_BOHR,
+  Ar: R_R_ANGSTROM.Ar * ANGSTROM_TO_BOHR,
 };
 
 /** Damping steepness — universal in D2. */
