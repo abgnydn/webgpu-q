@@ -14,6 +14,16 @@ recorded as such below rather than "fixed".
 
 ### Fixed
 
+- **Anthracene wrong-basin honest negative went stale.** The nightly
+  swarm-deep run landed at E ≈ −534.021 Ha instead of the documented
+  ≈ −880 Ha catastrophe, after the #36 H cc-pVDZ exponent repair
+  shifted the SCF landscape — and the 5 Ha gate went blind (2.98 <
+  5.0), so Playwright reported "expected to fail, but passed" and
+  failed the run. Per the spec's own design (the annotation exists so
+  a fix turns CI red), this is the mechanism working: updated
+  LIMITATIONS.md §3 with the new measurement, tightened the e2e gate
+  5.0 → 1.0 Ha so it keeps failing honestly, kept `test.fail()`
+  (~3 Ha is still not the ground state; MOM/SOSCF/SAD still the fix).
 - **CCSD/UCCSD false convergence.** The iteration stopped on `|ΔE| < tol` alone.
   Because the energy is stationary to first order in the amplitude error, `|ΔE|`
   can fall below `tol` while `‖ΔT‖` is still large — a false `converged: true`.

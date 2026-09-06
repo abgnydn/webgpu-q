@@ -26,7 +26,10 @@ const N_CARBON = 14;
 // idealised (regular hexagons, 1.40 Å) so a literature-digit comparison isn't
 // available anyway. Even at 5 Ha of slack the run below misses by 343 Ha.
 const LIT_HF_CCPVDZ = -537.0;
-const LIT_TOL_HA = 5.0;
+// 1 Ha milestone gate (tightened 2026-09-05 from 5.0): the 5 Ha window was
+// sized for the -880 Ha catastrophe and went blind when the basin improved
+// to -534.021 (2.98 Ha off). A true fix must land sub-Ha to flip this test.
+const LIT_TOL_HA = 1.0;
 
 // Captured by the architecture test, re-asserted by the documented-negative
 // physics test below. Serial describe: ONE 20-minute SCF, two separate claims —
@@ -296,11 +299,17 @@ test.describe.serial(`Swarm anthracene cc-pVDZ HF SCF — ${N_TABS}-tab × ${INN
   });
 
   // ── DOCUMENTED NEGATIVE — this test is REQUIRED to fail. ───────────────────
-  // The run above converges to ≈ -880 Ha; anthracene HF/cc-pVDZ is ≈ -537 Ha.
-  // That is a 343 Ha error reported with `converged: true` and a finite,
-  // plausible-looking number — the most dangerous failure mode in the repo,
-  // LIMITATIONS.md §3. Until 2026-08 it was certified GREEN by an assertion
-  // window of `-1500 < E < -100`.
+  // History: the run converged to ≈ -880 Ha against literature ≈ -537 Ha
+  // (343 Ha error, `converged: true`, finite plausible-looking number — the
+  // most dangerous failure mode in the repo, LIMITATIONS.md §3).
+  // Update 2026-09-05: after the #36 H cc-pVDZ exponent repair, the nightly
+  // run lands at ≈ -534.021 Ha (2.98 Ha off) — the catastrophe basin is
+  // gone but the ground-state basin is still missed, so test.fail() stays
+  // and the tolerance above tightened 5.0 → 1.0 to keep failing honestly.
+  // The original -880 figure was a 343 Ha error reported with `converged:
+  // true` and a finite, plausible-looking number — the most dangerous
+  // failure mode in the repo, LIMITATIONS.md §3. Until 2026-08 it was
+  // certified GREEN by an assertion window of `-1500 < E < -100`.
   //
   // Cause: the damped warm-up plus the idealised planar geometry steers the SCF
   // into a non-physical orbital occupation that is variationally lower but is

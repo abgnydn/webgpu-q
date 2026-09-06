@@ -161,7 +161,13 @@ will silently truncate large dispatches.
   lands, treat any large-PAH SCF energy from this code as unvalidated
   regardless of the `converged` flag — and note that no automatic check
   currently catches this, since the energy is finite, the SCF is
-  converged, and only an external reference reveals the error.
+   converged, and only an external reference reveals the error.
+   Update 2026-09-05: the nightly swarm-deep run now lands at **E ≈
+   −534.021 Ha (2.98 Ha off literature)** instead of −880 Ha, after the
+   #36 H cc-pVDZ exponent repair shifted the SCF landscape. The
+   catastrophe basin is gone; the ground-state basin is still missed
+   (~3 Ha is not chemistry), so this entry stays open and the e2e gate
+   tolerance tightened 5.0 → 1.0 Ha to keep failing for the right reason.
 
 ---
 
